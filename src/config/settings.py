@@ -4,17 +4,23 @@ from pathlib import Path
 
 class Settings(BaseSettings):
     # Database
-    DATABASE_URL: str = "postgresql://user:password@localhost:5432/crypto_trading"
+    DATABASE_URL: str = "postgresql://alpha_user:asdfre32@172.20.91.212:5432/alpha"
     
     # Exchange settings
-    EXCHANGES: List[str] = ["binance", "coinbase", "kraken"]
+    EXCHANGES: List[str] = ["bybit"]
     EXCHANGE_CONFIGS: Dict[str, Dict] = {
         "binance": {
-            "apiKey": "",
-            "secret": "",
+            "enableRateLimit": True,
+            # Add your API keys here if needed
+            # "apiKey": "",
+            # "secret": "",
+        },
+        "coinbase": {
             "enableRateLimit": True,
         },
-        # Add other exchange configs
+        "kraken": {
+            "enableRateLimit": True,
+        }
     }
     
     # Trading parameters
