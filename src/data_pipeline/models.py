@@ -1,12 +1,11 @@
 from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, JSON
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import declarative_base, relationship
+from datetime import datetime
 
 Base = declarative_base()
 
 class Strategy(Base):
     __tablename__ = "strategies"
-    __table_args__ = {"schema": "alpha_schema"}
     
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
@@ -18,7 +17,6 @@ class Strategy(Base):
 
 class OHLCV(Base):
     __tablename__ = "ohlcv"
-    __table_args__ = {"schema": "alpha_schema"}
     
     id = Column(Integer, primary_key=True)
     exchange = Column(String, nullable=False)
@@ -29,18 +27,12 @@ class OHLCV(Base):
     low = Column(Float, nullable=False)
     close = Column(Float, nullable=False)
     volume = Column(Float, nullable=False)
-    
-    class Config:
-        indexes = [
-            ("exchange", "symbol", "timestamp")
-        ]
 
 class Trade(Base):
     __tablename__ = "trades"
-    __table_args__ = {"schema": "alpha_schema"}
 
     id = Column(Integer, primary_key=True)
-    strategy_id = Column(Integer, ForeignKey("alpha_schema.strategies.id"))
+    strategy_id = Column(Integer, ForeignKey("strategies.id"))
     exchange = Column(String, nullable=False)
     symbol = Column(String, nullable=False)
     side = Column(String, nullable=False)  # buy/sell
@@ -48,4 +40,4 @@ class Trade(Base):
     price = Column(Float, nullable=False)
     timestamp = Column(DateTime, nullable=False)
     
-    strategy = relationship("Strategy", back_populates="trades") 
+    strategy = relationship("Strategy", back_populates="trades")

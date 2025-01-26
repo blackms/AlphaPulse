@@ -1,7 +1,7 @@
 from data_pipeline.data_fetcher import DataFetcher
 from data_pipeline.database import get_db
-from data_pipeline.models import OHLCV
-from datetime import datetime, timedelta
+from data_pipeline.models import OHLCV, Base
+from datetime import datetime, timedelta, UTC
 from loguru import logger
 
 def test_data_fetcher():
@@ -9,6 +9,10 @@ def test_data_fetcher():
     
     # Test fetching and storing recent data
     try:
+        # Create tables first
+        with get_db() as db:
+            Base.metadata.create_all(bind=db.get_bind())
+        
         # Fetch last 24 hours of data
         fetcher.update_historical_data(
             exchange_id='binance',
@@ -24,11 +28,15 @@ def test_data_fetcher():
             count = db.query(OHLCV).filter(
                 OHLCV.exchange == 'binance',
                 OHLCV.symbol == 'BTC/USDT',
-                OHLCV.timestamp >= datetime.utcnow() - timedelta(days=1)
+                OHLCV.timestamp >= datetime.now(UTC) - timedelta(days=1)
             ).count()
             
             assert count > 0
             logger.info(f"Found {count} records in database")
+            
+            # Clean up
+            db.query(OHLCV).delete()
+            db.commit()
             
     except Exception as e:
         logger.error(f"Data fetcher test failed: {str(e)}")

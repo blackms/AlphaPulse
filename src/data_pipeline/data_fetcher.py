@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 import time
 from typing import List, Optional
 import pandas as pd
@@ -42,11 +42,13 @@ class DataFetcher:
             models = []
             for data in ohlcv_data:
                 timestamp, open_price, high, low, close, volume = data
+                # Create timezone-aware datetime
+                ts = datetime.fromtimestamp(timestamp / 1000, tz=UTC)
                 models.append(
                     OHLCV(
                         exchange=exchange_id,
                         symbol=symbol,
-                        timestamp=datetime.fromtimestamp(timestamp / 1000),
+                        timestamp=ts,
                         open=float(open_price),
                         high=float(high),
                         low=float(low),
@@ -81,7 +83,7 @@ class DataFetcher:
         days_back: int = 30
     ) -> None:
         """Update historical data for a symbol"""
-        since = datetime.utcnow() - timedelta(days=days_back)
+        since = datetime.now(UTC) - timedelta(days=days_back)
         
         try:
             data = self.fetch_ohlcv(
@@ -97,4 +99,4 @@ class DataFetcher:
             
         except Exception as e:
             logger.error(f"Error updating historical data: {str(e)}")
-            raise 
+            raise

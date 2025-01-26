@@ -23,7 +23,12 @@ engine = create_engine(
 @event.listens_for(engine, "connect")
 def receive_connect(dbapi_connection, connection_record):
     logger.info("New database connection established")
-    logger.info(f"Connected with parameters: {dbapi_connection.get_dsn_parameters()}")
+    if 'postgresql' in settings.DATABASE_URL:
+        # PostgreSQL specific logging
+        logger.info(f"Connected with parameters: {dbapi_connection.get_dsn_parameters()}")
+    else:
+        # Generic logging for other databases (including SQLite)
+        logger.info(f"Connected to database: {settings.DATABASE_URL}")
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -38,4 +43,4 @@ def get_db() -> Generator:
         raise
     finally:
         logger.info("Closing database session")
-        db.close() 
+        db.close()

@@ -1,6 +1,6 @@
 from data_pipeline.database import get_db
 from data_pipeline.models import Base, OHLCV, Strategy, Trade
-from datetime import datetime
+from datetime import datetime, UTC
 import pytest
 
 def test_database_connection():
@@ -13,7 +13,7 @@ def test_database_connection():
             name="Simple Moving Average",
             type="ta",
             parameters={"short_window": 10, "long_window": 20},
-            created_at=datetime.utcnow()
+            created_at=datetime.now(UTC)
         )
         db.add(strategy)
         db.commit()
@@ -22,7 +22,7 @@ def test_database_connection():
         sample_ohlcv = OHLCV(
             exchange="binance",
             symbol="BTC/USDT",
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(UTC),
             open=50000.0,
             high=51000.0,
             low=49000.0,
@@ -39,7 +39,7 @@ def test_database_connection():
             side="buy",
             amount=0.1,
             price=50000.0,
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(UTC)
         )
         db.add(sample_trade)
         
@@ -57,4 +57,4 @@ def test_database_connection():
         db.commit()
 
 if __name__ == "__main__":
-    test_database_connection() 
+    test_database_connection()
