@@ -1,19 +1,40 @@
 from datetime import datetime, timedelta, UTC
-import time
 from typing import List, Optional
-import pandas as pd
 from loguru import logger
-from sqlalchemy.orm import Session
-from sqlalchemy.exc import IntegrityError
 
-from .exchange import ExchangeManager
+from .interfaces import IExchange, IExchangeFactory, IDataStorage
 from .models import OHLCV
-from .database import get_db
-from config.settings import settings
 
 class DataFetcher:
-    def __init__(self):
-        self.exchange_manager = ExchangeManager()
+    def __init__(self, exchange_factory: IExchangeFactory, storage: IDataStorage):
+        self.exchange_factory = exchange_factory
+        self.storage = storage
+        
+    def _create_ohlcv_models(
+        self,
+        exchange_id: str,
+        symbol: str,
+        ohlcv_data: List
+    ) -> List[OHLCV]:
+        """Convert raw OHLCV data to database models"""
+        models = []
+        for data in ohlcv_data:
+            timestamp, open_price, high, low, close, volume = data
+            # Create timezone-aware datetime
+            ts = datetime.fromtimestamp(timestamp / 1000, tz=UTC)
+            models.append(
+                OHLCV(
+                    exchange=exchange_id,
+                    symbol=symbol,
+                    timestamp=ts,
+                    open=float(open_price),
+                    high=float(high),
+                    low=float(low),
+                    close=float(close),
+                    volume=float(volume)
+                )
+            )
+        return models
         
     def fetch_ohlcv(
         self,
@@ -24,56 +45,19 @@ class DataFetcher:
         limit: int = 1000
     ) -> List[OHLCV]:
         """Fetch OHLCV data from exchange and convert to database models"""
-        exchange = self.exchange_manager.get_exchange(exchange_id)
-        
         try:
-            # Convert datetime to timestamp in milliseconds
-            since_ts = int(since.timestamp() * 1000) if since else None
-            
-            # Fetch data from exchange
+            exchange = self.exchange_factory.create_exchange(exchange_id)
             ohlcv_data = exchange.fetch_ohlcv(
                 symbol,
                 timeframe=timeframe,
-                since=since_ts,
+                since=since,
                 limit=limit
             )
-            
-            # Convert to OHLCV models
-            models = []
-            for data in ohlcv_data:
-                timestamp, open_price, high, low, close, volume = data
-                # Create timezone-aware datetime
-                ts = datetime.fromtimestamp(timestamp / 1000, tz=UTC)
-                models.append(
-                    OHLCV(
-                        exchange=exchange_id,
-                        symbol=symbol,
-                        timestamp=ts,
-                        open=float(open_price),
-                        high=float(high),
-                        low=float(low),
-                        close=float(close),
-                        volume=float(volume)
-                    )
-                )
-            
-            return models
+            return self._create_ohlcv_models(exchange_id, symbol, ohlcv_data)
             
         except Exception as e:
             logger.error(f"Error fetching OHLCV data: {str(e)}")
             raise
-            
-    def store_ohlcv(self, data: List[OHLCV]) -> None:
-        """Store OHLCV data in database"""
-        with get_db() as db:
-            try:
-                db.bulk_save_objects(data)
-                db.commit()
-                logger.info(f"Stored {len(data)} OHLCV records")
-            except IntegrityError as e:
-                db.rollback()
-                logger.error(f"Database integrity error: {str(e)}")
-                raise
             
     def update_historical_data(
         self,
@@ -94,7 +78,7 @@ class DataFetcher:
             )
             
             if data:
-                self.store_ohlcv(data)
+                self.storage.save_ohlcv(data)
                 logger.info(f"Updated historical data for {symbol} on {exchange_id}")
             
         except Exception as e:
