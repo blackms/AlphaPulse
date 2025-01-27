@@ -11,6 +11,7 @@ A powerful and efficient trading data pipeline system for collecting, processing
 - 🚀 High-performance data processing
 - 📊 Advanced feature engineering and ML pipeline
 - 🤖 Machine learning model training and evaluation
+- 📈 Backtesting and strategy evaluation framework
 
 ## 🏗️ Project Structure
 
@@ -21,6 +22,7 @@ AlphaPulse/
 │   ├── data_pipeline/   # Core data processing modules
 │   ├── features/        # Feature engineering components
 │   ├── models/          # ML model training and evaluation
+│   ├── backtesting/     # Strategy backtesting framework
 │   ├── examples/        # Usage examples and demos
 │   └── tests/           # Test suite
 ```
@@ -72,12 +74,53 @@ trainer = ModelTrainer(
 metrics = trainer.train(features, target)
 ```
 
-#### 📈 Example Usage
-Check out `src/examples/demo_feature_engineering.py` for a complete demonstration of:
+### 📊 Backtesting & Strategy Evaluation
+
+The backtesting framework allows you to evaluate trading strategies using historical data and model predictions:
+
+#### 🔧 Core Components (`src/backtesting/`)
+- Flexible backtesting engine
+- Customizable trading strategies
+- Performance metrics calculation
+- Trade visualization tools
+
+```python
+from alpha_pulse.backtesting import Backtester, DefaultStrategy
+
+# Initialize backtester
+backtester = Backtester(
+    commission=0.001,  # 0.1% commission
+    initial_capital=100000,
+    position_size=0.1  # Risk 10% of capital per trade
+)
+
+# Run backtest
+results = backtester.backtest(
+    prices=historical_prices,
+    signals=model_predictions,
+    strategy=DefaultStrategy(threshold=0.5)
+)
+
+print(results)  # Display performance metrics
+```
+
+#### 📈 Available Strategies
+- **DefaultStrategy**: Basic long-only strategy based on signal threshold
+- **TrendFollowingStrategy**: Momentum-based approach with separate entry/exit thresholds
+- **MeanReversionStrategy**: Mean reversion trading with overbought/oversold levels
+
+#### 📊 Performance Metrics
+- Total return and Sharpe ratio
+- Maximum drawdown
+- Win rate and profit factor
+- Trade-by-trade analysis
+- Equity curve visualization
+
+Check out `src/examples/demo_backtesting.py` for a complete demonstration of:
 - Loading historical data
-- Computing technical indicators
-- Training and evaluating ML models
-- Visualizing results and feature importance
+- Generating trading signals
+- Running backtests with different strategies
+- Analyzing and visualizing results
 
 ## 🛠️ Installation
 
@@ -115,6 +158,7 @@ The test suite includes:
 - Exchange integration testing
 - Feature engineering validation
 - ML model training verification
+- Backtesting framework validation
 
 ## 📝 Usage
 
@@ -122,12 +166,14 @@ The test suite includes:
 from src.data_pipeline import DataFetcher, Exchange, Database
 from src.features import FeatureStore
 from src.models import ModelTrainer
+from src.backtesting import Backtester, DefaultStrategy
 
 # Initialize components
 fetcher = DataFetcher()
 exchange = Exchange()
 db = Database()
 feature_store = FeatureStore()
+backtester = Backtester()
 
 # Start data collection
 fetcher.start()
@@ -135,7 +181,12 @@ fetcher.start()
 # Compute features and train model
 features = feature_store.compute_technical_indicators(price_data)
 trainer = ModelTrainer()
-trainer.train(features, target)
+model = trainer.train(features, target)
+
+# Run backtest
+predictions = model.predict(features)
+results = backtester.backtest(price_data, predictions)
+print(f"Strategy Performance: {results}")
 ```
 
 ## 🤝 Contributing
