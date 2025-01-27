@@ -37,7 +37,7 @@ def calculate_ema(data: pd.Series, window: int) -> pd.Series:
     Returns:
         pd.Series: Exponential Moving Average series
     """
-    return data.ewm(span=window, adjust=False).mean()
+    return data.ewm(span=window, adjust=False, min_periods=window).mean()
 
 
 def calculate_rsi(data: pd.Series, window: int = 14) -> pd.Series:

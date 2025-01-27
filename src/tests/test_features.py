@@ -25,19 +25,36 @@ class TestTechnicalIndicators(unittest.TestCase):
     
     def setUp(self):
         """Set up test data."""
-        # Create sample price data
+        # Create sample price data with enough periods for MACD calculation
+        np.random.seed(42)  # For reproducibility
+        n_periods = 50  # Enough for MACD (26) + signal (9) periods
+        base_price = 100
+        random_walk = np.random.randn(n_periods) * 2  # Random price movements
+        prices = base_price + np.cumsum(random_walk)  # Random walk price series
+        
         self.prices = pd.Series(
-            [100, 102, 99, 101, 103, 98, 96, 99, 102, 104],
-            index=pd.date_range(start='2024-01-01', periods=10, freq='D')
+            prices,
+            index=pd.date_range(start='2024-01-01', periods=n_periods, freq='D')
         )
 
     def test_sma_calculation(self):
         """Test Simple Moving Average calculation."""
-        sma = calculate_sma(self.prices, window=3)
+        window = 3
+        sma = calculate_sma(self.prices, window=window)
+        
+        # Test length and NaN values
         self.assertEqual(len(sma), len(self.prices))
         self.assertTrue(np.isnan(sma.iloc[0]))  # First two values should be NaN
         self.assertTrue(np.isnan(sma.iloc[1]))
-        self.assertAlmostEqual(sma.iloc[2], 100.33333, places=5)  # First valid value
+        
+        # Test calculation manually
+        first_valid_value = self.prices.iloc[0:window].mean()
+        self.assertAlmostEqual(sma.iloc[window-1], first_valid_value, places=5)
+        
+        # Test random spot check
+        mid_point = len(self.prices) // 2
+        manual_sma = self.prices.iloc[mid_point-window+1:mid_point+1].mean()
+        self.assertAlmostEqual(sma.iloc[mid_point], manual_sma, places=5)
 
     def test_ema_calculation(self):
         """Test Exponential Moving Average calculation."""
