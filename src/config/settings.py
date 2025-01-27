@@ -4,7 +4,7 @@ from pathlib import Path
 
 class Settings(BaseSettings):
     # Database
-    DATABASE_URL: str = "postgresql://alpha_user:asdfre32@172.20.91.212:5432/alpha"
+    DATABASE_URL: str = "sqlite:///./alpha_pulse.db"
     
     # Exchange settings
     EXCHANGES: List[str] = ["bybit"]
@@ -34,4 +34,4 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
 
-settings = Settings() 
+settings = Settings()
