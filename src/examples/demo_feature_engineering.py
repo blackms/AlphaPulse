@@ -90,18 +90,22 @@ def main():
     features['log_returns'] = np.log1p(features['returns'])
     features['volatility'] = features['returns'].rolling(window=20).std()
     
-    # Remove any rows with NaN values
-    features = features.dropna()
     print(f"Generated {len(features.columns)} features")
     
     # 3. Create target variable (next day returns)
     target = create_target_variable(df, forward_returns_days=1)
-    target = target[features.index]  # Align index with features
     
-    # Remove any remaining NaN values
-    valid_idx = ~(features.isna().any(axis=1) | target.isna())
-    features = features[valid_idx]
-    target = target[valid_idx]
+    # Align features and target indices
+    common_idx = features.index.intersection(target.index)
+    features = features.loc[common_idx]
+    target = target.loc[common_idx]
+    
+    # Remove any rows with NaN values
+    valid_mask = ~(features.isna().any(axis=1) | target.isna())
+    features = features.loc[valid_mask]
+    target = target.loc[valid_mask]
+    
+    print(f"Final dataset size: {len(features)} samples")
     
     # 4. Train and evaluate model
     model_dir = Path('trained_models')
