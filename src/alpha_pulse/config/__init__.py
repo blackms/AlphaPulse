@@ -1,11 +1,12 @@
 """
-AlphaPulse configuration package.
+Configuration package for AlphaPulse.
 """
 
-from .settings import settings, Settings, ExchangeConfig
+from .settings import settings, Settings, ExchangeConfig, DatabaseConfig
 
 __all__ = [
     'settings',
     'Settings',
-    'ExchangeConfig'
+    'ExchangeConfig',
+    'DatabaseConfig',
 ]
