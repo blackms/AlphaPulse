@@ -9,17 +9,7 @@ import pandas as pd
 from loguru import logger
 
 from .strategy import BaseStrategy, DefaultStrategy
-
-
-@dataclass
-class Position:
-    """Represents a trading position."""
-    entry_price: float
-    entry_time: datetime
-    size: float
-    pnl: float = 0.0
-    exit_price: Optional[float] = None
-    exit_time: Optional[datetime] = None
+from .models import Position
 
 
 @dataclass
@@ -70,6 +60,9 @@ class Backtester:
             initial_capital: Starting capital for the backtest
             position_size: Fraction of capital to risk per trade (0.0 to 1.0)
         """
+        if position_size < 0.0 or position_size > 1.0:
+            raise ValueError("Position size must be between 0.0 and 1.0")
+        
         self.commission = commission
         self.initial_capital = initial_capital
         self.position_size = position_size
@@ -80,16 +73,37 @@ class Backtester:
         self.equity = self.initial_capital
         self.positions: List[Position] = []
         self.current_position: Optional[Position] = None
-        self.equity_curve: List[float] = [self.initial_capital]
+        self.equity_curve: Dict[datetime, float] = {}
 
     def _calculate_position_size(self, price: float) -> float:
         """Calculate the position size based on current equity."""
+        if self.position_size == 0.0:
+            return 0.0
         return (self.equity * self.position_size) / price
 
-    def _update_equity(self, pnl: float) -> None:
+    def _update_equity(self, timestamp: datetime, pnl: float = 0.0) -> None:
         """Update equity with realized PnL."""
         self.equity += pnl
-        self.equity_curve.append(self.equity)
+        self.equity_curve[timestamp] = self.equity
+
+    def _calculate_sharpe_ratio(self, returns: np.ndarray) -> float:
+        """
+        Calculate the Sharpe ratio from a series of returns.
+        
+        Args:
+            returns: Array of trade returns
+
+        Returns:
+            float: Annualized Sharpe ratio (assuming daily data)
+        """
+        if len(returns) < 2:  # Need at least 2 returns for std calculation
+            return 0.0
+        
+        std_dev = np.std(returns, ddof=1)  # Use sample standard deviation
+        if std_dev == 0:
+            return 0.0
+            
+        return np.sqrt(252) * np.mean(returns) / std_dev
 
     def backtest(
         self,
@@ -117,7 +131,35 @@ class Backtester:
         if not prices.index.equals(signals.index):
             raise ValueError("Price and signal data must have matching timestamps")
 
+        if (prices <= 0).any():
+            raise ValueError("Prices must be positive")
+
+        # Skip backtesting if position size is zero
+        if self.position_size == 0.0:
+            logger.warning("Position size is zero, no trades will be executed")
+            equity_curve = pd.Series(
+                self.initial_capital,
+                index=prices.index
+            )
+            return BacktestResult(
+                total_return=0.0,
+                sharpe_ratio=0.0,
+                max_drawdown=0.0,
+                total_trades=0,
+                winning_trades=0,
+                losing_trades=0,
+                win_rate=0.0,
+                avg_win=0.0,
+                avg_loss=0.0,
+                profit_factor=0.0,
+                positions=[],
+                equity_curve=equity_curve
+            )
+
         returns = []
+        
+        # Initialize equity curve with starting capital
+        self._update_equity(prices.index[0])
         
         for timestamp, price in prices.items():
             signal = signals[timestamp]
@@ -140,20 +182,30 @@ class Backtester:
                     self.current_position.exit_time = timestamp
                     self.current_position.pnl = pnl
                     
-                    self._update_equity(pnl)
+                    self._update_equity(timestamp, pnl)
                     self.positions.append(self.current_position)
                     self.current_position = None
                     
-                    returns.append(pnl / entry_value)
-            
-            # Check for new entry
-            if self.current_position is None and strategy.should_enter(signal):
-                size = self._calculate_position_size(price)
-                self.current_position = Position(
-                    entry_price=price,
-                    entry_time=timestamp,
-                    size=size
-                )
+                    if entry_value != 0:  # Avoid division by zero
+                        returns.append(pnl / entry_value)
+                else:
+                    # Update equity curve with unrealized PnL
+                    unrealized_pnl = (
+                        self.current_position.size * 
+                        (price - self.current_position.entry_price)
+                    )
+                    self._update_equity(timestamp)
+            else:
+                # Check for new entry
+                if strategy.should_enter(signal):
+                    size = self._calculate_position_size(price)
+                    if size > 0:  # Only enter if position size is positive
+                        self.current_position = Position(
+                            entry_price=price,
+                            entry_time=timestamp,
+                            size=size
+                        )
+                self._update_equity(timestamp)
 
         # Close any remaining position at the end
         if self.current_position is not None:
@@ -172,15 +224,21 @@ class Backtester:
             self.current_position.exit_time = prices.index[-1]
             self.current_position.pnl = pnl
             
-            self._update_equity(pnl)
+            self._update_equity(prices.index[-1], pnl)
             self.positions.append(self.current_position)
-            returns.append(pnl / entry_value)
+            
+            if entry_value != 0:  # Avoid division by zero
+                returns.append(pnl / entry_value)
 
         # Calculate performance metrics
         total_return = (self.equity - self.initial_capital) / self.initial_capital
         
         if not returns:  # No trades made
             logger.warning("No trades were executed during the backtest")
+            equity_curve = pd.Series(
+                self.initial_capital,
+                index=prices.index
+            )
             return BacktestResult(
                 total_return=0.0,
                 sharpe_ratio=0.0,
@@ -193,20 +251,22 @@ class Backtester:
                 avg_loss=0.0,
                 profit_factor=0.0,
                 positions=[],
-                equity_curve=pd.Series(self.equity_curve, index=prices.index)
+                equity_curve=equity_curve
             )
 
         returns = np.array(returns)
         winning_trades = len([p for p in self.positions if p.pnl > 0])
         losing_trades = len([p for p in self.positions if p.pnl < 0])
         
-        # Calculate Sharpe ratio (assuming daily data)
-        sharpe_ratio = np.sqrt(252) * np.mean(returns) / np.std(returns)
+        # Calculate Sharpe ratio
+        sharpe_ratio = self._calculate_sharpe_ratio(returns)
+        
+        # Create equity curve series
+        equity_curve = pd.Series(self.equity_curve)
         
         # Calculate maximum drawdown
-        equity_series = pd.Series(self.equity_curve)
-        rolling_max = equity_series.expanding().max()
-        drawdowns = (equity_series - rolling_max) / rolling_max
+        rolling_max = equity_curve.expanding().max()
+        drawdowns = (equity_curve - rolling_max) / rolling_max
         max_drawdown = abs(drawdowns.min())
         
         # Calculate average win/loss
@@ -230,10 +290,10 @@ class Backtester:
             total_trades=len(self.positions),
             winning_trades=winning_trades,
             losing_trades=losing_trades,
-            win_rate=winning_trades / len(self.positions),
+            win_rate=winning_trades / len(self.positions) if self.positions else 0.0,
             avg_win=avg_win,
             avg_loss=avg_loss,
             profit_factor=profit_factor,
             positions=self.positions,
-            equity_curve=pd.Series(self.equity_curve, index=prices.index)
+            equity_curve=equity_curve
         )

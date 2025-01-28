@@ -6,7 +6,7 @@ from typing import Optional
 
 from loguru import logger
 
-from .backtester import Position
+from .models import Position
 
 
 class BaseStrategy(ABC):
