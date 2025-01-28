@@ -1,4 +1,4 @@
-from data_pipeline.exchange import ExchangeManager
+from alpha_pulse.data_pipeline.exchange import ExchangeManager
 import pytest
 from loguru import logger
 
