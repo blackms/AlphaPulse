@@ -175,6 +175,87 @@ def calculate_bollinger_bands(
     return upper_band, middle_band, lower_band
 
 
+def calculate_technical_indicators(data: pd.DataFrame) -> pd.DataFrame:
+    """
+    Calculate technical indicators for price data.
+
+    Args:
+        data: DataFrame with OHLCV data
+
+    Returns:
+        DataFrame with computed indicators
+    """
+    if len(data) == 0:
+        return pd.DataFrame()
+    
+    features = pd.DataFrame(index=data.index)
+    
+    # Price-based features
+    features['returns'] = data['close'].pct_change()
+    features['log_returns'] = np.log1p(features['returns'])
+    
+    # Rolling statistics
+    stats = calculate_rolling_stats(data['close'], window=20)
+    features['volatility'] = stats['std']
+    
+    # Moving averages
+    features['sma_20'] = calculate_sma(data['close'], 20)
+    features['sma_50'] = calculate_sma(data['close'], 50)
+    features['ema_20'] = calculate_ema(data['close'], 20)
+    
+    # RSI
+    features['rsi'] = calculate_rsi(data['close'])
+    
+    # MACD
+    macd, signal, hist = calculate_macd(data['close'])
+    features['macd'] = macd
+    features['macd_signal'] = signal
+    features['macd_hist'] = hist
+    
+    # Bollinger Bands
+    upper, _, lower = calculate_bollinger_bands(data['close'])
+    features['bollinger_upper'] = upper
+    features['bollinger_lower'] = lower
+    
+    # ATR (Average True Range)
+    high_low = data['high'] - data['low']
+    high_close = abs(data['high'] - data['close'].shift())
+    low_close = abs(data['low'] - data['close'].shift())
+    ranges = pd.concat([high_low, high_close, low_close], axis=1)
+    true_range = ranges.max(axis=1)
+    features['atr'] = true_range.rolling(window=14).mean()
+    
+    logger.info(f"Generated {len(features.columns)} technical indicators")
+    return features
+
+
+def add_target_column(
+    data: pd.DataFrame,
+    target_column: str = 'close',
+    periods: int = 1,
+    pct_change: bool = True
+) -> pd.DataFrame:
+    """
+    Add target column for prediction.
+
+    Args:
+        data: DataFrame with price data
+        target_column: Column to use for target calculation
+        periods: Number of periods to look ahead
+        pct_change: If True, calculate percentage change, otherwise absolute change
+
+    Returns:
+        DataFrame with added target column
+    """
+    if pct_change:
+        data['target'] = data[target_column].pct_change(periods).shift(-periods)
+    else:
+        data['target'] = data[target_column].diff(periods).shift(-periods)
+    
+    logger.info(f"Added target column (periods={periods}, pct_change={pct_change})")
+    return data
+
+
 class FeatureStore:
     """Manages feature computation and caching."""
 
@@ -188,71 +269,6 @@ class FeatureStore:
         self.cache_dir = Path(cache_dir) if cache_dir else Path('feature_cache')
         self.cache_dir.mkdir(exist_ok=True)
         logger.info(f"Initialized FeatureStore with cache dir: {self.cache_dir}")
-
-    def compute_technical_indicators(
-        self,
-        data: pd.DataFrame,
-        windows: Optional[List[int]] = None
-    ) -> pd.DataFrame:
-        """
-        Compute technical indicators for price data.
-
-        Args:
-            data: DataFrame with OHLCV data
-            windows: List of lookback periods for indicators
-
-        Returns:
-            DataFrame with computed indicators
-        """
-        if windows is None:
-            windows = [12, 26, 50, 100, 200]
-        
-        if len(data) == 0:
-            return pd.DataFrame()
-        
-        features = pd.DataFrame(index=data.index)
-        
-        # Price-based features
-        features['returns'] = data['close'].pct_change()
-        features['log_returns'] = np.log1p(features['returns'])
-        
-        # Rolling statistics
-        stats = calculate_rolling_stats(data['close'], window=20)
-        features['volatility'] = stats['std']
-        features['rolling_mean'] = stats['mean']
-        features['rolling_min'] = stats['min']
-        features['rolling_max'] = stats['max']
-        features['rolling_median'] = stats['median']
-        features['rolling_skew'] = stats['skew']
-        features['rolling_kurt'] = stats['kurt']
-        
-        # Moving averages
-        for window in [12, 26, 50, 100, 200]:
-            features[f'sma_{window}'] = calculate_sma(data['close'], window)
-            features[f'ema_{window}'] = calculate_ema(data['close'], window)
-        
-        # RSI
-        features['rsi'] = calculate_rsi(data['close'])
-        
-        # MACD
-        macd, signal, hist = calculate_macd(data['close'])
-        features['macd'] = macd
-        features['macd_signal'] = signal
-        features['macd_hist'] = hist
-        
-        # Bollinger Bands
-        upper, middle, lower = calculate_bollinger_bands(data['close'])
-        features['bb_upper'] = upper
-        features['bb_middle'] = middle
-        features['bb_lower'] = lower
-        features['bb_width'] = (upper - lower) / middle
-        
-        # Price momentum
-        for window in [5, 10, 20]:
-            features[f'momentum_{window}'] = data['close'].pct_change(window)
-        
-        logger.info(f"Generated {len(features.columns)} features")
-        return features
 
     def add_features(self, name: str, features: pd.DataFrame) -> None:
         """

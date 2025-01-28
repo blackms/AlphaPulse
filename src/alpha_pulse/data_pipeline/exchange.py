@@ -1,8 +1,9 @@
 """
 Exchange connectivity module for AlphaPulse.
 """
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
+import numpy as np
 
 from loguru import logger
 
@@ -183,6 +184,61 @@ class Exchange(IExchange):
         self.api_secret = settings.exchange.api_secret
         self.exchange_id = settings.exchange.id
 
+    def _generate_mock_data(
+        self,
+        start_time: datetime,
+        end_time: datetime,
+        timeframe: str
+    ) -> List[List[float]]:
+        """Generate realistic mock price data."""
+        # Calculate number of periods
+        if timeframe == "1h":
+            delta = timedelta(hours=1)
+        elif timeframe == "1d":
+            delta = timedelta(days=1)
+        else:
+            delta = timedelta(hours=1)  # Default to 1h
+        
+        periods = int((end_time - start_time) / delta)
+        
+        # Generate price data with random walk
+        np.random.seed(42)  # For reproducibility
+        returns = np.random.normal(0.0001, 0.02, periods)  # Mean slightly positive
+        price = 29000.0  # Starting price
+        prices = [price]
+        
+        for r in returns:
+            price *= (1 + r)
+            prices.append(price)
+        
+        # Generate OHLCV data
+        ohlcv = []
+        current_time = start_time
+        
+        for i in range(periods):
+            timestamp = int(current_time.timestamp() * 1000)
+            base_price = prices[i]
+            
+            # Generate realistic OHLCV data
+            high_price = base_price * (1 + abs(np.random.normal(0, 0.005)))
+            low_price = base_price * (1 - abs(np.random.normal(0, 0.005)))
+            open_price = base_price * (1 + np.random.normal(0, 0.003))
+            close_price = prices[i + 1]
+            volume = abs(np.random.normal(1000, 300))
+            
+            ohlcv.append([
+                timestamp,
+                open_price,
+                high_price,
+                low_price,
+                close_price,
+                volume
+            ])
+            
+            current_time += delta
+        
+        return ohlcv
+
     def fetch_historical_data(
         self,
         symbol: str,
@@ -202,11 +258,13 @@ class Exchange(IExchange):
         Returns:
             Dict containing OHLCV data
         """
-        # Mock implementation for demonstration
-        ohlcv = [
-            [1609459200000, 29000.0, 29100.0, 28900.0, 29050.0, 100.0],
-            [1609462800000, 29050.0, 29200.0, 29000.0, 29150.0, 150.0],
-        ]
+        if start_time is None:
+            start_time = datetime.now() - timedelta(days=365)
+        if end_time is None:
+            end_time = datetime.now()
+        
+        ohlcv = self._generate_mock_data(start_time, end_time, timeframe)
+        
         return {
             'open': [candle[1] for candle in ohlcv],
             'high': [candle[2] for candle in ohlcv],
