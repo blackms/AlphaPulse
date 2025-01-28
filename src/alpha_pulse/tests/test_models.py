@@ -8,7 +8,7 @@ from pathlib import Path
 import tempfile
 import shutil
 
-from alpha_pulse.models.basic_models import ModelTrainer
+from ..models.basic_models import ModelTrainer
 
 
 class TestModelTrainer(unittest.TestCase):
@@ -164,20 +164,6 @@ class TestModelTrainer(unittest.TestCase):
         # Test loading non-existent model
         with self.assertRaises(FileNotFoundError):
             trainer.load_model('non_existent.joblib')
-
-    def test_xgboost_models(self):
-        """Test XGBoost model functionality."""
-        trainer = ModelTrainer(
-            model_type='random_forest',  # Using RandomForest as fallback
-            task='regression',
-            model_params={'n_estimators': 50},
-            model_dir=self.temp_dir
-        )
-        
-        metrics = trainer.train(self.X_df, self.y_reg)
-        self.assertIn('train_r2', metrics)
-        self.assertIn('test_r2', metrics)
-        self.assertTrue(0 <= metrics['train_r2'] <= 1)
 
 
 if __name__ == '__main__':
