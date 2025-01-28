@@ -9,8 +9,8 @@ from .interfaces import (
 )
 from .exchange import Exchange, ExchangeManager
 from .data_fetcher import DataFetcher
-from .storage import DataStorage
-from .database import Database
+from .storage import SQLAlchemyStorage as DataStorage
+from .database import get_db
 
 __all__ = [
     'IExchange',
@@ -20,5 +20,5 @@ __all__ = [
     'ExchangeManager',
     'DataFetcher',
     'DataStorage',
-    'Database',
+    'get_db',
 ]
