@@ -193,17 +193,29 @@ def calculate_bollinger_bands(
     # Calculate standard deviation
     std = prices.rolling(window=actual_window, min_periods=2).std()
     
-    # Calculate standard deviation based band width
-    band_width = np.abs(std * num_std)  # Use absolute value to ensure positive width
+    # Calculate the standard deviation
+    rolling_std = prices.rolling(window=actual_window, min_periods=2).std()
     
-    # Calculate bands ensuring proper relationships
-    upper_band = pd.Series(middle_band + band_width, index=prices.index)
-    lower_band = pd.Series(middle_band - band_width, index=prices.index)
+    # Calculate the bands
+    band_width = rolling_std * num_std
+    
+    # Ensure band width is non-negative
+    band_width = band_width.abs()
+    
+    # Calculate upper and lower bands
+    upper_band = middle_band.add(band_width)
+    lower_band = middle_band.sub(band_width)
     
     # Handle NaN values
     upper_band.iloc[0] = np.nan
     middle_band.iloc[0] = np.nan
     lower_band.iloc[0] = np.nan
+    
+    # Final check to ensure band relationships
+    upper_band = pd.Series(np.maximum(upper_band, middle_band), index=prices.index)
+    lower_band = pd.Series(np.minimum(lower_band, middle_band), index=prices.index)
+    
+    return upper_band, middle_band, lower_band
     
     return upper_band, middle_band, lower_band
 
