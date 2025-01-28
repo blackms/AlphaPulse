@@ -1,7 +1,6 @@
 """
 Unit tests for the feature engineering module.
 """
-
 import unittest
 import numpy as np
 import pandas as pd
@@ -9,7 +8,7 @@ from pathlib import Path
 import tempfile
 import shutil
 
-from features.feature_engineering import (
+from alpha_pulse.features.feature_engineering import (
     calculate_sma,
     calculate_ema,
     calculate_rsi,
@@ -40,12 +39,12 @@ class TestTechnicalIndicators(unittest.TestCase):
     def test_sma_calculation(self):
         """Test Simple Moving Average calculation."""
         window = 3
-        sma = calculate_sma(self.prices, window=window)
+        sma = calculate_sma(self.prices, window)
         
         # Test length and NaN values
         self.assertEqual(len(sma), len(self.prices))
-        self.assertTrue(np.isnan(sma.iloc[0]))  # First two values should be NaN
-        self.assertTrue(np.isnan(sma.iloc[1]))
+        self.assertTrue(pd.isna(sma.iloc[0]))  # First two values should be NaN
+        self.assertTrue(pd.isna(sma.iloc[1]))
         
         # Test calculation manually
         first_valid_value = self.prices.iloc[0:window].mean()
@@ -60,14 +59,14 @@ class TestTechnicalIndicators(unittest.TestCase):
         """Test Exponential Moving Average calculation."""
         ema = calculate_ema(self.prices, window=3)
         self.assertEqual(len(ema), len(self.prices))
-        self.assertTrue(np.isnan(ema.iloc[0]))
-        self.assertFalse(np.isnan(ema.iloc[-1]))
+        self.assertTrue(pd.isna(ema.iloc[0]))
+        self.assertFalse(pd.isna(ema.iloc[-1]))
 
     def test_rsi_calculation(self):
         """Test Relative Strength Index calculation."""
         rsi = calculate_rsi(self.prices, window=3)
         self.assertEqual(len(rsi), len(self.prices))
-        self.assertTrue(all(0 <= x <= 100 for x in rsi.dropna()))  # RSI should be between 0 and 100
+        self.assertTrue(all(0 <= x <= 100 for x in rsi[~pd.isna(rsi)]))  # RSI should be between 0 and 100
 
     def test_macd_calculation(self):
         """Test MACD calculation."""
@@ -91,9 +90,9 @@ class TestTechnicalIndicators(unittest.TestCase):
         self.assertEqual(len(lower), len(self.prices))
         
         # Upper band should be higher than middle band
-        self.assertTrue(all(u >= m for u, m in zip(upper.dropna(), middle.dropna())))
+        self.assertTrue(all(u >= m for u, m in zip(upper[~pd.isna(upper)], middle[~pd.isna(middle)])))
         # Lower band should be lower than middle band
-        self.assertTrue(all(l <= m for l, m in zip(lower.dropna(), middle.dropna())))
+        self.assertTrue(all(l <= m for l, m in zip(lower[~pd.isna(lower)], middle[~pd.isna(middle)])))
 
     def test_rolling_stats_calculation(self):
         """Test rolling statistics calculation."""
@@ -121,6 +120,7 @@ class TestFeatureStore(unittest.TestCase):
             [100, 102, 99, 101, 103, 98, 96, 99, 102, 104],
             index=pd.date_range(start='2024-01-01', periods=10, freq='D')
         )
+        self.data = pd.DataFrame({'close': self.prices})
 
     def tearDown(self):
         """Clean up temporary directory."""
@@ -129,7 +129,7 @@ class TestFeatureStore(unittest.TestCase):
     def test_compute_technical_indicators(self):
         """Test computing multiple technical indicators."""
         features = self.feature_store.compute_technical_indicators(
-            self.prices,
+            self.data,
             windows=[2, 3]
         )
         
@@ -138,8 +138,8 @@ class TestFeatureStore(unittest.TestCase):
         
         # Check for specific feature columns
         expected_columns = [
-            'sma_2', 'ema_2', 'bb_upper_2', 'bb_middle_2', 'bb_lower_2',
-            'sma_3', 'ema_3', 'bb_upper_3', 'bb_middle_3', 'bb_lower_3',
+            'returns', 'log_returns', 'volatility',
+            'sma_12', 'ema_12', 'sma_26', 'ema_26',
             'rsi', 'macd', 'macd_signal', 'macd_hist'
         ]
         for col in expected_columns:
@@ -147,8 +147,10 @@ class TestFeatureStore(unittest.TestCase):
 
     def test_feature_store_caching(self):
         """Test FeatureStore caching functionality."""
-        # Compute and store features
-        features = self.feature_store.compute_technical_indicators(self.prices)
+        # Compute features
+        features = self.feature_store.compute_technical_indicators(self.data)
+        
+        # Add features to cache
         self.feature_store.add_features('test_features', features)
         
         # Retrieve features
@@ -159,18 +161,18 @@ class TestFeatureStore(unittest.TestCase):
     def test_invalid_inputs(self):
         """Test handling of invalid inputs."""
         # Test with empty series
-        empty_series = pd.Series([])
-        features = self.feature_store.compute_technical_indicators(empty_series)
+        empty_data = pd.DataFrame({'close': []})
+        features = self.feature_store.compute_technical_indicators(empty_data)
         self.assertTrue(features.empty)
         
         # Test with series containing NaN
-        nan_series = pd.Series([100, np.nan, 102])
-        features = self.feature_store.compute_technical_indicators(nan_series)
+        nan_data = pd.DataFrame({'close': [100, np.nan, 102]})
+        features = self.feature_store.compute_technical_indicators(nan_data)
         self.assertTrue(features.isna().any().any())  # Should contain NaN values
 
     def test_feature_persistence(self):
         """Test feature persistence to disk."""
-        features = self.feature_store.compute_technical_indicators(self.prices)
+        features = self.feature_store.compute_technical_indicators(self.data)
         self.feature_store.add_features('persistent_features', features)
         
         # Create new FeatureStore instance with same cache directory

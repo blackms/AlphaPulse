@@ -2,7 +2,6 @@
 Configuration settings for AlphaPulse.
 """
 from dataclasses import dataclass, field
-from typing import Any
 
 
 @dataclass
@@ -14,9 +13,18 @@ class ExchangeConfig:
 
 
 @dataclass
+class DatabaseConfig:
+    """Database configuration settings."""
+    url: str = "sqlite:///data.db"
+    echo: bool = False
+
+
+@dataclass
 class Settings:
     """Global configuration settings."""
     exchange: ExchangeConfig = field(default_factory=ExchangeConfig)
+    database: DatabaseConfig = field(default_factory=DatabaseConfig)
+    DATABASE_URL: str = field(default_factory=lambda: "sqlite:///data.db")
 
 
 # Global settings instance

@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 
 
-class ExchangeInterface(ABC):
+class IExchange(ABC):
     """Abstract base class for exchange implementations."""
 
     @abstractmethod
@@ -17,39 +17,55 @@ class ExchangeInterface(ABC):
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None,
     ) -> Dict:
-        """
-        Fetch historical market data from the exchange.
-
-        Args:
-            symbol: Trading pair symbol (e.g., "BTC/USD")
-            timeframe: Candle timeframe (e.g., "1m", "1h", "1d")
-            start_time: Start time for data fetch
-            end_time: End time for data fetch
-
-        Returns:
-            Dict containing OHLCV data
-        """
+        """Fetch historical market data."""
         pass
 
     @abstractmethod
     def get_current_price(self, symbol: str) -> float:
-        """
-        Get current price for a symbol.
-
-        Args:
-            symbol: Trading pair symbol (e.g., "BTC/USD")
-
-        Returns:
-            Current price
-        """
+        """Get current price for a symbol."""
         pass
 
     @abstractmethod
     def get_available_pairs(self) -> List[str]:
-        """
-        Get list of available trading pairs.
-
-        Returns:
-            List of trading pair symbols
-        """
+        """Get list of available trading pairs."""
         pass
+
+
+class IExchangeFactory(ABC):
+    """Abstract factory for creating exchange instances."""
+
+    @abstractmethod
+    def create_exchange(self, exchange_id: str) -> IExchange:
+        """Create an exchange instance."""
+        pass
+
+
+class IDataStorage(ABC):
+    """Abstract base class for data storage implementations."""
+
+    @abstractmethod
+    def save_historical_data(
+        self,
+        exchange_id: str,
+        symbol: str,
+        timeframe: str,
+        data: Dict
+    ) -> None:
+        """Save historical market data."""
+        pass
+
+    @abstractmethod
+    def get_historical_data(
+        self,
+        exchange_id: str,
+        symbol: str,
+        timeframe: str,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+    ) -> Dict:
+        """Retrieve historical market data."""
+        pass
+
+
+# Alias for backward compatibility
+ExchangeInterface = IExchange

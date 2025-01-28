@@ -1,46 +1,44 @@
-from sqlalchemy import create_engine, event
-from sqlalchemy.orm import sessionmaker
+"""
+Database connection module for AlphaPulse.
+"""
 from contextlib import contextmanager
 from typing import Generator
+
 from loguru import logger
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
 
-from config.settings import settings
+from alpha_pulse.config.settings import settings
 
-# Add debug logging
-logger.info(f"Attempting to connect to database with URL: {settings.DATABASE_URL}")
 
-# Enable SQLAlchemy logging
-import logging
-logging.basicConfig()
-logging.getLogger('sqlalchemy.engine').setLevel(logging.INFO)
+def create_session_factory():
+    """Create a session factory for database connections."""
+    engine = create_engine(settings.DATABASE_URL)
+    return sessionmaker(bind=engine)
 
-engine = create_engine(
-    settings.DATABASE_URL,
-    echo=True  # This will log all SQL statements
-)
 
-# Add connection debugging
-@event.listens_for(engine, "connect")
-def receive_connect(dbapi_connection, connection_record):
-    logger.info("New database connection established")
-    if 'postgresql' in settings.DATABASE_URL:
-        # PostgreSQL specific logging
-        logger.info(f"Connected with parameters: {dbapi_connection.get_dsn_parameters()}")
-    else:
-        # Generic logging for other databases (including SQLite)
-        logger.info(f"Connected to database: {settings.DATABASE_URL}")
+SessionFactory = create_session_factory()
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 @contextmanager
-def get_db() -> Generator:
-    db = SessionLocal()
+def get_db() -> Generator[Session, None, None]:
+    """
+    Get a database session using context manager.
+
+    Usage:
+        with get_db() as db:
+            db.query(...)
+
+    Yields:
+        Database session
+    """
+    session = SessionFactory()
     try:
-        logger.info("Database session created")
-        yield db
+        yield session
+        session.commit()
     except Exception as e:
-        logger.error(f"Database error occurred: {str(e)}")
+        session.rollback()
+        logger.error(f"Database error: {str(e)}")
         raise
     finally:
-        logger.info("Closing database session")
-        db.close()
+        session.close()

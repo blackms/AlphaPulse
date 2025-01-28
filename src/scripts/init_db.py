@@ -1,5 +1,5 @@
-from data_pipeline.models import Base
-from data_pipeline.database import engine
+from src.alpha_pulse.data_pipeline.models import Base
+from src.alpha_pulse.data_pipeline.database import engine
 
 def init_db():
     print("Creating database tables...")
