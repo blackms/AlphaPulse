@@ -1,37 +1,23 @@
-from pydantic_settings import BaseSettings
-from typing import Dict, List
-from pathlib import Path
+"""
+Configuration settings for AlphaPulse.
+"""
+from dataclasses import dataclass, field
+from typing import Any
 
-class Settings(BaseSettings):
-    # Database
-    DATABASE_URL: str = "sqlite:///./alpha_pulse.db"
-    
-    # Exchange settings
-    EXCHANGES: List[str] = ["bybit"]
-    EXCHANGE_CONFIGS: Dict[str, Dict] = {
-        "binance": {
-            "enableRateLimit": True,
-            # Add your API keys here if needed
-            # "apiKey": "",
-            # "secret": "",
-        },
-        "coinbase": {
-            "enableRateLimit": True,
-        },
-        "kraken": {
-            "enableRateLimit": True,
-        }
-    }
-    
-    # Trading parameters
-    DEFAULT_TIMEFRAME: str = "1h"
-    TRADING_PAIRS: List[str] = ["BTC/USDT", "ETH/USDT"]
-    
-    # Paths
-    BASE_DIR: Path = Path(__file__).parent.parent
-    LOG_DIR: Path = BASE_DIR / "logs"
-    
-    class Config:
-        env_file = ".env"
 
+@dataclass
+class ExchangeConfig:
+    """Exchange configuration settings."""
+    api_key: str = ""
+    api_secret: str = ""
+    id: str = "mock"
+
+
+@dataclass
+class Settings:
+    """Global configuration settings."""
+    exchange: ExchangeConfig = field(default_factory=ExchangeConfig)
+
+
+# Global settings instance
 settings = Settings()

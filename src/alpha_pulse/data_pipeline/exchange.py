@@ -1,76 +1,69 @@
-import ccxt
+"""
+Exchange connectivity module for AlphaPulse.
+"""
 from datetime import datetime
-from typing import Dict, Optional, List, Any
-from loguru import logger
+from typing import Dict, List, Optional
 
-from config.settings import settings
-from .interfaces import IExchange, IExchangeFactory
+from ..config.settings import settings
+from .interfaces import ExchangeInterface
 
-class CCXTExchange(IExchange):
-    def __init__(self, exchange: ccxt.Exchange):
-        self._exchange = exchange
-        
-    def fetch_ohlcv(
+
+class Exchange(ExchangeInterface):
+    """Handles exchange connectivity and data retrieval."""
+
+    def __init__(self):
+        """Initialize exchange connection."""
+        self.api_key = settings.exchange.api_key
+        self.api_secret = settings.exchange.api_secret
+        self.exchange_id = settings.exchange.id
+
+    def fetch_historical_data(
         self,
         symbol: str,
         timeframe: str,
-        since: Optional[datetime] = None,
-        limit: int = 1000
-    ) -> List[Any]:
-        try:
-            since_ts = int(since.timestamp() * 1000) if since else None
-            return self._exchange.fetch_ohlcv(
-                symbol,
-                timeframe=timeframe,
-                since=since_ts,
-                limit=limit
-            )
-        except Exception as e:
-            logger.error(f"Error fetching OHLCV data: {str(e)}")
-            raise
-            
-    def fetch_ticker(self, symbol: str) -> Dict:
-        try:
-            ticker = self._exchange.fetch_ticker(symbol)
-            logger.debug(f"Fetched ticker for {symbol}: {ticker}")
-            return ticker
-        except Exception as e:
-            logger.error(f"Failed to fetch ticker for {symbol}: {str(e)}")
-            raise
-            
-    def load_markets(self) -> None:
-        try:
-            self._exchange.load_markets()
-        except Exception as e:
-            logger.error(f"Failed to load markets: {str(e)}")
-            raise
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+    ) -> Dict:
+        """
+        Fetch historical market data from the exchange.
 
-class CCXTExchangeFactory(IExchangeFactory):
-    def __init__(self):
-        self._exchanges: Dict[str, IExchange] = {}
-        
-    def create_exchange(self, exchange_id: str) -> IExchange:
-        if exchange_id in self._exchanges:
-            return self._exchanges[exchange_id]
-            
-        try:
-            # Get exchange configuration from settings
-            exchange_config = settings.EXCHANGE_CONFIGS.get(exchange_id, {})
-            
-            # Create exchange instance
-            exchange_class = getattr(ccxt, exchange_id)
-            exchange = exchange_class(exchange_config)
-            
-            # Create wrapped exchange
-            wrapped_exchange = CCXTExchange(exchange)
-            
-            # Load markets to test connection
-            wrapped_exchange.load_markets()
-            
-            self._exchanges[exchange_id] = wrapped_exchange
-            logger.info(f"Successfully initialized exchange: {exchange_id}")
-            return wrapped_exchange
-            
-        except Exception as e:
-            logger.error(f"Failed to initialize exchange {exchange_id}: {str(e)}")
-            raise
+        Args:
+            symbol: Trading pair symbol (e.g., "BTC/USD")
+            timeframe: Candle timeframe (e.g., "1m", "1h", "1d")
+            start_time: Start time for data fetch
+            end_time: End time for data fetch
+
+        Returns:
+            Dict containing OHLCV data
+        """
+        # Mock implementation for demonstration
+        return {
+            'open': [100, 101, 102],
+            'high': [103, 104, 105],
+            'low': [98, 99, 100],
+            'close': [101, 102, 103],
+            'volume': [1000, 1100, 1200]
+        }
+
+    def get_current_price(self, symbol: str) -> float:
+        """
+        Get current price for a symbol.
+
+        Args:
+            symbol: Trading pair symbol (e.g., "BTC/USD")
+
+        Returns:
+            Current price
+        """
+        # Mock implementation
+        return 50000.0
+
+    def get_available_pairs(self) -> List[str]:
+        """
+        Get list of available trading pairs.
+
+        Returns:
+            List of trading pair symbols
+        """
+        # Mock implementation
+        return ["BTC/USD", "ETH/USD", "SOL/USD"]

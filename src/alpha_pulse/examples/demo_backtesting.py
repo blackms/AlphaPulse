@@ -8,29 +8,26 @@ import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 
 from alpha_pulse.backtesting import Backtester, DefaultStrategy, TrendFollowingStrategy
-from alpha_pulse.data_pipeline import DataFetcher
-from alpha_pulse.models import BasicModel
-from alpha_pulse.features import FeatureEngineer
 
 
 def create_sample_data(days: int = 100) -> tuple[pd.Series, pd.Series]:
     """Create sample price and signal data for demonstration."""
     dates = pd.date_range(
-        start=datetime.now() - timedelta(days=days),
+        start=datetime.now() - timedelta(days=days-1),  # Adjust to get exact number of days
         end=datetime.now(),
         freq='D'
     )
     
     # Generate random walk prices
+    rw = np.random.normal(0, 0.02, len(dates)).cumsum()
     prices = pd.Series(
-        np.random.normal(0, 0.02, days).cumsum(),
+        100 * np.exp(rw),  # Convert to price levels
         index=dates
     )
-    prices = 100 * np.exp(prices)  # Convert to price levels
     
     # Generate sample signals (-1 to 1)
     signals = pd.Series(
-        np.random.normal(0, 1, days),
+        np.random.normal(0, 1, len(dates)),
         index=dates
     )
     
@@ -109,43 +106,6 @@ def main():
     
     # Plot results
     plot_backtest_results(trend_results, prices)
-    
-    # Example of using with real data and model predictions
-    try:
-        # Initialize components
-        data_fetcher = DataFetcher()
-        feature_engineer = FeatureEngineer()
-        model = BasicModel()
-        
-        # Fetch some historical data
-        historical_data = data_fetcher.fetch_historical_data(
-            symbol="BTC/USD",
-            timeframe="1d",
-            start_time=datetime.now() - timedelta(days=365)
-        )
-        
-        # Prepare features
-        features = feature_engineer.create_features(historical_data)
-        
-        # Generate predictions
-        predictions = model.predict(features)
-        
-        # Run backtest with real data
-        real_results = backtester.backtest(
-            prices=historical_data['close'],
-            signals=predictions,
-            strategy=DefaultStrategy()
-        )
-        
-        logger.info("\nReal Data Backtest Results:")
-        logger.info(real_results)
-        
-        # Plot real data results
-        plot_backtest_results(real_results, historical_data['close'])
-        
-    except Exception as e:
-        logger.warning(f"Could not run real data example: {str(e)}")
-        logger.info("This is expected if you haven't set up the data pipeline yet.")
 
 
 if __name__ == "__main__":
