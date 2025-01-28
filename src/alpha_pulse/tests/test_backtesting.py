@@ -5,15 +5,9 @@ import unittest
 from datetime import datetime, timedelta
 import pandas as pd
 import numpy as np
-import sys
 from pathlib import Path
 
-# Add src directory to Python path for imports
-src_path = str(Path(__file__).parent.parent)
-if src_path not in sys.path:
-    sys.path.append(src_path)
-
-from backtesting import (
+from ..backtesting import (
     Backtester,
     DefaultStrategy,
     TrendFollowingStrategy,
