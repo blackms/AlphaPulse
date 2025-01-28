@@ -7,7 +7,7 @@ import numpy as np
 from pathlib import Path
 import joblib
 from loguru import logger
-
+import talib
 
 def calculate_rolling_stats(
     data: Union[pd.Series, np.ndarray],
@@ -38,10 +38,9 @@ def calculate_rolling_stats(
     
     return stats
 
-
 def calculate_sma(prices: Union[pd.Series, np.ndarray], window: int) -> pd.Series:
     """
-    Calculate Simple Moving Average.
+    Calculate Simple Moving Average using TA-Lib.
 
     Args:
         prices: Price data
@@ -50,14 +49,19 @@ def calculate_sma(prices: Union[pd.Series, np.ndarray], window: int) -> pd.Serie
     Returns:
         Series of SMA values
     """
-    if isinstance(prices, np.ndarray):
-        prices = pd.Series(prices)
-    return prices.rolling(window=window).mean()
-
+    if isinstance(prices, pd.Series):
+        index = prices.index
+        prices = prices.values.astype(np.float64)
+    else:
+        prices = np.array(prices, dtype=np.float64)
+        index = None
+    
+    sma = talib.SMA(prices, timeperiod=window)
+    return pd.Series(sma, index=index)
 
 def calculate_ema(prices: Union[pd.Series, np.ndarray], window: int) -> pd.Series:
     """
-    Calculate Exponential Moving Average.
+    Calculate Exponential Moving Average using TA-Lib.
 
     Args:
         prices: Price data
@@ -66,14 +70,19 @@ def calculate_ema(prices: Union[pd.Series, np.ndarray], window: int) -> pd.Serie
     Returns:
         Series of EMA values
     """
-    if isinstance(prices, np.ndarray):
-        prices = pd.Series(prices)
-    return prices.ewm(span=window, adjust=False, min_periods=window).mean()
-
+    if isinstance(prices, pd.Series):
+        index = prices.index
+        prices = prices.values.astype(np.float64)
+    else:
+        prices = np.array(prices, dtype=np.float64)
+        index = None
+    
+    ema = talib.EMA(prices, timeperiod=window)
+    return pd.Series(ema, index=index)
 
 def calculate_rsi(prices: Union[pd.Series, np.ndarray], window: int = 14) -> pd.Series:
     """
-    Calculate Relative Strength Index.
+    Calculate Relative Strength Index using TA-Lib.
 
     Args:
         prices: Price data
@@ -82,43 +91,15 @@ def calculate_rsi(prices: Union[pd.Series, np.ndarray], window: int = 14) -> pd.
     Returns:
         Series of RSI values
     """
-    if isinstance(prices, np.ndarray):
-        prices = pd.Series(prices)
+    if isinstance(prices, pd.Series):
+        index = prices.index
+        prices = prices.values.astype(np.float64)
+    else:
+        prices = np.array(prices, dtype=np.float64)
+        index = None
     
-    # Calculate price changes
-    delta = prices.diff()
-    
-    # Separate gains and losses
-    gains = delta.copy()
-    losses = delta.copy()
-    gains[gains < 0] = 0
-    losses[losses > 0] = 0
-    losses = abs(losses)
-    
-    # Use smaller window if data length is less than window size
-    actual_window = min(window, len(prices) - 1)
-    if actual_window < 2:
-        return pd.Series(np.nan, index=prices.index)
-    
-    # Calculate initial averages using simple moving average
-    avg_gains = gains.rolling(window=actual_window, min_periods=1).mean()
-    avg_losses = losses.rolling(window=actual_window, min_periods=1).mean()
-    
-    # Calculate subsequent values using exponential moving average
-    avg_gains = gains.ewm(alpha=1/actual_window, min_periods=1, adjust=False).mean()
-    avg_losses = losses.ewm(alpha=1/actual_window, min_periods=1, adjust=False).mean()
-    
-    # Calculate RS and RSI
-    rs = avg_gains / avg_losses
-    rsi = 100 - (100 / (1 + rs))
-    
-    # Handle edge cases
-    rsi[avg_losses == 0] = 100
-    rsi[avg_gains == 0] = 0
-    rsi[0] = np.nan  # First value should be NaN
-    
-    return rsi
-
+    rsi = talib.RSI(prices, timeperiod=window)
+    return pd.Series(rsi, index=index)
 
 def calculate_macd(
     prices: Union[pd.Series, np.ndarray],
@@ -127,7 +108,7 @@ def calculate_macd(
     signal_period: int = 9
 ) -> Tuple[pd.Series, pd.Series, pd.Series]:
     """
-    Calculate Moving Average Convergence Divergence (MACD).
+    Calculate Moving Average Convergence Divergence using TA-Lib.
 
     Args:
         prices: Price data
@@ -138,24 +119,25 @@ def calculate_macd(
     Returns:
         Tuple of (MACD line, Signal line, MACD histogram)
     """
-    if isinstance(prices, np.ndarray):
-        prices = pd.Series(prices)
+    if isinstance(prices, pd.Series):
+        index = prices.index
+        prices = prices.values.astype(np.float64)
+    else:
+        prices = np.array(prices, dtype=np.float64)
+        index = None
     
-    # Calculate EMAs
-    fast_ema = prices.ewm(span=fast_period, adjust=False).mean()
-    slow_ema = prices.ewm(span=slow_period, adjust=False).mean()
+    macd, signal, hist = talib.MACD(
+        prices,
+        fastperiod=fast_period,
+        slowperiod=slow_period,
+        signalperiod=signal_period
+    )
     
-    # Calculate MACD line
-    macd_line = fast_ema - slow_ema
-    
-    # Calculate signal line
-    signal_line = macd_line.ewm(span=signal_period, adjust=False).mean()
-    
-    # Calculate histogram
-    histogram = macd_line - signal_line
-    
-    return macd_line, signal_line, histogram
-
+    return (
+        pd.Series(macd, index=index),
+        pd.Series(signal, index=index),
+        pd.Series(hist, index=index)
+    )
 
 def calculate_bollinger_bands(
     prices: Union[pd.Series, np.ndarray],
@@ -163,7 +145,7 @@ def calculate_bollinger_bands(
     num_std: float = 2.0
 ) -> Tuple[pd.Series, pd.Series, pd.Series]:
     """
-    Calculate Bollinger Bands.
+    Calculate Bollinger Bands using TA-Lib.
 
     Args:
         prices: Price data
@@ -173,56 +155,30 @@ def calculate_bollinger_bands(
     Returns:
         Tuple of (Upper band, Middle band, Lower band)
     """
-    if isinstance(prices, np.ndarray):
-        prices = pd.Series(prices)
+    if isinstance(prices, pd.Series):
+        index = prices.index
+        prices = prices.values.astype(np.float64)
+    else:
+        prices = np.array(prices, dtype=np.float64)
+        index = None
     
-    # Convert to pandas Series if numpy array
-    if isinstance(prices, np.ndarray):
-        prices = pd.Series(prices)
+    upper, middle, lower = talib.BBANDS(
+        prices,
+        timeperiod=window,
+        nbdevup=num_std,
+        nbdevdn=num_std,
+        matype=talib.MA_Type.SMA
+    )
     
-    # Use smaller window if data length is less than window size
-    actual_window = min(window, len(prices))
-    if actual_window < 2:
-        return (pd.Series(np.nan, index=prices.index),
-                pd.Series(np.nan, index=prices.index),
-                pd.Series(np.nan, index=prices.index))
-    
-    # Calculate middle band (SMA)
-    middle_band = prices.rolling(window=actual_window, min_periods=2).mean()
-    
-    # Calculate standard deviation
-    std = prices.rolling(window=actual_window, min_periods=2).std()
-    
-    # Calculate the standard deviation
-    rolling_std = prices.rolling(window=actual_window, min_periods=2).std()
-    
-    # Calculate the bands
-    band_width = rolling_std * num_std
-    
-    # Ensure band width is non-negative
-    band_width = band_width.abs()
-    
-    # Calculate upper and lower bands
-    upper_band = middle_band.add(band_width)
-    lower_band = middle_band.sub(band_width)
-    
-    # Handle NaN values
-    upper_band.iloc[0] = np.nan
-    middle_band.iloc[0] = np.nan
-    lower_band.iloc[0] = np.nan
-    
-    # Final check to ensure band relationships
-    upper_band = pd.Series(np.maximum(upper_band, middle_band), index=prices.index)
-    lower_band = pd.Series(np.minimum(lower_band, middle_band), index=prices.index)
-    
-    return upper_band, middle_band, lower_band
-    
-    return upper_band, middle_band, lower_band
-
+    return (
+        pd.Series(upper, index=index),
+        pd.Series(middle, index=index),
+        pd.Series(lower, index=index)
+    )
 
 def calculate_technical_indicators(data: pd.DataFrame) -> pd.DataFrame:
     """
-    Calculate technical indicators for price data.
+    Calculate technical indicators for price data using TA-Lib.
 
     Args:
         data: DataFrame with OHLCV data
@@ -263,16 +219,20 @@ def calculate_technical_indicators(data: pd.DataFrame) -> pd.DataFrame:
     features['bollinger_lower'] = lower
     
     # ATR (Average True Range)
-    high_low = data['high'] - data['low']
-    high_close = abs(data['high'] - data['close'].shift())
-    low_close = abs(data['low'] - data['close'].shift())
-    ranges = pd.concat([high_low, high_close, low_close], axis=1)
-    true_range = ranges.max(axis=1)
-    features['atr'] = true_range.rolling(window=14).mean()
+    # Convert OHLC data to float64
+    high = data['high'].values.astype(np.float64)
+    low = data['low'].values.astype(np.float64)
+    close = data['close'].values.astype(np.float64)
+    
+    features['atr'] = talib.ATR(
+        high,
+        low,
+        close,
+        timeperiod=14
+    )
     
     logger.info(f"Generated {len(features.columns)} technical indicators")
     return features
-
 
 def add_target_column(
     data: pd.DataFrame,
@@ -299,7 +259,6 @@ def add_target_column(
     
     logger.info(f"Added target column (periods={periods}, pct_change={pct_change})")
     return data
-
 
 class FeatureStore:
     """Manages feature computation and caching."""
