@@ -45,7 +45,7 @@ The feature engineering and machine learning pipeline provides powerful tools fo
 - Extensible FeatureStore system
 
 ```python
-from features.feature_engineering import FeatureStore
+from alpha_pulse.features import FeatureStore
 
 # Initialize feature store
 feature_store = FeatureStore(cache_dir='feature_cache')
@@ -64,11 +64,11 @@ features = feature_store.compute_technical_indicators(
 - Model persistence and loading
 
 ```python
-from models.basic_models import ModelTrainer
+from alpha_pulse.models import ModelTrainer
 
 # Initialize and train model
 trainer = ModelTrainer(
-    model_type='xgboost',
+    model_type='random_forest',
     task='regression'
 )
 metrics = trainer.train(features, target)
@@ -163,29 +163,34 @@ The test suite includes:
 ## 📝 Usage
 
 ```python
-from src.data_pipeline import DataFetcher, Exchange, Database
-from src.features import FeatureStore
-from src.models import ModelTrainer
-from src.backtesting import Backtester, DefaultStrategy
+from alpha_pulse.data_pipeline import Exchange
+from alpha_pulse.features import FeatureStore
+from alpha_pulse.models import ModelTrainer
+from alpha_pulse.backtesting import Backtester, DefaultStrategy
 
 # Initialize components
-fetcher = DataFetcher()
 exchange = Exchange()
-db = Database()
 feature_store = FeatureStore()
+trainer = ModelTrainer()
 backtester = Backtester()
 
-# Start data collection
-fetcher.start()
+# Fetch historical data
+historical_data = exchange.fetch_historical_data(
+    symbol="BTC/USD",
+    timeframe="1d"
+)
 
 # Compute features and train model
-features = feature_store.compute_technical_indicators(price_data)
-trainer = ModelTrainer()
+features = feature_store.compute_technical_indicators(historical_data)
 model = trainer.train(features, target)
 
 # Run backtest
 predictions = model.predict(features)
-results = backtester.backtest(price_data, predictions)
+results = backtester.backtest(
+    prices=historical_data,
+    signals=predictions,
+    strategy=DefaultStrategy(threshold=0.5)
+)
 print(f"Strategy Performance: {results}")
 ```
 
