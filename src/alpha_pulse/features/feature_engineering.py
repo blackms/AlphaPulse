@@ -9,17 +9,10 @@ import joblib
 from loguru import logger
 
 
-def ensure_series(data: Union[pd.Series, np.ndarray]) -> pd.Series:
-    """Convert input to pandas Series if it isn't already."""
-    if isinstance(data, pd.Series):
-        return data
-    return pd.Series(data)
-
-
 def calculate_rolling_stats(
     data: Union[pd.Series, np.ndarray],
     window: int
-) -> Dict[str, pd.Series]:
+) -> Dict[str, np.ndarray]:
     """
     Calculate rolling statistics.
 
@@ -30,22 +23,23 @@ def calculate_rolling_stats(
     Returns:
         Dict containing rolling statistics (mean, std, min, max, etc.)
     """
-    series = ensure_series(data)
+    if isinstance(data, np.ndarray):
+        data = pd.Series(data)
     
     stats = {
-        'mean': series.rolling(window=window).mean(),
-        'std': series.rolling(window=window).std(),
-        'min': series.rolling(window=window).min(),
-        'max': series.rolling(window=window).max(),
-        'median': series.rolling(window=window).median(),
-        'skew': series.rolling(window=window).skew(),
-        'kurt': series.rolling(window=window).kurt(),
+        'mean': data.rolling(window=window).mean().values,
+        'std': data.rolling(window=window).std().values,
+        'min': data.rolling(window=window).min().values,
+        'max': data.rolling(window=window).max().values,
+        'median': data.rolling(window=window).median().values,
+        'skew': data.rolling(window=window).skew().values,
+        'kurt': data.rolling(window=window).kurt().values,
     }
     
     return stats
 
 
-def calculate_sma(prices: Union[pd.Series, np.ndarray], window: int) -> pd.Series:
+def calculate_sma(prices: Union[pd.Series, np.ndarray], window: int) -> np.ndarray:
     """
     Calculate Simple Moving Average.
 
@@ -54,13 +48,14 @@ def calculate_sma(prices: Union[pd.Series, np.ndarray], window: int) -> pd.Serie
         window: Window size for moving average
 
     Returns:
-        Series of SMA values
+        Array of SMA values
     """
-    series = ensure_series(prices)
-    return series.rolling(window=window).mean()
+    if isinstance(prices, np.ndarray):
+        prices = pd.Series(prices)
+    return prices.rolling(window=window).mean().values
 
 
-def calculate_ema(prices: Union[pd.Series, np.ndarray], window: int) -> pd.Series:
+def calculate_ema(prices: Union[pd.Series, np.ndarray], window: int) -> np.ndarray:
     """
     Calculate Exponential Moving Average.
 
@@ -69,13 +64,29 @@ def calculate_ema(prices: Union[pd.Series, np.ndarray], window: int) -> pd.Serie
         window: Window size for moving average
 
     Returns:
-        Series of EMA values
+        Array of EMA values
     """
-    series = ensure_series(prices)
-    return series.ewm(span=window).mean()
+    if isinstance(prices, np.ndarray):
+        prices = pd.Series(prices)
+    
+    # Initialize with NaN for the first value
+    ema = pd.Series(index=prices.index, dtype=float)
+    ema.iloc[0] = np.nan
+    
+    # Calculate alpha (smoothing factor)
+    alpha = 2 / (window + 1)
+    
+    # Calculate EMA starting from the second value
+    ema.iloc[1:] = prices.iloc[1:].ewm(
+        span=window,
+        adjust=False,
+        min_periods=window
+    ).mean()
+    
+    return ema.values
 
 
-def calculate_rsi(prices: Union[pd.Series, np.ndarray], window: int = 14) -> pd.Series:
+def calculate_rsi(prices: Union[pd.Series, np.ndarray], window: int = 14) -> np.ndarray:
     """
     Calculate Relative Strength Index.
 
@@ -84,12 +95,13 @@ def calculate_rsi(prices: Union[pd.Series, np.ndarray], window: int = 14) -> pd.
         window: Window size for RSI calculation
 
     Returns:
-        Series of RSI values
+        Array of RSI values
     """
-    series = ensure_series(prices)
+    if isinstance(prices, np.ndarray):
+        prices = pd.Series(prices)
     
     # Calculate price changes
-    delta = series.diff()
+    delta = prices.diff()
     
     # Separate gains and losses
     gains = delta.copy()
@@ -106,7 +118,7 @@ def calculate_rsi(prices: Union[pd.Series, np.ndarray], window: int = 14) -> pd.
     rs = avg_gains / avg_losses
     rsi = 100 - (100 / (1 + rs))
     
-    return rsi
+    return rsi.values
 
 
 def calculate_macd(
@@ -114,7 +126,7 @@ def calculate_macd(
     fast_period: int = 12,
     slow_period: int = 26,
     signal_period: int = 9
-) -> Tuple[pd.Series, pd.Series, pd.Series]:
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Calculate Moving Average Convergence Divergence (MACD).
 
@@ -127,29 +139,30 @@ def calculate_macd(
     Returns:
         Tuple of (MACD line, Signal line, MACD histogram)
     """
-    series = ensure_series(prices)
+    if isinstance(prices, np.ndarray):
+        prices = pd.Series(prices)
     
     # Calculate EMAs
-    fast_ema = series.ewm(span=fast_period).mean()
-    slow_ema = series.ewm(span=slow_period).mean()
+    fast_ema = prices.ewm(span=fast_period, adjust=False).mean()
+    slow_ema = prices.ewm(span=slow_period, adjust=False).mean()
     
     # Calculate MACD line
     macd_line = fast_ema - slow_ema
     
     # Calculate signal line
-    signal_line = macd_line.ewm(span=signal_period).mean()
+    signal_line = macd_line.ewm(span=signal_period, adjust=False).mean()
     
     # Calculate histogram
     histogram = macd_line - signal_line
     
-    return macd_line, signal_line, histogram
+    return macd_line.values, signal_line.values, histogram.values
 
 
 def calculate_bollinger_bands(
     prices: Union[pd.Series, np.ndarray],
     window: int = 20,
     num_std: float = 2.0
-) -> Tuple[pd.Series, pd.Series, pd.Series]:
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Calculate Bollinger Bands.
 
@@ -161,19 +174,20 @@ def calculate_bollinger_bands(
     Returns:
         Tuple of (Upper band, Middle band, Lower band)
     """
-    series = ensure_series(prices)
+    if isinstance(prices, np.ndarray):
+        prices = pd.Series(prices)
     
     # Calculate middle band (SMA)
-    middle_band = series.rolling(window=window).mean()
+    middle_band = prices.rolling(window=window).mean()
     
     # Calculate standard deviation
-    std = series.rolling(window=window).std()
+    std = prices.rolling(window=window).std()
     
     # Calculate upper and lower bands
     upper_band = middle_band + (std * num_std)
     lower_band = middle_band - (std * num_std)
     
-    return upper_band, middle_band, lower_band
+    return upper_band.values, middle_band.values, lower_band.values
 
 
 class FeatureStore:
@@ -192,81 +206,22 @@ class FeatureStore:
 
     def compute_technical_indicators(
         self,
-        price_data: Union[pd.Series, pd.DataFrame],
+        data: pd.DataFrame,
         windows: Optional[List[int]] = None
     ) -> pd.DataFrame:
         """
         Compute technical indicators for price data.
 
         Args:
-            price_data: Series of price data or DataFrame with OHLCV data
+            data: DataFrame with OHLCV data
             windows: List of lookback periods for indicators
 
         Returns:
             DataFrame with computed indicators
         """
-        if isinstance(price_data, pd.Series):
-            data = pd.DataFrame({'close': price_data})
-        else:
-            data = price_data.copy()
-
-        if len(data) == 0:
-            return pd.DataFrame()
-
         if windows is None:
             windows = [12, 26, 50, 100, 200]
-
-        feature_engineer = FeatureEngineer()
-        return feature_engineer.create_features(data)
-
-    def add_features(self, name: str, features: pd.DataFrame) -> None:
-        """
-        Add features to cache.
-
-        Args:
-            name: Name to save features under
-            features: DataFrame of computed features
-        """
-        save_path = self.cache_dir / f"{name}.joblib"
-        joblib.dump(features, save_path)
-        logger.info(f"Saved features to {save_path}")
-
-    def get_features(self, name: str) -> Optional[pd.DataFrame]:
-        """
-        Get features from cache.
-
-        Args:
-            name: Name of features to load
-
-        Returns:
-            DataFrame of features or None if not found
-        """
-        load_path = self.cache_dir / f"{name}.joblib"
-        if not load_path.exists():
-            return None
         
-        features = joblib.load(load_path)
-        logger.info(f"Loaded features from {load_path}")
-        return features
-
-
-class FeatureEngineer:
-    """Handles feature engineering and technical indicator calculation."""
-
-    def __init__(self):
-        """Initialize feature engineer."""
-        logger.info("Initializing FeatureEngineer")
-
-    def create_features(self, data: pd.DataFrame) -> pd.DataFrame:
-        """
-        Create technical features from price data.
-
-        Args:
-            data: DataFrame with OHLCV data
-
-        Returns:
-            DataFrame with computed features
-        """
         features = pd.DataFrame(index=data.index)
         
         # Price-based features
@@ -308,11 +263,31 @@ class FeatureEngineer:
         for window in [5, 10, 20]:
             features[f'momentum_{window}'] = data['close'].pct_change(window)
         
-        # Volume features
-        if 'volume' in data.columns:
-            vol_stats = calculate_rolling_stats(data['volume'], window=20)
-            features['volume_ma'] = vol_stats['mean']
-            features['volume_std'] = vol_stats['std']
-        
         logger.info(f"Generated {len(features.columns)} features")
         return features
+
+    def add_features(self, name: str, features: pd.DataFrame) -> None:
+        """
+        Add features to cache.
+
+        Args:
+            name: Name to save features under
+            features: DataFrame of features to cache
+        """
+        save_path = self.cache_dir / f"{name}.joblib"
+        joblib.dump(features, save_path)
+
+    def get_features(self, name: str) -> Optional[pd.DataFrame]:
+        """
+        Get features from cache.
+
+        Args:
+            name: Name of features to retrieve
+
+        Returns:
+            DataFrame of features or None if not found
+        """
+        load_path = self.cache_dir / f"{name}.joblib"
+        if not load_path.exists():
+            return None
+        return joblib.load(load_path)

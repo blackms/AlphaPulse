@@ -9,7 +9,6 @@ from loguru import logger
 
 from alpha_pulse.data_pipeline.data_fetcher import DataFetcher
 from alpha_pulse.data_pipeline.interfaces import IExchangeFactory, IDataStorage
-from alpha_pulse.data_pipeline.models import OHLCV
 
 
 @pytest.fixture
@@ -17,13 +16,10 @@ def mock_exchange_factory():
     """Create a mock exchange factory."""
     factory = Mock(spec=IExchangeFactory)
     exchange = Mock()
-    exchange.fetch_historical_data.return_value = {
-        'open': [100.0, 101.0],
-        'high': [102.0, 103.0],
-        'low': [99.0, 98.0],
-        'close': [101.0, 102.0],
-        'volume': [1000.0, 1100.0]
-    }
+    exchange.fetch_ohlcv.return_value = [
+        [1640995200000, 100.0, 102.0, 99.0, 101.0, 1000.0],
+        [1641081600000, 101.0, 103.0, 98.0, 102.0, 1100.0],
+    ]
     factory.create_exchange.return_value = exchange
     return factory
 
@@ -33,6 +29,7 @@ def mock_storage():
     """Create a mock storage."""
     storage = Mock(spec=IDataStorage)
     storage.save_historical_data.return_value = None
+    storage.save_ohlcv.return_value = None
     return storage
 
 
@@ -55,16 +52,14 @@ def test_data_fetcher(mock_exchange_factory, mock_storage):
         
         # Verify mock calls
         mock_exchange_factory.create_exchange.assert_called_once_with('binance')
-        mock_storage.save_historical_data.assert_called_once()
+        mock_storage.save_ohlcv.assert_called_once()
         
         # Verify call arguments
-        call_args = mock_storage.save_historical_data.call_args[1]
-        assert call_args['exchange_id'] == 'binance'
-        assert call_args['symbol'] == 'BTC/USDT'
-        assert call_args['timeframe'] == '1h'
-        assert isinstance(call_args['data'], dict)
-        assert 'open' in call_args['data']
-        assert len(call_args['data']['open']) > 0
+        call_args = mock_storage.save_ohlcv.call_args[0][0]
+        assert len(call_args) == 2  # Two OHLCV records
+        assert call_args[0].exchange == 'binance'
+        assert call_args[0].symbol == 'BTC/USDT'
+        assert call_args[0].timeframe == '1h'
         
     except Exception as e:
         logger.error(f"Data fetcher test failed: {str(e)}")
