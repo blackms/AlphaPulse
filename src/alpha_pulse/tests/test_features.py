@@ -115,8 +115,16 @@ class TestFeatureEngineering(unittest.TestCase):
         """Test Bollinger Bands calculation."""
         upper, middle, lower = calculate_bollinger_bands(self.prices)
         
+        # Print problematic values for debugging
+        mask = upper < middle
+        if any(mask):
+            print("\nProblematic values:")
+            print("Upper:", upper[mask])
+            print("Middle:", middle[mask])
+            print("Difference:", upper[mask] - middle[mask])
+            
         # Check band properties
-        self.assertTrue(all(upper >= middle))
+        self.assertTrue(all(upper >= middle), "Upper band must be greater than or equal to middle band")
         self.assertTrue(all(middle >= lower))
         self.assertEqual(len(upper.dropna()), len(self.prices) - 19)  # Default window is 20
 
