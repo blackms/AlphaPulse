@@ -1,22 +1,38 @@
-from data_pipeline.exchange import CCXTExchangeFactory
-from data_pipeline.storage import SQLAlchemyStorage
-from data_pipeline.data_fetcher import DataFetcher
+"""
+Example script demonstrating the AlphaPulse data fetching functionality.
+"""
+from loguru import logger
+
+from alpha_pulse.data_pipeline import Exchange
+
 
 def main():
-    # Create dependencies
-    exchange_factory = CCXTExchangeFactory()
-    storage = SQLAlchemyStorage()
+    """Run data fetching demonstration."""
+    logger.info("Starting data fetching demonstration...")
+
+    # Create exchange instance
+    exchange = Exchange()
     
-    # Create data fetcher with injected dependencies
-    data_fetcher = DataFetcher(exchange_factory, storage)
+    # Get available trading pairs
+    pairs = exchange.get_available_pairs()
+    logger.info(f"Available trading pairs: {pairs}")
     
-    # Example usage
-    data_fetcher.update_historical_data(
-        exchange_id="binance",
-        symbol="BTC/USDT",
-        timeframe="1h",
-        days_back=7
+    # Get current price for BTC/USD
+    btc_price = exchange.get_current_price("BTC/USD")
+    logger.info(f"Current BTC price: ${btc_price:,.2f}")
+    
+    # Fetch historical data
+    historical_data = exchange.fetch_historical_data(
+        symbol="BTC/USD",
+        timeframe="1d",
+        start_time=None,  # Default to recent data
+        end_time=None     # Default to current time
     )
+    
+    logger.info("\nHistorical Data Sample:")
+    for key, values in historical_data.items():
+        logger.info(f"{key}: {values[:5]}...")
+
 
 if __name__ == "__main__":
     main()
