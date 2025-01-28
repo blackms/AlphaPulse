@@ -7,7 +7,6 @@ import numpy as np
 
 from loguru import logger
 
-from alpha_pulse.config.settings import settings
 from alpha_pulse.data_pipeline.interfaces import IExchange, IExchangeFactory
 
 
@@ -130,6 +129,8 @@ class CCXTExchangeFactory(IExchangeFactory):
         Returns:
             Exchange instance
         """
+        # Import settings at method level to avoid circular imports
+        from alpha_pulse.config.settings import settings
         return CCXTExchange(
             api_key=settings.exchange.api_key,
             api_secret=settings.exchange.api_secret,
@@ -180,6 +181,8 @@ class Exchange(IExchange):
 
     def __init__(self):
         """Initialize exchange connection."""
+        # Import settings at method level to avoid circular imports
+        from alpha_pulse.config.settings import settings
         self.api_key = settings.exchange.api_key
         self.api_secret = settings.exchange.api_secret
         self.exchange_id = settings.exchange.id
