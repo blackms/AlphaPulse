@@ -5,6 +5,8 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Dict, List, Optional
 
+from alpha_pulse.data_pipeline.models import OHLCV
+
 
 class IExchange(ABC):
     """Abstract base class for exchange implementations."""
@@ -64,6 +66,20 @@ class IDataStorage(ABC):
         end_time: Optional[datetime] = None,
     ) -> Dict:
         """Retrieve historical market data."""
+        pass
+
+    @abstractmethod
+    def save_ohlcv(self, data: List[OHLCV]) -> None:
+        """Save OHLCV data."""
+        pass
+
+    @abstractmethod
+    def get_latest_ohlcv(
+        self,
+        exchange_id: str,
+        symbol: str
+    ) -> Optional[datetime]:
+        """Get timestamp of latest OHLCV record."""
         pass
 
 

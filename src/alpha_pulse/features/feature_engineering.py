@@ -39,7 +39,7 @@ def calculate_rolling_stats(
     return stats
 
 
-def calculate_sma(prices: Union[pd.Series, np.ndarray], window: int) -> np.ndarray:
+def calculate_sma(prices: Union[pd.Series, np.ndarray], window: int) -> pd.Series:
     """
     Calculate Simple Moving Average.
 
@@ -48,14 +48,14 @@ def calculate_sma(prices: Union[pd.Series, np.ndarray], window: int) -> np.ndarr
         window: Window size for moving average
 
     Returns:
-        Array of SMA values
+        Series of SMA values
     """
     if isinstance(prices, np.ndarray):
         prices = pd.Series(prices)
-    return prices.rolling(window=window).mean().values
+    return prices.rolling(window=window).mean()
 
 
-def calculate_ema(prices: Union[pd.Series, np.ndarray], window: int) -> np.ndarray:
+def calculate_ema(prices: Union[pd.Series, np.ndarray], window: int) -> pd.Series:
     """
     Calculate Exponential Moving Average.
 
@@ -64,29 +64,14 @@ def calculate_ema(prices: Union[pd.Series, np.ndarray], window: int) -> np.ndarr
         window: Window size for moving average
 
     Returns:
-        Array of EMA values
+        Series of EMA values
     """
     if isinstance(prices, np.ndarray):
         prices = pd.Series(prices)
-    
-    # Initialize with NaN for the first value
-    ema = pd.Series(index=prices.index, dtype=float)
-    ema.iloc[0] = np.nan
-    
-    # Calculate alpha (smoothing factor)
-    alpha = 2 / (window + 1)
-    
-    # Calculate EMA starting from the second value
-    ema.iloc[1:] = prices.iloc[1:].ewm(
-        span=window,
-        adjust=False,
-        min_periods=window
-    ).mean()
-    
-    return ema.values
+    return prices.ewm(span=window, adjust=False, min_periods=window).mean()
 
 
-def calculate_rsi(prices: Union[pd.Series, np.ndarray], window: int = 14) -> np.ndarray:
+def calculate_rsi(prices: Union[pd.Series, np.ndarray], window: int = 14) -> pd.Series:
     """
     Calculate Relative Strength Index.
 
@@ -95,7 +80,7 @@ def calculate_rsi(prices: Union[pd.Series, np.ndarray], window: int = 14) -> np.
         window: Window size for RSI calculation
 
     Returns:
-        Array of RSI values
+        Series of RSI values
     """
     if isinstance(prices, np.ndarray):
         prices = pd.Series(prices)
@@ -118,7 +103,7 @@ def calculate_rsi(prices: Union[pd.Series, np.ndarray], window: int = 14) -> np.
     rs = avg_gains / avg_losses
     rsi = 100 - (100 / (1 + rs))
     
-    return rsi.values
+    return rsi
 
 
 def calculate_macd(
@@ -126,7 +111,7 @@ def calculate_macd(
     fast_period: int = 12,
     slow_period: int = 26,
     signal_period: int = 9
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> Tuple[pd.Series, pd.Series, pd.Series]:
     """
     Calculate Moving Average Convergence Divergence (MACD).
 
@@ -155,14 +140,14 @@ def calculate_macd(
     # Calculate histogram
     histogram = macd_line - signal_line
     
-    return macd_line.values, signal_line.values, histogram.values
+    return macd_line, signal_line, histogram
 
 
 def calculate_bollinger_bands(
     prices: Union[pd.Series, np.ndarray],
     window: int = 20,
     num_std: float = 2.0
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> Tuple[pd.Series, pd.Series, pd.Series]:
     """
     Calculate Bollinger Bands.
 
@@ -187,7 +172,7 @@ def calculate_bollinger_bands(
     upper_band = middle_band + (std * num_std)
     lower_band = middle_band - (std * num_std)
     
-    return upper_band.values, middle_band.values, lower_band.values
+    return upper_band, middle_band, lower_band
 
 
 class FeatureStore:
@@ -221,6 +206,9 @@ class FeatureStore:
         """
         if windows is None:
             windows = [12, 26, 50, 100, 200]
+        
+        if len(data) == 0:
+            return pd.DataFrame()
         
         features = pd.DataFrame(index=data.index)
         
