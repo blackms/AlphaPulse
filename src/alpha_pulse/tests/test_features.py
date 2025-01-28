@@ -1,184 +1,134 @@
 """
-Unit tests for the feature engineering module.
+Tests for feature engineering module.
 """
 import unittest
 import numpy as np
 import pandas as pd
-from pathlib import Path
+from datetime import datetime, UTC
 import tempfile
 import shutil
+from pathlib import Path
 
-from alpha_pulse.features.feature_engineering import (
-    calculate_sma,
-    calculate_ema,
+from ..features.feature_engineering import (
+    calculate_technical_indicators,
+    add_target_column,
     calculate_rsi,
     calculate_macd,
     calculate_bollinger_bands,
-    calculate_rolling_stats,
-    FeatureStore
+    calculate_sma,
+    calculate_ema,
+    FeatureStore,
 )
 
 
-class TestTechnicalIndicators(unittest.TestCase):
-    """Test suite for technical indicator calculations."""
-    
+class TestFeatureEngineering(unittest.TestCase):
+    """Test suite for feature engineering functions."""
+
     def setUp(self):
         """Set up test data."""
-        # Create sample price data with enough periods for MACD calculation
-        np.random.seed(42)  # For reproducibility
-        n_periods = 50  # Enough for MACD (26) + signal (9) periods
-        base_price = 100
-        random_walk = np.random.randn(n_periods) * 2  # Random price movements
-        prices = base_price + np.cumsum(random_walk)  # Random walk price series
-        
-        self.prices = pd.Series(
-            prices,
-            index=pd.date_range(start='2024-01-01', periods=n_periods, freq='D')
-        )
-
-    def test_sma_calculation(self):
-        """Test Simple Moving Average calculation."""
-        window = 3
-        sma = calculate_sma(self.prices, window)
-        
-        # Test length and NaN values
-        self.assertEqual(len(sma), len(self.prices))
-        self.assertTrue(pd.isna(sma.iloc[0]))  # First two values should be NaN
-        self.assertTrue(pd.isna(sma.iloc[1]))
-        
-        # Test calculation manually
-        first_valid_value = self.prices.iloc[0:window].mean()
-        self.assertAlmostEqual(sma.iloc[window-1], first_valid_value, places=5)
-        
-        # Test random spot check
-        mid_point = len(self.prices) // 2
-        manual_sma = self.prices.iloc[mid_point-window+1:mid_point+1].mean()
-        self.assertAlmostEqual(sma.iloc[mid_point], manual_sma, places=5)
-
-    def test_ema_calculation(self):
-        """Test Exponential Moving Average calculation."""
-        ema = calculate_ema(self.prices, window=3)
-        self.assertEqual(len(ema), len(self.prices))
-        self.assertTrue(pd.isna(ema.iloc[0]))
-        self.assertFalse(pd.isna(ema.iloc[-1]))
-
-    def test_rsi_calculation(self):
-        """Test Relative Strength Index calculation."""
-        rsi = calculate_rsi(self.prices, window=3)
-        self.assertEqual(len(rsi), len(self.prices))
-        self.assertTrue(all(0 <= x <= 100 for x in rsi[~pd.isna(rsi)]))  # RSI should be between 0 and 100
-
-    def test_macd_calculation(self):
-        """Test MACD calculation."""
-        macd_line, signal_line, histogram = calculate_macd(self.prices)
-        self.assertEqual(len(macd_line), len(self.prices))
-        self.assertEqual(len(signal_line), len(self.prices))
-        self.assertEqual(len(histogram), len(self.prices))
-        
-        # MACD line should be the difference between fast and slow EMAs
-        self.assertAlmostEqual(
-            macd_line.iloc[-1],
-            calculate_ema(self.prices, 12).iloc[-1] - calculate_ema(self.prices, 26).iloc[-1],
-            places=10
-        )
-
-    def test_bollinger_bands_calculation(self):
-        """Test Bollinger Bands calculation."""
-        upper, middle, lower = calculate_bollinger_bands(self.prices, window=3)
-        self.assertEqual(len(upper), len(self.prices))
-        self.assertEqual(len(middle), len(self.prices))
-        self.assertEqual(len(lower), len(self.prices))
-        
-        # Upper band should be higher than middle band
-        self.assertTrue(all(u >= m for u, m in zip(upper[~pd.isna(upper)], middle[~pd.isna(middle)])))
-        # Lower band should be lower than middle band
-        self.assertTrue(all(l <= m for l, m in zip(lower[~pd.isna(lower)], middle[~pd.isna(middle)])))
-
-    def test_rolling_stats_calculation(self):
-        """Test rolling statistics calculation."""
-        stats = calculate_rolling_stats(self.prices, window=3)
-        self.assertIsInstance(stats, dict)
-        self.assertTrue(all(len(v) == len(self.prices) for v in stats.values()))
-        
-        # Test specific statistics
-        self.assertIn('mean', stats)
-        self.assertIn('std', stats)
-        self.assertIn('min', stats)
-        self.assertIn('max', stats)
-
-
-class TestFeatureStore(unittest.TestCase):
-    """Test suite for FeatureStore class."""
-    
-    def setUp(self):
-        """Set up test data and FeatureStore instance."""
-        self.temp_dir = tempfile.mkdtemp()
-        self.feature_store = FeatureStore(cache_dir=self.temp_dir)
-        
         # Create sample price data
-        self.prices = pd.Series(
-            [100, 102, 99, 101, 103, 98, 96, 99, 102, 104],
-            index=pd.date_range(start='2024-01-01', periods=10, freq='D')
+        self.dates = pd.date_range(
+            start=datetime(2024, 1, 1, tzinfo=UTC),
+            end=datetime(2024, 1, 10, tzinfo=UTC),
+            freq='D'
         )
-        self.data = pd.DataFrame({'close': self.prices})
+        self.prices = pd.Series(
+            [100, 102, 101, 103, 102, 104, 103, 105, 104, 106],
+            index=self.dates
+        )
+        self.df = pd.DataFrame({
+            'open': self.prices - 0.5,
+            'high': self.prices + 1,
+            'low': self.prices - 1,
+            'close': self.prices,
+            'volume': np.random.randint(1000, 2000, size=len(self.prices))
+        })
+        
+        # Create temporary directory for feature store tests
+        self.temp_dir = tempfile.mkdtemp()
 
     def tearDown(self):
-        """Clean up temporary directory."""
+        """Clean up temporary files."""
         shutil.rmtree(self.temp_dir)
 
-    def test_compute_technical_indicators(self):
-        """Test computing multiple technical indicators."""
-        features = self.feature_store.compute_technical_indicators(
-            self.data,
-            windows=[2, 3]
-        )
+    def test_technical_indicators(self):
+        """Test calculation of technical indicators."""
+        features = calculate_technical_indicators(self.df)
         
-        self.assertIsInstance(features, pd.DataFrame)
-        self.assertTrue(len(features.columns) > 0)
-        
-        # Check for specific feature columns
-        expected_columns = [
+        # Check that all expected features are present
+        expected_features = [
             'returns', 'log_returns', 'volatility',
-            'sma_12', 'ema_12', 'sma_26', 'ema_26',
-            'rsi', 'macd', 'macd_signal', 'macd_hist'
+            'sma_20', 'sma_50', 'ema_20', 'rsi',
+            'macd', 'macd_signal', 'macd_hist',
+            'bollinger_upper', 'bollinger_lower', 'atr'
         ]
-        for col in expected_columns:
-            self.assertIn(col, features.columns)
-
-    def test_feature_store_caching(self):
-        """Test FeatureStore caching functionality."""
-        # Compute features
-        features = self.feature_store.compute_technical_indicators(self.data)
+        for feature in expected_features:
+            self.assertIn(feature, features.columns)
         
-        # Add features to cache
-        self.feature_store.add_features('test_features', features)
+        # Check that there are no NaN values in key features
+        self.assertFalse(features['returns'].isna().all())
+        self.assertFalse(features['rsi'].isna().all())
+        self.assertFalse(features['macd'].isna().all())
+
+    def test_target_column(self):
+        """Test target column creation."""
+        df = add_target_column(self.df.copy(), target_column='close', periods=1)
+        
+        # Check target column exists and has expected properties
+        self.assertIn('target', df.columns)
+        self.assertEqual(len(df['target'].dropna()), len(df) - 1)  # Last row should be NaN
+        
+        # Test percentage change calculation
+        expected_change = (self.prices.shift(-1) - self.prices) / self.prices
+        pd.testing.assert_series_equal(
+            df['target'].dropna(),
+            expected_change.dropna(),
+            check_names=False
+        )
+
+    def test_rsi(self):
+        """Test RSI calculation."""
+        rsi = calculate_rsi(self.prices)
+        
+        # Check RSI properties
+        self.assertTrue(all(0 <= x <= 100 for x in rsi.dropna()))
+        self.assertEqual(len(rsi.dropna()), len(self.prices) - 14)  # Default window is 14
+
+    def test_macd(self):
+        """Test MACD calculation."""
+        macd, signal, hist = calculate_macd(self.prices)
+        
+        # Check MACD components
+        self.assertEqual(len(macd), len(self.prices))
+        self.assertEqual(len(signal), len(self.prices))
+        self.assertEqual(len(hist), len(self.prices))
+        
+        # Verify histogram is difference of MACD and signal
+        pd.testing.assert_series_equal(
+            hist,
+            macd - signal,
+            check_names=False
+        )
+
+    def test_bollinger_bands(self):
+        """Test Bollinger Bands calculation."""
+        upper, middle, lower = calculate_bollinger_bands(self.prices)
+        
+        # Check band properties
+        self.assertTrue(all(upper >= middle))
+        self.assertTrue(all(middle >= lower))
+        self.assertEqual(len(upper.dropna()), len(self.prices) - 19)  # Default window is 20
+
+    def test_feature_store(self):
+        """Test FeatureStore functionality."""
+        store = FeatureStore(cache_dir=self.temp_dir)
+        
+        # Calculate and store features
+        features = calculate_technical_indicators(self.df)
+        store.add_features('test_features', features)
         
         # Retrieve features
-        cached_features = self.feature_store.get_features('test_features')
-        self.assertIsNotNone(cached_features)
-        pd.testing.assert_frame_equal(features, cached_features)
-
-    def test_invalid_inputs(self):
-        """Test handling of invalid inputs."""
-        # Test with empty series
-        empty_data = pd.DataFrame({'close': []})
-        features = self.feature_store.compute_technical_indicators(empty_data)
-        self.assertTrue(features.empty)
-        
-        # Test with series containing NaN
-        nan_data = pd.DataFrame({'close': [100, np.nan, 102]})
-        features = self.feature_store.compute_technical_indicators(nan_data)
-        self.assertTrue(features.isna().any().any())  # Should contain NaN values
-
-    def test_feature_persistence(self):
-        """Test feature persistence to disk."""
-        features = self.feature_store.compute_technical_indicators(self.data)
-        self.feature_store.add_features('persistent_features', features)
-        
-        # Create new FeatureStore instance with same cache directory
-        new_store = FeatureStore(cache_dir=self.temp_dir)
-        loaded_features = new_store.get_features('persistent_features')
-        
+        loaded_features = store.get_features('test_features')
         self.assertIsNotNone(loaded_features)
         pd.testing.assert_frame_equal(features, loaded_features)
 

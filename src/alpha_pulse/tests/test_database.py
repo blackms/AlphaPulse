@@ -5,8 +5,8 @@ from datetime import datetime, UTC
 import pytest
 from loguru import logger
 
-from alpha_pulse.data_pipeline.database import get_db
-from alpha_pulse.data_pipeline.models import Base, OHLCV, Strategy, Trade
+from ..data_pipeline.database import get_db
+from ..data_pipeline.models import Base, OHLCV, Strategy, Trade
 
 
 @pytest.fixture(autouse=True)

@@ -1,17 +1,19 @@
 """
-AlphaPulse backtesting package for strategy evaluation and performance analysis.
+Backtesting package for AlphaPulse.
 """
 
+from .backtester import Backtester
+from .strategy import (
+    DefaultStrategy,
+    TrendFollowingStrategy,
+    MeanReversionStrategy,
+)
 from .models import Position
-from .backtester import Backtester, BacktestResult
-from .strategy import BaseStrategy, DefaultStrategy, TrendFollowingStrategy, MeanReversionStrategy
 
 __all__ = [
-    'Position',
     'Backtester',
-    'BacktestResult',
-    'BaseStrategy',
     'DefaultStrategy',
     'TrendFollowingStrategy',
-    'MeanReversionStrategy'
+    'MeanReversionStrategy',
+    'Position',
 ]

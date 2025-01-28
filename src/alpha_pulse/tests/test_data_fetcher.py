@@ -7,8 +7,8 @@ from unittest.mock import Mock
 import pytest
 from loguru import logger
 
-from alpha_pulse.data_pipeline.data_fetcher import DataFetcher
-from alpha_pulse.data_pipeline.interfaces import IExchangeFactory, IDataStorage
+from ..data_pipeline.data_fetcher import DataFetcher
+from ..data_pipeline.interfaces import IExchangeFactory, IDataStorage
 
 
 @pytest.fixture
