@@ -6,8 +6,8 @@ from typing import List, Optional
 
 from loguru import logger
 
-from alpha_pulse.data_pipeline.interfaces import IExchangeFactory, IDataStorage
-from alpha_pulse.data_pipeline.models import OHLCV
+from .interfaces import IExchangeFactory, IDataStorage
+from .models import OHLCV
 
 
 class DataFetcher:
