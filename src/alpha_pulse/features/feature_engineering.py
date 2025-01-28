@@ -95,13 +95,27 @@ def calculate_rsi(prices: Union[pd.Series, np.ndarray], window: int = 14) -> pd.
     losses[losses > 0] = 0
     losses = abs(losses)
     
-    # Calculate average gains and losses
-    avg_gains = gains.rolling(window=window).mean()
-    avg_losses = losses.rolling(window=window).mean()
+    # Use smaller window if data length is less than window size
+    actual_window = min(window, len(prices) - 1)
+    if actual_window < 2:
+        return pd.Series(np.nan, index=prices.index)
+    
+    # Calculate initial averages using simple moving average
+    avg_gains = gains.rolling(window=actual_window, min_periods=1).mean()
+    avg_losses = losses.rolling(window=actual_window, min_periods=1).mean()
+    
+    # Calculate subsequent values using exponential moving average
+    avg_gains = gains.ewm(alpha=1/actual_window, min_periods=1, adjust=False).mean()
+    avg_losses = losses.ewm(alpha=1/actual_window, min_periods=1, adjust=False).mean()
     
     # Calculate RS and RSI
     rs = avg_gains / avg_losses
     rsi = 100 - (100 / (1 + rs))
+    
+    # Handle edge cases
+    rsi[avg_losses == 0] = 100
+    rsi[avg_gains == 0] = 0
+    rsi[0] = np.nan  # First value should be NaN
     
     return rsi
 
@@ -162,15 +176,34 @@ def calculate_bollinger_bands(
     if isinstance(prices, np.ndarray):
         prices = pd.Series(prices)
     
+    # Convert to pandas Series if numpy array
+    if isinstance(prices, np.ndarray):
+        prices = pd.Series(prices)
+    
+    # Use smaller window if data length is less than window size
+    actual_window = min(window, len(prices))
+    if actual_window < 2:
+        return (pd.Series(np.nan, index=prices.index),
+                pd.Series(np.nan, index=prices.index),
+                pd.Series(np.nan, index=prices.index))
+    
     # Calculate middle band (SMA)
-    middle_band = prices.rolling(window=window).mean()
+    middle_band = prices.rolling(window=actual_window, min_periods=2).mean()
     
     # Calculate standard deviation
-    std = prices.rolling(window=window).std()
+    std = prices.rolling(window=actual_window, min_periods=2).std()
     
-    # Calculate upper and lower bands
-    upper_band = middle_band + (std * num_std)
-    lower_band = middle_band - (std * num_std)
+    # Calculate standard deviation based band width
+    band_width = np.abs(std * num_std)  # Use absolute value to ensure positive width
+    
+    # Calculate bands ensuring proper relationships
+    upper_band = pd.Series(middle_band + band_width, index=prices.index)
+    lower_band = pd.Series(middle_band - band_width, index=prices.index)
+    
+    # Handle NaN values
+    upper_band.iloc[0] = np.nan
+    middle_band.iloc[0] = np.nan
+    lower_band.iloc[0] = np.nan
     
     return upper_band, middle_band, lower_band
 
