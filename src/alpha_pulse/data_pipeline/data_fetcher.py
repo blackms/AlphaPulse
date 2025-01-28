@@ -6,7 +6,7 @@ from typing import List, Optional
 
 from loguru import logger
 
-from alpha_pulse.data_pipeline.interfaces import IExchange, IExchangeFactory, IDataStorage
+from alpha_pulse.data_pipeline.interfaces import IExchangeFactory, IDataStorage
 from alpha_pulse.data_pipeline.models import OHLCV
 
 
@@ -51,10 +51,10 @@ class DataFetcher:
             List of OHLCV objects
         """
         exchange = self.exchange_factory.create_exchange(exchange_id)
-        
+
         # Convert datetime to milliseconds timestamp if provided
         since_ts = int(since.timestamp() * 1000) if since else None
-        
+
         # Fetch raw OHLCV data
         raw_data = exchange.fetch_ohlcv(
             symbol=symbol,
@@ -62,7 +62,7 @@ class DataFetcher:
             since=since_ts,
             limit=limit
         )
-        
+
         # Convert to OHLCV objects
         ohlcv_data = []
         for candle in raw_data:
@@ -70,6 +70,7 @@ class DataFetcher:
             ohlcv = OHLCV(
                 exchange=exchange_id,
                 symbol=symbol,
+                timeframe=timeframe,
                 timestamp=timestamp,
                 open=candle[1],
                 high=candle[2],
@@ -78,7 +79,7 @@ class DataFetcher:
                 volume=candle[5]
             )
             ohlcv_data.append(ohlcv)
-        
+
         return ohlcv_data
 
     def update_historical_data(
@@ -99,15 +100,15 @@ class DataFetcher:
             days_back: Number of days of historical data to fetch
             end_time: End time for data fetch (defaults to now)
         """
-        if end_time is None:
-            end_time = datetime.now(UTC)
-        start_time = end_time - timedelta(days=days_back)
-        
         logger.info(
             f"Fetching {days_back} days of {timeframe} data for {symbol} "
             f"from {exchange_id}"
         )
-        
+
+        if end_time is None:
+            end_time = datetime.now(UTC)
+        start_time = end_time - timedelta(days=days_back)
+
         # Fetch OHLCV data
         ohlcv_data = self.fetch_ohlcv(
             exchange_id=exchange_id,
@@ -115,37 +116,8 @@ class DataFetcher:
             timeframe=timeframe,
             since=start_time
         )
-        
+
         # Save to storage
         self.storage.save_ohlcv(ohlcv_data)
-        
+
         logger.info("Data fetched and stored successfully")
-
-    def get_historical_data(
-        self,
-        exchange_id: str,
-        symbol: str,
-        timeframe: str,
-        start_time: Optional[datetime] = None,
-        end_time: Optional[datetime] = None
-    ) -> List[OHLCV]:
-        """
-        Retrieve historical market data.
-
-        Args:
-            exchange_id: ID of the exchange
-            symbol: Trading pair symbol
-            timeframe: Candle timeframe
-            start_time: Start time for data retrieval
-            end_time: End time for data retrieval
-
-        Returns:
-            List of OHLCV objects
-        """
-        return self.storage.get_historical_data(
-            exchange_id=exchange_id,
-            symbol=symbol,
-            timeframe=timeframe,
-            start_time=start_time,
-            end_time=end_time
-        )
