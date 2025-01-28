@@ -99,3 +99,5 @@ site/
 # Misc
 .DS_Store
 Thumbs.db 
+
+plots
