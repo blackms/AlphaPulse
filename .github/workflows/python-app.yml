@@ -17,9 +17,7 @@ jobs:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       EXCHANGE_API_KEY: ${{ secrets.EXCHANGE_API_KEY }}
       EXCHANGE_API_SECRET: ${{ secrets.EXCHANGE_API_SECRET }}
-      LD_LIBRARY_PATH: /usr/lib:$LD_LIBRARY_PATH
-      TA_LIBRARY_PATH: /usr/lib
-      TA_INCLUDE_PATH: /usr/include
+      LD_LIBRARY_PATH: /usr/local/lib:$LD_LIBRARY_PATH
 
     steps:
     - uses: actions/checkout@v4
@@ -38,14 +36,15 @@ jobs:
         wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
         tar -xzf ta-lib-0.4.0-src.tar.gz
         cd ta-lib/
-        ./configure --prefix=/usr
+        # Use default prefix (/usr/local)
+        ./configure
         make
         sudo make install
         cd ..
         rm -rf ta-lib ta-lib-0.4.0-src.tar.gz
-        # Verify installation
-        ls -l /usr/lib/libta_lib*
+        # Update library cache and verify installation
         sudo ldconfig
+        ls -l /usr/local/lib/libta_lib*
     
     - name: Install dependencies
       run: |
@@ -53,8 +52,10 @@ jobs:
         pip install flake8
         # Install TA-Lib Python wrapper
         pip install numpy
-        export LD_LIBRARY_PATH=/usr/lib:$LD_LIBRARY_PATH
-        pip install TA-Lib
+        # Set environment variables for TA-Lib installation
+        export TA_INCLUDE_PATH=/usr/local/include
+        export TA_LIBRARY_PATH=/usr/local/lib
+        pip install --no-cache-dir TA-Lib
         # Install the package in editable mode with dev dependencies
         pip install -e ".[dev]"
     
