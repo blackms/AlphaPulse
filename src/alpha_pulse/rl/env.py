@@ -67,8 +67,26 @@ class TradingEnv(gym.Env):
             dtype=np.float32
         )
         
+        # Calculate feature statistics for normalization
+        self._setup_feature_normalization()
+        
         # Initialize state variables
         self._reset_state()
+        
+    def _setup_feature_normalization(self) -> None:
+        """Calculate feature means and standard deviations for normalization."""
+        # Calculate price change statistics
+        price_changes = self.prices.pct_change().fillna(0)
+        self.price_mean = price_changes.mean()
+        self.price_std = price_changes.std()
+        if self.price_std == 0:
+            self.price_std = 1.0
+            
+        # Calculate feature statistics
+        self.feature_means = self.features.mean()
+        self.feature_stds = self.features.std()
+        # Replace zero standard deviations with 1.0 to avoid division by zero
+        self.feature_stds = self.feature_stds.replace(0, 1.0)
         
     def _reset_state(self) -> None:
         """Reset the environment state."""
@@ -84,18 +102,23 @@ class TradingEnv(gym.Env):
         end_idx = self.current_step
         start_idx = end_idx - self.config.window_size
         
-        # Calculate price changes
+        # Calculate normalized price changes
         price_window = self.prices.iloc[start_idx:end_idx]
         price_changes = price_window.pct_change().fillna(0)
+        normalized_price_changes = (price_changes - self.price_mean) / self.price_std
         
-        # Get feature window
-        feature_window = self.features.iloc[start_idx:end_idx].values
+        # Get and normalize feature window
+        feature_window = self.features.iloc[start_idx:end_idx]
+        normalized_features = (feature_window - self.feature_means) / self.feature_stds
         
         # Combine and flatten
         state = np.concatenate([
-            price_changes.values.reshape(-1, 1),
-            feature_window
+            normalized_price_changes.values.reshape(-1, 1),
+            normalized_features.values
         ], axis=1)
+        
+        # Replace any remaining NaN or infinite values
+        state = np.nan_to_num(state, nan=0.0, posinf=1.0, neginf=-1.0)
         
         return state.flatten().astype(np.float32)
         
