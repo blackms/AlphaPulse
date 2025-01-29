@@ -11,7 +11,7 @@ import pandas as pd
 from loguru import logger
 
 from alpha_pulse.data_pipeline.data_fetcher import DataFetcher
-from alpha_pulse.features.feature_engineering import FeatureEngineer
+from alpha_pulse.features.feature_engineering import calculate_technical_indicators
 from alpha_pulse.rl.env import TradingEnv, TradingEnvConfig
 from alpha_pulse.rl.rl_trainer import RLTrainer, TrainingConfig
 
@@ -32,8 +32,7 @@ def main():
     
     # 2. Generate features
     logger.info("Generating features...")
-    engineer = FeatureEngineer()
-    features = engineer.calculate_features(data['close'])
+    features = calculate_technical_indicators(data)
     
     # Split data into train and test sets (80/20)
     split_idx = int(len(data) * 0.8)
