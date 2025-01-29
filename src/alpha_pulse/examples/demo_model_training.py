@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from loguru import logger
 
 from alpha_pulse.models import ModelTrainer
-from alpha_pulse.data_pipeline import Exchange
+from alpha_pulse.data_pipeline import CCXTExchangeFactory
 from alpha_pulse.features.feature_engineering import (
     calculate_technical_indicators,
     add_target_column
@@ -18,7 +18,8 @@ from alpha_pulse.features.feature_engineering import (
 def main():
     # 1. Fetch historical data
     logger.info("Fetching historical data...")
-    exchange = Exchange()
+    factory = CCXTExchangeFactory()
+    exchange = factory.create_exchange("binance")
     end_date = datetime.now()
     start_date = end_date - timedelta(days=365)  # 1 year of data
     
