@@ -10,20 +10,13 @@ This script demonstrates how to:
 from datetime import datetime, UTC, timedelta
 import pandas as pd
 from loguru import logger
-import multiprocessing
-import torch
 
 from ..data_pipeline.data_fetcher import DataFetcher
 from ..data_pipeline.exchange import Exchange
 from ..data_pipeline.storage import SQLAlchemyStorage
 from ..features.feature_engineering import calculate_technical_indicators
 from ..rl.env import TradingEnv, TradingEnvConfig
-from ..rl.rl_trainer import (
-    RLTrainer, 
-    TrainingConfig, 
-    ComputeConfig,
-    NetworkConfig
-)
+from ..rl.rl_trainer import RLTrainer, TrainingConfig, ComputeConfig, NetworkConfig
 
 
 class MockExchangeFactory:
@@ -43,9 +36,9 @@ def main():
     storage = SQLAlchemyStorage()
     fetcher = DataFetcher(exchange_factory, storage)
     
-    # Update historical data - use 90 days for better training
+    # Update historical data - use 30 days for faster training
     end_time = datetime.now(UTC)
-    start_time = end_time - timedelta(days=90)
+    start_time = end_time - timedelta(days=30)
     days = (end_time - start_time).days
     
     fetcher.update_historical_data(
@@ -104,43 +97,31 @@ def main():
         initial_capital=100000.0,
         commission=0.001,     # 0.1% commission
         position_size=0.2,    # Risk 20% of capital per trade
-        window_size=20,       # Increased history window
+        window_size=10,       # Use 10 time steps of history
         reward_scaling=1.0
     )
     
-    # Compute configuration
-    n_cores = multiprocessing.cpu_count()
-    compute_config = ComputeConfig(
-        n_envs=max(n_cores - 1, 1),  # Leave one core free
-        device="cuda" if torch.cuda.is_available() else "cpu",
-        n_threads=n_cores
-    )
-    logger.info(f"Using {compute_config.n_envs} parallel environments on {compute_config.device}")
-    
     # Network configuration
     network_config = NetworkConfig(
-        policy_network=[512, 256, 128],  # Larger network
-        value_network=[512, 256, 128],
-        activation_fn="elu",
-        shared_layers=True  # Share initial layers for better feature extraction
+        hidden_sizes=[64, 64],  # Simple network architecture
+        activation_fn="tanh"
     )
     
     # Training configuration
     training_config = TrainingConfig(
-        total_timesteps=100_000,  # Increased for better learning
+        total_timesteps=10000,  # Reduced for faster training
         learning_rate=0.0003,
-        batch_size=min(4096, 128 * compute_config.n_envs),  # Scale with n_envs
+        batch_size=64,
         n_steps=2048,
         gamma=0.99,
         gae_lambda=0.95,
         ent_coef=0.01,
         vf_coef=0.5,
         max_grad_norm=0.5,
-        eval_freq=5000,
-        n_eval_episodes=3,
+        eval_freq=1000,
+        n_eval_episodes=2,
         model_path="trained_models/rl/trading_agent",
-        log_path="logs/rl",
-        checkpoint_freq=10000
+        log_path="logs/rl"
     )
     
     # 4. Create trainer and train the agent
@@ -148,7 +129,6 @@ def main():
     trainer = RLTrainer(
         env_config=env_config,
         training_config=training_config,
-        compute_config=compute_config,
         network_config=network_config
     )
     
