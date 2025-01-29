@@ -1,17 +1,17 @@
 """
-Reinforcement learning trainer module with configurable compute settings.
+Reinforcement learning trainer module.
+
+This module provides functionality for training and evaluating RL agents
+using stable-baselines3.
 """
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Dict, Any, List, Union
+from typing import Optional, Dict, Any, List
 import pandas as pd
 from loguru import logger
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import EvalCallback
-from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
-import torch
 import torch.nn as nn
-import multiprocessing
 
 from .env import TradingEnv, TradingEnvConfig
 
@@ -19,26 +19,28 @@ from .env import TradingEnv, TradingEnvConfig
 @dataclass
 class ComputeConfig:
     """Configuration for compute resources."""
-    n_envs: int = multiprocessing.cpu_count()  # Number of parallel environments
-    device: str = "auto"  # 'auto', 'cuda', 'cuda:0', 'cpu'
-    n_threads: int = multiprocessing.cpu_count()  # Number of threads for training
+    n_envs: int = 1
+    device: str = "auto"
+    n_threads: int = 1
 
 
 @dataclass
 class NetworkConfig:
-    """Neural network architecture configuration."""
-    policy_network: List[int] = (256, 256)  # Policy network architecture
-    value_network: List[int] = (256, 256)   # Value network architecture
-    activation_fn: str = "relu"  # Activation function: 'relu', 'tanh', 'elu'
-    shared_layers: bool = False  # Whether to use shared layers for policy and value
+    """Configuration for neural network architecture."""
+    hidden_sizes: List[int] = None
+    activation_fn: str = "tanh"
+
+    def __post_init__(self):
+        if self.hidden_sizes is None:
+            self.hidden_sizes = [64, 64]
 
 
 @dataclass
 class TrainingConfig:
     """Configuration for RL training."""
-    total_timesteps: int = 1_000_000
+    total_timesteps: int = 100_000
     learning_rate: float = 0.0003
-    batch_size: int = 256
+    batch_size: int = 64
     n_steps: int = 2048
     gamma: float = 0.99
     gae_lambda: float = 0.95
@@ -49,11 +51,11 @@ class TrainingConfig:
     n_eval_episodes: int = 5
     model_path: str = "trained_models/rl/trading_agent"
     log_path: str = "logs/rl"
-    checkpoint_freq: int = 50_000  # Save checkpoints every n steps
+    checkpoint_freq: int = 10_000
 
 
 class RLTrainer:
-    """Enhanced trainer class for RL agents with configurable compute settings."""
+    """Trainer class for RL agents."""
     
     def __init__(
         self,
@@ -62,73 +64,62 @@ class RLTrainer:
         compute_config: Optional[ComputeConfig] = None,
         network_config: Optional[NetworkConfig] = None
     ):
-        """Initialize the trainer with configurable settings."""
+        """
+        Initialize the trainer.
+        
+        Args:
+            env_config: Configuration for the trading environment
+            training_config: Configuration for training
+            compute_config: Configuration for compute resources
+            network_config: Configuration for neural network architecture
+        """
         self.env_config = env_config
         self.training_config = training_config
         self.compute_config = compute_config or ComputeConfig()
         self.network_config = network_config or NetworkConfig()
         
-        # Set up compute device
-        if self.compute_config.device == "auto":
-            self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        else:
-            self.device = self.compute_config.device
+        # Create directories
+        Path(self.training_config.model_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(self.training_config.log_path).mkdir(parents=True, exist_ok=True)
         
-        logger.info(f"Using device: {self.device}")
-        torch.set_num_threads(self.compute_config.n_threads)
-        
-    def _make_env(self, prices: pd.Series, features: pd.DataFrame, rank: int) -> callable:
-        """Create a vectorized environment factory."""
-        def _init() -> TradingEnv:
-            env = TradingEnv(
-                prices=prices,
-                features=features,
-                config=self.env_config
-            )
-            return env
-        return _init
+    def _get_activation_fn(self) -> type:
+        """Get activation function from string name."""
+        activation_map = {
+            'tanh': nn.Tanh,
+            'relu': nn.ReLU,
+            'elu': nn.ELU,
+            'leaky_relu': nn.LeakyReLU
+        }
+        return activation_map.get(
+            self.network_config.activation_fn.lower(),
+            nn.Tanh
+        )
         
     def _create_model(
         self,
-        env: Union[SubprocVecEnv, DummyVecEnv],
+        env: TradingEnv,
         algorithm: str = 'ppo'
     ) -> PPO:
-        """Create an RL model with configurable architecture."""
+        """
+        Create an RL model.
+        
+        Args:
+            env: Trading environment
+            algorithm: RL algorithm to use (currently only PPO supported)
+            
+        Returns:
+            Initialized model
+        """
         if algorithm.lower() != 'ppo':
             raise ValueError(f"Unsupported algorithm: {algorithm}")
             
-        # Set activation function
-        activation_map = {
-            'relu': nn.ReLU,
-            'tanh': nn.Tanh,
-            'elu': nn.ELU
-        }
-        activation_fn = activation_map.get(
-            self.network_config.activation_fn.lower(),
-            nn.ReLU
-        )
-        
-        # Configure network architecture
-        if self.network_config.shared_layers:
-            net_arch = [
-                *self.network_config.policy_network,
-                dict(
-                    pi=self.network_config.policy_network,
-                    vf=self.network_config.value_network
-                )
-            ]
-        else:
-            net_arch = dict(
-                pi=self.network_config.policy_network,
-                vf=self.network_config.value_network
-            )
-        
+        # Policy kwargs
         policy_kwargs = dict(
-            activation_fn=activation_fn,
-            net_arch=net_arch
+            activation_fn=self._get_activation_fn(),
+            net_arch=self.network_config.hidden_sizes
         )
         
-        # Initialize model with enhanced settings
+        # Initialize model
         model = PPO(
             "MlpPolicy",
             env,
@@ -142,7 +133,8 @@ class RLTrainer:
             max_grad_norm=self.training_config.max_grad_norm,
             policy_kwargs=policy_kwargs,
             tensorboard_log=self.training_config.log_path,
-            device=self.device,
+            device=self.compute_config.device,
+            n_epochs=10,
             verbose=1
         )
         
@@ -157,30 +149,50 @@ class RLTrainer:
         eval_features: Optional[pd.DataFrame] = None,
         model_path: Optional[str] = None
     ) -> PPO:
-        """Train an RL agent with enhanced compute capabilities."""
-        logger.info(f"Starting {algorithm.upper()} training with {self.compute_config.n_envs} environments...")
+        """
+        Train an RL agent.
         
-        # Create vectorized training environment
-        env_fns = [self._make_env(prices, features, i) for i in range(self.compute_config.n_envs)]
-        if self.compute_config.n_envs > 1:
-            train_env = SubprocVecEnv(env_fns)
-        else:
-            train_env = DummyVecEnv(env_fns)
+        Args:
+            prices: Price data for training
+            features: Feature data for training
+            algorithm: RL algorithm to use
+            eval_prices: Price data for evaluation
+            eval_features: Feature data for evaluation
+            model_path: Path to save the trained model
+            
+        Returns:
+            Trained model
+        """
+        logger.info("Starting PPO training...")
         
-        # Set up evaluation
+        # Create training environment
+        train_env = TradingEnv(
+            prices=prices,
+            features=features,
+            config=self.env_config
+        )
+        
+        # Create evaluation environment if data provided
+        eval_env = None
         eval_callback = None
         if eval_prices is not None and eval_features is not None:
-            eval_env = DummyVecEnv([self._make_env(eval_prices, eval_features, 0)])
+            eval_env = TradingEnv(
+                prices=eval_prices,
+                features=eval_features,
+                config=self.env_config
+            )
             eval_callback = EvalCallback(
                 eval_env,
                 best_model_save_path=model_path or self.training_config.model_path,
                 log_path=self.training_config.log_path,
                 eval_freq=self.training_config.eval_freq,
                 n_eval_episodes=self.training_config.n_eval_episodes,
-                deterministic=True
+                deterministic=True,
+                render=False
             )
             
         try:
+            # Create and train model
             model = self._create_model(train_env, algorithm)
             model.learn(
                 total_timesteps=self.training_config.total_timesteps,
@@ -188,6 +200,7 @@ class RLTrainer:
                 progress_bar=True
             )
             
+            # Save final model if no evaluation callback
             if eval_callback is None and model_path:
                 model.save(model_path)
                 logger.info(f"Model saved to {model_path}")
@@ -197,11 +210,7 @@ class RLTrainer:
         except Exception as e:
             logger.error(f"Training failed: {str(e)}")
             raise
-        finally:
-            train_env.close()
-            if eval_callback:
-                eval_callback.eval_env.close()
-
+            
     def evaluate(
         self,
         model: PPO,
