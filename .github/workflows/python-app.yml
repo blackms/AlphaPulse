@@ -42,61 +42,17 @@ jobs:
         
         # Upgrade pip and install base tools
         python -m pip install --upgrade pip
-        pip install flake8
-        pip install numpy
+        pip install flake8 pytest pytest-cov pytest-asyncio
         
         # Install RL dependencies
-        pip install stable-baselines3
+        pip install stable-baselines3[extra]
         
-        # Debug: Show current directory structure
-        echo "Current directory structure:"
+        # Install the package in editable mode
+        pip install -e .
+        
+        # Debug: Show package structure
+        echo "Package structure:"
         ls -R src/alpha_pulse/
-        
-        # Ensure package structure exists
-        mkdir -p src/alpha_pulse/models
-        
-        # Create necessary __init__.py files
-        echo "Creating __init__.py files..."
-        echo '"""AlphaPulse package."""' > src/alpha_pulse/__init__.py
-        echo '"""Models package."""' > src/alpha_pulse/models/__init__.py
-        
-        # Create basic_models.py with minimal content
-        echo "Creating basic_models.py..."
-        cat << 'EOF' > src/alpha_pulse/models/basic_models.py
-"""Basic machine learning models."""
-from typing import Dict, Optional, Union
-from pathlib import Path
-
-class ModelTrainer:
-    def __init__(
-        self,
-        model_type: str = 'random_forest',
-        task: str = 'regression',
-        model_params: Optional[Dict] = None,
-        model_dir: Optional[Union[str, Path]] = None
-    ):
-        self.model_type = model_type
-        self.task = task
-        self.model_params = model_params or {}
-        self.model_dir = Path(model_dir) if model_dir else Path.cwd() / "models"
-EOF
-        
-        # Debug: Show updated directory structure
-        echo "Updated directory structure:"
-        ls -R src/alpha_pulse/
-        
-        # Debug: Show content of basic_models.py
-        echo "Content of basic_models.py:"
-        cat src/alpha_pulse/models/basic_models.py
-        
-        # Install the package in editable mode with dev dependencies
-        pip install -e ".[dev]"
-        
-        # Debug: Verify Python path
-        echo "PYTHONPATH: $PYTHONPATH"
-        
-        # Debug: Try importing the module
-        python -c "import sys; print('Python path:', sys.path); from alpha_pulse.models.basic_models import ModelTrainer; print('ModelTrainer found')"
     
     - name: Lint with flake8
       shell: bash -l {0}
@@ -109,11 +65,12 @@ EOF
     - name: Test with pytest
       shell: bash -l {0}
       run: |
-        # Debug: Show test directory structure
+        # Show test directory structure
+        echo "Test directory structure:"
         ls -R src/alpha_pulse/tests/
         
-        # Run tests with verbose output
-        PYTHONPATH=$PYTHONPATH pytest -v --showlocals
+        # Run tests
+        pytest -v
     
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v3
