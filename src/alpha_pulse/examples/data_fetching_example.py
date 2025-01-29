@@ -3,27 +3,28 @@ Example script demonstrating the AlphaPulse data fetching functionality.
 """
 from loguru import logger
 
-from alpha_pulse.data_pipeline import Exchange
+from alpha_pulse.data_pipeline import CCXTExchangeFactory
 
 
 def main():
     """Run data fetching demonstration."""
     logger.info("Starting data fetching demonstration...")
 
-    # Create exchange instance
-    exchange = Exchange()
+    # Create exchange instance using factory
+    factory = CCXTExchangeFactory()
+    exchange = factory.create_exchange("binance")
     
     # Get available trading pairs
     pairs = exchange.get_available_pairs()
     logger.info(f"Available trading pairs: {pairs}")
     
-    # Get current price for BTC/USD
-    btc_price = exchange.get_current_price("BTC/USD")
+    # Get current price for BTC/USDT
+    btc_price = exchange.get_current_price("BTC/USDT")
     logger.info(f"Current BTC price: ${btc_price:,.2f}")
     
     # Fetch historical data
     historical_data = exchange.fetch_historical_data(
-        symbol="BTC/USD",
+        symbol="BTC/USDT",
         timeframe="1d",
         start_time=None,  # Default to recent data
         end_time=None     # Default to current time

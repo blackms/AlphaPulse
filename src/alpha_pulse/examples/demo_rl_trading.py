@@ -12,18 +12,11 @@ import pandas as pd
 from loguru import logger
 
 from ..data_pipeline.data_fetcher import DataFetcher
-from ..data_pipeline.exchange import Exchange
+from ..data_pipeline.exchange import CCXTExchangeFactory
 from ..data_pipeline.storage import SQLAlchemyStorage
 from ..features.feature_engineering import calculate_technical_indicators
 from ..rl.env import TradingEnv, TradingEnvConfig
 from ..rl.rl_trainer import RLTrainer, TrainingConfig, ComputeConfig, NetworkConfig
-
-
-class MockExchangeFactory:
-    """Factory for creating mock exchange instances."""
-    def create_exchange(self, exchange_id: str) -> Exchange:
-        """Create a mock exchange instance."""
-        return Exchange()
 
 
 def main():
@@ -32,7 +25,7 @@ def main():
     
     # 1. Load historical data
     logger.info("Loading historical data...")
-    exchange_factory = MockExchangeFactory()
+    exchange_factory = CCXTExchangeFactory()
     storage = SQLAlchemyStorage()
     fetcher = DataFetcher(exchange_factory, storage)
     
@@ -42,8 +35,8 @@ def main():
     days = (end_time - start_time).days
     
     fetcher.update_historical_data(
-        exchange_id="mock",
-        symbol="BTC/USD",
+        exchange_id="binance",
+        symbol="BTC/USDT",  # Using USDT pair for Binance
         timeframe="1h",
         days_back=days,
         end_time=end_time
@@ -51,8 +44,8 @@ def main():
     
     # Retrieve the data from storage
     ohlcv_data = storage.get_historical_data(
-        exchange_id="mock",
-        symbol="BTC/USD",
+        exchange_id="binance",
+        symbol="BTC/USDT",
         timeframe="1h",
         start_time=start_time,
         end_time=end_time
