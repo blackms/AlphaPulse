@@ -1,10 +1,12 @@
-from src.alpha_pulse.data_pipeline.models import Base
-from src.alpha_pulse.data_pipeline.database import engine
+"""Initialize the database with required tables."""
+from sqlalchemy import create_engine
+from alpha_pulse.data_pipeline.models import Base
+from alpha_pulse.config.settings import settings
 
-def init_db():
-    print("Creating database tables...")
-    Base.metadata.create_all(bind=engine)
-    print("Database tables created successfully!")
+def main():
+    """Create database tables."""
+    engine = create_engine(settings.DATABASE_URL)
+    Base.metadata.create_all(engine)
 
 if __name__ == "__main__":
-    init_db()
+    main()

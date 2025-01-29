@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Dict, List, Optional
 
-from alpha_pulse.data_pipeline.models import OHLCV
+from .models import OHLCV
 
 
 class IExchange(ABC):

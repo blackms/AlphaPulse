@@ -1,13 +1,14 @@
 """
 Exchange connectivity module for AlphaPulse.
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from typing import Dict, List, Optional, Any
 import numpy as np
+import ccxt  # Add CCXT import
 
 from loguru import logger
 
-from alpha_pulse.data_pipeline.interfaces import IExchange, IExchangeFactory
+from .interfaces import IExchange, IExchangeFactory
 
 
 class CCXTExchange(IExchange):
@@ -18,6 +19,14 @@ class CCXTExchange(IExchange):
         self.api_key = api_key
         self.api_secret = api_secret
         self.exchange_id = exchange_id
+        
+        # Initialize CCXT exchange
+        exchange_class = getattr(ccxt, exchange_id.lower())
+        self.exchange = exchange_class({
+            'apiKey': api_key,
+            'secret': api_secret,
+            'enableRateLimit': True,
+        })
         logger.info(f"Initialized CCXTExchange for {exchange_id}")
 
     def fetch_historical_data(
@@ -39,8 +48,11 @@ class CCXTExchange(IExchange):
         Returns:
             Dict containing OHLCV data
         """
-        # Mock implementation for demonstration
-        ohlcv = self.fetch_ohlcv(symbol, timeframe)
+        ohlcv = self.fetch_ohlcv(
+            symbol,
+            timeframe,
+            since=int(start_time.timestamp() * 1000) if start_time else None
+        )
         return {
             'open': [candle[1] for candle in ohlcv],
             'high': [candle[2] for candle in ohlcv],
@@ -59,7 +71,7 @@ class CCXTExchange(IExchange):
         Returns:
             Current price
         """
-        ticker = self.fetch_ticker(symbol)
+        ticker = self.exchange.fetch_ticker(symbol)
         return ticker['last']
 
     def get_available_pairs(self) -> List[str]:
@@ -69,7 +81,8 @@ class CCXTExchange(IExchange):
         Returns:
             List of trading pair symbols
         """
-        return ["BTC/USD", "ETH/USD", "SOL/USD"]
+        markets = self.exchange.load_markets()
+        return list(markets.keys())
 
     def fetch_ohlcv(
         self,
@@ -90,11 +103,30 @@ class CCXTExchange(IExchange):
         Returns:
             List of OHLCV candles [timestamp, open, high, low, close, volume]
         """
-        # Mock implementation matching test expectations
-        return [
-            [1609459200000, 29000.0, 29100.0, 28900.0, 29050.0, 100.0],
-            [1609462800000, 29050.0, 29200.0, 29000.0, 29150.0, 150.0],
-        ]
+        try:
+            # Ensure the exchange supports OHLCV data
+            if not self.exchange.has['fetchOHLCV']:
+                raise NotImplementedError(f"{self.exchange_id} does not support OHLCV data")
+
+            # Fetch the OHLCV data
+            ohlcv = self.exchange.fetch_ohlcv(
+                symbol,
+                timeframe,
+                since=since,
+                limit=limit
+            )
+            
+            return ohlcv
+
+        except ccxt.NetworkError as e:
+            logger.error(f"Network error while fetching OHLCV data: {e}")
+            raise
+        except ccxt.ExchangeError as e:
+            logger.error(f"Exchange error while fetching OHLCV data: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error while fetching OHLCV data: {e}")
+            raise
 
     def fetch_ticker(self, symbol: str) -> Dict[str, Any]:
         """
@@ -106,14 +138,17 @@ class CCXTExchange(IExchange):
         Returns:
             Dict containing ticker data
         """
-        return {
-            'symbol': symbol,
-            'last': 29150.0,  # Match test expectations
-            'bid': 29140.0,
-            'ask': 29160.0,
-            'volume': 1000.0,
-            'timestamp': datetime.now().timestamp() * 1000
-        }
+        try:
+            return self.exchange.fetch_ticker(symbol)
+        except ccxt.NetworkError as e:
+            logger.error(f"Network error while fetching ticker: {e}")
+            raise
+        except ccxt.ExchangeError as e:
+            logger.error(f"Exchange error while fetching ticker: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error while fetching ticker: {e}")
+            raise
 
 
 class CCXTExchangeFactory(IExchangeFactory):
@@ -130,7 +165,7 @@ class CCXTExchangeFactory(IExchangeFactory):
             Exchange instance
         """
         # Import settings at method level to avoid circular imports
-        from alpha_pulse.config.settings import settings
+        from ..config.settings import settings
         return CCXTExchange(
             api_key=settings.exchange.api_key,
             api_secret=settings.exchange.api_secret,
@@ -182,7 +217,7 @@ class Exchange(IExchange):
     def __init__(self):
         """Initialize exchange connection."""
         # Import settings at method level to avoid circular imports
-        from alpha_pulse.config.settings import settings
+        from ..config.settings import settings
         self.api_key = settings.exchange.api_key
         self.api_secret = settings.exchange.api_secret
         self.exchange_id = settings.exchange.id
@@ -242,6 +277,34 @@ class Exchange(IExchange):
         
         return ohlcv
 
+    def fetch_ohlcv(
+        self,
+        symbol: str,
+        timeframe: str = "1d",
+        since: Optional[int] = None,
+        limit: Optional[int] = None
+    ) -> List[List[float]]:
+        """
+        Fetch OHLCV data from exchange.
+
+        Args:
+            symbol: Trading pair symbol
+            timeframe: Candle timeframe
+            since: Start timestamp in milliseconds
+            limit: Number of candles to fetch
+
+        Returns:
+            List of OHLCV candles [timestamp, open, high, low, close, volume]
+        """
+        if since is not None:
+            start_time = datetime.fromtimestamp(since / 1000, UTC)
+        else:
+            start_time = datetime.now(UTC) - timedelta(days=365)
+            
+        end_time = datetime.now(UTC)
+        
+        return self._generate_mock_data(start_time, end_time, timeframe)
+
     def fetch_historical_data(
         self,
         symbol: str,
@@ -262,9 +325,9 @@ class Exchange(IExchange):
             Dict containing OHLCV data
         """
         if start_time is None:
-            start_time = datetime.now() - timedelta(days=365)
+            start_time = datetime.now(UTC) - timedelta(days=365)
         if end_time is None:
-            end_time = datetime.now()
+            end_time = datetime.now(UTC)
         
         ohlcv = self._generate_mock_data(start_time, end_time, timeframe)
         
