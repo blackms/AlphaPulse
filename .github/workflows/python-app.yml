@@ -17,6 +17,9 @@ jobs:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       EXCHANGE_API_KEY: ${{ secrets.EXCHANGE_API_KEY }}
       EXCHANGE_API_SECRET: ${{ secrets.EXCHANGE_API_SECRET }}
+      LD_LIBRARY_PATH: /usr/lib:$LD_LIBRARY_PATH
+      TA_LIBRARY_PATH: /usr/lib
+      TA_INCLUDE_PATH: /usr/include
 
     steps:
     - uses: actions/checkout@v4
@@ -43,7 +46,6 @@ jobs:
         # Verify installation
         ls -l /usr/lib/libta_lib*
         sudo ldconfig
-        pkg-config --libs ta-lib
     
     - name: Install dependencies
       run: |
@@ -51,6 +53,7 @@ jobs:
         pip install flake8
         # Install TA-Lib Python wrapper
         pip install numpy
+        export LD_LIBRARY_PATH=/usr/lib:$LD_LIBRARY_PATH
         pip install TA-Lib
         # Install the package in editable mode with dev dependencies
         pip install -e ".[dev]"
