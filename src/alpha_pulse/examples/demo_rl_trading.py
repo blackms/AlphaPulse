@@ -7,13 +7,23 @@ This script demonstrates how to:
 3. Train an RL agent using Stable-Baselines3
 4. Evaluate the trained agent's performance
 """
+from datetime import datetime, UTC
 import pandas as pd
 from loguru import logger
 
-from alpha_pulse.data_pipeline.data_fetcher import DataFetcher
-from alpha_pulse.features.feature_engineering import calculate_technical_indicators
-from alpha_pulse.rl.env import TradingEnv, TradingEnvConfig
-from alpha_pulse.rl.rl_trainer import RLTrainer, TrainingConfig
+from ..data_pipeline.data_fetcher import DataFetcher
+from ..data_pipeline.exchange import Exchange
+from ..data_pipeline.storage import SQLAlchemyStorage
+from ..features.feature_engineering import calculate_technical_indicators
+from ..rl.env import TradingEnv, TradingEnvConfig
+from ..rl.rl_trainer import RLTrainer, TrainingConfig
+
+
+class MockExchangeFactory:
+    """Factory for creating mock exchange instances."""
+    def create_exchange(self, exchange_id: str) -> Exchange:
+        """Create a mock exchange instance."""
+        return Exchange()
 
 
 def main():
@@ -22,25 +32,61 @@ def main():
     
     # 1. Load historical data
     logger.info("Loading historical data...")
-    fetcher = DataFetcher()
-    data = fetcher.fetch_historical_data(
+    exchange_factory = MockExchangeFactory()
+    storage = SQLAlchemyStorage()
+    fetcher = DataFetcher(exchange_factory, storage)
+    
+    # Update historical data
+    start_time = datetime(2023, 1, 1, tzinfo=UTC)
+    end_time = datetime(2023, 12, 31, tzinfo=UTC)
+    days = (end_time - start_time).days
+    
+    fetcher.update_historical_data(
+        exchange_id="mock",
         symbol="BTC/USD",
         timeframe="1h",
-        start_time="2023-01-01",
-        end_time="2023-12-31"
+        days_back=days,
+        end_time=end_time
     )
+    
+    # Retrieve the data from storage
+    ohlcv_data = storage.get_historical_data(
+        exchange_id="mock",
+        symbol="BTC/USD",
+        timeframe="1h",
+        start_time=start_time,
+        end_time=end_time
+    )
+    
+    # Convert OHLCV objects to DataFrame
+    df = pd.DataFrame([{
+        'timestamp': candle.timestamp,
+        'open': candle.open,
+        'high': candle.high,
+        'low': candle.low,
+        'close': candle.close,
+        'volume': candle.volume
+    } for candle in ohlcv_data])
+    
+    if len(df) == 0:
+        logger.error("No data retrieved from storage")
+        return
+    
+    # Set timestamp as index
+    df.set_index('timestamp', inplace=True)
+    df.sort_index(inplace=True)
     
     # 2. Generate features
     logger.info("Generating features...")
-    features = calculate_technical_indicators(data)
+    features = calculate_technical_indicators(df)
     
     # Split data into train and test sets (80/20)
-    split_idx = int(len(data) * 0.8)
+    split_idx = int(len(df) * 0.8)
     
-    train_prices = data['close'][:split_idx]
+    train_prices = df['close'][:split_idx]
     train_features = features[:split_idx]
     
-    test_prices = data['close'][split_idx:]
+    test_prices = df['close'][split_idx:]
     test_features = features[split_idx:]
     
     # 3. Configure and create the environment

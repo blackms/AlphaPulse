@@ -17,6 +17,7 @@ setup(
         "pytz",
         "requests",
         "aiohttp",
+        "ccxt",
     ],
     extras_require={
         "dev": [
