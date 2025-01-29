@@ -18,13 +18,19 @@ A powerful and efficient trading data pipeline system for collecting, processing
 ```
 AlphaPulse/
 ├── src/
-│   ├── config/          # Configuration management
-│   ├── data_pipeline/   # Core data processing modules
-│   ├── features/        # Feature engineering components
-│   ├── models/          # ML model training and evaluation
-│   ├── backtesting/     # Strategy backtesting framework
-│   ├── examples/        # Usage examples and demos
-│   └── tests/           # Test suite
+│   ├── alpha_pulse/
+│   │   ├── backtesting/    # Strategy backtesting framework
+│   │   ├── config/         # Configuration management
+│   │   ├── data_pipeline/  # Core data processing modules
+│   │   ├── examples/       # Usage examples and demos
+│   │   ├── features/       # Feature engineering components
+│   │   ├── models/         # ML model training and evaluation
+│   │   ├── rl/            # Reinforcement Learning module
+│   │   └── tests/         # Test suite
+│   └── scripts/           # Utility scripts
+├── feature_cache/         # Cache for computed features
+├── logs/                  # Application logs
+└── trained_models/       # Saved model artifacts
 ```
 
 ### 📦 Core Modules
@@ -169,7 +175,7 @@ metrics = trainer.evaluate(
 print(f"Agent Performance: {metrics}")
 ```
 
-#### �️ Available Algorithms
+#### 🤖 Available Algorithms
 - **PPO**: Proximal Policy Optimization (recommended)
 - **A2C**: Advantage Actor-Critic
 - **DQN**: Deep Q-Network
