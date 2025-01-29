@@ -216,14 +216,15 @@ class RLTrainer:
         episode_lengths = []
         
         for episode in range(n_episodes):
-            obs = env.reset()
+            obs, _ = env.reset()
             done = False
             episode_reward = 0
             episode_length = 0
             
             while not done:
                 action, _ = model.predict(obs, deterministic=True)
-                obs, reward, done, _, info = env.step(action)
+                obs, reward, terminated, truncated, info = env.step(action)
+                done = terminated or truncated
                 episode_reward += reward
                 episode_length += 1
                 

@@ -18,6 +18,8 @@ setup(
         "requests",
         "aiohttp",
         "ccxt",
+        "stable-baselines3",
+        "gymnasium",
     ],
     extras_require={
         "dev": [

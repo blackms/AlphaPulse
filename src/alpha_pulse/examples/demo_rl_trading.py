@@ -7,7 +7,7 @@ This script demonstrates how to:
 3. Train an RL agent using Stable-Baselines3
 4. Evaluate the trained agent's performance
 """
-from datetime import datetime, UTC
+from datetime import datetime, UTC, timedelta
 import pandas as pd
 from loguru import logger
 
@@ -36,9 +36,9 @@ def main():
     storage = SQLAlchemyStorage()
     fetcher = DataFetcher(exchange_factory, storage)
     
-    # Update historical data
-    start_time = datetime(2023, 1, 1, tzinfo=UTC)
-    end_time = datetime(2023, 12, 31, tzinfo=UTC)
+    # Update historical data - use just 30 days for faster training
+    end_time = datetime.now(UTC)
+    start_time = end_time - timedelta(days=30)
     days = (end_time - start_time).days
     
     fetcher.update_historical_data(
@@ -99,14 +99,15 @@ def main():
         reward_scaling=1.0
     )
     
+    # Use smaller batch size and fewer timesteps for faster training
     training_config = TrainingConfig(
-        total_timesteps=100000,
-        learning_rate=0.0003,
-        batch_size=64,
-        n_steps=2048,
+        total_timesteps=10000,  # Reduced from 100000
+        learning_rate=0.0005,   # Slightly increased
+        batch_size=32,          # Reduced from 64
+        n_steps=512,           # Reduced from 2048
         gamma=0.99,
-        eval_freq=10000,
-        n_eval_episodes=5,
+        eval_freq=1000,        # Reduced from 10000
+        n_eval_episodes=2,     # Reduced from 5
         model_path="trained_models/rl/trading_agent",
         log_path="logs/rl"
     )
@@ -131,7 +132,7 @@ def main():
             model=model,
             prices=test_prices,
             features=test_features,
-            n_episodes=5,
+            n_episodes=2,
             render=True
         )
         
