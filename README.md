@@ -122,6 +122,76 @@ Check out `src/examples/demo_backtesting.py` for a complete demonstration of:
 - Running backtests with different strategies
 - Analyzing and visualizing results
 
+### 🤖 Reinforcement Learning Module
+
+The RL module provides a framework for training and evaluating RL agents for automated trading:
+
+#### 🔧 Core Components (`src/rl/`)
+- OpenAI Gym-compatible trading environment
+- Integration with Stable-Baselines3 for state-of-the-art RL algorithms
+- Configurable reward functions and state representations
+- Training and evaluation utilities
+
+```python
+from alpha_pulse.rl import TradingEnv, RLTrainer
+from alpha_pulse.rl.env import TradingEnvConfig
+from alpha_pulse.rl.rl_trainer import TrainingConfig
+
+# Configure environment
+env_config = TradingEnvConfig(
+    initial_capital=100000.0,
+    commission=0.001,      # 0.1% commission
+    position_size=0.2,     # Risk 20% of capital per trade
+    window_size=10        # Use 10 time steps of history
+)
+
+# Configure training
+training_config = TrainingConfig(
+    total_timesteps=100000,
+    learning_rate=0.0003,
+    batch_size=64
+)
+
+# Initialize trainer and train agent
+trainer = RLTrainer(env_config, training_config)
+model = trainer.train(
+    prices=historical_prices,
+    features=feature_data,
+    algorithm='ppo'  # Supports PPO, A2C, DQN
+)
+
+# Evaluate the trained agent
+metrics = trainer.evaluate(
+    model=model,
+    prices=test_prices,
+    features=test_features
+)
+print(f"Agent Performance: {metrics}")
+```
+
+#### �️ Available Algorithms
+- **PPO**: Proximal Policy Optimization (recommended)
+- **A2C**: Advantage Actor-Critic
+- **DQN**: Deep Q-Network
+
+#### 📈 Environment Features
+- Realistic market simulation with transaction costs
+- Customizable state space and reward function
+- Support for both price and feature data
+- Integration with existing backtesting metrics
+
+Check out `src/examples/demo_rl_trading.py` for a complete demonstration of:
+- Setting up the trading environment
+- Training an RL agent
+- Evaluating performance on test data
+- Visualizing trading decisions
+
+#### 📦 Dependencies
+To use the RL module, install additional dependencies:
+```bash
+pip install stable-baselines3 gymnasium
+```
+
 ## 🛠️ Installation
 
 1. Clone the repository:
