@@ -43,15 +43,14 @@ This will:
 Run paper trading simulation with real-time market data:
 
 ```bash
-# Using default settings (Binance, BTC/USDT & ETH/USDT)
+# Using default settings (Binance mainnet, BTC/USDT & ETH/USDT)
 python src/alpha_pulse/examples/demo_paper_trading.py
 
-# Using custom exchange and symbols
+# Using Binance testnet
 python src/alpha_pulse/examples/demo_paper_trading.py \
     --exchange binance \
-    --symbols BTC/USDT ETH/USDT \
-    --balance 100000 \
-    --interval 60
+    --testnet \
+    --symbols BTC/USDT ETH/USDT
 
 # Using exchange with API credentials
 python src/alpha_pulse/examples/demo_paper_trading.py \
@@ -62,7 +61,8 @@ python src/alpha_pulse/examples/demo_paper_trading.py \
 ```
 
 Command line arguments:
-- `--exchange`: Exchange ID (default: binance, supports any CCXT exchange)
+- `--exchange`: Exchange ID (default: binance)
+- `--testnet`: Use exchange testnet (if available)
 - `--api-key`: Exchange API key for data access
 - `--api-secret`: Exchange API secret
 - `--symbols`: Trading symbols (space-separated)
@@ -92,11 +92,73 @@ AlphaPulse/
 │       │   ├── broker_interface.py  # Abstract broker interface
 │       │   └── paper_broker.py      # Paper trading implementation
 │       ├── config/          # Configuration settings
+│       │   ├── settings.py  # Global settings
+│       │   └── exchanges.py # Exchange configurations
 │       ├── examples/        # Example scripts
 │       └── tests/           # Unit tests
 ├── trained_models/          # Saved model files
 ├── feature_cache/          # Cached feature data
 └── logs/                   # Application logs
+```
+
+## Exchange Configuration
+
+The system supports multiple exchanges through CCXT integration. Exchange settings are managed in `config/exchanges.py`.
+
+### Supported Exchanges
+
+Pre-configured exchanges include:
+- Binance (mainnet and testnet)
+- Coinbase Pro
+- Kraken
+
+You can add more exchanges by registering their configurations:
+
+```python
+from alpha_pulse.config.exchanges import register_exchange_config, ExchangeConfig
+
+# Register new exchange
+register_exchange_config(ExchangeConfig(
+    id="ftx",
+    name="FTX",
+    description="FTX cryptocurrency exchange",
+    options={
+        "adjustForTimeDifference": True,
+    }
+))
+```
+
+### Exchange Settings
+
+Each exchange configuration includes:
+- `id`: Exchange identifier (matches CCXT exchange ID)
+- `name`: Display name
+- `api_key`: API key for authentication
+- `api_secret`: API secret
+- `testnet`: Whether to use testnet/sandbox mode
+- `options`: Exchange-specific CCXT options
+
+### Using Different Exchanges
+
+1. Command Line:
+```bash
+# Using Coinbase Pro
+python src/alpha_pulse/examples/demo_paper_trading.py --exchange coinbase
+
+# Using Kraken testnet
+python src/alpha_pulse/examples/demo_paper_trading.py --exchange kraken --testnet
+```
+
+2. Programmatically:
+```python
+from alpha_pulse.config.settings import settings
+from alpha_pulse.config.exchanges import get_exchange_config
+
+# Update exchange configuration
+config = get_exchange_config("binance")
+config.api_key = "your-api-key"
+config.api_secret = "your-api-secret"
+settings.exchange = config
 ```
 
 ## Execution Module
@@ -143,27 +205,6 @@ The paper trading system:
    - Portfolio value
    - Position PnL
    - Trade history
-
-## Supported Exchanges
-
-The system uses CCXT for exchange integration and supports all exchanges available in CCXT. Some popular options:
-
-- Binance
-- Coinbase Pro
-- Kraken
-- FTX
-- Bitfinex
-- And many more...
-
-Check [CCXT documentation](https://docs.ccxt.com/#/README) for the full list of supported exchanges.
-
-## Configuration
-
-Exchange credentials and other settings can be configured in multiple ways:
-
-1. Command line arguments (recommended for testing)
-2. Environment variables
-3. Configuration file (settings.py)
 
 ## Development
 
