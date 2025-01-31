@@ -38,7 +38,7 @@ class MultiAssetTradingSystem:
 
     def __init__(
         self,
-        symbols: List[str],
+        symbols: list[str],
         model_path: Path,
         exchange_id: str = "binance",
         api_key: str = "",
@@ -205,12 +205,18 @@ class MultiAssetTradingSystem:
             ])
             df.set_index('timestamp', inplace=True)
             
+            # Calculate technical indicators
             features_df = calculate_technical_indicators(df)
             if features_df.empty:
                 continue
             
+            # Ensure features match training data
+            features = pd.DataFrame(
+                features_df.iloc[-1:].values,
+                columns=features_df.columns
+            )[self.feature_names]
+            
             # Get model prediction
-            features = features_df[self.feature_names].iloc[-1].values.reshape(1, -1)
             signal = self.model.predict_proba(features)[0][1]
             
             # Calculate position size
