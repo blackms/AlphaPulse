@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  alphapulse:
+    build: .
+    environment:
+      - PYTHONUNBUFFERED=1
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    volumes:
+      - ./logs:/app/logs
+      - ./feature_cache:/app/feature_cache
+      - ./trained_models:/app/trained_models
+    ports:
+      - "8000:8000"  # Prometheus metrics
+    command: python -m alpha_pulse.examples.demo_paper_trading
+    depends_on:
+      - mlflow
+      - prometheus
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.8.0
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./mlruns:/mlruns
+      - ./mlflow.db:/mlflow.db
+    command: mlflow server --host 0.0.0.0 --backend-store-uri sqlite:///mlflow.db --default-artifact-root /mlruns
+
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+
+  grafana:
+    image: grafana/grafana:10.0.0
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=alphapulse
+    depends_on:
+      - prometheus
+
+volumes:
+  prometheus_data:
+  grafana_data:

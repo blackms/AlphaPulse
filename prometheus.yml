@@ -1,0 +1,54 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'alphapulse'
+    static_configs:
+      - targets: ['alphapulse:8000']
+    metrics_path: '/metrics'
+
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+rule_files:
+  - 'alert_rules.yml'
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          # alertmanager:9093
+
+# Basic trading alert rules
+rules:
+  groups:
+    - name: trading_alerts
+      rules:
+        - alert: HighErrorRate
+          expr: rate(alphapulse_errors_total[5m]) > 0.1
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: High error rate detected
+            description: Error rate is above 0.1 errors/second for 5 minutes
+
+        - alert: LargeDrawdown
+          expr: alphapulse_pnl_current < -1000
+          for: 15m
+          labels:
+            severity: critical
+          annotations:
+            summary: Large drawdown detected
+            description: PnL has dropped below -1000 for 15 minutes
+
+        - alert: ModelLatencyHigh
+          expr: histogram_quantile(0.95, rate(alphapulse_model_latency_seconds_bucket[5m])) > 1
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: Model inference latency is high
+            description: 95th percentile of model latency is above 1 second
