@@ -4,11 +4,18 @@ Quick script to train and save a test model for demo_paper_trading.py
 import pandas as pd
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import cross_val_score
 import joblib
+import mlflow
+import mlflow.sklearn
 from pathlib import Path
 from datetime import datetime, timedelta
 
 from alpha_pulse.features.feature_engineering import calculate_technical_indicators
+
+# Set up MLflow
+mlflow.set_tracking_uri("sqlite:///mlflow.db")
+mlflow.set_experiment("crypto_prediction")
 
 
 # Create sample historical data with clear trends and patterns
@@ -77,29 +84,63 @@ print(y.value_counts(normalize=True))
 
 # Train model with more trees and class weights
 print("\nTraining model...")
-model = RandomForestClassifier(
-    n_estimators=200,
-    max_depth=5,  # Reduced to prevent overfitting
-    min_samples_leaf=20,  # Increased to prevent overfitting
-    class_weight={0: 1, 1: 2},  # Give more weight to positive signals
-    random_state=42
-)
-model.fit(X, y)
 
-# Print feature importances
-importances = pd.Series(model.feature_importances_, index=feature_names).sort_values(ascending=False)
-print("\nFeature importances:")
-print(importances)
-
-# Save both model and feature names
-model_dir = Path('trained_models')
-model_dir.mkdir(exist_ok=True)
-
-model_data = {
-    'model': model,
-    'feature_names': feature_names
+# Define model parameters
+params = {
+    'n_estimators': 200,
+    'max_depth': 5,
+    'min_samples_leaf': 20,
+    'class_weight': {0: 1, 1: 2},
+    'random_state': 42
 }
-joblib.dump(model_data, model_dir / 'crypto_prediction_model.joblib')
+
+with mlflow.start_run():
+    # Log parameters
+    mlflow.log_params(params)
+    
+    # Create and train model
+    model = RandomForestClassifier(**params)
+    model.fit(X, y)
+    
+    # Calculate and log cross-validation metrics
+    cv_scores = cross_val_score(model, X, y, cv=5, scoring='f1')
+    mlflow.log_metric("cv_f1_mean", cv_scores.mean())
+    mlflow.log_metric("cv_f1_std", cv_scores.std())
+    
+    # Log training set metrics
+    train_predictions = model.predict(X)
+    train_proba = model.predict_proba(X)[:, 1]
+    mlflow.log_metric("train_accuracy", (train_predictions == y).mean())
+    mlflow.log_metric("train_f1", cv_scores.mean())
+    
+    # Log feature importances
+    importances = pd.Series(model.feature_importances_, index=feature_names).sort_values(ascending=False)
+    print("\nFeature importances:")
+    print(importances)
+    
+    # Log feature importance plot
+    import matplotlib.pyplot as plt
+    plt.figure(figsize=(10, 6))
+    importances.head(10).plot(kind='bar')
+    plt.title('Top 10 Feature Importances')
+    plt.tight_layout()
+    plt.savefig('feature_importances.png')
+    mlflow.log_artifact('feature_importances.png')
+    plt.close()
+    
+    # Save model with MLflow
+    mlflow.sklearn.log_model(model, "model")
+    
+    # Also save locally for compatibility
+    model_dir = Path('trained_models')
+    model_dir.mkdir(exist_ok=True)
+    model_data = {
+        'model': model,
+        'feature_names': feature_names
+    }
+    local_path = model_dir / 'crypto_prediction_model.joblib'
+    joblib.dump(model_data, local_path)
+    mlflow.log_artifact(local_path)
 
 print(f"\nModel trained on {len(features_df)} samples with features:")
 for feature in feature_names:

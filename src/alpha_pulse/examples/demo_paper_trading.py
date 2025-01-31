@@ -9,6 +9,7 @@ import joblib
 import pandas as pd
 from pathlib import Path
 from typing import List, Optional, Dict
+from functools import wraps
 
 from alpha_pulse.data_pipeline.data_fetcher import DataFetcher
 from alpha_pulse.data_pipeline.exchange import CCXTExchangeFactory
@@ -18,6 +19,13 @@ from alpha_pulse.features.feature_engineering import calculate_technical_indicat
 from alpha_pulse.execution import PaperBroker, OrderSide, OrderType, Order, RiskLimits
 from alpha_pulse.config.settings import TRAINED_MODELS_DIR, settings
 from alpha_pulse.config.exchanges import get_exchange_config
+from alpha_pulse.monitoring.metrics import (
+    start_metrics_server,
+    MetricsTracker,
+    track_latency,
+    MODEL_LATENCY,
+    API_LATENCY
+)
 
 
 # Configure logging
@@ -45,9 +53,14 @@ class PaperTradingSystem:
         self.symbols = symbols
         self.update_interval = update_interval
         
+        # Start metrics server
+        start_metrics_server()
+        self.metrics = MetricsTracker()
+        
         # Configure exchange
         exchange_config = get_exchange_config(f"{exchange_id}_testnet" if use_testnet else exchange_id)
         if not exchange_config:
+            self.metrics.record_error("exchange_config")
             raise ValueError(f"Unsupported exchange: {exchange_id}")
         
         exchange_config.api_key = api_key
@@ -138,11 +151,13 @@ class PaperTradingSystem:
             logger.info("Shutting down paper trading system...")
             self._log_final_results()
 
+    @track_latency(MODEL_LATENCY.labels(model_name='crypto_prediction'))
     async def _process_symbol(self, symbol: str, df: pd.DataFrame):
         """Process data for a single symbol and execute trades if needed."""
         # Calculate features
         features_df = calculate_technical_indicators(df)
         if features_df.empty:
+            self.metrics.record_error("empty_features")
             return
         
         try:
@@ -156,6 +171,9 @@ class PaperTradingSystem:
             prediction = self.model.predict_proba(latest_features)[0]
             signal = prediction[1]  # Probability of price increase
             logger.info(f"Signal for {symbol}: {signal:.3f}")
+            
+            # Record prediction
+            self.metrics.record_prediction('crypto_prediction', signal)
             
             # Log feature values
             logger.info(f"Features for {symbol}:")
@@ -201,16 +219,21 @@ class PaperTradingSystem:
         try:
             executed_order = self.broker.place_order(order)
             if executed_order.status.value == "filled":
+                trade_value = quantity * current_price
                 self.trade_history.append({
                     'timestamp': datetime.now(),
                     'symbol': symbol,
                     'side': side.value,
                     'quantity': quantity,
                     'price': current_price,
-                    'value': quantity * current_price
+                    'value': trade_value
                 })
+                # Record trade metrics
+                self.metrics.record_trade(symbol, side.value)
+                self.metrics.update_position(symbol, quantity if side == OrderSide.BUY else -quantity)
                 logger.info(f"Executed {side.value} order for {symbol}: {quantity:.6f} @ {current_price:.2f}")
         except Exception as e:
+            self.metrics.record_error("order_execution")
             logger.error(f"Error placing order: {e}")
 
     def _log_performance(self):
@@ -225,12 +248,25 @@ class PaperTradingSystem:
         pnl = portfolio_value - self.initial_portfolio_value
         pnl_pct = (pnl / self.initial_portfolio_value) * 100
         
+        # Update metrics
+        for symbol in self.symbols:
+            self.metrics.update_pnl(symbol, pnl)
+            # Calculate win rate
+            if len(self.trade_history) > 0:
+                profitable_trades = sum(1 for trade in self.trade_history
+                                     if trade['symbol'] == symbol and
+                                     (trade['side'] == 'BUY' and pnl > 0 or
+                                      trade['side'] == 'SELL' and pnl < 0))
+                win_rate = profitable_trades / len(self.trade_history) * 100
+                self.metrics.update_win_rate(symbol, "1m", win_rate)
+        
         # Log current state
         logger.info(f"Portfolio Value: ${portfolio_value:.2f} (PnL: ${pnl:.2f} / {pnl_pct:.2f}%)")
         
         # Log positions
         positions = self.broker.get_positions()
         for symbol, pos in positions.items():
+            self.metrics.update_position(symbol, pos.quantity)
             logger.info(f"Position - {symbol}: {pos.quantity:.6f} @ {pos.avg_entry_price:.2f} "
                        f"(PnL: ${pos.unrealized_pnl:.2f})")
 

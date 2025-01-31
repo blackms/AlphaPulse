@@ -20,6 +20,8 @@ setup(
         "ccxt",
         "stable-baselines3",
         "gymnasium",
+        "mlflow>=2.8.0",
+        "prometheus-client>=0.19.0",
     ],
     extras_require={
         "dev": [
