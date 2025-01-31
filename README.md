@@ -12,6 +12,7 @@ A powerful and efficient trading data pipeline system for collecting, processing
 - 📊 Advanced feature engineering and ML pipeline
 - 🤖 Machine learning model training and evaluation
 - 📈 Backtesting and strategy evaluation framework
+- 💹 Live and paper trading execution system
 
 ## 🏗️ Project Structure
 
@@ -23,6 +24,7 @@ AlphaPulse/
 │   │   ├── config/         # Configuration management
 │   │   ├── data_pipeline/  # Core data processing modules
 │   │   ├── examples/       # Usage examples and demos
+│   │   ├── execution/      # Live/paper trading system
 │   │   ├── features/       # Feature engineering components
 │   │   ├── models/         # ML model training and evaluation
 │   │   ├── rl/            # Reinforcement Learning module
@@ -175,28 +177,68 @@ metrics = trainer.evaluate(
 print(f"Agent Performance: {metrics}")
 ```
 
-#### 🤖 Available Algorithms
-- **PPO**: Proximal Policy Optimization (recommended)
-- **A2C**: Advantage Actor-Critic
-- **DQN**: Deep Q-Network
+### 💹 Live/Paper Trading Module
 
-#### 📈 Environment Features
-- Realistic market simulation with transaction costs
-- Customizable state space and reward function
-- Support for both price and feature data
-- Integration with existing backtesting metrics
+The execution module enables real-time trading with both paper and live accounts:
 
-Check out `src/examples/demo_rl_trading.py` for a complete demonstration of:
-- Setting up the trading environment
-- Training an RL agent
-- Evaluating performance on test data
-- Visualizing trading decisions
+#### 🔧 Core Components (`src/execution/`)
+- Abstract broker interface for multiple broker implementations
+- Paper trading simulation with realistic order execution
+- Risk management and position tracking
+- Real-time PnL calculation and monitoring
 
-#### 📦 Dependencies
-To use the RL module, install additional dependencies:
-```bash
-pip install stable-baselines3 gymnasium
+```python
+from alpha_pulse.execution import PaperBroker, Order, OrderSide, OrderType, RiskLimits
+
+# Configure risk limits
+risk_limits = RiskLimits(
+    max_position_size=50000.0,    # Maximum position size
+    max_portfolio_size=150000.0,  # Maximum portfolio value
+    max_drawdown_pct=0.25,        # 25% max drawdown
+    stop_loss_pct=0.10            # 10% stop loss per position
+)
+
+# Initialize paper trading broker
+broker = PaperBroker(
+    initial_balance=100000.0,
+    risk_limits=risk_limits
+)
+
+# Place a market order
+order = Order(
+    symbol="BTC/USD",
+    side=OrderSide.BUY,
+    quantity=1.0,
+    order_type=OrderType.MARKET
+)
+executed_order = broker.place_order(order)
+
+# Monitor positions and performance
+position = broker.get_position("BTC/USD")
+portfolio_value = broker.get_portfolio_value()
+print(f"Current Position: {position}")
+print(f"Portfolio Value: ${portfolio_value:,.2f}")
 ```
+
+#### 📈 Features
+- Market and limit order support
+- Position tracking and PnL calculation
+- Risk management controls
+- Stop-loss implementation
+- Real-time market data integration
+
+Check out `src/examples/demo_paper_trading.py` for a complete demonstration of:
+- Setting up the paper trading system
+- Integrating with real-time data
+- Executing trades based on model signals
+- Monitoring performance and positions
+
+#### 🔒 Risk Management
+- Position size limits
+- Portfolio value constraints
+- Maximum drawdown controls
+- Per-position stop losses
+- Customizable risk parameters
 
 ## 🛠️ Installation
 
@@ -235,6 +277,7 @@ The test suite includes:
 - Feature engineering validation
 - ML model training verification
 - Backtesting framework validation
+- Paper trading system validation
 
 ## 📝 Usage
 
@@ -243,12 +286,14 @@ from alpha_pulse.data_pipeline import Exchange
 from alpha_pulse.features import FeatureStore
 from alpha_pulse.models import ModelTrainer
 from alpha_pulse.backtesting import Backtester, DefaultStrategy
+from alpha_pulse.execution import PaperBroker
 
 # Initialize components
 exchange = Exchange()
 feature_store = FeatureStore()
 trainer = ModelTrainer()
 backtester = Backtester()
+paper_broker = PaperBroker()
 
 # Fetch historical data
 historical_data = exchange.fetch_historical_data(
@@ -268,6 +313,16 @@ results = backtester.backtest(
     strategy=DefaultStrategy(threshold=0.5)
 )
 print(f"Strategy Performance: {results}")
+
+# Paper trade the strategy
+paper_broker.update_market_data("BTC/USD", historical_data['close'].iloc[-1])
+if predictions[-1] > 0.7:  # Strong buy signal
+    paper_broker.place_order(Order(
+        symbol="BTC/USD",
+        side=OrderSide.BUY,
+        quantity=1.0,
+        order_type=OrderType.MARKET
+    ))
 ```
 
 ## 🤝 Contributing
