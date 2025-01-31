@@ -9,6 +9,7 @@ A modular cryptocurrency trading system with support for backtesting, paper trad
 - Model Training: Train and evaluate machine learning models
 - Backtesting: Test strategies on historical data
 - Paper Trading: Simulate trading with real-time market data
+- Risk Management: Advanced position sizing and portfolio optimization
 - Live Trading: Execute trades on supported exchanges (coming soon)
 
 ## Installation
@@ -38,38 +39,37 @@ This will:
 - Train a RandomForest model
 - Save the model to trained_models/crypto_prediction_model.joblib
 
-### 2. Paper Trading
+### 2. Multi-Asset Trading with Risk Management
+
+Run the multi-asset trading system with advanced risk management:
+
+```bash
+# Using default settings (3 assets)
+python src/alpha_pulse/examples/demo_multi_asset_risk.py
+
+# Custom configuration
+python src/alpha_pulse/examples/demo_multi_asset_risk.py \
+    --symbols BTC/USDT ETH/USDT BNB/USDT SOL/USDT \
+    --exchange binance \
+    --interval 60
+```
+
+Command line arguments:
+- `--symbols`: Trading symbols (space-separated)
+- `--exchange`: Exchange ID (default: binance)
+- `--api-key`: Exchange API key
+- `--api-secret`: Exchange API secret
+- `--interval`: Update interval in seconds (default: 60)
+
+### 3. Paper Trading
 
 Run paper trading simulation with real-time market data:
 
 ```bash
-# Using default settings (Binance mainnet, BTC/USDT & ETH/USDT)
 python src/alpha_pulse/examples/demo_paper_trading.py
-
-# Using Binance testnet
-python src/alpha_pulse/examples/demo_paper_trading.py \
-    --exchange binance \
-    --testnet \
-    --symbols BTC/USDT ETH/USDT
-
-# Using exchange with API credentials
-python src/alpha_pulse/examples/demo_paper_trading.py \
-    --exchange binance \
-    --api-key YOUR_API_KEY \
-    --api-secret YOUR_API_SECRET \
-    --symbols BTC/USDT ETH/USDT
 ```
 
-Command line arguments:
-- `--exchange`: Exchange ID (default: binance)
-- `--testnet`: Use exchange testnet (if available)
-- `--api-key`: Exchange API key for data access
-- `--api-secret`: Exchange API secret
-- `--symbols`: Trading symbols (space-separated)
-- `--balance`: Initial paper trading balance (default: 100000)
-- `--interval`: Update interval in seconds (default: 60)
-
-### 3. Backtesting
+### 4. Backtesting
 
 Run backtesting on historical data:
 
@@ -87,13 +87,14 @@ AlphaPulse/
 │       ├── features/         # Feature engineering
 │       ├── models/          # ML model implementations
 │       ├── backtesting/     # Backtesting engine
-│       ├── execution/       # Order execution and risk management
-│       │   ├── __init__.py
-│       │   ├── broker_interface.py  # Abstract broker interface
-│       │   └── paper_broker.py      # Paper trading implementation
+│       ├── execution/       # Order execution
+│       ├── risk_management/ # Risk and portfolio management
+│       │   ├── interfaces.py     # Abstract interfaces
+│       │   ├── position_sizing.py # Position sizing strategies
+│       │   ├── analysis.py       # Risk metrics calculation
+│       │   ├── portfolio.py      # Portfolio optimization
+│       │   └── manager.py        # Risk management system
 │       ├── config/          # Configuration settings
-│       │   ├── settings.py  # Global settings
-│       │   └── exchanges.py # Exchange configurations
 │       ├── examples/        # Example scripts
 │       └── tests/           # Unit tests
 ├── trained_models/          # Saved model files
@@ -101,117 +102,118 @@ AlphaPulse/
 └── logs/                   # Application logs
 ```
 
-## Exchange Configuration
+## Risk Management & Portfolio Optimization
 
-The system supports multiple exchanges through CCXT integration. Exchange settings are managed in `config/exchanges.py`.
+The system includes comprehensive risk management and portfolio optimization features:
 
-### Supported Exchanges
+### Position Sizing Strategies
 
-Pre-configured exchanges include:
-- Binance (mainnet and testnet)
-- Coinbase Pro
-- Kraken
+1. Kelly Criterion:
+   - Optimal position sizing based on win rate and profit ratio
+   - Adjusts for volatility and signal strength
+   - Configurable fraction for conservative sizing
 
-You can add more exchanges by registering their configurations:
+2. Volatility-Based:
+   - Position sizing based on asset volatility
+   - Targets specific portfolio risk level
+   - Adapts to changing market conditions
+
+3. Adaptive Strategy:
+   - Combines multiple sizing approaches
+   - Weights strategies based on market conditions
+   - Self-adjusting based on performance
+
+### Risk Analysis
+
+1. Risk Metrics:
+   - Value at Risk (VaR)
+   - Expected Shortfall (CVaR)
+   - Maximum Drawdown
+   - Sharpe & Sortino Ratios
+   - Volatility Analysis
+
+2. Real-time Monitoring:
+   - Rolling risk metrics
+   - Drawdown tracking
+   - Position exposure analysis
+
+### Portfolio Optimization
+
+1. Mean-Variance Optimization:
+   - Modern Portfolio Theory implementation
+   - Efficient frontier calculation
+   - Risk-adjusted return optimization
+
+2. Risk Parity:
+   - Equal risk contribution approach
+   - Volatility targeting
+   - Dynamic rebalancing
+
+3. Adaptive Portfolio Management:
+   - Regime-based strategy selection
+   - Dynamic asset allocation
+   - Risk-based rebalancing
+
+### Configuration
+
+Risk management parameters can be configured through `RiskConfig`:
 
 ```python
-from alpha_pulse.config.exchanges import register_exchange_config, ExchangeConfig
+from alpha_pulse.risk_management import RiskConfig
 
-# Register new exchange
-register_exchange_config(ExchangeConfig(
-    id="ftx",
-    name="FTX",
-    description="FTX cryptocurrency exchange",
-    options={
-        "adjustForTimeDifference": True,
-    }
-))
+config = RiskConfig(
+    max_position_size=0.2,      # Maximum 20% per position
+    max_portfolio_leverage=1.5,  # Maximum 150% portfolio leverage
+    max_drawdown=0.25,          # Maximum 25% drawdown
+    stop_loss=0.1,              # 10% stop-loss per position
+    target_volatility=0.15,     # Target 15% annual volatility
+    var_confidence=0.95,        # 95% VaR confidence level
+)
 ```
 
-### Exchange Settings
+### Usage Example
 
-Each exchange configuration includes:
-- `id`: Exchange identifier (matches CCXT exchange ID)
-- `name`: Display name
-- `api_key`: API key for authentication
-- `api_secret`: API secret
-- `testnet`: Whether to use testnet/sandbox mode
-- `options`: Exchange-specific CCXT options
-
-### Using Different Exchanges
-
-1. Command Line:
-```bash
-# Using Coinbase Pro
-python src/alpha_pulse/examples/demo_paper_trading.py --exchange coinbase
-
-# Using Kraken testnet
-python src/alpha_pulse/examples/demo_paper_trading.py --exchange kraken --testnet
-```
-
-2. Programmatically:
 ```python
-from alpha_pulse.config.settings import settings
-from alpha_pulse.config.exchanges import get_exchange_config
+from alpha_pulse.risk_management import RiskManager, RiskConfig
 
-# Update exchange configuration
-config = get_exchange_config("binance")
-config.api_key = "your-api-key"
-config.api_secret = "your-api-secret"
-settings.exchange = config
+# Initialize risk management system
+risk_manager = RiskManager(
+    config=RiskConfig(
+        max_position_size=0.2,
+        max_drawdown=0.25,
+    )
+)
+
+# Calculate position size
+size_result = risk_manager.calculate_position_size(
+    symbol="BTC/USDT",
+    current_price=50000.0,
+    signal_strength=0.8,
+)
+
+# Evaluate trade
+if risk_manager.evaluate_trade(
+    symbol="BTC/USDT",
+    side="buy",
+    quantity=size_result.size,
+    current_price=50000.0,
+    portfolio_value=100000.0,
+    current_positions=positions
+):
+    # Execute trade
+    execute_trade(...)
 ```
-
-## Execution Module
-
-The execution module provides a robust framework for paper trading and live execution:
-
-### Components
-
-1. Broker Interface (`broker_interface.py`):
-   - Abstract base class defining broker operations
-   - Methods for order placement, position tracking, and risk management
-   - Support for market and limit orders
-
-2. Paper Broker (`paper_broker.py`):
-   - Implementation of broker interface for paper trading
-   - Simulated order execution and position tracking
-   - Real-time PnL calculation
-   - Risk management features:
-     * Position size limits
-     * Portfolio value limits
-     * Stop-loss implementation
-     * Maximum drawdown control
-
-### Risk Management
-
-The system includes comprehensive risk management features:
-
-- Position Sizing: Maximum 20% of account per position
-- Portfolio Limits: Maximum 150% portfolio value (allowing leverage)
-- Stop Loss: 10% per position
-- Max Drawdown: 25% portfolio value
-
-### Trading Logic
-
-The paper trading system:
-
-1. Fetches real-time market data
-2. Calculates technical indicators
-3. Generates trading signals using ML model
-4. Executes trades based on signal strength:
-   - Buy when signal > 0.75
-   - Sell when signal < 0.25
-5. Tracks performance metrics:
-   - Portfolio value
-   - Position PnL
-   - Trade history
 
 ## Development
 
 ### Running Tests
 
 ```bash
+# Run all tests
 pytest src/alpha_pulse/tests/
+
+# Run specific test module
+pytest src/alpha_pulse/tests/test_risk_management.py
 ```
 
 ### Adding New Features
