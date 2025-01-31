@@ -3,14 +3,9 @@ Configuration settings for AlphaPulse.
 """
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Optional
 
-
-@dataclass
-class ExchangeConfig:
-    """Exchange configuration settings."""
-    api_key: str = ""
-    api_secret: str = ""
-    id: str = "mock"
+from .exchanges import ExchangeConfig, get_exchange_config
 
 
 @dataclass
@@ -32,10 +27,28 @@ class PathConfig:
 @dataclass
 class Settings:
     """Global configuration settings."""
-    exchange: ExchangeConfig = field(default_factory=ExchangeConfig)
+    exchange: ExchangeConfig = field(default_factory=lambda: get_exchange_config("binance") or ExchangeConfig(
+        id="binance",
+        name="Binance",
+        description="Default exchange configuration"
+    ))
     database: DatabaseConfig = field(default_factory=DatabaseConfig)
     paths: PathConfig = field(default_factory=PathConfig)
     DATABASE_URL: str = field(default_factory=lambda: "sqlite:///data.db")
+
+    def update_exchange(self, exchange_id: str, api_key: str = "", api_secret: str = "") -> None:
+        """
+        Update exchange configuration.
+        
+        Args:
+            exchange_id: Exchange identifier
+            api_key: Optional API key
+            api_secret: Optional API secret
+        """
+        if config := get_exchange_config(exchange_id):
+            config.api_key = api_key
+            config.api_secret = api_secret
+            self.exchange = config
 
 
 # Global settings instance

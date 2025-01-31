@@ -17,6 +17,7 @@ from alpha_pulse.data_pipeline.models import OHLCV
 from alpha_pulse.features.feature_engineering import calculate_technical_indicators
 from alpha_pulse.execution import PaperBroker, OrderSide, OrderType, Order, RiskLimits
 from alpha_pulse.config.settings import TRAINED_MODELS_DIR, settings
+from alpha_pulse.config.exchanges import get_exchange_config
 
 
 # Configure logging
@@ -37,16 +38,21 @@ class PaperTradingSystem:
         exchange_id: str = "binance",
         api_key: str = "",
         api_secret: str = "",
+        use_testnet: bool = False,
         initial_balance: float = 100000.0,
         update_interval: int = 60,  # seconds
     ):
         self.symbols = symbols
         self.update_interval = update_interval
         
-        # Configure exchange settings
-        settings.exchange.id = exchange_id
-        settings.exchange.api_key = api_key
-        settings.exchange.api_secret = api_secret
+        # Configure exchange
+        exchange_config = get_exchange_config(f"{exchange_id}_testnet" if use_testnet else exchange_id)
+        if not exchange_config:
+            raise ValueError(f"Unsupported exchange: {exchange_id}")
+        
+        exchange_config.api_key = api_key
+        exchange_config.api_secret = api_secret
+        settings.exchange = exchange_config
         
         # Initialize components
         self.data_fetcher = DataFetcher(
@@ -68,7 +74,7 @@ class PaperTradingSystem:
         self.model = model_data['model']
         self.feature_names = model_data['feature_names']
         logger.info(f"Loaded model from {model_path}")
-        logger.info(f"Using exchange: {exchange_id}")
+        logger.info(f"Using exchange: {exchange_config.name} ({'testnet' if use_testnet else 'mainnet'})")
         
         # Track last update time per symbol
         self.last_updates = {symbol: None for symbol in symbols}
@@ -245,6 +251,7 @@ def parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description="Paper trading system")
     parser.add_argument("--exchange", default="binance", help="Exchange ID (default: binance)")
+    parser.add_argument("--testnet", action="store_true", help="Use exchange testnet")
     parser.add_argument("--api-key", default="", help="Exchange API key")
     parser.add_argument("--api-secret", default="", help="Exchange API secret")
     parser.add_argument("--symbols", nargs="+", default=["BTC/USDT", "ETH/USDT"], help="Trading symbols")
@@ -270,6 +277,7 @@ async def main():
         exchange_id=args.exchange,
         api_key=args.api_key,
         api_secret=args.api_secret,
+        use_testnet=args.testnet,
         initial_balance=args.balance,
         update_interval=args.interval
     )
