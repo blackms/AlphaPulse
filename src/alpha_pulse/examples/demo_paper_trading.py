@@ -3,19 +3,20 @@ Demo script showing how to use the paper trading system with trained models.
 """
 import asyncio
 import logging
+import argparse
 from datetime import datetime, timedelta, UTC
 import joblib
 import pandas as pd
-import numpy as np
 from pathlib import Path
 from typing import List, Optional, Dict
 
 from alpha_pulse.data_pipeline.data_fetcher import DataFetcher
-from alpha_pulse.data_pipeline.interfaces import IExchangeFactory, IDataStorage, IExchange
+from alpha_pulse.data_pipeline.exchange import CCXTExchangeFactory
+from alpha_pulse.data_pipeline.storage import SQLAlchemyStorage
 from alpha_pulse.data_pipeline.models import OHLCV
 from alpha_pulse.features.feature_engineering import calculate_technical_indicators
 from alpha_pulse.execution import PaperBroker, OrderSide, OrderType, Order, RiskLimits
-from alpha_pulse.config.settings import TRAINED_MODELS_DIR
+from alpha_pulse.config.settings import TRAINED_MODELS_DIR, settings
 
 
 # Configure logging
@@ -26,152 +27,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-class MockExchange(IExchange):
-    """Mock exchange implementation for testing."""
-    
-    def __init__(self):
-        self.base_prices = {
-            "BTC/USD": 50000,
-            "ETH/USD": 2000
-        }
-        # Initialize with random phase for each symbol
-        self.time_offsets = {
-            "BTC/USD": np.random.uniform(0, 2*np.pi),
-            "ETH/USD": np.random.uniform(0, 2*np.pi)
-        }
-        self.start_time = datetime.now(UTC)
-
-    def fetch_ohlcv(
-        self,
-        symbol: str,
-        timeframe: str,
-        since: Optional[int] = None,
-        limit: Optional[int] = None
-    ) -> List[List]:
-        """Generate mock OHLCV data with trends and patterns."""
-        current_time = datetime.now(UTC)
-        data = []
-        
-        # Generate some mock price data with trends and cycles
-        base_price = self.base_prices.get(symbol, 1000)
-        time_offset = self.time_offsets.get(symbol, 0)
-        
-        for i in range(limit or 100):
-            timestamp = int((current_time - timedelta(minutes=i)).timestamp() * 1000)
-            
-            # Calculate time in hours since start for smooth patterns
-            hours_elapsed = (current_time - self.start_time).total_seconds() / 3600
-            t = hours_elapsed - i/60  # Convert minute offset to hours
-            
-            # Generate more volatile price movements
-            trend = 0.002 * t  # Stronger upward trend
-            cycles = (
-                0.05 * np.sin(t + time_offset) +  # Main cycle (stronger)
-                0.03 * np.sin(3 * t) +            # Faster cycle (stronger)
-                0.02 * np.sin(0.5 * t)            # Slower cycle (stronger)
-            )
-            
-            # Add more randomness
-            noise = np.random.normal(0, 0.003)  # More volatility
-            
-            # Add volatility clustering
-            volatility = 0.002 * (1 + 0.5 * np.abs(np.sin(t/2)))
-            
-            # Combine components with volatility clustering
-            price_factor = np.exp(trend + cycles + noise * volatility)
-            price = base_price * price_factor
-            
-            # Create OHLCV candle
-            candle = [
-                timestamp,
-                price * (1 - 0.001),  # Open
-                price * (1 + 0.001),  # High
-                price * (1 - 0.001),  # Low
-                price,                # Close
-                np.random.normal(100, 10) * (1 + abs(noise))  # Volume
-            ]
-            data.insert(0, candle)
-        
-        return data
-
-    def fetch_historical_data(
-        self,
-        symbol: str,
-        timeframe: str,
-        start_time: Optional[datetime] = None,
-        end_time: Optional[datetime] = None,
-    ) -> Dict:
-        """Mock historical data fetch."""
-        data = self.fetch_ohlcv(symbol, timeframe, limit=100)
-        return {
-            'timestamp': [d[0] for d in data],
-            'open': [d[1] for d in data],
-            'high': [d[2] for d in data],
-            'low': [d[3] for d in data],
-            'close': [d[4] for d in data],
-            'volume': [d[5] for d in data]
-        }
-
-    def get_current_price(self, symbol: str) -> float:
-        """Get current mock price."""
-        data = self.fetch_ohlcv(symbol, "1m", limit=1)
-        return data[0][4]  # Return close price
-
-    def get_available_pairs(self) -> List[str]:
-        """Get list of supported pairs."""
-        return list(self.base_prices.keys())
-
-
-class MockExchangeFactory(IExchangeFactory):
-    """Mock exchange factory implementation."""
-    
-    def create_exchange(self, exchange_id: str) -> IExchange:
-        """Create a mock exchange instance."""
-        return MockExchange()
-
-
-class MockStorage(IDataStorage):
-    """Mock storage implementation."""
-    
-    def __init__(self):
-        self.latest_data = {}  # Store latest timestamp per symbol
-
-    def save_historical_data(
-        self,
-        exchange_id: str,
-        symbol: str,
-        timeframe: str,
-        data: Dict
-    ) -> None:
-        """Mock historical data save."""
-        pass
-
-    def get_historical_data(
-        self,
-        exchange_id: str,
-        symbol: str,
-        timeframe: str,
-        start_time: Optional[datetime] = None,
-        end_time: Optional[datetime] = None,
-    ) -> Dict:
-        """Mock historical data retrieval."""
-        return {}
-
-    def save_ohlcv(self, data: List[OHLCV]) -> None:
-        """Mock OHLCV data save."""
-        if data:
-            key = (data[0].exchange, data[0].symbol)
-            self.latest_data[key] = data[-1].timestamp
-
-    def get_latest_ohlcv(
-        self,
-        exchange_id: str,
-        symbol: str
-    ) -> Optional[datetime]:
-        """Get timestamp of latest OHLCV record."""
-        return self.latest_data.get((exchange_id, symbol))
-
-
 class PaperTradingSystem:
     """Paper trading system that combines data fetching, model predictions, and execution."""
 
@@ -179,16 +34,24 @@ class PaperTradingSystem:
         self,
         symbols: list[str],
         model_path: Path,
+        exchange_id: str = "binance",
+        api_key: str = "",
+        api_secret: str = "",
         initial_balance: float = 100000.0,
         update_interval: int = 60,  # seconds
     ):
         self.symbols = symbols
         self.update_interval = update_interval
         
+        # Configure exchange settings
+        settings.exchange.id = exchange_id
+        settings.exchange.api_key = api_key
+        settings.exchange.api_secret = api_secret
+        
         # Initialize components
         self.data_fetcher = DataFetcher(
-            exchange_factory=MockExchangeFactory(),
-            storage=MockStorage()
+            exchange_factory=CCXTExchangeFactory(),
+            storage=SQLAlchemyStorage()
         )
         self.broker = PaperBroker(
             initial_balance=initial_balance,
@@ -205,6 +68,7 @@ class PaperTradingSystem:
         self.model = model_data['model']
         self.feature_names = model_data['feature_names']
         logger.info(f"Loaded model from {model_path}")
+        logger.info(f"Using exchange: {exchange_id}")
         
         # Track last update time per symbol
         self.last_updates = {symbol: None for symbol in symbols}
@@ -230,7 +94,7 @@ class PaperTradingSystem:
                     
                     # Fetch latest data
                     ohlcv_data = self.data_fetcher.fetch_ohlcv(
-                        exchange_id="mock",
+                        exchange_id=settings.exchange.id,
                         symbol=symbol,
                         timeframe="1m",
                         limit=100  # Enough data for feature calculation
@@ -275,39 +139,43 @@ class PaperTradingSystem:
         if features_df.empty:
             return
         
-        # Get latest feature values and ensure correct order
-        latest_features = features_df.iloc[-1][self.feature_names]
-        
-        # Get model prediction
         try:
-            prediction = self.model.predict_proba([latest_features])[0]
+            # Ensure features are in the same order as training
+            features_df = features_df.reindex(columns=self.feature_names)
+            
+            # Get latest feature values
+            latest_features = features_df.iloc[-1].values.reshape(1, -1)
+            
+            # Get model prediction
+            prediction = self.model.predict_proba(latest_features)[0]
             signal = prediction[1]  # Probability of price increase
             logger.info(f"Signal for {symbol}: {signal:.3f}")
+            
+            # Log feature values
+            logger.info(f"Features for {symbol}:")
+            for fname, fvalue in zip(self.feature_names, latest_features[0]):
+                logger.info(f"  {fname}: {fvalue:.4f}")
+            
+            # Get current position
+            current_position = self.broker.get_position(symbol)
+            current_price = df['close'].iloc[-1]
+            
+            # Update broker's market data
+            self.broker.update_market_data(symbol, current_price)
+            
+            # Trading logic with adjusted thresholds
+            if signal > 0.75 and (current_position is None or current_position.quantity <= 0):
+                # Very strong buy signal
+                logger.info(f"Strong buy signal detected for {symbol} (signal: {signal:.3f})")
+                self._place_trade(symbol, OrderSide.BUY, current_price)
+            elif signal < 0.25 and current_position is not None and current_position.quantity > 0:
+                # Very strong sell signal
+                logger.info(f"Strong sell signal detected for {symbol} (signal: {signal:.3f})")
+                self._place_trade(symbol, OrderSide.SELL, current_price)
+                
         except Exception as e:
-            logger.error(f"Error getting prediction for {symbol}: {e}")
+            logger.error(f"Error processing {symbol}: {e}")
             return
-        
-        # Get current position
-        current_position = self.broker.get_position(symbol)
-        current_price = df['close'].iloc[-1]
-        
-        # Update broker's market data
-        self.broker.update_market_data(symbol, current_price)
-        
-        # Log feature values
-        logger.info(f"Features for {symbol}:")
-        for fname, fvalue in zip(self.feature_names, latest_features):
-            logger.info(f"  {fname}: {fvalue:.4f}")
-        
-        # Trading logic with adjusted thresholds
-        if signal > 0.75 and (current_position is None or current_position.quantity <= 0):
-            # Very strong buy signal
-            logger.info(f"Strong buy signal detected for {symbol} (signal: {signal:.3f})")
-            self._place_trade(symbol, OrderSide.BUY, current_price)
-        elif signal < 0.25 and current_position is not None and current_position.quantity > 0:
-            # Very strong sell signal
-            logger.info(f"Strong sell signal detected for {symbol} (signal: {signal:.3f})")
-            self._place_trade(symbol, OrderSide.SELL, current_price)
 
     def _place_trade(self, symbol: str, side: OrderSide, current_price: float):
         """Place a trade with position sizing."""
@@ -373,21 +241,37 @@ class PaperTradingSystem:
         logger.info(f"Total Trades: {len(self.trade_history)}")
 
 
+def parse_args():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(description="Paper trading system")
+    parser.add_argument("--exchange", default="binance", help="Exchange ID (default: binance)")
+    parser.add_argument("--api-key", default="", help="Exchange API key")
+    parser.add_argument("--api-secret", default="", help="Exchange API secret")
+    parser.add_argument("--symbols", nargs="+", default=["BTC/USDT", "ETH/USDT"], help="Trading symbols")
+    parser.add_argument("--balance", type=float, default=100000.0, help="Initial balance")
+    parser.add_argument("--interval", type=int, default=60, help="Update interval in seconds")
+    return parser.parse_args()
+
+
 async def main():
-    # Example usage
-    symbols = ['BTC/USD', 'ETH/USD']
-    model_path = Path(TRAINED_MODELS_DIR) / 'crypto_prediction_model.joblib'
+    # Parse command line arguments
+    args = parse_args()
     
+    # Check for model
+    model_path = Path(TRAINED_MODELS_DIR) / 'crypto_prediction_model.joblib'
     if not model_path.exists():
         logger.error(f"Model not found at {model_path}")
         return
     
     # Initialize and run paper trading system
     trading_system = PaperTradingSystem(
-        symbols=symbols,
+        symbols=args.symbols,
         model_path=model_path,
-        initial_balance=100000.0,
-        update_interval=60  # Update every minute
+        exchange_id=args.exchange,
+        api_key=args.api_key,
+        api_secret=args.api_secret,
+        initial_balance=args.balance,
+        update_interval=args.interval
     )
     
     await trading_system.run()
