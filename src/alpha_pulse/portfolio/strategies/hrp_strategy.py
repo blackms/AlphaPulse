@@ -8,7 +8,8 @@ from typing import Dict, List, Tuple
 import numpy as np
 import pandas as pd
 from scipy.cluster.hierarchy import linkage, dendrogram
-from scipy.spatial.distance import squareform
+from scipy.spatial.distance import squareform, pdist
+from loguru import logger
 from .base_strategy import BaseStrategy
 
 
@@ -25,6 +26,7 @@ class HRPStrategy(BaseStrategy):
         super().__init__(config)
         self.linkage_method = config.get('linkage_method', 'single')
         self.risk_measure = config.get('risk_measure', 'variance')
+        logger.info(f"Initialized HRP strategy with linkage_method={self.linkage_method}, risk_measure={self.risk_measure}")
 
     def compute_target_allocation(
         self,
@@ -43,48 +45,113 @@ class HRPStrategy(BaseStrategy):
         Returns:
             Target portfolio weights
         """
-        returns = self.compute_returns(historical_data)
-        
-        # Compute correlation and distance matrices
-        corr = returns.corr()
-        dist = self._compute_distance_matrix(corr)
-        
-        # Perform hierarchical clustering
-        link = linkage(squareform(dist), method=self.linkage_method)
-        
-        # Get quasi-diagonal correlation matrix
-        sorted_assets = self._get_quasi_diag(link, returns.columns)
-        returns_sorted = returns[sorted_assets]
-        
-        # Compute HRP weights
-        weights = self._get_recursive_bisection(returns_sorted)
-        
-        # Create dictionary of weights
-        allocation = dict(zip(sorted_assets, weights))
-        
-        # Adjust for minimum position size and normalize
-        allocation = {
-            k: v for k, v in allocation.items()
-            if v >= self.min_position
-        }
-        total = sum(allocation.values())
-        allocation = {k: v/total for k, v in allocation.items()}
-        
-        return allocation
+        logger.info("Starting HRP allocation computation")
+        logger.debug(f"Input data shape: {historical_data.shape}")
+        logger.debug(f"Current allocation: {current_allocation}")
 
-    def _compute_distance_matrix(self, corr: pd.DataFrame) -> np.ndarray:
-        """
-        Convert correlation matrix to distance matrix.
-
-        Args:
-            corr: Correlation matrix
-
-        Returns:
-            Distance matrix
-        """
-        # Convert correlations to distances
-        dist = np.sqrt((1 - corr) / 2)
-        return dist
+        # Filter for allowed assets only
+        allowed_cols = [col for col in historical_data.columns if col in self.allowed_assets]
+        if not allowed_cols:
+            logger.warning("No allowed assets found in historical data")
+            return current_allocation
+            
+        # Convert data to float64
+        returns = self.compute_returns(historical_data[allowed_cols].astype(np.float64))
+        logger.debug(f"Computed returns shape: {returns.shape}")
+        
+        # Handle case with only one asset
+        if len(returns.columns) == 1:
+            logger.info("Only one asset found, returning single-asset allocation")
+            return {returns.columns[0]: 1.0}
+        
+        try:
+            # Compute correlation matrix
+            corr = returns.corr()
+            logger.debug(f"Correlation matrix:\n{corr}")
+            
+            # Ensure correlation matrix is symmetric and contains doubles
+            corr = np.array(corr, dtype=np.float64)
+            corr = (corr + corr.T) / 2.0
+            np.fill_diagonal(corr, 1.0)
+            
+            # Compute distance matrix using correlation
+            dist = np.sqrt(np.clip((1.0 - corr) / 2.0, 0.0, 1.0))
+            logger.debug(f"Distance matrix:\n{dist}")
+            
+            # Convert to condensed form
+            n = len(dist)
+            condensed = np.zeros(n * (n - 1) // 2, dtype=np.float64)
+            k = 0
+            for i in range(n):
+                for j in range(i + 1, n):
+                    condensed[k] = dist[i, j]
+                    k += 1
+            
+            # Compute linkage
+            link = linkage(condensed, method=self.linkage_method)
+            logger.debug(f"Linkage matrix shape: {link.shape}")
+            
+            # Get quasi-diagonal correlation matrix
+            sorted_assets = self._get_quasi_diag(link, list(returns.columns))
+            returns_sorted = returns[sorted_assets]
+            logger.debug(f"Sorted assets order: {sorted_assets}")
+            
+            # Compute HRP weights
+            weights = self._get_recursive_bisection(returns_sorted)
+            logger.debug(f"Initial weights: {weights}")
+            
+            # Create dictionary of weights
+            allocation = dict(zip(sorted_assets, weights))
+            
+            # Adjust for minimum position size and normalize non-stablecoin weights
+            non_stable_allocation = {
+                k: float(v) for k, v in allocation.items()
+                if k not in self.stablecoins and v >= self.min_position
+            }
+            logger.debug(f"Non-stablecoin allocation: {non_stable_allocation}")
+            
+            # Calculate total non-stablecoin weight
+            non_stable_total = sum(non_stable_allocation.values())
+            if non_stable_total > 0:
+                # Scale non-stablecoin weights to (1 - stablecoin_target)
+                target_weight = 1.0 - self.stablecoin_target
+                non_stable_allocation = {
+                    k: v * target_weight / non_stable_total 
+                    for k, v in non_stable_allocation.items()
+                }
+            
+            # Add stablecoins
+            final_allocation = non_stable_allocation.copy()
+            stables = [coin for coin in self.stablecoins if coin in self.allowed_assets]
+            if stables:
+                # Distribute stablecoin allocation equally
+                stable_weight = self.stablecoin_target / len(stables)
+                for coin in stables:
+                    final_allocation[coin] = stable_weight
+            
+            logger.debug(f"Final allocation before validation: {final_allocation}")
+            
+            # Validate position size limits
+            for asset, weight in list(final_allocation.items()):
+                if weight < self.min_position or weight > self.max_position:
+                    logger.warning(f"Removing {asset} due to position size limits: {weight}")
+                    del final_allocation[asset]
+            
+            # Final normalization
+            total = sum(final_allocation.values())
+            if total > 0:
+                final_allocation = {k: v/total for k, v in final_allocation.items()}
+            else:
+                logger.warning("No valid allocations found, returning current allocation")
+                return current_allocation
+            
+            logger.info(f"Final target allocation: {final_allocation}")
+            return final_allocation
+            
+        except Exception as e:
+            logger.error(f"Error in HRP allocation computation: {str(e)}")
+            logger.exception(e)
+            return current_allocation
 
     def _get_quasi_diag(
         self,
@@ -101,45 +168,18 @@ class HRPStrategy(BaseStrategy):
         Returns:
             List of assets in quasi-diagonal order
         """
-        link = link.astype(int)
-        sorted_idx = self._get_recursive_order(link, labels)
-        return [labels[i] for i in sorted_idx]
-
-    def _get_recursive_order(
-        self,
-        link: np.ndarray,
-        labels: List[str]
-    ) -> List[int]:
-        """
-        Recursively order assets based on hierarchical clustering structure.
-
-        Args:
-            link: Linkage matrix
-            labels: List of asset names
-
-        Returns:
-            List of indices in quasi-diagonal order
-        """
-        n = len(labels)
-        
-        if n == 1:
-            return [0]
+        try:
+            # Ensure linkage matrix contains doubles
+            link = np.array(link, dtype=np.float64)
             
-        order = []
-        clustered = set()
-        
-        for i in range(len(link)):
-            c1, c2 = link[i, 0], link[i, 1]
-            
-            if c1 < n and c1 not in clustered:
-                order.append(int(c1))
-                clustered.add(c1)
-                
-            if c2 < n and c2 not in clustered:
-                order.append(int(c2))
-                clustered.add(c2)
-                
-        return order
+            # Get the order of leaves from the dendrogram
+            d = dendrogram(link, labels=labels, no_plot=True)
+            logger.debug(f"Dendrogram leaf ordering: {d['ivl']}")
+            return d['ivl']  # Return leaf labels in order
+        except Exception as e:
+            logger.error(f"Error in quasi-diagonal computation: {str(e)}")
+            logger.exception(e)
+            return labels
 
     def _get_recursive_bisection(self, returns: pd.DataFrame) -> np.ndarray:
         """
@@ -151,25 +191,44 @@ class HRPStrategy(BaseStrategy):
         Returns:
             Array of portfolio weights
         """
-        n = len(returns.columns)
-        if n == 1:
-            return np.array([1.0])
+        try:
+            n = len(returns.columns)
+            if n == 1:
+                return np.array([1.0], dtype=np.float64)
 
-        # Split portfolio into two clusters
-        mid = n // 2
-        left_weights = self._get_recursive_bisection(returns.iloc[:, :mid])
-        right_weights = self._get_recursive_bisection(returns.iloc[:, mid:])
+            # Split portfolio into two clusters
+            mid = n // 2
+            left_weights = self._get_recursive_bisection(returns.iloc[:, :mid])
+            right_weights = self._get_recursive_bisection(returns.iloc[:, mid:])
 
-        # Calculate cluster variances
-        left_var = self._compute_cluster_variance(returns.iloc[:, :mid])
-        right_var = self._compute_cluster_variance(returns.iloc[:, mid:])
+            # Calculate cluster variances
+            left_var = self._compute_cluster_variance(returns.iloc[:, :mid])
+            right_var = self._compute_cluster_variance(returns.iloc[:, mid:])
 
-        # Combine weights based on inverse variance
-        alpha = 1 - (left_var / (left_var + right_var))
-        return np.concatenate([
-            left_weights * alpha,
-            right_weights * (1 - alpha)
-        ])
+            logger.debug(f"Cluster variances - Left: {left_var}, Right: {right_var}")
+
+            # Handle zero variances
+            if left_var == 0 and right_var == 0:
+                alpha = 0.5  # Equal weights if both variances are zero
+            else:
+                # Combine weights based on inverse variance
+                alpha = 1.0 - (left_var / (left_var + right_var))
+                
+            # Ensure alpha is between 0 and 1
+            alpha = np.clip(alpha, 0.0, 1.0)
+            logger.debug(f"Bisection alpha: {alpha}")
+            
+            # Combine weights
+            left_weights = left_weights.astype(np.float64) * alpha
+            right_weights = right_weights.astype(np.float64) * (1.0 - alpha)
+            
+            return np.concatenate([left_weights, right_weights])
+            
+        except Exception as e:
+            logger.error(f"Error in recursive bisection: {str(e)}")
+            logger.exception(e)
+            # Return equal weights as fallback
+            return np.ones(n, dtype=np.float64) / n
 
     def _compute_cluster_variance(self, returns: pd.DataFrame) -> float:
         """
@@ -181,7 +240,23 @@ class HRPStrategy(BaseStrategy):
         Returns:
             Cluster variance
         """
-        if self.risk_measure == 'variance':
-            return np.var(returns.mean(axis=1))
-        else:  # MAD - Mean Absolute Deviation
-            return np.mean(np.abs(returns.mean(axis=1)))
+        if len(returns.columns) == 0:
+            return 0.0
+            
+        try:
+            # Convert to float64 for numerical stability
+            returns = returns.astype(np.float64)
+            
+            if self.risk_measure == 'variance':
+                variance = float(np.var(returns.mean(axis=1)))
+                logger.debug(f"Cluster variance: {variance}")
+                return variance
+            else:  # MAD - Mean Absolute Deviation
+                mad = float(np.mean(np.abs(returns.mean(axis=1))))
+                logger.debug(f"Cluster MAD: {mad}")
+                return mad
+                
+        except Exception as e:
+            logger.error(f"Error computing cluster variance: {str(e)}")
+            logger.exception(e)
+            return 0.0

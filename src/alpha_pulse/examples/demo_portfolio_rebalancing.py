@@ -1,39 +1,29 @@
 """
-Demo script showcasing portfolio rebalancing functionality.
+Demo script showcasing portfolio rebalancing functionality with Bybit exchange.
 """
 
 import os
-import pandas as pd
-import numpy as np
+import asyncio
 from pathlib import Path
+from decimal import Decimal
 
 from alpha_pulse.portfolio.portfolio_manager import PortfolioManager
-from alpha_pulse.exchanges.mock import MockExchange
+from alpha_pulse.exchanges.bybit import BybitExchange
+from alpha_pulse.exchanges.credentials.manager import credentials_manager
 
 
-def create_sample_data(assets: list, days: int = 180) -> pd.DataFrame:
-    """Create synthetic price data for demonstration."""
-    np.random.seed(42)
-    dates = pd.date_range(end=pd.Timestamp.now(), periods=days)
-    data = {}
-    
-    # Generate correlated random walks for crypto assets
-    for asset in assets:
-        if asset in ['USDT', 'USDC']:  # Stablecoins
-            data[asset] = np.ones(days)
-        else:  # Crypto assets
-            # Random walk with drift and volatility
-            returns = np.random.normal(0.0002, 0.02, days)  # Daily returns
-            price = 100 * np.exp(np.cumsum(returns))  # Price series
-            data[asset] = price
-            
-    return pd.DataFrame(data, index=dates)
-
-
-def main():
+async def main():
     """Run portfolio rebalancing demonstration."""
     print("Starting Portfolio Rebalancing Demo")
     print("=" * 50)
+
+    # Save Bybit credentials
+    credentials_manager.save_credentials(
+        exchange_id='bybit',
+        api_key='3m3tcGApIqThJLIlhx',
+        api_secret='kIy1WOlHjWZ0yMmKIuatL5ryu2v8BBl31YFa',
+        testnet=False
+    )
 
     # Load configuration
     config_path = Path(__file__).parent.parent / "portfolio" / "portfolio_config.yaml"
@@ -43,62 +33,55 @@ def main():
     # Initialize portfolio manager
     manager = PortfolioManager(str(config_path))
     
-    # Create mock exchange with sample data
-    assets = ['BTC', 'ETH', 'BNB', 'SOL', 'USDT', 'USDC']
-    historical_data = create_sample_data(assets)
-    
-    exchange = MockExchange(
-        initial_balances={
-            'BTC': 1.0,
-            'ETH': 10.0,
-            'BNB': 50.0,
-            'SOL': 100.0,
-            'USDT': 50000.0,
-            'USDC': 50000.0
-        },
-        price_data=historical_data
-    )
+    # Initialize Bybit exchange
+    exchange = BybitExchange(testnet=False)
+    await exchange.initialize()
 
-    # Get current portfolio state
-    print("\nCurrent Portfolio Allocation:")
-    current_allocation = manager.get_current_allocation(exchange)
-    for asset, weight in current_allocation.items():
-        print(f"{asset}: {weight:.2%}")
+    try:
+        # Get current portfolio state
+        print("\nCurrent Portfolio Allocation:")
+        current_allocation = await manager.get_current_allocation(exchange)
+        for asset, weight in current_allocation.items():
+            print(f"{asset}: {weight:.2%}")
 
-    # Check if rebalancing is needed
-    print("\nChecking if rebalancing is needed...")
-    if manager.needs_rebalancing(current_allocation):
-        print("Portfolio requires rebalancing")
-        
-        # Execute rebalancing
-        print("\nExecuting portfolio rebalancing...")
-        result = manager.rebalance_portfolio(exchange, historical_data)
-        
-        if result['status'] == 'completed':
-            print("\nRebalancing completed successfully!")
-            print("\nTarget Allocation:")
-            for asset, weight in result['target_allocation'].items():
-                print(f"{asset}: {weight:.2%}")
-                
-            print("\nExecuted Trades:")
-            for trade in result['trades']:
-                print(f"{trade['type'].upper()} {trade['asset']}: "
-                      f"${abs(trade['value']):,.2f} "
-                      f"({trade['weight_change']:+.2%})")
+        # Check if rebalancing is needed
+        print("\nChecking if rebalancing is needed...")
+        if await manager.needs_rebalancing(exchange):
+            print("Portfolio requires rebalancing")
+            
+            # Execute rebalancing
+            print("\nExecuting portfolio rebalancing...")
+            result = await manager.rebalance_portfolio(exchange)
+            
+            if result['status'] == 'completed':
+                print("\nRebalancing completed successfully!")
+                print("\nTarget Allocation:")
+                for asset, weight in result['target_allocation'].items():
+                    print(f"{asset}: {weight:.2%}")
+                    
+                print("\nExecuted Trades:")
+                for trade in result['trades']:
+                    print(f"{trade['type'].upper()} {trade['asset']}: "
+                          f"${abs(float(trade['value'])):,.2f} "
+                          f"({float(trade['weight_change']):+.2%})")
+            else:
+                print(f"\nRebalancing {result['status']}: {result.get('reason', 'Unknown error')}")
         else:
-            print(f"\nRebalancing {result['status']}: {result.get('reason', 'Unknown error')}")
-    else:
-        print("Portfolio is already well-balanced")
+            print("Portfolio is already well-balanced")
 
-    # Show final portfolio state
-    print("\nFinal Portfolio Allocation:")
-    final_allocation = manager.get_current_allocation(exchange)
-    for asset, weight in final_allocation.items():
-        print(f"{asset}: {weight:.2%}")
+        # Show final portfolio state
+        print("\nFinal Portfolio Allocation:")
+        final_allocation = await manager.get_current_allocation(exchange)
+        for asset, weight in final_allocation.items():
+            print(f"{asset}: {weight:.2%}")
+
+    finally:
+        # Always close exchange connection
+        await exchange.close()
 
 
 if __name__ == "__main__":
     try:
-        main()
+        asyncio.run(main())
     except Exception as e:
         print(f"Error: {str(e)}")

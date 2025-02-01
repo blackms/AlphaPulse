@@ -139,7 +139,7 @@ class BybitExchange(CCXTExchange):
         except Exception as e:
             logger.error(f"Error fetching Bybit OHLCV data: {e}")
             raise
-    
+
     async def validate_api_keys(self) -> bool:
         """Validate API keys by attempting to access private endpoints."""
         try:
@@ -149,3 +149,8 @@ class BybitExchange(CCXTExchange):
         except Exception as e:
             logger.error(f"Bybit API key validation failed: {e}")
             return False
+
+    async def close(self) -> None:
+        """Close exchange connection."""
+        if self.exchange:
+            await self.exchange.close()

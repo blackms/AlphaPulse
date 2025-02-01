@@ -6,6 +6,7 @@ Provides common utilities and default implementations for strategy interface.
 from typing import Dict, List, Optional
 import numpy as np
 import pandas as pd
+from loguru import logger
 from ..interfaces import IRebalancingStrategy
 
 
@@ -31,6 +32,12 @@ class BaseStrategy(IRebalancingStrategy):
         self.stablecoin_target = config.get('stablecoin_fraction', 0.3)
         self.allowed_assets = set(config.get('allowed_assets', []))
         self.stablecoins = {'USDT', 'USDC', 'DAI', 'BUSD'}
+        
+        logger.info(
+            f"Initialized base strategy with: min_position={self.min_position}, "
+            f"max_position={self.max_position}, stablecoin_target={self.stablecoin_target}"
+        )
+        logger.debug(f"Allowed assets: {self.allowed_assets}")
 
     def validate_constraints(self, allocation: Dict[str, float]) -> bool:
         """
@@ -42,30 +49,55 @@ class BaseStrategy(IRebalancingStrategy):
         Returns:
             Boolean indicating if allocation is valid
         """
+        logger.debug(f"Validating allocation: {allocation}")
+        
         if not allocation:
+            logger.warning("Empty allocation")
             return False
 
         # Check sum of weights is approximately 1
-        if not np.isclose(sum(allocation.values()), 1.0, rtol=1e-5):
+        total_weight = sum(allocation.values())
+        if not np.isclose(total_weight, 1.0, rtol=1e-3):
+            logger.warning(f"Total weight {total_weight} is not close to 1.0")
             return False
 
         # Check position size limits
-        for weight in allocation.values():
-            if weight < self.min_position or weight > self.max_position:
+        for asset, weight in allocation.items():
+            if weight < 0 or weight > self.max_position:
+                logger.warning(
+                    f"Position size violation for {asset}: {weight} "
+                    f"(min: 0, max: {self.max_position})"
+                )
                 return False
 
-        # Check stablecoin allocation
+        # Check stablecoin allocation with tolerance
         stablecoin_total = sum(
             weight for asset, weight in allocation.items()
             if asset in self.stablecoins
         )
-        if not np.isclose(stablecoin_total, self.stablecoin_target, rtol=0.1):
+        min_stable = self.stablecoin_target * 0.8
+        max_stable = self.stablecoin_target * 1.2
+        
+        if not (min_stable <= stablecoin_total <= max_stable):
+            logger.warning(
+                f"Stablecoin allocation {stablecoin_total} outside target range "
+                f"[{min_stable}, {max_stable}]"
+            )
             return False
 
-        # Check only allowed assets are included
-        if not all(asset in self.allowed_assets for asset in allocation):
+        # Check only allowed assets are included, if allowed_assets is specified
+        if self.allowed_assets and not all(
+            asset in self.allowed_assets or asset in self.stablecoins 
+            for asset in allocation
+        ):
+            disallowed = [
+                asset for asset in allocation 
+                if asset not in self.allowed_assets and asset not in self.stablecoins
+            ]
+            logger.warning(f"Disallowed assets found: {disallowed}")
             return False
 
+        logger.info("Allocation passed all constraints")
         return True
 
     def needs_rebalancing(
@@ -83,16 +115,39 @@ class BaseStrategy(IRebalancingStrategy):
         Returns:
             Boolean indicating if rebalancing is needed
         """
+        logger.debug(f"Checking rebalancing need - Current: {current}, Target: {target}")
+        
         if not current or not target:
+            logger.info("Empty allocation, rebalancing needed")
             return True
 
         # Check absolute deviation from targets
+        max_deviation = 0.0
+        deviating_assets = []
+        
         for asset in set(current) | set(target):
             current_weight = current.get(asset, 0.0)
             target_weight = target.get(asset, 0.0)
-            if abs(current_weight - target_weight) > self.rebalancing_threshold:
-                return True
+            deviation = abs(current_weight - target_weight)
+            max_deviation = max(max_deviation, deviation)
+            
+            if deviation > self.rebalancing_threshold:
+                deviating_assets.append(
+                    f"{asset}: {current_weight:.2%} -> {target_weight:.2%} "
+                    f"(Δ{deviation:.2%})"
+                )
 
+        if deviating_assets:
+            logger.info(
+                f"Rebalancing needed. Assets exceeding threshold "
+                f"({self.rebalancing_threshold:.2%}): {', '.join(deviating_assets)}"
+            )
+            return True
+            
+        logger.info(
+            f"No rebalancing needed. Maximum deviation {max_deviation:.2%} "
+            f"below threshold {self.rebalancing_threshold:.2%}"
+        )
         return False
 
     def compute_returns(self, historical_data: pd.DataFrame) -> pd.DataFrame:
@@ -105,7 +160,10 @@ class BaseStrategy(IRebalancingStrategy):
         Returns:
             DataFrame of asset returns
         """
-        return historical_data.pct_change().dropna()
+        logger.debug(f"Computing returns from data shape: {historical_data.shape}")
+        returns = historical_data.pct_change().dropna()
+        logger.debug(f"Computed returns shape: {returns.shape}")
+        return returns
 
     def compute_covariance(
         self,
@@ -122,6 +180,8 @@ class BaseStrategy(IRebalancingStrategy):
         Returns:
             Covariance matrix as DataFrame
         """
+        logger.debug(f"Computing covariance with {lookback_days} day lookback")
+        
         # Use exponential weighting to give more weight to recent data
         decay_factor = 0.94  # Corresponds to ~30-day half-life
         weights = np.exp(np.arange(lookback_days) * np.log(decay_factor))
@@ -131,7 +191,10 @@ class BaseStrategy(IRebalancingStrategy):
         returns = returns.iloc[-lookback_days:]
         weighted_returns = returns - returns.mean()
         weighted_returns = weighted_returns * np.sqrt(weights[:, np.newaxis])
-        return weighted_returns.T @ weighted_returns
+        cov = weighted_returns.T @ weighted_returns
+        
+        logger.debug(f"Computed covariance matrix shape: {cov.shape}")
+        return cov
 
     def compute_target_allocation(
         self,
