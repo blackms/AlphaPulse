@@ -12,7 +12,7 @@ A modular cryptocurrency trading system with support for backtesting, paper trad
 - 🛡️ Risk Management: Advanced position sizing and portfolio optimization
 - 💹 Live Trading: Execute trades on supported exchanges
 - 🤖 LLM Integration: AI-powered portfolio analysis and recommendations
-- 📊 Enhanced Logging: Comprehensive debug and monitoring capabilities
+-  Enhanced Logging: Comprehensive debug and monitoring capabilities
 
 ## 🔧 Installation
 
@@ -115,7 +115,7 @@ The rebalancing demo will:
 - Execute trades if approved
 - Provide detailed logging of the process
 
-### 5. 📊 Backtesting
+### 5. � Backtesting
 
 Run backtesting on historical data:
 
