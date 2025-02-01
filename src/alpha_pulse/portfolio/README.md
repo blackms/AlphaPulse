@@ -9,6 +9,8 @@ The portfolio module helps you:
 - 🎯 Calculate optimal target allocations using multiple strategies
 - 🔄 Generate smart rebalancing recommendations
 - 📊 Track portfolio metrics and performance
+- 🤖 Get AI-powered portfolio insights
+- 📈 Generate interactive HTML reports
 
 ## 💼 Allocation Strategies
 
@@ -40,6 +42,7 @@ Implementation details:
 - 📊 Implements inverse-variance allocation
 - 🔄 Supports dynamic reclustering
 - 📈 Provides cluster visualization
+- 🔍 Enhanced debug logging for allocation decisions
 
 ### 3. 🎯 Black-Litterman Model
 
@@ -57,19 +60,26 @@ Technical implementation:
 
 ### 4. 🤖 LLM-Assisted Strategy
 
-Optional LLM enhancement that can wrap any base strategy:
+AI-powered portfolio enhancement that can wrap any base strategy:
 - 📰 Processes real-time news and sentiment data
 - 🔍 Analyzes market trends and correlations
 - 🎯 Provides dynamic risk assessments
 - 💡 Generates natural language explanations
+- 📊 Creates interactive HTML reports
 
 Implementation details:
 - 🔄 Uses async processing for real-time updates
 - 📊 Implements sentiment scoring algorithms
-- 🎯 Supports multiple LLM providers
+- 🎯 Supports multiple LLM providers (OpenAI, etc.)
 - 📈 Provides confidence metrics for suggestions
+- 🔍 Detailed logging of analysis process
+- 📱 Interactive visualization components
+- 📊 Historical performance tracking
+- 💡 Natural language recommendations
 
-## 💻 Usage Example
+## 💻 Usage Examples
+
+### Basic Portfolio Management
 
 ```python
 from alpha_pulse.portfolio.portfolio_manager import PortfolioManager
@@ -104,6 +114,41 @@ if result['status'] == 'completed':
     for trade in result['trades']:
         print(f"{trade['type'].upper()} {trade['asset']}: "
               f"${abs(trade['value']):,.2f}")
+```
+
+### LLM-Enhanced Analysis
+
+```python
+from alpha_pulse.portfolio.llm_analysis import OpenAILLMAnalyzer
+from alpha_pulse.portfolio.html_report import HTMLReportGenerator
+
+# Initialize LLM analyzer
+analyzer = OpenAILLMAnalyzer(
+    api_key="your_openai_api_key",
+    model_name="o3-mini"  # or other supported models
+)
+
+# Get AI-powered analysis
+portfolio_data = await manager.get_portfolio_data(exchange)
+analysis = await manager.analyze_portfolio_with_llm(analyzer, exchange)
+
+# Generate interactive HTML report
+report_path = HTMLReportGenerator.generate_report(
+    portfolio_data=portfolio_data,
+    analysis_result=analysis,
+    output_dir="reports"
+)
+
+# Access analysis components
+print("Recommendations:", analysis.recommendations)
+print("Risk Assessment:", analysis.risk_assessment)
+print(f"Confidence Score: {analysis.confidence_score:.2%}")
+print("Reasoning:", analysis.reasoning)
+
+if analysis.rebalancing_suggestions:
+    print("\nSuggested Rebalancing:")
+    for suggestion in analysis.rebalancing_suggestions:
+        print(f"- {suggestion.asset}: {suggestion.target_allocation:.2%}")
 ```
 
 ## 🔌 Exchange Integration
@@ -168,6 +213,14 @@ trading:
   max_slippage: 0.01
   min_trade_value: 10.0
   base_currency: "USDT"
+
+# LLM Analysis Settings
+llm:
+  enabled: true
+  model: "o3-mini"
+  confidence_threshold: 0.7
+  update_frequency: "daily"
+  max_tokens: 2000
 ```
 
 ## ⚠️ Risk Considerations
@@ -221,6 +274,32 @@ trading:
    - 🔄 Use Monte Carlo simulation
    - 📈 Stress test strategies
    - 🎯 Monitor live performance
+
+## 📊 Logging and Monitoring
+
+1. 🔍 Debug Logging
+   - 📊 Detailed allocation calculations
+   - 🎯 Trade execution steps
+   - 📈 Risk metric computations
+   - 🔄 Rebalancing decisions
+
+2. 📈 Performance Tracking
+   - 📊 Real-time metrics
+   - 🎯 Historical comparisons
+   - 📈 Attribution analysis
+   - 🔄 Risk-adjusted returns
+
+3. 🤖 LLM Analysis Logging
+   - 📊 Confidence scores
+   - 🎯 Recommendation tracking
+   - 📈 Market context
+   - 🔄 Decision reasoning
+
+4. 📱 Visualization
+   - 📊 Interactive charts
+   - 🎯 Risk dashboards
+   - 📈 Performance metrics
+   - 🔄 Allocation history
 
 ## ⚠️ Disclaimer
 
