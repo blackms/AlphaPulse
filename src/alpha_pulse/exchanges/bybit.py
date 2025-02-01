@@ -47,6 +47,7 @@ class BybitExchange(CCXTExchange):
             self.exchange.options.update({
                 'defaultType': 'spot',
                 'recvWindow': 60000,  # Extend receive window for high latency
+                'defaultVersion': 'v5'  # Use V5 API
             })
             
             if self.testnet:
@@ -57,6 +58,102 @@ class BybitExchange(CCXTExchange):
                         'private': 'https://api-testnet.bybit.com',
                     }
                 })
+    
+    async def get_spot_positions(self) -> List[Dict]:
+        """Get spot positions."""
+        try:
+            balances = await self.get_balances()
+            positions = []
+            
+            for asset, balance in balances.items():
+                if balance.total > 0:
+                    # Get current price
+                    current_price = None
+                    if asset != 'USDT':
+                        current_price = await self.get_ticker_price(f"{asset}/USDT")
+                    
+                    # Get average entry price
+                    avg_price = await self.get_average_entry_price(f"{asset}/USDT")
+                    if not avg_price and current_price:
+                        avg_price = current_price
+                    
+                    positions.append({
+                        'symbol': asset,
+                        'quantity': float(balance.total),
+                        'avgPrice': float(avg_price) if avg_price else None,
+                        'currentPrice': float(current_price) if current_price else None
+                    })
+            
+            return positions
+            
+        except Exception as e:
+            logger.error(f"Error fetching spot positions: {e}")
+            return []
+    
+    async def get_futures_positions(self) -> List[Dict]:
+        """Get futures positions."""
+        try:
+            positions = []
+            
+            # Fetch positions using V5 API
+            params = {
+                'category': 'linear',
+                'settleCoin': 'USDT'
+            }
+            
+            response = await self.exchange.private_get_v5_position_list(params)
+            
+            if response and 'result' in response and 'list' in response['result']:
+                for pos in response['result']['list']:
+                    try:
+                        size = float(pos.get('size', '0'))
+                        if size > 0:  # Only include non-zero positions
+                            positions.append({
+                                'symbol': pos.get('symbol', ''),
+                                'quantity': size,
+                                'side': 'LONG' if pos.get('side', 'Buy') == 'Buy' else 'SHORT',
+                                'entryPrice': float(pos.get('avgPrice', '0')),
+                                'leverage': float(pos.get('leverage', '1')),
+                                'marginUsed': float(pos.get('positionIM', '0')),  # Initial margin
+                                'currentPrice': float(pos.get('markPrice', '0'))
+                            })
+                    except (KeyError, ValueError) as e:
+                        logger.warning(f"Error parsing position data: {e}")
+                        continue
+            
+            return positions
+            
+        except Exception as e:
+            logger.error(f"Error fetching futures positions: {e}")
+            return []
+    
+    async def place_futures_order(
+        self,
+        symbol: str,
+        side: str,
+        quantity: float,
+        order_type: str = "MARKET"
+    ) -> str:
+        """Place a futures order."""
+        try:
+            params = {
+                'category': 'linear',
+                'timeInForce': 'GTC'
+            }
+            
+            order = await self.exchange.create_order(
+                symbol=symbol,
+                type=order_type.lower(),
+                side=side.lower(),
+                amount=quantity,
+                params=params
+            )
+            
+            return order['id']
+            
+        except Exception as e:
+            logger.error(f"Error placing futures order: {e}")
+            raise
     
     async def get_balances(self) -> Dict[str, Balance]:
         """Get balances for all assets."""
