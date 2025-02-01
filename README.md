@@ -12,7 +12,8 @@ A modular cryptocurrency trading system with support for backtesting, paper trad
 - 🛡️ Risk Management: Advanced position sizing and portfolio optimization
 - 💹 Live Trading: Execute trades on supported exchanges
 - 🤖 LLM Integration: AI-powered portfolio analysis and recommendations
--  Enhanced Logging: Comprehensive debug and monitoring capabilities
+- 🔄 Hedging: Intelligent spot-futures hedging with LLM insights
+- 📊 Enhanced Logging: Comprehensive debug and monitoring capabilities
 
 ## 🔧 Installation
 
@@ -115,7 +116,93 @@ The rebalancing demo will:
 - Execute trades if approved
 - Provide detailed logging of the process
 
-### 5. � Backtesting
+### 5. 🔄 Hedging Management
+
+Run intelligent spot-futures hedging with LLM insights:
+
+```bash
+python src/alpha_pulse/examples/demo_hedging.py
+```
+
+The hedging system will:
+1. Analyze current spot and futures positions
+2. Calculate hedge ratios and exposures
+3. Generate recommendations using both quantitative and LLM analysis
+4. Provide detailed execution strategies
+5. Monitor and adjust hedges as needed
+
+Example usage with the Hedging Manager:
+
+```python
+from alpha_pulse.exchanges import BybitExchange
+from alpha_pulse.hedging import (
+    HedgeConfig,
+    LLMHedgeAnalyzer,
+    HedgeManager,
+    ExchangePositionFetcher,
+    BasicExecutionStrategy,
+    ExchangeOrderExecutor
+)
+
+async def manage_hedges():
+    # Initialize exchange
+    exchange = BybitExchange(testnet=False)
+    await exchange.initialize()
+    
+    # Create hedge configuration
+    config = HedgeConfig(
+        hedge_ratio_target=0.0,     # Target no hedging
+        max_leverage=3.0,           # Maximum 3x leverage
+        max_margin_usage=0.8,       # Maximum 80% margin usage
+        min_position_size={         # Minimum position sizes
+            'BTC': 0.001,
+            'ETH': 0.01
+        },
+        max_position_size={         # Maximum position sizes
+            'BTC': 1.0,
+            'ETH': 10.0
+        }
+    )
+    
+    # Initialize components
+    analyzer = LLMHedgeAnalyzer(config, os.getenv("OPENAI_API_KEY"))
+    position_fetcher = ExchangePositionFetcher(exchange)
+    execution_strategy = BasicExecutionStrategy()
+    order_executor = ExchangeOrderExecutor(exchange)
+    
+    # Create hedge manager
+    manager = HedgeManager(
+        hedge_analyzer=analyzer,
+        position_fetcher=position_fetcher,
+        execution_strategy=execution_strategy,
+        order_executor=order_executor,
+        execute_hedge=False  # Set to True for live trading
+    )
+    
+    # Analyze and manage hedges
+    await manager.manage_hedge()
+```
+
+The hedging system provides:
+1. 📊 Quantitative Analysis:
+   - Precise hedge ratio calculations
+   - Position sizing and exposure tracking
+   - Margin usage monitoring
+   - Risk metrics computation
+
+2. 🤖 LLM-Enhanced Analysis:
+   - Market context and timing recommendations
+   - Execution strategy optimization
+   - Risk management insights
+   - Detailed reasoning for decisions
+
+3. 🔄 Execution Management:
+   - Automated hedge adjustments
+   - Market impact minimization
+   - Stop-loss management
+   - Position monitoring
+
+### 6. 📊 Backtesting
 
 Run backtesting on historical data:
 
