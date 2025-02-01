@@ -2,6 +2,7 @@
 Bybit exchange implementation.
 """
 from decimal import Decimal
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 
 from loguru import logger
@@ -176,6 +177,67 @@ class BybitExchange(CCXTExchange):
         except Exception as e:
             logger.error(f"Error calculating portfolio value: {e}")
             raise
+
+    async def get_order_history(self, symbol: str) -> List[Dict]:
+        """Get order history for a symbol."""
+        try:
+            # Try to fetch orders from different categories
+            all_orders = []
+            categories = ['spot', 'linear']
+            
+            for category in categories:
+                try:
+                    # Calculate timestamp for 30 days ago
+                    since = int((datetime.now(timezone.utc) - timedelta(days=30)).timestamp() * 1000)
+                    
+                    params = {
+                        'category': category,
+                        'limit': 500,  # Maximum limit for Bybit
+                        'since': since
+                    }
+                    
+                    orders = await self.exchange.fetch_closed_orders(
+                        symbol=symbol,
+                        params=params
+                    )
+                    
+                    if orders:
+                        all_orders.extend(orders)
+                        logger.debug(f"Fetched {len(orders)} {category} orders for {symbol}")
+                except Exception as e:
+                    logger.warning(f"Error fetching {category} orders for {symbol}: {e}")
+                    continue
+            
+            return all_orders
+            
+        except Exception as e:
+            logger.error(f"Error fetching order history for {symbol}: {e}")
+            return []
+
+    async def get_average_entry_price(self, symbol: str) -> Optional[Decimal]:
+        """Calculate average entry price from order history."""
+        try:
+            orders = await self.get_order_history(symbol)
+            
+            total_cost = Decimal('0')
+            total_quantity = Decimal('0')
+            
+            for order in orders:
+                if order['side'] == 'buy' and order['status'] == 'closed':
+                    cost = Decimal(str(order['cost']))
+                    amount = Decimal(str(order['amount']))
+                    total_cost += cost
+                    total_quantity += amount
+            
+            if total_quantity > 0:
+                avg_price = total_cost / total_quantity
+                logger.debug(f"Average entry price for {symbol}: {avg_price}")
+                return avg_price
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error calculating average entry price for {symbol}: {e}")
+            return None
 
     async def execute_trade(
         self,

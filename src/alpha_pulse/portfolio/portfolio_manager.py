@@ -4,21 +4,32 @@ Coordinates portfolio strategies, risk management, and rebalancing operations.
 """
 
 import yaml
-from typing import Dict, Optional, Type, List
+from typing import Dict, Optional, Type, List, Any, Union, Set
 import pandas as pd
 import numpy as np
 from pathlib import Path
-from decimal import Decimal
+from decimal import Decimal, DivisionByZero
 from collections import defaultdict
+from datetime import datetime, timezone
+import asyncio
+from functools import lru_cache
+from asyncio import TimeoutError
+import logging
+from contextlib import asynccontextmanager
 
 from .interfaces import IRebalancingStrategy
+from .data_models import Position, PortfolioData
 from .strategies.mpt_strategy import MPTStrategy
 from .strategies.hrp_strategy import HRPStrategy
 from .strategies.black_litterman_strategy import BlackLittermanStrategy
 from .strategies.llm_assisted_strategy import LLMAssistedStrategy
+from .llm_analysis import OpenAILLMAnalyzer, LLMAnalysisResult
+
+logger = logging.getLogger(__name__)
 
 
-def create_price_matrix(historical_data: List[Dict], assets: List[str]) -> pd.DataFrame:
+@lru_cache(maxsize=100)
+def create_price_matrix(historical_data_str: str, assets_str: str) -> pd.DataFrame:
     """
     Create a price matrix from historical data.
 
@@ -29,6 +40,9 @@ def create_price_matrix(historical_data: List[Dict], assets: List[str]) -> pd.Da
     Returns:
         DataFrame with timestamps as index and assets as columns
     """
+    # Convert string inputs to objects for cache compatibility
+    historical_data = eval(historical_data_str)  # Safe since we control the input
+    assets = eval(assets_str)
     # Group data by timestamp
     data_by_timestamp = defaultdict(dict)
     timestamps = set()
@@ -49,12 +63,12 @@ def create_price_matrix(historical_data: List[Dict], assets: List[str]) -> pd.Da
             if asset in data_by_timestamp[timestamp]:
                 prices.append(data_by_timestamp[timestamp][asset])
             else:
-                last_price = prices[-1] if prices else (1.0 if asset.endswith('USDT') else None)
+                last_price = prices[-1] if prices else (1.0 if asset.endswith(('USDT', 'USDC', 'DAI', 'BUSD', 'UST', 'TUSD')) else None)
                 prices.append(last_price)
         price_matrix[asset] = prices
 
     # Forward fill any remaining NaN values
-    price_matrix = price_matrix.ffill()
+    price_matrix = price_matrix.ffill(limit=5)  # Limit forward fill to 5 periods
     
     # For any columns that are still all NaN, fill with 1.0 (stablecoins)
     for col in price_matrix.columns:
@@ -70,7 +84,8 @@ class PortfolioManager:
     STRATEGY_MAP = {
         'mpt': MPTStrategy,
         'hierarchical_risk_parity': HRPStrategy,
-        'black_litterman': BlackLittermanStrategy
+        'black_litterman': BlackLittermanStrategy,
+        'llm_assisted': LLMAssistedStrategy
     }
 
     def __init__(self, config_path: str):
@@ -80,12 +95,43 @@ class PortfolioManager:
         Args:
             config_path: Path to portfolio configuration YAML file
         """
+        logger.info(f"Initializing PortfolioManager with config from {config_path}")
         self.config = self._load_config(config_path)
+        self._validate_config()
         self.strategy = self._initialize_strategy()
         self.risk_constraints = self._get_risk_constraints()
         self.last_rebalance_time = None
         self.trading_config = self.config.get('trading', {})
         self.base_currency = self.trading_config.get('base_currency', 'USDT')
+        
+        # Initialize stablecoin patterns
+        self.stablecoin_patterns: Set[str] = {
+            'USDT', 'USDC', 'DAI', 'BUSD', 'UST', 'TUSD'
+        }
+
+    def _validate_config(self) -> None:
+        """Validate configuration fields."""
+        required_fields = {
+            'strategy': {
+                'name': str,
+                'lookback_period': int,
+                'rebalancing_threshold': (int, float)
+            },
+            'rebalancing_frequency': str,
+            'trading': {
+                'base_currency': str,
+                'min_trade_value': (int, float)
+            }
+        }
+        
+        def validate_dict(config: Dict, fields: Dict, path: str = '') -> None:
+            for key, value in fields.items():
+                if key not in config:
+                    raise ValueError(f"Missing required config field: {path + key}")
+                if isinstance(value, dict):
+                    validate_dict(config[key], value, f"{path}{key}.")
+                    
+        validate_dict(self.config, required_fields)
 
     def _load_config(self, config_path: str) -> Dict:
         """
@@ -97,9 +143,23 @@ class PortfolioManager:
         Returns:
             Configuration dictionary
         """
-        with open(config_path, 'r') as f:
-            config = yaml.safe_load(f)
+        try:
+            with open(config_path, 'r') as f:
+                config = yaml.safe_load(f)
+        except (yaml.YAMLError, IOError) as e:
+            logger.error(f"Failed to load configuration: {e}")
+            raise ValueError(f"Failed to load configuration from {config_path}: {str(e)}")
+            
         return config
+        
+    def _is_stablecoin(self, asset: str) -> bool:
+        """
+        Check if an asset is a stablecoin.
+        
+        Args:
+            asset: Asset symbol to check
+        """
+        return any(asset.endswith(pattern) for pattern in self.stablecoin_patterns)
 
     def _initialize_strategy(self) -> IRebalancingStrategy:
         """
@@ -136,7 +196,7 @@ class PortfolioManager:
             'correlation_threshold': self.config.get('correlation_threshold', 0.7)
         }
 
-    async def get_current_allocation(self, exchange) -> Dict[str, float]:
+    async def get_current_allocation(self, exchange: Any) -> Dict[str, float]:
         """
         Get current portfolio allocation from exchange.
 
@@ -145,9 +205,18 @@ class PortfolioManager:
 
         Returns:
             Dictionary of current asset weights
+            
+        Raises:
+            ValueError: If exchange interface is invalid or operations fail
         """
-        # Get account balances
-        balances = await exchange.get_balances()
+        self._validate_exchange(exchange)
+        
+        # Get account balances with retry and timeout
+        balances = await self._retry_with_timeout(
+            exchange.get_balances(),
+            max_retries=3,
+            timeout=15.0
+        )
         
         # Get current prices for conversion to common currency
         prices = {}
@@ -155,9 +224,17 @@ class PortfolioManager:
             if asset == self.base_currency:
                 prices[asset] = Decimal('1.0')
             else:
-                price = await exchange.get_ticker_price(f"{asset}/{self.base_currency}")
-                if price:
-                    prices[asset] = price
+                try:
+                    price = await self._retry_with_timeout(
+                        exchange.get_ticker_price(f"{asset}/{self.base_currency}"),
+                        max_retries=3,
+                        timeout=10.0
+                    )
+                    if price:
+                        prices[asset] = price
+                except (TimeoutError, Exception) as e:
+                    logger.error(f"Price fetch error for {asset}: {str(e)}")
+                    raise ValueError(f"Failed to fetch price for {asset}: {str(e)}")
         
         # Calculate total portfolio value and weights
         total_value = sum(
@@ -220,9 +297,10 @@ class PortfolioManager:
 
     async def needs_rebalancing(
         self,
-        exchange,
+        exchange: Any,
         current_allocation: Optional[Dict[str, Decimal]] = None
     ) -> bool:
+        self._validate_exchange(exchange)
         """
         Check if portfolio needs rebalancing based on time and deviation.
 
@@ -237,8 +315,17 @@ class PortfolioManager:
             return True
             
         # Check rebalancing frequency
-        frequency = pd.Timedelta(self.config['rebalancing_frequency'])
-        if pd.Timestamp.now() - self.last_rebalance_time < frequency:
+        # Convert frequency string to timedelta
+        freq_map = {
+            'hourly': pd.Timedelta(hours=1),
+            'daily': pd.Timedelta(days=1),
+            'weekly': pd.Timedelta(weeks=1)
+        }
+        frequency = freq_map.get(self.config['rebalancing_frequency'])
+        if not frequency:
+            raise ValueError(f"Invalid rebalancing frequency: {self.config['rebalancing_frequency']}")
+            
+        if datetime.now(timezone.utc) - self.last_rebalance_time < frequency.to_pytimedelta():
             return False
             
         # Get current allocation if not provided
@@ -246,40 +333,12 @@ class PortfolioManager:
             current_allocation = await self.get_current_allocation(exchange)
             
         # Get historical data for analysis
-        lookback_days = self.config['strategy']['lookback_period']
-        end_time = pd.Timestamp.now()
-        start_time = end_time - pd.Timedelta(days=lookback_days)
-        
-        # Get historical data for each non-stablecoin asset
-        price_data = []
-        for asset in current_allocation.keys():
-            if asset == self.base_currency:
-                continue
-                
-            symbol = f"{asset}/{self.base_currency}"
-            candles = await exchange.fetch_ohlcv(
-                symbol=symbol,
-                timeframe="1d",
-                since=int(start_time.timestamp() * 1000),
-                limit=lookback_days
-            )
-            
-            for candle in candles:
-                price_data.append({
-                    'timestamp': candle.timestamp,
-                    asset: float(candle.close)
-                })
-        
-        # Create price matrix
-        price_matrix = create_price_matrix(
-            price_data,
-            list(current_allocation.keys())
-        )
+        historical_data = await self._fetch_historical_data(exchange, list(current_allocation.keys()))
         
         # Get target allocation
         target = self.strategy.compute_target_allocation(
             current_allocation,
-            price_matrix,
+            historical_data,
             self.risk_constraints
         )
         
@@ -293,13 +352,208 @@ class PortfolioManager:
                 
         return False
 
-    async def rebalance_portfolio(
+    async def _fetch_historical_data(
         self,
-        exchange,
-        historical_data: Optional[pd.DataFrame] = None
-    ) -> Dict:
+        exchange: Any,
+        assets: List[str]
+    ) -> pd.DataFrame:
         """
-        Execute full portfolio rebalancing operation.
+        Fetch historical data for multiple assets in parallel.
+        
+        Args:
+            exchange: Exchange interface instance
+            assets: List of asset symbols
+            
+        Returns:
+            DataFrame with historical price data
+        """
+        lookback_days = self.config['strategy']['lookback_period']
+        start_time = int((pd.Timestamp.now() - pd.Timedelta(days=lookback_days)).timestamp() * 1000)
+
+        async def fetch_asset_data(asset: str) -> List[Dict]:
+            """Fetch historical data for a single asset."""
+            if asset == self.base_currency or self._is_stablecoin(asset):
+                return []
+                
+            symbol = f"{asset}/{self.base_currency}"
+            try:
+                candles = await exchange.fetch_ohlcv(
+                    symbol=symbol,
+                    timeframe="1d",
+                    since=start_time,
+                    limit=lookback_days
+                )
+                # Format timestamp as string representation of datetime constructor
+                return [{
+                    'timestamp': f"datetime({c.timestamp.year}, {c.timestamp.month}, {c.timestamp.day}, {c.timestamp.hour}, {c.timestamp.minute}, tzinfo=timezone.utc)",
+                    asset: float(c.close)
+                } for c in candles]
+            except Exception as e:
+                logger.error(f"Failed to fetch data for {asset}: {e}")
+                return []
+
+        # Fetch data for all assets in parallel with limited concurrency
+        tasks = [fetch_asset_data(asset) for asset in assets]
+        results = await self._gather_with_concurrency(10, tasks)
+        
+        # Combine results
+        price_data = []
+        for asset_data in results:
+            price_data.extend(asset_data)
+            
+        # Convert to string for cache compatibility
+        return create_price_matrix(
+            str(price_data),
+            str(list(assets))
+        )
+
+    @asynccontextmanager
+    async def _timeout_context(self, timeout: float = 30.0):
+        """Context manager for timeout handling."""
+        try:
+            yield
+        except TimeoutError:
+            logger.error(f"Operation timed out after {timeout} seconds")
+            raise
+
+    async def _retry_with_timeout(self, coro, max_retries: int = 3, timeout: float = 30.0):
+        """Execute coroutine with retry and timeout."""
+        for attempt in range(max_retries):
+            try:
+                async with self._timeout_context(timeout):
+                    return await asyncio.wait_for(coro, timeout=timeout)
+            except (TimeoutError, Exception) as e:
+                if attempt == max_retries - 1:
+                    logger.error(f"Operation failed after {max_retries} attempts: {str(e)}")
+                    raise
+                logger.warning(f"Attempt {attempt + 1} failed, retrying: {str(e)}")
+                await asyncio.sleep(2 ** attempt)  # Exponential backoff
+
+    async def _gather_with_concurrency(self, n: int, tasks: List[asyncio.Task]) -> List[Any]:
+        """Execute tasks with limited concurrency and timeout handling."""
+        semaphore = asyncio.Semaphore(n)
+        
+        async def _wrap_task(task):
+            async with semaphore:
+                return await self._retry_with_timeout(task)
+        
+        return await asyncio.gather(*[_wrap_task(task) for task in tasks])
+
+    def _validate_exchange(self, exchange: Any) -> None:
+        """
+        Validate exchange interface has required methods.
+        
+        Args:
+            exchange: Exchange interface to validate
+        
+        Raises:
+            ValueError: If exchange interface is missing required methods
+        """
+        required_methods = [
+            'get_balances',
+            'get_ticker_price',
+            'get_portfolio_value',
+            'fetch_ohlcv',
+            'execute_trade',
+            'get_average_entry_price'
+        ]
+        
+        missing_methods = [
+            method for method in required_methods
+            if not hasattr(exchange, method) or not callable(getattr(exchange, method))
+        ]
+        
+        if missing_methods:
+            raise ValueError(
+                f"Exchange interface missing required methods: {', '.join(missing_methods)}"
+            )
+
+    async def get_portfolio_data(self, exchange: Any) -> PortfolioData:
+        """
+        Get current portfolio data from exchange.
+
+        Args:
+            exchange: Exchange interface instance
+
+        Returns:
+            PortfolioData object containing current portfolio state
+        """
+        # Get current allocation and portfolio value
+        current_allocation = await self.get_current_allocation(exchange)
+        total_value = await exchange.get_portfolio_value()
+        
+        # Get positions data
+        positions = []
+        for asset, weight in current_allocation.items():
+            if asset == self.base_currency:
+                continue
+                
+            symbol = f"{asset}/{self.base_currency}"
+            current_price = await exchange.get_ticker_price(symbol)
+            
+            # Get average entry price from order history
+            avg_entry_price = await exchange.get_average_entry_price(symbol)
+            if not avg_entry_price:
+                avg_entry_price = current_price  # Fallback to current price if no history
+
+            # Calculate quantity from weight and total value
+            try:
+                quantity = (weight * total_value) / current_price if current_price else Decimal('0')
+            except DivisionByZero:
+                quantity = Decimal('0')
+            
+            # Calculate profit/loss
+            profit_loss = (current_price - avg_entry_price) * quantity if avg_entry_price else Decimal('0')
+            
+            positions.append(Position(
+                asset_id=asset,
+                quantity=quantity,
+                entry_price=avg_entry_price,
+                current_price=current_price,
+                timestamp=datetime.now(timezone.utc)
+            ))
+
+        # Create portfolio data object
+        return PortfolioData(
+            positions=positions,
+            total_value=total_value,
+            cash_balance=current_allocation.get(self.base_currency, Decimal('0')) * total_value,
+            timestamp=datetime.now(timezone.utc),
+            risk_metrics={
+                'volatility_target': self.risk_constraints['volatility_target'],
+                'max_drawdown_limit': self.risk_constraints['max_drawdown_limit'],
+                'correlation_threshold': self.risk_constraints['correlation_threshold']
+            }
+        )
+
+    async def analyze_portfolio_with_llm(
+        self,
+        analyzer: OpenAILLMAnalyzer,
+        exchange: Any
+    ) -> LLMAnalysisResult:
+        """
+        Analyze the current portfolio using LLM.
+
+        Args:
+            analyzer: Configured OpenAILLMAnalyzer instance
+            exchange: Exchange interface instance
+
+        Returns:
+            LLMAnalysisResult containing the analysis
+            
+        Raises:
+            ValueError: If exchange interface is invalid or operations fail
+        """
+        self._validate_exchange(exchange)
+        
+        # Get portfolio data
+        portfolio_data = await self.get_portfolio_data(exchange)
+        
+        # Get LLM analysis
+        return await analyzer.analyze_portfolio(portfolio_data)
+
+    async def rebalance_portfolio(self, exchange, historical_data: Optional[pd.DataFrame] = None) -> Dict:
+        """Execute full portfolio rebalancing operation.
 
         Args:
             exchange: Exchange interface instance
@@ -311,44 +565,16 @@ class PortfolioManager:
         # Get current allocation
         current_allocation = await self.get_current_allocation(exchange)
         
-        if not await self.needs_rebalancing(exchange, current_allocation):
+        # Check if rebalancing is needed
+        needs_rebalance = await self.needs_rebalancing(exchange, current_allocation)
+        if not needs_rebalance:
             return {
                 'status': 'skipped',
                 'reason': 'Rebalancing not needed'
             }
             
         # Get historical data if not provided
-        if historical_data is None:
-            lookback_days = self.config['strategy']['lookback_period']
-            end_time = pd.Timestamp.now()
-            start_time = end_time - pd.Timedelta(days=lookback_days)
-            
-            # Get historical data for each non-stablecoin asset
-            price_data = []
-            for asset in current_allocation.keys():
-                if asset == self.base_currency:
-                    continue
-                    
-                symbol = f"{asset}/{self.base_currency}"
-                candles = await exchange.fetch_ohlcv(
-                    symbol=symbol,
-                    timeframe="1d",
-                    since=int(start_time.timestamp() * 1000),
-                    limit=lookback_days
-                )
-                
-                for candle in candles:
-                    price_data.append({
-                        'timestamp': candle.timestamp,
-                        asset: float(candle.close)
-                    })
-            
-            # Create price matrix
-            historical_data = create_price_matrix(
-                price_data,
-                list(current_allocation.keys())
-            )
-            
+        historical_data = historical_data or await self._fetch_historical_data(exchange, list(current_allocation.keys()))
         # Compute target allocation
         target_allocation = self.strategy.compute_target_allocation(
             current_allocation,
@@ -358,9 +584,10 @@ class PortfolioManager:
         
         # Validate target allocation
         if not self.strategy.validate_constraints(target_allocation):
+            violations = self.strategy.get_constraint_violations(target_allocation)
             return {
                 'status': 'failed',
-                'reason': 'Target allocation violates constraints'
+                'reason': f'Target allocation violates constraints: {violations}'
             }
             
         # Compute required trades
@@ -375,11 +602,22 @@ class PortfolioManager:
         executed_trades = []
         for trade in trades:
             try:
-                result = await exchange.execute_trade(
-                    asset=trade['asset'],
-                    amount=abs(trade['value']),
-                    side=trade['type'],
-                    order_type=self.trading_config.get('execution_style', 'market')
+                # Validate trade parameters
+                if not isinstance(trade['value'], (Decimal, float)) or trade['value'] == 0:
+                    raise ValueError(f"Invalid trade value for {trade['asset']}")
+                if trade['type'] not in ('buy', 'sell'):
+                    raise ValueError(f"Invalid trade type: {trade['type']}")
+                
+                # Execute trade with retry and timeout
+                result = await self._retry_with_timeout(
+                    exchange.execute_trade(
+                        asset=trade['asset'],
+                        amount=abs(trade['value']),
+                        side=trade['type'],
+                        order_type=self.trading_config.get('execution_style', 'market')
+                    ),
+                    max_retries=2,  # Fewer retries for trades to avoid duplicates
+                    timeout=20.0
                 )
                 executed_trades.append({
                     **trade,
@@ -387,13 +625,15 @@ class PortfolioManager:
                     'execution_details': result
                 })
             except Exception as e:
+                logger.error(f"Trade execution failed for {trade['asset']}: {str(e)}")
                 executed_trades.append({
                     **trade,
                     'status': 'failed',
                     'error': str(e)
                 })
+                await self._attempt_trade_rollback(exchange, executed_trades)
                 
-        self.last_rebalance_time = pd.Timestamp.now()
+        self.last_rebalance_time = datetime.now(timezone.utc)
         
         return {
             'status': 'completed',
@@ -401,3 +641,27 @@ class PortfolioManager:
             'target_allocation': target_allocation,
             'trades': executed_trades
         }
+        
+    async def _attempt_trade_rollback(
+        self,
+        exchange: Any,
+        executed_trades: List[Dict]
+    ) -> None:
+        """
+        Attempt to rollback successful trades after a failure.
+        
+        Args:
+            exchange: Exchange interface instance
+            executed_trades: List of executed trades
+        """
+        logger.warning("Attempting trade rollback due to execution failure")
+        for trade in executed_trades:
+            if trade['status'] == 'success':
+                try:
+                    await exchange.execute_trade(
+                        asset=trade['asset'],
+                        amount=abs(trade['value']),
+                        side='sell' if trade['type'] == 'buy' else 'buy'
+                    )
+                except Exception as e:
+                    logger.error(f"Rollback failed for {trade['asset']}: {str(e)}")

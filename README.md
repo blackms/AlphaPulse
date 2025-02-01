@@ -10,7 +10,9 @@ A modular cryptocurrency trading system with support for backtesting, paper trad
 - 📈 Backtesting: Test strategies on historical data
 - 🎮 Paper Trading: Simulate trading with real-time market data
 - 🛡️ Risk Management: Advanced position sizing and portfolio optimization
-- 💹 Live Trading: Execute trades on supported exchanges (coming soon)
+- 💹 Live Trading: Execute trades on supported exchanges
+- 🤖 LLM Integration: AI-powered portfolio analysis and recommendations
+- 📊 Enhanced Logging: Comprehensive debug and monitoring capabilities
 
 ## 🔧 Installation
 
@@ -22,6 +24,22 @@ cd AlphaPulse
 # Install dependencies
 pip install -e .
 ```
+
+## 🔐 Environment Setup
+
+Create a `.env` file in the root directory with your API keys:
+
+```env
+# OpenAI API key for LLM-based portfolio analysis
+OPENAI_API_KEY=your_openai_api_key
+
+# Bybit exchange credentials
+ALPHA_PULSE_BYBIT_API_KEY=your_bybit_api_key
+ALPHA_PULSE_BYBIT_API_SECRET=your_bybit_api_secret
+ALPHA_PULSE_BYBIT_TESTNET=false  # Set to true for testnet
+```
+
+> ⚠️ **Important**: Never commit your `.env` file to version control. It's already added to `.gitignore` to prevent accidental commits.
 
 ## 🎯 Usage
 
@@ -61,7 +79,7 @@ Command line arguments:
 - `--api-secret`: Exchange API secret
 - `--interval`: Update interval in seconds (default: 60)
 
-### 3. 🎯 Paper Trading
+### 3. 🎮 Paper Trading
 
 Run paper trading simulation with real-time market data:
 
@@ -69,24 +87,33 @@ Run paper trading simulation with real-time market data:
 python src/alpha_pulse/examples/demo_paper_trading.py
 ```
 
-### 4. 💼 Portfolio Rebalancing
+### 4. 💼 Portfolio Analysis and Rebalancing
 
-Run portfolio analysis and rebalancing:
+Run portfolio analysis with LLM insights and automated rebalancing:
 
 ```bash
-python src/alpha_pulse/examples/demo_portfolio_rebalancing.py \
-    --exchange binance \  # or bybit
-    --api-key your_api_key \
-    --api-secret your_api_secret \
-    --testnet  # Optional: use testnet for testing
+# LLM-powered portfolio analysis
+python src/alpha_pulse/examples/demo_llm_portfolio_analysis.py
+
+# Portfolio rebalancing
+python src/alpha_pulse/examples/demo_portfolio_rebalancing.py
 ```
 
-This will:
+The LLM analysis will:
+- Connect to the exchange
+- Analyze current portfolio allocation
+- Generate AI-powered insights and recommendations
+- Create an interactive HTML report
+- Provide detailed risk assessment
+- Suggest optimal rebalancing targets
+
+The rebalancing demo will:
 - Connect to the exchange
 - Analyze current portfolio allocation
 - Calculate optimal allocation using MPT and HRP
 - Generate rebalancing recommendations
-- Plot current vs target allocations
+- Execute trades if approved
+- Provide detailed logging of the process
 
 ### 5. 📊 Backtesting
 
@@ -184,12 +211,61 @@ The system includes comprehensive risk management and portfolio optimization fea
    - Transaction cost consideration
    - Visual allocation comparison
 
-4. 🔄 Exchange Integration:
-   - Real-time balance tracking
-   - Multi-exchange support (Binance, Bybit)
-   - Automated rebalancing suggestions
-   - Support for spot and futures
-   - Secure API key management
+4. 🤖 LLM-Based Portfolio Analysis:
+    - AI-powered portfolio insights
+    - Risk assessment and recommendations
+    - Custom rebalancing suggestions
+    - Confidence scoring
+    - Detailed reasoning for decisions
+    - Interactive HTML reports
+    - Real-time market context
+    - Natural language explanations
+
+5. 🔄 Exchange Integration:
+    - Real-time balance tracking
+    - Multi-exchange support (Binance, Bybit)
+    - Automated rebalancing execution
+    - Support for spot and futures
+    - Secure API key management
+    - Enhanced error handling
+    - Comprehensive logging
+
+Example usage with LLM Portfolio Analysis:
+
+```python
+from alpha_pulse.portfolio.llm_analysis import OpenAILLMAnalyzer
+from alpha_pulse.portfolio.portfolio_manager import PortfolioManager
+from alpha_pulse.portfolio.html_report import HTMLReportGenerator
+
+import os
+from dotenv import load_dotenv
+
+async def analyze_portfolio():
+    # Load environment variables
+    load_dotenv()
+    
+    # Initialize LLM analyzer
+    analyzer = OpenAILLMAnalyzer(
+        api_key=os.getenv("OPENAI_API_KEY"),
+        model_name="o3-mini",  # or other available models
+    )
+    
+    # Initialize portfolio manager
+    manager = PortfolioManager("portfolio_config.yaml")
+    
+    # Get portfolio data and analysis
+    portfolio_data = await manager.get_portfolio_data(exchange)
+    analysis = await manager.analyze_portfolio_with_llm(analyzer, exchange)
+    
+    # Generate HTML report
+    report_path = HTMLReportGenerator.generate_report(
+        portfolio_data=portfolio_data,
+        analysis_result=analysis,
+        output_dir="reports"
+    )
+    
+    print("Analysis complete! Check the HTML report for detailed results.")
+```
 
 Example usage with the Portfolio Analyzer:
 
