@@ -1,11 +1,13 @@
 """
 LLM-enhanced hedge analyzer that provides detailed explanations of hedging decisions.
+Uses Langchain and o3-mini model for analysis and comparison.
 """
 from decimal import Decimal
 from typing import List, Dict, Optional
 import json
 from loguru import logger
-import openai
+from langchain_openai import ChatOpenAI
+from langchain.schema import HumanMessage, SystemMessage
 
 from .interfaces import IHedgeAnalyzer
 from .models import (
@@ -15,11 +17,14 @@ from .models import (
     HedgeAdjustment
 )
 from .hedge_config import HedgeConfig
+from .basic_futures_hedge import BasicFuturesHedgeAnalyzer
 
 class LLMHedgeAnalyzer(IHedgeAnalyzer):
     """
-    Enhanced hedge analyzer that uses LLM to explain hedging decisions
-    and provide market context for recommendations.
+    Enhanced hedge analyzer that uses Langchain and o3-mini model for:
+    1. Running basic strategy analysis
+    2. Getting LLM recommendations
+    3. Comparing and evaluating both approaches
     """
     
     def __init__(self, config: HedgeConfig, openai_api_key: str):
@@ -32,7 +37,12 @@ class LLMHedgeAnalyzer(IHedgeAnalyzer):
         """
         self.config = config
         config.validate()
-        openai.api_key = openai_api_key
+        self.basic_analyzer = BasicFuturesHedgeAnalyzer(config)
+        self.llm = ChatOpenAI(
+            model="o3-mini",
+            openai_api_key=openai_api_key,
+            model_kwargs={"seed": 42}  # For reproducibility
+        )
     
     def _format_positions_for_llm(
         self,
@@ -81,16 +91,21 @@ class LLMHedgeAnalyzer(IHedgeAnalyzer):
             }
         }, indent=2)
     
-    async def _get_llm_analysis(
+    async def _get_llm_recommendations(
         self,
         positions_data: str,
-        metrics: Dict[str, Decimal],
-        adjustments: List[HedgeAdjustment]
+        metrics: Dict[str, Decimal]
     ) -> str:
-        """Get LLM analysis of the hedging situation."""
+        """Get LLM hedge recommendations."""
         try:
-            # Prepare the prompt
-            prompt = f"""You are a hedge analysis expert. Analyze the following portfolio and hedging data and provide detailed explanations of the current situation and recommended actions.
+            messages = [
+                SystemMessage(content="""You are a hedge analysis expert. Your task is to analyze the portfolio data and suggest hedging recommendations.
+Focus on:
+1. Position sizing for each asset
+2. Optimal hedge ratios
+3. Risk management considerations
+4. Market impact analysis"""),
+                HumanMessage(content=f"""Analyze this portfolio and provide hedging recommendations:
 
 Portfolio Data:
 {positions_data}
@@ -101,39 +116,61 @@ Key Metrics:
 - Target Hedge Ratio: {float(self.config.hedge_ratio_target)*100:.2f}%
 - Current Margin Usage: {float(metrics['margin_usage'])*100:.2f}%
 
-Recommended Adjustments:
-{json.dumps([{
-    'symbol': adj.symbol,
-    'side': adj.side,
-    'quantity': float(adj.desired_delta),
-    'priority': adj.priority
-} for adj in adjustments], indent=2)}
-
-Provide a detailed analysis including:
-1. Current portfolio state and risk exposure
-2. Explanation of why each adjustment is recommended
-3. Market impact considerations
-4. Risk management implications
-5. Alternative strategies to consider
-
-Keep the analysis concise but informative, focusing on key insights and actionable recommendations."""
-
-            # Get LLM analysis
-            response = await openai.ChatCompletion.acreate(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": "You are a hedge analysis expert providing detailed explanations of hedging decisions."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.3,
-                max_tokens=1000
-            )
+Provide specific recommendations for each asset, including:
+1. Suggested position adjustments
+2. Entry/exit levels
+3. Risk management stops
+4. Market timing considerations""")
+            ]
             
-            return response.choices[0].message.content
+            # Get LLM recommendations
+            response = await self.llm.ainvoke(messages)
+            return response.content
             
         except Exception as e:
-            logger.error(f"Error getting LLM analysis: {e}")
-            return "LLM analysis unavailable"
+            logger.error(f"Error getting LLM recommendations: {e}")
+            return "LLM recommendations unavailable"
+    
+    async def _evaluate_strategies(
+        self,
+        positions_data: str,
+        basic_recommendation: HedgeRecommendation,
+        llm_analysis: str
+    ) -> str:
+        """Compare and evaluate both strategies."""
+        try:
+            messages = [
+                SystemMessage(content="""You are a hedge strategy evaluator. Compare and evaluate two different hedging approaches:
+1. A quantitative strategy based on hedge ratios and position sizing
+2. An LLM-based strategy using market analysis
+
+Evaluate strengths, weaknesses, and potential synergies."""),
+                HumanMessage(content=f"""Compare these two hedging approaches:
+
+Portfolio Data:
+{positions_data}
+
+Quantitative Strategy Recommendations:
+{basic_recommendation.commentary}
+
+LLM Strategy Recommendations:
+{llm_analysis}
+
+Provide:
+1. Comparative analysis of both approaches
+2. Strengths and weaknesses of each
+3. Suggested synthesis of both strategies
+4. Risk considerations for each approach
+5. Final recommendation on which aspects of each strategy to use""")
+            ]
+            
+            # Get evaluation
+            response = await self.llm.ainvoke(messages)
+            return response.content
+            
+        except Exception as e:
+            logger.error(f"Error evaluating strategies: {e}")
+            return "Strategy evaluation unavailable"
     
     def calculate_net_exposure(
         self,
@@ -141,21 +178,10 @@ Keep the analysis concise but informative, focusing on key insights and actionab
         futures_positions: List[FuturesPosition]
     ) -> Decimal:
         """Calculate net exposure across all positions."""
-        # Sum spot positions
-        spot_exposure = sum(
-            (pos.quantity * pos.current_price)
-            for pos in spot_positions
-            if pos.current_price is not None
+        return self.basic_analyzer.calculate_net_exposure(
+            spot_positions,
+            futures_positions
         )
-        
-        # Sum futures positions (short positions reduce exposure)
-        futures_exposure = sum(
-            (pos.quantity * pos.current_price * (1 if pos.side == "LONG" else -1))
-            for pos in futures_positions
-            if pos.current_price is not None
-        )
-        
-        return Decimal(str(spot_exposure + futures_exposure))
     
     def evaluate_hedge_effectiveness(
         self,
@@ -163,139 +189,58 @@ Keep the analysis concise but informative, focusing on key insights and actionab
         futures_positions: List[FuturesPosition]
     ) -> Dict[str, Decimal]:
         """Evaluate hedge effectiveness metrics."""
-        net_exposure = self.calculate_net_exposure(spot_positions, futures_positions)
-        
-        # Calculate total portfolio value for relative metrics
-        total_portfolio_value = sum(
-            pos.market_value for pos in spot_positions if pos.market_value is not None
+        return self.basic_analyzer.evaluate_hedge_effectiveness(
+            spot_positions,
+            futures_positions
         )
-        
-        if total_portfolio_value == 0:
-            return {
-                "net_exposure": net_exposure,
-                "hedge_ratio": Decimal('0'),
-                "margin_usage": Decimal('0')
-            }
-        
-        # Calculate current hedge ratio
-        current_hedge_ratio = net_exposure / total_portfolio_value
-        
-        # Calculate margin usage
-        total_margin_used = sum(
-            pos.margin_used for pos in futures_positions
-        )
-        margin_usage_ratio = total_margin_used / total_portfolio_value
-        
-        return {
-            "net_exposure": net_exposure,
-            "hedge_ratio": current_hedge_ratio,
-            "margin_usage": margin_usage_ratio
-        }
-    
-    def _generate_hedge_adjustments(
-        self,
-        current_hedge_ratio: Decimal,
-        spot_positions: List[SpotPosition],
-        futures_positions: List[FuturesPosition]
-    ) -> List[HedgeAdjustment]:
-        """Generate list of recommended hedge adjustments."""
-        adjustments = []
-        
-        # Calculate target exposure
-        total_spot_value = sum(
-            pos.market_value for pos in spot_positions if pos.market_value is not None
-        )
-        target_exposure = total_spot_value * self.config.hedge_ratio_target
-        current_exposure = self.calculate_net_exposure(spot_positions, futures_positions)
-        exposure_difference = current_exposure - target_exposure
-        
-        # If exposure difference is within threshold, no adjustments needed
-        if abs(exposure_difference) <= (total_spot_value * self.config.hedge_ratio_threshold):
-            return []
-        
-        # Generate adjustments for each spot position
-        for spot_pos in spot_positions:
-            if spot_pos.market_value is None:
-                continue
-                
-            # Find corresponding futures position
-            futures_pos = next(
-                (f for f in futures_positions if f.symbol.startswith(spot_pos.symbol)),
-                None
-            )
-            
-            # Calculate required adjustment
-            spot_value = spot_pos.market_value
-            target_hedge = spot_value * (1 - self.config.hedge_ratio_target)
-            current_hedge = Decimal('0')
-            if futures_pos and futures_pos.notional_value is not None:
-                current_hedge = futures_pos.notional_value * (-1 if futures_pos.side == "SHORT" else 1)
-            
-            hedge_difference = target_hedge - current_hedge
-            
-            if abs(hedge_difference) > 0:
-                # Determine adjustment side
-                side = "SHORT" if hedge_difference < 0 else "LONG"
-                symbol = f"{spot_pos.symbol}USDT"  # Assuming USDT pairs
-                
-                # Check position size limits
-                desired_delta = abs(hedge_difference) / (spot_pos.current_price or Decimal('1'))
-                min_size = self.config.min_position_size.get(spot_pos.symbol, Decimal('0'))
-                max_size = self.config.max_position_size.get(spot_pos.symbol, Decimal('inf'))
-                
-                if desired_delta < min_size:
-                    continue
-                
-                desired_delta = min(desired_delta, max_size)
-                
-                adjustments.append(
-                    HedgeAdjustment(
-                        symbol=symbol,
-                        desired_delta=desired_delta,
-                        side=side,
-                        recommendation=f"{'Increase' if side == 'SHORT' else 'Decrease'} hedge for {spot_pos.symbol} by {desired_delta:.8f}",
-                        priority="HIGH" if abs(hedge_difference) > (spot_value * Decimal('0.1')) else "MEDIUM"
-                    )
-                )
-        
-        return adjustments
     
     async def analyze(
         self,
         spot_positions: List[SpotPosition],
         futures_positions: List[FuturesPosition]
     ) -> HedgeRecommendation:
-        """Analyze positions and generate hedge recommendations with LLM insights."""
-        # Evaluate current hedge effectiveness
-        metrics = self.evaluate_hedge_effectiveness(spot_positions, futures_positions)
-        current_hedge_ratio = metrics["hedge_ratio"]
-        
-        # Generate hedge adjustments
-        adjustments = self._generate_hedge_adjustments(
-            current_hedge_ratio,
+        """
+        Three-step analysis process:
+        1. Get basic strategy recommendations
+        2. Get LLM recommendations
+        3. Compare and evaluate both approaches
+        """
+        # Step 1: Get basic strategy recommendations
+        basic_recommendation = self.basic_analyzer.analyze(
             spot_positions,
             futures_positions
         )
         
-        # Format data for LLM
+        # Get metrics and format data
+        metrics = self.evaluate_hedge_effectiveness(spot_positions, futures_positions)
         positions_data = self._format_positions_for_llm(spot_positions, futures_positions)
         
-        # Get LLM analysis
-        llm_analysis = await self._get_llm_analysis(positions_data, metrics, adjustments)
+        # Step 2: Get LLM recommendations
+        llm_analysis = await self._get_llm_recommendations(positions_data, metrics)
         
-        # Generate base commentary
-        base_commentary = (
-            f"Current hedge ratio: {current_hedge_ratio:.2%} "
+        # Step 3: Compare and evaluate
+        evaluation = await self._evaluate_strategies(
+            positions_data,
+            basic_recommendation,
+            llm_analysis
+        )
+        
+        # Combine all analyses
+        combined_commentary = (
+            f"Current hedge ratio: {metrics['hedge_ratio']:.2%} "
             f"(target: {self.config.hedge_ratio_target:.2%})\n"
             f"Net exposure: {metrics['net_exposure']:.2f} USD\n"
             f"Margin usage: {metrics['margin_usage']:.2%}\n\n"
-            f"LLM Analysis:\n{llm_analysis}"
+            f"Basic Strategy Analysis:\n"
+            f"{basic_recommendation.commentary}\n\n"
+            f"LLM Strategy Analysis:\n{llm_analysis}\n\n"
+            f"Strategy Evaluation:\n{evaluation}"
         )
         
         return HedgeRecommendation(
-            adjustments=adjustments,
+            adjustments=basic_recommendation.adjustments,
             current_net_exposure=metrics["net_exposure"],
             target_net_exposure=metrics["net_exposure"] * self.config.hedge_ratio_target,
-            commentary=base_commentary,
+            commentary=combined_commentary,
             risk_metrics=metrics
         )

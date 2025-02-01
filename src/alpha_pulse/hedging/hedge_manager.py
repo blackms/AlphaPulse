@@ -54,12 +54,10 @@ class HedgeManager:
             futures_positions = await self.position_fetcher.get_futures_positions()
             
             # Get hedge recommendations
-            # Note: analyze is now properly awaited for both sync and async implementations
             recommendation = await self.hedge_analyzer.analyze(
                 spot_positions,
                 futures_positions
-            ) if hasattr(self.hedge_analyzer.analyze, '__await__') else \
-            self.hedge_analyzer.analyze(spot_positions, futures_positions)
+            )
             
             # Log analysis results
             logger.info(f"Hedge Analysis:\n{recommendation.commentary}")

@@ -12,14 +12,10 @@ from alpha_pulse.hedging.execution import BasicExecutionStrategy, ExchangeOrderE
 
 async def main():
     """
-    Demonstrate the hedging system functionality using SOLID principles
-    with LLM-enhanced analysis.
-    
-    This example shows how to:
-    1. Configure the hedging system
-    2. Set up all required components including LLM analysis
-    3. Analyze current positions with detailed explanations
-    4. Execute hedge adjustments (optional)
+    Demonstrate the hedging system functionality with three-step LLM analysis:
+    1. Basic strategy recommendations
+    2. LLM-based recommendations
+    3. Strategy comparison and evaluation
     """
     # Configure logging
     logger.add("logs/hedging_demo.log", rotation="1 day")
@@ -63,12 +59,8 @@ async def main():
             execute_hedge=False  # Set to True for live trading
         )
         
-        # Example 1: Analyze and manage hedges
-        logger.info("Starting hedge analysis with LLM insights...")
-        await manager.manage_hedge()
-        
-        # Example 2: Manual position analysis
-        # You can also analyze positions directly
+        # Get current positions
+        logger.info("Fetching current positions...")
         spot_positions = await position_fetcher.get_spot_positions()
         futures_positions = await position_fetcher.get_futures_positions()
         
@@ -87,18 +79,25 @@ async def main():
                 f"(Current: {pos.current_price})"
             )
         
-        # Example 3: Get recommendations with LLM analysis
+        # Run three-step analysis
+        logger.info("\nRunning three-step hedge analysis...")
         recommendation = await hedge_analyzer.analyze(spot_positions, futures_positions)
         
-        logger.info("\nHedge Analysis:")
+        # Log detailed analysis results
+        logger.info("\nHedge Analysis Results:")
         logger.info(recommendation.commentary)
         
         if recommendation.adjustments:
-            logger.info("\nRecommended Adjustments:")
+            logger.info("\nRecommended Position Adjustments:")
             for adj in recommendation.adjustments:
                 logger.info(f"  {adj.recommendation} (Priority: {adj.priority})")
         
-        # Example 4: Close all hedges (useful for testing or emergency situations)
+        # Example: Execute hedge adjustments
+        if input("\nExecute hedge adjustments? (y/n): ").lower() == 'y':
+            logger.info("Executing hedge adjustments...")
+            await manager.manage_hedge()
+        
+        # Example: Close all hedges
         if input("\nClose all hedges? (y/n): ").lower() == 'y':
             logger.info("Closing all hedge positions...")
             await manager.close_all_hedges()

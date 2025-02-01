@@ -103,50 +103,62 @@ class BasicFuturesHedgeAnalyzer(IHedgeAnalyzer):
         if abs(exposure_difference) <= (total_spot_value * self.config.hedge_ratio_threshold):
             return []
         
-        # Generate adjustments for each spot position
-        for spot_pos in spot_positions:
-            if spot_pos.market_value is None:
-                continue
-                
-            # Find corresponding futures position
-            futures_pos = next(
-                (f for f in futures_positions if f.symbol.startswith(spot_pos.symbol)),
+        # Only generate adjustments for positions that have futures hedges
+        for futures_pos in futures_positions:
+            # Extract base symbol (remove USDT suffix)
+            base_symbol = futures_pos.symbol.replace("USDT", "")
+            
+            # Find corresponding spot position
+            spot_pos = next(
+                (s for s in spot_positions if s.symbol == base_symbol),
                 None
             )
             
-            # Calculate required adjustment
-            spot_value = spot_pos.market_value
-            target_hedge = spot_value * (1 - self.config.hedge_ratio_target)
-            current_hedge = Decimal('0')
-            if futures_pos and futures_pos.notional_value is not None:
-                current_hedge = futures_pos.notional_value * (-1 if futures_pos.side == "SHORT" else 1)
+            if not spot_pos or spot_pos.market_value is None:
+                continue
             
-            hedge_difference = target_hedge - current_hedge
-            
-            if abs(hedge_difference) > 0:
-                # Determine adjustment side
-                side = "SHORT" if hedge_difference < 0 else "LONG"
-                symbol = f"{spot_pos.symbol}USDT"  # Assuming USDT pairs
-                
-                # Check position size limits
-                desired_delta = abs(hedge_difference) / (spot_pos.current_price or Decimal('1'))
-                min_size = self.config.min_position_size.get(spot_pos.symbol, Decimal('0'))
-                max_size = self.config.max_position_size.get(spot_pos.symbol, Decimal('inf'))
-                
-                if desired_delta < min_size:
-                    continue
-                
-                desired_delta = min(desired_delta, max_size)
-                
+            # For target hedge ratio of 0%, recommend closing the entire futures position
+            if self.config.hedge_ratio_target == 0:
                 adjustments.append(
                     HedgeAdjustment(
-                        symbol=symbol,
-                        desired_delta=desired_delta,
-                        side=side,
-                        recommendation=f"{'Increase' if side == 'SHORT' else 'Decrease'} hedge for {spot_pos.symbol} by {desired_delta:.8f}",
-                        priority="HIGH" if abs(hedge_difference) > (spot_value * Decimal('0.1')) else "MEDIUM"
+                        symbol=futures_pos.symbol,
+                        desired_delta=futures_pos.quantity,  # Close entire position
+                        side="LONG" if futures_pos.side == "SHORT" else "SHORT",  # Opposite side to close
+                        recommendation=f"Close hedge for {base_symbol} by {futures_pos.quantity:.8f}",
+                        priority="HIGH" if abs(futures_pos.notional_value or 0) > (spot_pos.market_value * Decimal('0.1')) else "MEDIUM"
                     )
                 )
+            else:
+                # Calculate required adjustment for non-zero target hedge ratio
+                spot_value = spot_pos.market_value
+                target_hedge = spot_value * (1 - self.config.hedge_ratio_target)
+                current_hedge = futures_pos.notional_value * (-1 if futures_pos.side == "SHORT" else 1)
+                
+                hedge_difference = target_hedge - current_hedge
+                
+                if abs(hedge_difference) > 0:
+                    # Determine adjustment side
+                    side = "SHORT" if hedge_difference < 0 else "LONG"
+                    
+                    # Calculate position size
+                    desired_delta = abs(hedge_difference) / (spot_pos.current_price or Decimal('1'))
+                    min_size = self.config.min_position_size.get(spot_pos.symbol, Decimal('0'))
+                    max_size = self.config.max_position_size.get(spot_pos.symbol, Decimal('inf'))
+                    
+                    if desired_delta < min_size:
+                        continue
+                    
+                    desired_delta = min(desired_delta, max_size)
+                    
+                    adjustments.append(
+                        HedgeAdjustment(
+                            symbol=futures_pos.symbol,
+                            desired_delta=desired_delta,
+                            side=side,
+                            recommendation=f"{'Increase' if side == 'SHORT' else 'Decrease'} hedge for {base_symbol} by {desired_delta:.8f}",
+                            priority="HIGH" if abs(hedge_difference) > (spot_value * Decimal('0.1')) else "MEDIUM"
+                        )
+                    )
         
         return adjustments
     
