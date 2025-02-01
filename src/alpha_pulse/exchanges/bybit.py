@@ -154,3 +154,59 @@ class BybitExchange(CCXTExchange):
         """Close exchange connection."""
         if self.exchange:
             await self.exchange.close()
+
+    async def get_portfolio_value(self) -> Decimal:
+        """Get total portfolio value in base currency."""
+        try:
+            balances = await self.get_balances()
+            total_value = Decimal('0')
+            
+            for asset, balance in balances.items():
+                if balance.total > 0:
+                    if asset == 'USDT':
+                        total_value += balance.total
+                    else:
+                        price = await self.get_ticker_price(f"{asset}/USDT")
+                        if price:
+                            total_value += balance.total * price
+            
+            logger.debug(f"Total portfolio value: {total_value} USDT")
+            return total_value
+            
+        except Exception as e:
+            logger.error(f"Error calculating portfolio value: {e}")
+            raise
+
+    async def execute_trade(
+        self,
+        asset: str,
+        amount: Decimal,
+        side: str,
+        order_type: str = "market"
+    ) -> Dict:
+        """Execute a trade on Bybit."""
+        try:
+            symbol = f"{asset}/USDT"
+            
+            # Convert amount to asset quantity using current price
+            price = await self.get_ticker_price(symbol)
+            if not price:
+                raise ValueError(f"Could not get price for {symbol}")
+                
+            quantity = amount / price
+            
+            # Place order
+            order = await self.exchange.create_order(
+                symbol=symbol,
+                type=order_type,
+                side=side.lower(),
+                amount=float(quantity),
+                params={}
+            )
+            
+            logger.info(f"Executed {side} order for {quantity} {asset} at {price} USDT")
+            return order
+            
+        except Exception as e:
+            logger.error(f"Error executing trade: {e}")
+            raise
