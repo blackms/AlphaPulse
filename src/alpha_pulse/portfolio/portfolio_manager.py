@@ -1,0 +1,307 @@
+"""
+Portfolio Manager implementation.
+Coordinates portfolio strategies, risk management, and rebalancing operations.
+"""
+
+import yaml
+from typing import Dict, Optional, Type, List
+import pandas as pd
+from pathlib import Path
+from decimal import Decimal
+
+from .interfaces import IRebalancingStrategy, IExchange
+from .strategies.mpt_strategy import MPTStrategy
+from .strategies.hrp_strategy import HRPStrategy
+from .strategies.black_litterman_strategy import BlackLittermanStrategy
+from .strategies.llm_assisted_strategy import LLMAssistedStrategy
+
+
+class PortfolioManager:
+    """Manages portfolio allocation and rebalancing operations."""
+
+    STRATEGY_MAP = {
+        'mpt': MPTStrategy,
+        'hierarchical_risk_parity': HRPStrategy,
+        'black_litterman': BlackLittermanStrategy
+    }
+
+    def __init__(self, config_path: str):
+        """
+        Initialize portfolio manager with configuration.
+
+        Args:
+            config_path: Path to portfolio configuration YAML file
+        """
+        self.config = self._load_config(config_path)
+        self.strategy = self._initialize_strategy()
+        self.risk_constraints = self._get_risk_constraints()
+        self.last_rebalance_time = None
+        self.trading_config = self.config.get('trading', {})
+
+    def _load_config(self, config_path: str) -> Dict:
+        """
+        Load configuration from YAML file.
+
+        Args:
+            config_path: Path to configuration file
+
+        Returns:
+            Configuration dictionary
+        """
+        with open(config_path, 'r') as f:
+            config = yaml.safe_load(f)
+        return config
+
+    def _initialize_strategy(self) -> IRebalancingStrategy:
+        """
+        Initialize the appropriate portfolio strategy based on configuration.
+
+        Returns:
+            Configured strategy instance
+        """
+        strategy_name = self.config['strategy']['name']
+        strategy_class = self.STRATEGY_MAP.get(strategy_name)
+        
+        if not strategy_class:
+            raise ValueError(f"Unknown strategy: {strategy_name}")
+            
+        # Initialize base strategy
+        base_strategy = strategy_class(self.config)
+        
+        # Wrap with LLM if enabled
+        if self.config.get('llm', {}).get('enabled', False):
+            return LLMAssistedStrategy(base_strategy, self.config)
+            
+        return base_strategy
+
+    def _get_risk_constraints(self) -> Dict[str, float]:
+        """
+        Extract risk constraints from configuration.
+
+        Returns:
+            Dictionary of risk constraints
+        """
+        return {
+            'volatility_target': self.config.get('volatility_target', 0.15),
+            'max_drawdown_limit': self.config.get('max_drawdown_limit', 0.25),
+            'correlation_threshold': self.config.get('correlation_threshold', 0.7)
+        }
+
+    def get_current_allocation(self, exchange: IExchange) -> Dict[str, Decimal]:
+        """
+        Get current portfolio allocation from exchange.
+
+        Args:
+            exchange: Exchange interface instance
+
+        Returns:
+            Dictionary of current asset weights
+        """
+        # Get account balances
+        balances = exchange.get_account_balances()
+        
+        # Get current prices for conversion to common currency
+        prices = exchange.get_ticker_prices(list(balances.keys()))
+        
+        # Calculate total portfolio value and weights
+        total_value = sum(
+            balance * prices.get(asset, Decimal('1.0'))
+            for asset, balance in balances.items()
+        )
+        
+        if total_value == Decimal('0'):
+            return {}
+        
+        return {
+            asset: balance * prices.get(asset, Decimal('1.0')) / total_value
+            for asset, balance in balances.items()
+            if balance > 0
+        }
+
+    def compute_rebalancing_trades(
+        self,
+        current: Dict[str, Decimal],
+        target: Dict[str, Decimal],
+        total_value: Decimal
+    ) -> List[Dict]:
+        """
+        Compute required trades to achieve target allocation.
+
+        Args:
+            current: Current portfolio weights
+            target: Target portfolio weights
+            total_value: Total portfolio value in base currency
+
+        Returns:
+            List of trade dictionaries
+        """
+        trades = []
+        min_trade_value = Decimal(str(self.trading_config.get('min_trade_value', 10.0)))
+        rebalancing_threshold = Decimal(str(self.config['strategy']['rebalancing_threshold']))
+        
+        # Compare current and target allocations
+        all_assets = set(current) | set(target)
+        for asset in all_assets:
+            current_weight = current.get(asset, Decimal('0'))
+            target_weight = target.get(asset, Decimal('0'))
+            
+            weight_diff = abs(current_weight - target_weight)
+            if weight_diff > rebalancing_threshold:
+                trade_value = (target_weight - current_weight) * total_value
+                
+                # Skip small trades
+                if abs(trade_value) < min_trade_value:
+                    continue
+                
+                trades.append({
+                    'asset': asset,
+                    'value': trade_value,
+                    'type': 'buy' if trade_value > 0 else 'sell',
+                    'weight_change': target_weight - current_weight
+                })
+                
+        return trades
+
+    def needs_rebalancing(
+        self,
+        exchange: IExchange,
+        current_allocation: Optional[Dict[str, Decimal]] = None
+    ) -> bool:
+        """
+        Check if portfolio needs rebalancing based on time and deviation.
+
+        Args:
+            exchange: Exchange interface instance
+            current_allocation: Optional current allocation (will be fetched if not provided)
+
+        Returns:
+            Boolean indicating if rebalancing is needed
+        """
+        if not self.last_rebalance_time:
+            return True
+            
+        # Check rebalancing frequency
+        frequency = pd.Timedelta(self.config['rebalancing_frequency'])
+        if pd.Timestamp.now() - self.last_rebalance_time < frequency:
+            return False
+            
+        # Get current allocation if not provided
+        if current_allocation is None:
+            current_allocation = self.get_current_allocation(exchange)
+            
+        # Get historical data for analysis
+        lookback_days = self.config['strategy']['lookback_period']
+        end_time = pd.Timestamp.now()
+        start_time = end_time - pd.Timedelta(days=lookback_days)
+        
+        historical_data = exchange.get_historical_data(
+            assets=list(current_allocation.keys()),
+            start_time=start_time,
+            end_time=end_time
+        )
+            
+        # Get target allocation
+        target = self.strategy.compute_target_allocation(
+            current_allocation,
+            historical_data,
+            self.risk_constraints
+        )
+        
+        # Check if any asset deviates more than threshold
+        threshold = Decimal(str(self.config['strategy']['rebalancing_threshold']))
+        for asset in set(current_allocation) | set(target):
+            current = current_allocation.get(asset, Decimal('0'))
+            target_weight = Decimal(str(target.get(asset, 0)))
+            if abs(current - target_weight) > threshold:
+                return True
+                
+        return False
+
+    def rebalance_portfolio(
+        self,
+        exchange: IExchange,
+        historical_data: Optional[pd.DataFrame] = None
+    ) -> Dict:
+        """
+        Execute full portfolio rebalancing operation.
+
+        Args:
+            exchange: Exchange interface instance
+            historical_data: Optional historical price data
+
+        Returns:
+            Dictionary containing rebalancing results
+        """
+        # Get current allocation
+        current_allocation = self.get_current_allocation(exchange)
+        
+        if not self.needs_rebalancing(exchange, current_allocation):
+            return {
+                'status': 'skipped',
+                'reason': 'Rebalancing not needed'
+            }
+            
+        # Get historical data if not provided
+        if historical_data is None:
+            lookback_days = self.config['strategy']['lookback_period']
+            end_time = pd.Timestamp.now()
+            start_time = end_time - pd.Timedelta(days=lookback_days)
+            
+            historical_data = exchange.get_historical_data(
+                assets=list(current_allocation.keys()),
+                start_time=start_time,
+                end_time=end_time
+            )
+            
+        # Compute target allocation
+        target_allocation = self.strategy.compute_target_allocation(
+            current_allocation,
+            historical_data,
+            self.risk_constraints
+        )
+        
+        # Validate target allocation
+        if not self.strategy.validate_constraints(target_allocation):
+            return {
+                'status': 'failed',
+                'reason': 'Target allocation violates constraints'
+            }
+            
+        # Compute required trades
+        total_value = exchange.get_portfolio_value()
+        trades = self.compute_rebalancing_trades(
+            current_allocation,
+            {k: Decimal(str(v)) for k, v in target_allocation.items()},
+            total_value
+        )
+        
+        # Execute trades
+        executed_trades = []
+        for trade in trades:
+            try:
+                result = exchange.execute_trade(
+                    asset=trade['asset'],
+                    amount=abs(trade['value']),
+                    side=trade['type'],
+                    order_type=self.trading_config.get('execution_style', 'market')
+                )
+                executed_trades.append({
+                    **trade,
+                    'status': 'success',
+                    'execution_details': result
+                })
+            except Exception as e:
+                executed_trades.append({
+                    **trade,
+                    'status': 'failed',
+                    'error': str(e)
+                })
+                
+        self.last_rebalance_time = pd.Timestamp.now()
+        
+        return {
+            'status': 'completed',
+            'initial_allocation': current_allocation,
+            'target_allocation': target_allocation,
+            'trades': executed_trades
+        }

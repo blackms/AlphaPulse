@@ -1,0 +1,54 @@
+# Portfolio Configuration
+
+# Portfolio Type Settings
+portfolio_type: "mixed_crypto_stable"  # Options: full_crypto, mixed_crypto_stable
+risk_profile: "moderate"               # Options: aggressive, moderate, conservative
+stablecoin_fraction: 0.3              # Target stablecoin allocation (0-1)
+rebalancing_frequency: "daily"         # Options: hourly, daily, weekly
+min_position_size: 0.05               # Minimum position size as fraction of portfolio
+max_position_size: 0.4                # Maximum position size as fraction of portfolio
+
+# Risk Management Settings
+volatility_target: 0.15               # Annual volatility target
+max_drawdown_limit: 0.25              # Maximum allowed drawdown
+correlation_threshold: 0.7            # Maximum allowed correlation between assets
+
+# Asset Universe
+allowed_assets:
+  - BTC
+  - ETH
+  - BNB
+  - SOL
+  - USDT
+  - USDC
+
+# Strategy-specific Settings
+strategy:
+  name: "hierarchical_risk_parity"    # Options: mpt, black_litterman, hierarchical_risk_parity, llm_assisted
+  lookback_period: 180                # Days of historical data for calculations
+  rebalancing_threshold: 0.1          # Minimum deviation to trigger rebalancing
+  optimization_objective: "sharpe"     # Options: sharpe, sortino, max_diversification
+
+# LLM Integration Settings (Optional)
+llm:
+  enabled: true
+  model_name: "gpt-4"
+  temperature: 0.7
+  prompt_template: |
+    Analyze the following portfolio allocation considering:
+    1. Current market conditions
+    2. Asset correlations
+    3. Recent news sentiment
+    4. Risk metrics
+    
+    Current allocation: {current_allocation}
+    Proposed allocation: {proposed_allocation}
+    
+    Provide a risk assessment and suggest any necessary adjustments.
+
+# Trading Settings
+trading:
+  execution_style: "twap"        # Options: market, twap, vwap
+  max_slippage: 0.01            # Maximum allowed slippage
+  min_trade_value: 10.0         # Minimum trade value in base currency
+  base_currency: "USDT"         # Base currency for calculations

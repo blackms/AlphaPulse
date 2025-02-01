@@ -1,6 +1,6 @@
 # Portfolio Rebalancing Module
 
-This module provides advanced portfolio rebalancing capabilities using modern portfolio optimization techniques. It supports multiple allocation strategies and integrates with various cryptocurrency exchanges.
+This module provides advanced portfolio rebalancing capabilities using modern portfolio optimization techniques. It supports multiple allocation strategies and is exchange-agnostic, working with any exchange that implements the required interface.
 
 ## Overview
 
@@ -40,70 +40,122 @@ Advantages:
 - No matrix inversion required
 - Often outperforms traditional optimization
 
+### 3. Black-Litterman Model
+
+The Black-Litterman model combines market equilibrium returns with investor views:
+- Uses market capitalization weights as a starting point
+- Incorporates investor views with confidence levels
+- Provides more intuitive and stable allocations
+- Handles missing data and uncertainty
+
+### 4. LLM-Assisted Strategy
+
+Optional LLM enhancement that can wrap any base strategy:
+- Analyzes market sentiment and news
+- Provides risk assessments
+- Suggests allocation adjustments
+- Explains reasoning in natural language
+
 ## Usage Example
 
 ```python
-from alpha_pulse.exchange_conn.binance import BinanceConnector
-from alpha_pulse.portfolio.analyzer import PortfolioAnalyzer
-from alpha_pulse.portfolio.mpt_strategy import MPTStrategy
+from alpha_pulse.portfolio.portfolio_manager import PortfolioManager
+from your_exchange_implementation import YourExchange
 
-async def main():
-    # Initialize exchange connection
-    exchange = BinanceConnector(
-        api_key="your_key",
-        api_secret="your_secret"
-    )
-    
-    # Create portfolio analyzer
-    analyzer = PortfolioAnalyzer(
-        exchange=exchange,
-        strategy=MPTStrategy(),
-        lookback_days=30
-    )
-    
-    # Get current allocation
-    current_weights = await analyzer.get_current_allocation()
-    
-    # Calculate optimal allocation
-    result = await analyzer.analyze_portfolio(
-        constraints={
-            'min_weight': 0.05,  # Minimum 5% per asset
-            'max_weight': 0.40   # Maximum 40% per asset
-        }
-    )
-    
-    # Get rebalancing trades
-    trades = analyzer.get_rebalancing_trades(
-        current_weights=current_weights,
-        target_weights=result.weights,
-        total_value=100000,
-        min_trade_value=10
-    )
+# Initialize exchange with your credentials
+exchange = YourExchange(
+    api_key="your_key",
+    api_secret="your_secret"
+)
+
+# Initialize portfolio manager with config
+manager = PortfolioManager("portfolio_config.yaml")
+
+# Get current allocation
+current_allocation = manager.get_current_allocation(exchange)
+
+# Execute rebalancing if needed
+result = manager.rebalance_portfolio(exchange)
+
+if result['status'] == 'completed':
+    print("\nRebalancing completed:")
+    print("\nInitial allocation:")
+    for asset, weight in result['initial_allocation'].items():
+        print(f"{asset}: {weight:.2%}")
+        
+    print("\nTarget allocation:")
+    for asset, weight in result['target_allocation'].items():
+        print(f"{asset}: {weight:.2%}")
+        
+    print("\nExecuted trades:")
+    for trade in result['trades']:
+        print(f"{trade['type'].upper()} {trade['asset']}: "
+              f"${abs(trade['value']):,.2f}")
+```
+
+## Exchange Integration
+
+To use your preferred exchange, implement the `IExchange` interface:
+
+```python
+from alpha_pulse.portfolio.interfaces import IExchange
+from decimal import Decimal
+
+class YourExchange(IExchange):
+    def get_account_balances(self) -> Dict[str, Decimal]:
+        # Implement getting account balances
+        pass
+        
+    def get_ticker_prices(self, assets: List[str]) -> Dict[str, Decimal]:
+        # Implement getting current prices
+        pass
+        
+    def get_portfolio_value(self) -> Decimal:
+        # Implement getting total portfolio value
+        pass
+        
+    def execute_trade(self, asset: str, amount: Decimal,
+                     side: str, order_type: str = "market") -> Dict:
+        # Implement trade execution
+        pass
+        
+    def get_historical_data(self, assets: List[str],
+                          start_time: pd.Timestamp,
+                          end_time: Optional[pd.Timestamp] = None,
+                          interval: str = "1d") -> pd.DataFrame:
+        # Implement historical data fetching
+        pass
 ```
 
 ## Configuration
 
-### Exchange Setup
+The module uses a YAML configuration file for all settings:
 
-1. Create API keys with appropriate permissions:
-   - Read access for balances
-   - (Optional) Trade access for automated rebalancing
+```yaml
+# Portfolio Type Settings
+portfolio_type: "mixed_crypto_stable"
+risk_profile: "moderate"
+stablecoin_fraction: 0.3
+rebalancing_frequency: "daily"
 
-2. Configure environment variables:
-```bash
-EXCHANGE_API_KEY=your_api_key
-EXCHANGE_API_SECRET=your_api_secret
+# Risk Management Settings
+volatility_target: 0.15
+max_drawdown_limit: 0.25
+correlation_threshold: 0.7
+
+# Strategy Settings
+strategy:
+  name: "hierarchical_risk_parity"
+  lookback_period: 180
+  rebalancing_threshold: 0.1
+
+# Trading Settings
+trading:
+  execution_style: "twap"
+  max_slippage: 0.01
+  min_trade_value: 10.0
+  base_currency: "USDT"
 ```
-
-### Strategy Parameters
-
-MPT Strategy:
-- `risk_free_rate`: Annual risk-free rate (default: 2%)
-- `lookback_days`: Historical data period (default: 30)
-
-HRP Strategy:
-- `risk_free_rate`: Annual risk-free rate (default: 2%)
-- `lookback_days`: Historical data period (default: 30)
 
 ## Risk Considerations
 
