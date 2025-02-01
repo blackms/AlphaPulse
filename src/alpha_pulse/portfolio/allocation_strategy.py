@@ -28,7 +28,9 @@ class AllocationStrategy(ABC):
         Args:
             risk_free_rate: Annual risk-free rate (default: 2%)
         """
-        self.risk_free_rate = risk_free_rate
+        # Convert annual risk-free rate to daily rate
+        # Using 252 trading days per year
+        self.risk_free_rate = (1 + risk_free_rate) ** (1/252) - 1
     
     @abstractmethod
     def calculate_allocation(

@@ -1,7 +1,7 @@
 """
 Data pipeline package initialization.
 """
-from .exchange import CCXTExchange as Exchange, CCXTExchangeFactory, ExchangeManager
+from alpha_pulse.exchanges import ExchangeType, ExchangeFactory
 from .data_fetcher import DataFetcher
 
-__all__ = ['Exchange', 'CCXTExchangeFactory', 'ExchangeManager', 'DataFetcher']
+__all__ = ['ExchangeType', 'ExchangeFactory', 'DataFetcher']

@@ -45,11 +45,18 @@ class HRPStrategy(AllocationStrategy):
             corr = returns.corr()
             cov = returns.cov()
             
-            # Calculate distance matrix
+            # Calculate distance matrix and ensure symmetry
             dist = self._get_distance_matrix(corr)
             
+            # Convert to condensed form for linkage
+            n = len(dist)
+            condensed_dist = []
+            for i in range(n):
+                for j in range(i + 1, n):
+                    condensed_dist.append(dist.iloc[i, j])
+            
             # Perform hierarchical clustering
-            link = linkage(squareform(dist), 'single')
+            link = linkage(condensed_dist, 'single')
             
             # Get quasi-diagonal matrix
             sorted_idx = self._get_quasi_diag(link)
@@ -63,14 +70,57 @@ class HRPStrategy(AllocationStrategy):
             inv_idx = np.argsort(sorted_idx)
             weights = weights[inv_idx]
             
-            # Apply constraints
-            weights = self._apply_weight_constraints(weights, constraints)
+            logger.debug(f"Initial weights: {weights}")
             
-            # Calculate portfolio metrics
-            target_weights = {
-                asset: Decimal(str(weight))
-                for asset, weight in zip(returns.columns, weights)
-            }
+            # Ensure weights are valid numbers
+            if np.any(np.isnan(weights)) or np.any(np.isinf(weights)):
+                logger.error("Invalid weights detected before constraints")
+                weights = np.ones(len(weights)) / len(weights)
+            
+            # First pass: clip to constraints
+            weights = np.clip(weights, constraints['min_weight'], constraints['max_weight'])
+            logger.debug(f"Weights after initial clipping: {weights}")
+            
+            # Calculate total and identify which weights need adjustment
+            total = np.sum(weights)
+            if total != 1.0:
+                # If total > 1, reduce proportionally from weights above min
+                if total > 1.0:
+                    excess = total - 1.0
+                    reducible_mask = weights > constraints['min_weight']
+                    if np.any(reducible_mask):
+                        reduction_weights = weights[reducible_mask]
+                        reduction = excess * (reduction_weights / np.sum(reduction_weights))
+                        weights[reducible_mask] -= reduction
+                
+                # If total < 1, add proportionally to weights below max
+                else:
+                    shortfall = 1.0 - total
+                    increasable_mask = weights < constraints['max_weight']
+                    if np.any(increasable_mask):
+                        room_to_max = constraints['max_weight'] - weights[increasable_mask]
+                        increase = shortfall * (room_to_max / np.sum(room_to_max))
+                        weights[increasable_mask] += increase
+            
+            # Final normalization to ensure sum is exactly 1
+            weights = weights / np.sum(weights)
+            
+            logger.debug(f"Final adjusted weights: {weights}")
+            
+            # Convert to decimals with proper rounding
+            target_weights = {}
+            for asset, weight in zip(returns.columns, weights):
+                # Round to 8 decimal places to avoid floating point issues
+                decimal_weight = Decimal(str(round(float(weight), 8)))
+                target_weights[asset] = decimal_weight
+            
+            # Final normalization to ensure exact sum of 1
+            total = sum(target_weights.values())
+            if total != Decimal('1.0'):
+                for asset in target_weights:
+                    target_weights[asset] = target_weights[asset] / total
+            
+            logger.debug(f"Final target weights: {target_weights}")
             
             portfolio_return = float(np.sum(returns.mean() * weights))
             portfolio_risk = float(np.sqrt(np.dot(weights.T, np.dot(cov, weights))))
@@ -100,8 +150,19 @@ class HRPStrategy(AllocationStrategy):
         Returns:
             Distance matrix
         """
+        # Handle any NaN or infinite values in correlation matrix
+        corr = corr.fillna(0)  # Replace NaN with 0 correlation
+        corr = np.clip(corr, -1, 1)  # Ensure correlations are in [-1, 1]
+        
         # Convert correlations to distances
         dist = np.sqrt((1 - corr) / 2)
+        
+        # Ensure the diagonal is 0 (no distance to self)
+        np.fill_diagonal(dist.values, 0)
+        
+        # Replace any remaining non-finite values
+        dist = dist.fillna(1)  # Maximum distance for invalid correlations
+        
         return dist
     
     def _get_quasi_diag(self, link: np.ndarray) -> np.ndarray:
@@ -137,21 +198,36 @@ class HRPStrategy(AllocationStrategy):
         Returns:
             Array of portfolio weights
         """
-        # Calculate inverse-variance weights
-        ivars = 1. / np.diag(cov)
+        # Calculate inverse-variance weights with small constant to prevent division by zero
+        variances = np.diag(cov)
+        # Add small constant (epsilon) to prevent division by zero
+        epsilon = 1e-8
+        ivars = 1. / (variances + epsilon)
         weights = ivars / ivars.sum()
         
         # Recursive bisection
-        clustered_alphas = [weights]
         num_items = len(weights)
+        if num_items <= 1:
+            return weights
+            
+        # Split into two clusters
+        i = num_items // 2
+        left_cluster = self._get_recursive_bisection(cov.iloc[:i, :i])
+        right_cluster = self._get_recursive_bisection(cov.iloc[i:, i:])
         
-        while len(clustered_alphas) < num_items:
-            clustered_alphas = [
-                item for alpha in clustered_alphas
-                for item in self._get_bisection(alpha, cov)
-            ]
+        # Calculate cluster variances
+        left_var = np.dot(left_cluster.T, np.dot(cov.iloc[:i, :i], left_cluster))
+        right_var = np.dot(right_cluster.T, np.dot(cov.iloc[i:, i:], right_cluster))
         
-        return np.array(clustered_alphas)
+        # Calculate allocation between clusters
+        alpha = 1 - left_var / (left_var + right_var)
+        
+        # Combine weights
+        final_weights = np.zeros(num_items)
+        final_weights[:i] = left_cluster * alpha
+        final_weights[i:] = right_cluster * (1 - alpha)
+        
+        return final_weights
     
     def _get_bisection(self, weights: np.ndarray, cov: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray]:
         """Perform one level of recursive bisection.
