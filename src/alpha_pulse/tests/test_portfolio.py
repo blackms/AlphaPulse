@@ -1,253 +1,232 @@
 """
-Unit tests for portfolio module.
+Unit tests for portfolio management components.
 """
-import pytest
+
+import unittest
 import pandas as pd
 import numpy as np
-from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, patch
+from pathlib import Path
+from unittest.mock import Mock, patch
 
-from alpha_pulse.portfolio.allocation_strategy import AllocationStrategy
-from alpha_pulse.portfolio.mpt_strategy import MPTStrategy
-from alpha_pulse.portfolio.hrp_strategy import HRPStrategy
-from alpha_pulse.portfolio.analyzer import PortfolioAnalyzer
-from alpha_pulse.exchange_conn.interface import Balance
+from alpha_pulse.portfolio.portfolio_manager import PortfolioManager
+from alpha_pulse.portfolio.strategies.mpt_strategy import MPTStrategy
+from alpha_pulse.portfolio.strategies.hrp_strategy import HRPStrategy
+from alpha_pulse.portfolio.strategies.black_litterman_strategy import BlackLittermanStrategy
+from alpha_pulse.portfolio.strategies.llm_assisted_strategy import LLMAssistedStrategy
+from alpha_pulse.exchanges.mock import MockExchange
 
 
-class TestAllocationStrategy:
-    """Test base allocation strategy."""
-    
-    def test_calculate_rebalance_score(self):
-        """Test rebalance score calculation."""
-        strategy = MPTStrategy()  # Use concrete implementation for testing
+class TestPortfolioStrategies(unittest.TestCase):
+    """Test suite for portfolio strategies."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Set up test data."""
+        # Create sample historical data
+        np.random.seed(42)
+        dates = pd.date_range('2024-01-01', periods=100)
+        assets = ['BTC', 'ETH', 'BNB', 'SOL', 'USDT', 'USDC']
         
-        # Test perfect match
-        current = {'BTC': Decimal('0.5'), 'ETH': Decimal('0.5')}
-        target = {'BTC': Decimal('0.5'), 'ETH': Decimal('0.5')}
-        score = strategy.calculate_rebalance_score(current, target)
-        assert score == Decimal('1.0')
+        data = {}
+        for asset in assets:
+            if asset in ['USDT', 'USDC']:
+                data[asset] = np.ones(100)
+            else:
+                returns = np.random.normal(0.0002, 0.02, 100)
+                data[asset] = 100 * np.exp(np.cumsum(returns))
         
-        # Test complete mismatch
-        current = {'BTC': Decimal('1.0'), 'ETH': Decimal('0.0')}
-        target = {'BTC': Decimal('0.0'), 'ETH': Decimal('1.0')}
-        score = strategy.calculate_rebalance_score(current, target)
-        assert score == Decimal('0.0')
+        cls.historical_data = pd.DataFrame(data, index=dates)
         
-        # Test partial mismatch
-        current = {'BTC': Decimal('0.7'), 'ETH': Decimal('0.3')}
-        target = {'BTC': Decimal('0.3'), 'ETH': Decimal('0.7')}
-        score = strategy.calculate_rebalance_score(current, target)
-        assert Decimal('0.0') < score < Decimal('1.0')
+        # Sample configuration
+        cls.config = {
+            'min_position_size': 0.05,
+            'max_position_size': 0.4,
+            'rebalancing_threshold': 0.1,
+            'stablecoin_fraction': 0.3,
+            'allowed_assets': assets,
+            'risk_aversion': 2.5,
+            'optimization_objective': 'sharpe'
+        }
+
+    def test_mpt_strategy(self):
+        """Test Modern Portfolio Theory strategy."""
+        strategy = MPTStrategy(self.config)
         
-        # Test with missing assets
-        current = {'BTC': Decimal('1.0')}
-        target = {'BTC': Decimal('0.5'), 'ETH': Decimal('0.5')}
-        score = strategy.calculate_rebalance_score(current, target)
-        assert score == Decimal('0.5')
-
-
-@pytest.fixture
-def sample_returns():
-    """Create sample returns data."""
-    np.random.seed(42)
-    dates = pd.date_range('2024-01-01', periods=100)
-    data = {
-        'BTC': np.random.normal(0.001, 0.02, 100),
-        'ETH': np.random.normal(0.002, 0.03, 100),
-        'BNB': np.random.normal(0.001, 0.025, 100)
-    }
-    return pd.DataFrame(data, index=dates)
-
-
-class TestMPTStrategy:
-    """Test Modern Portfolio Theory strategy."""
-    
-    def test_mpt_allocation(self, sample_returns):
-        """Test MPT allocation calculation."""
-        strategy = MPTStrategy()
-        current_weights = {
-            'BTC': Decimal('0.4'),
-            'ETH': Decimal('0.3'),
-            'BNB': Decimal('0.3')
+        current_allocation = {
+            'BTC': 0.3,
+            'ETH': 0.2,
+            'BNB': 0.1,
+            'SOL': 0.1,
+            'USDT': 0.15,
+            'USDC': 0.15
         }
         
-        result = strategy.calculate_allocation(
-            sample_returns,
-            current_weights,
-            constraints={
-                'min_weight': 0.1,
-                'max_weight': 0.5
-            }
+        result = strategy.compute_target_allocation(
+            current_allocation,
+            self.historical_data,
+            {'volatility_target': 0.15}
         )
         
-        # Check results
-        assert isinstance(result.weights, dict)
-        assert all(0.1 <= float(w) <= 0.5 for w in result.weights.values())
-        assert abs(sum(float(w) for w in result.weights.values()) - 1.0) < 1e-6
-        assert result.expected_return > 0
-        assert result.expected_risk > 0
-        assert result.sharpe_ratio > 0
-    
-    def test_mpt_empty_returns(self):
-        """Test MPT with empty returns data."""
-        strategy = MPTStrategy()
-        current_weights = {'BTC': Decimal('1.0')}
-        empty_returns = pd.DataFrame()
-        
-        with pytest.raises(ValueError, match="Returns data is empty"):
-            strategy.calculate_allocation(empty_returns, current_weights)
-    
-    def test_mpt_invalid_constraints(self, sample_returns):
-        """Test MPT with invalid constraints."""
-        strategy = MPTStrategy()
-        current_weights = {'BTC': Decimal('1.0')}
-        
-        # Test min_weight > max_weight
-        with pytest.raises(ValueError, match="Minimum weight cannot exceed maximum weight"):
-            strategy.calculate_allocation(
-                sample_returns,
-                current_weights,
-                constraints={'min_weight': 0.6, 'max_weight': 0.4}
-            )
-        
-        # Test negative weights
-        with pytest.raises(ValueError, match="Minimum weight cannot be negative"):
-            strategy.calculate_allocation(
-                sample_returns,
-                current_weights,
-                constraints={'min_weight': -0.1}
-            )
+        self.assertIsInstance(result, dict)
+        self.assertAlmostEqual(sum(result.values()), 1.0, places=6)
+        self.assertTrue(all(w >= 0.05 and w <= 0.4 for w in result.values()))
 
-
-class TestHRPStrategy:
-    """Test Hierarchical Risk Parity strategy."""
-    
-    def test_hrp_allocation(self, sample_returns):
-        """Test HRP allocation calculation."""
-        strategy = HRPStrategy()
-        current_weights = {
-            'BTC': Decimal('0.4'),
-            'ETH': Decimal('0.3'),
-            'BNB': Decimal('0.3')
+    def test_hrp_strategy(self):
+        """Test Hierarchical Risk Parity strategy."""
+        strategy = HRPStrategy(self.config)
+        
+        current_allocation = {
+            'BTC': 0.25,
+            'ETH': 0.25,
+            'BNB': 0.1,
+            'SOL': 0.1,
+            'USDT': 0.15,
+            'USDC': 0.15
         }
         
-        result = strategy.calculate_allocation(
-            sample_returns,
-            current_weights,
-            constraints={
-                'min_weight': 0.1,
-                'max_weight': 0.5
-            }
+        result = strategy.compute_target_allocation(
+            current_allocation,
+            self.historical_data,
+            {'volatility_target': 0.15}
         )
         
-        # Check results
-        assert isinstance(result.weights, dict)
-        assert all(0.1 <= float(w) <= 0.5 for w in result.weights.values())
-        assert abs(sum(float(w) for w in result.weights.values()) - 1.0) < 1e-6
-        assert result.expected_return > 0
-        assert result.expected_risk > 0
-        assert result.sharpe_ratio > 0
-    
-    def test_hrp_empty_returns(self):
-        """Test HRP with empty returns data."""
-        strategy = HRPStrategy()
-        current_weights = {'BTC': Decimal('1.0')}
-        empty_returns = pd.DataFrame()
+        self.assertIsInstance(result, dict)
+        self.assertAlmostEqual(sum(result.values()), 1.0, places=6)
+        self.assertTrue(all(w >= 0.05 and w <= 0.4 for w in result.values()))
+
+    def test_black_litterman_strategy(self):
+        """Test Black-Litterman strategy."""
+        config = self.config.copy()
+        config.update({
+            'market_cap_weights': {
+                'BTC': 0.4,
+                'ETH': 0.2,
+                'BNB': 0.1,
+                'SOL': 0.1,
+                'USDT': 0.1,
+                'USDC': 0.1
+            }
+        })
         
-        with pytest.raises(ValueError, match="Returns data is empty"):
-            strategy.calculate_allocation(empty_returns, current_weights)
-
-
-class TestPortfolioAnalyzer:
-    """Test portfolio analyzer."""
-    
-    @pytest.fixture
-    def mock_exchange(self):
-        """Create mock exchange."""
-        exchange = AsyncMock()
-        exchange.get_balances.return_value = {
-            'BTC': Balance(
-                free=Decimal('1.0'),
-                locked=Decimal('0.0'),
-                total=Decimal('1.0'),
-                in_base_currency=Decimal('40000')
-            ),
-            'ETH': Balance(
-                free=Decimal('10.0'),
-                locked=Decimal('0.0'),
-                total=Decimal('10.0'),
-                in_base_currency=Decimal('30000')
-            ),
-            'USDT': Balance(
-                free=Decimal('30000'),
-                locked=Decimal('0.0'),
-                total=Decimal('30000'),
-                in_base_currency=Decimal('30000')
-            )
+        strategy = BlackLittermanStrategy(config)
+        
+        current_allocation = {
+            'BTC': 0.3,
+            'ETH': 0.2,
+            'BNB': 0.1,
+            'SOL': 0.1,
+            'USDT': 0.15,
+            'USDC': 0.15
         }
-        return exchange
-    
-    @pytest.fixture
-    def mock_empty_exchange(self):
-        """Create mock exchange with no balances."""
-        exchange = AsyncMock()
-        exchange.get_balances.return_value = {}
-        return exchange
-    
-    @pytest.mark.asyncio
-    async def test_get_current_allocation(self, mock_exchange):
+        
+        result = strategy.compute_target_allocation(
+            current_allocation,
+            self.historical_data,
+            {'volatility_target': 0.15}
+        )
+        
+        self.assertIsInstance(result, dict)
+        self.assertAlmostEqual(sum(result.values()), 1.0, places=6)
+        self.assertTrue(all(w >= 0.05 and w <= 0.4 for w in result.values()))
+
+    @patch('alpha_pulse.portfolio.strategies.llm_assisted_strategy.LLMAssistedStrategy._get_llm_analysis')
+    def test_llm_assisted_strategy(self, mock_llm):
+        """Test LLM-assisted strategy."""
+        mock_llm.return_value = "Analysis suggests maintaining current allocation"
+        
+        base_strategy = MPTStrategy(self.config)
+        config = self.config.copy()
+        config['llm'] = {
+            'enabled': True,
+            'model_name': 'gpt-4',
+            'temperature': 0.7
+        }
+        
+        strategy = LLMAssistedStrategy(base_strategy, config)
+        
+        current_allocation = {
+            'BTC': 0.3,
+            'ETH': 0.2,
+            'BNB': 0.1,
+            'SOL': 0.1,
+            'USDT': 0.15,
+            'USDC': 0.15
+        }
+        
+        result = strategy.compute_target_allocation(
+            current_allocation,
+            self.historical_data,
+            {'volatility_target': 0.15}
+        )
+        
+        self.assertIsInstance(result, dict)
+        self.assertAlmostEqual(sum(result.values()), 1.0, places=6)
+        self.assertTrue(all(w >= 0.05 and w <= 0.4 for w in result.values()))
+        mock_llm.assert_called()
+
+
+class TestPortfolioManager(unittest.TestCase):
+    """Test suite for portfolio manager."""
+
+    def setUp(self):
+        """Set up test environment."""
+        self.config_path = Path(__file__).parent.parent / "portfolio" / "portfolio_config.yaml"
+        
+        # Create mock exchange
+        self.exchange = MockExchange(
+            initial_balances={
+                'BTC': 1.0,
+                'ETH': 10.0,
+                'BNB': 50.0,
+                'SOL': 100.0,
+                'USDT': 50000.0,
+                'USDC': 50000.0
+            },
+            price_data=pd.DataFrame({
+                'BTC': [40000] * 10,
+                'ETH': [2000] * 10,
+                'BNB': [200] * 10,
+                'SOL': [100] * 10,
+                'USDT': [1] * 10,
+                'USDC': [1] * 10
+            })
+        )
+
+    def test_portfolio_manager_initialization(self):
+        """Test portfolio manager initialization."""
+        manager = PortfolioManager(str(self.config_path))
+        self.assertIsInstance(manager, PortfolioManager)
+
+    def test_get_current_allocation(self):
         """Test getting current allocation."""
-        analyzer = PortfolioAnalyzer(mock_exchange)
-        weights = await analyzer.get_current_allocation()
+        manager = PortfolioManager(str(self.config_path))
+        allocation = manager.get_current_allocation(self.exchange)
         
-        total = sum(float(w) for w in weights.values())
-        assert abs(total - 1.0) < 1e-6
-        assert all(0 <= float(w) <= 1 for w in weights.values())
-    
-    @pytest.mark.asyncio
-    async def test_get_current_allocation_empty(self, mock_empty_exchange):
-        """Test getting current allocation with no balances."""
-        analyzer = PortfolioAnalyzer(mock_empty_exchange)
-        weights = await analyzer.get_current_allocation()
-        assert weights == {}
-    
-    @pytest.mark.asyncio
-    async def test_get_rebalancing_trades(self, mock_exchange):
-        """Test calculating rebalancing trades."""
-        analyzer = PortfolioAnalyzer(mock_exchange)
+        self.assertIsInstance(allocation, dict)
+        self.assertAlmostEqual(sum(allocation.values()), 1.0, places=6)
+
+    def test_compute_rebalancing_trades(self):
+        """Test computing rebalancing trades."""
+        manager = PortfolioManager(str(self.config_path))
         
-        current_weights = {
-            'BTC': Decimal('0.4'),
-            'ETH': Decimal('0.3'),
-            'USDT': Decimal('0.3')
+        current = {
+            'BTC': 0.3,
+            'ETH': 0.2,
+            'USDT': 0.5
         }
         
-        target_weights = {
-            'BTC': Decimal('0.3'),
-            'ETH': Decimal('0.4'),
-            'USDT': Decimal('0.3')
+        target = {
+            'BTC': 0.25,
+            'ETH': 0.25,
+            'USDT': 0.5
         }
         
-        total_value = Decimal('100000')
-        trades = analyzer.get_rebalancing_trades(
-            current_weights,
-            target_weights,
-            total_value,
-            min_trade_value=Decimal('100')
-        )
+        trades = manager.compute_rebalancing_trades(current, target, 100000)
         
-        assert isinstance(trades, list)
-        assert all(isinstance(t, dict) for t in trades)
-        assert all(set(t.keys()) == {'asset', 'side', 'value'} for t in trades)
-        
-        # Verify trade values
-        total_trade_value = sum(Decimal(str(t['value'])) for t in trades)
-        assert total_trade_value > 0
-        assert total_trade_value <= total_value
-    
-    @pytest.mark.asyncio
-    async def test_analyze_portfolio_empty_balances(self, mock_empty_exchange):
-        """Test analyzing portfolio with no balances."""
-        analyzer = PortfolioAnalyzer(mock_empty_exchange)
-        result = await analyzer.get_current_allocation()
-        assert result == {}
+        self.assertIsInstance(trades, list)
+        self.assertTrue(all(isinstance(t, dict) for t in trades))
+        self.assertTrue(all(set(t.keys()) >= {'asset', 'value', 'type'} for t in trades))
+
+
+if __name__ == '__main__':
+    unittest.main()
