@@ -41,7 +41,7 @@ class OpenAILLMAnalyzer(IPortfolioLLMAnalyzer):
     def __init__(
         self,
         api_key: str,
-        model_name: str = "gpt-4",
+        model_name: str = "o3-mini",
         prompt_template: Optional[str] = None,
         temperature: float = 0.7
     ):
@@ -54,17 +54,17 @@ class OpenAILLMAnalyzer(IPortfolioLLMAnalyzer):
             temperature: Model temperature (default: 0.7)
         """
         os.environ["OPENAI_API_KEY"] = api_key
-        self.model = ChatOpenAI(
-            model_name=model_name,
-            temperature=temperature
-        )
+        model_kwargs = {"model_name": model_name}
+        if "o3-" not in model_name:  # Only add temperature for non-o3 models
+            model_kwargs["temperature"] = temperature
+        self.model = ChatOpenAI(**model_kwargs)
         self.prompt_template = prompt_template or self._default_prompt_template
         self.output_parser = PydanticOutputParser(pydantic_object=PortfolioAnalysisOutput)
         logger.info(f"Initialized OpenAILLMAnalyzer with model: {model_name}")
 
     @property
     def _default_prompt_template(self) -> str:
-        return """Analyze the following portfolio data and provide recommendations:
+        return """Analyze the following cryptocurrency portfolio data and provide comprehensive recommendations:
 
 Portfolio Summary:
 - Total Value: ${total_value}
@@ -77,11 +77,45 @@ Current Positions:
 Risk Metrics:
 {risk_metrics}
 
-Please provide:
-1. Key recommendations for portfolio optimization
-2. Risk assessment
-3. Specific rebalancing suggestions if needed
-4. Reasoning behind your analysis
+Please provide a detailed analysis including:
+
+1. Portfolio Optimization Recommendations:
+   - Asset allocation adjustments
+   - Risk management strategies
+   - Entry/exit suggestions based on P/L
+   - Diversification opportunities
+
+2. Risk Assessment:
+   - Portfolio concentration risk
+   - Market risk exposure
+   - Volatility analysis
+   - Correlation between assets
+   - Maximum drawdown potential
+
+3. Fundamental Analysis:
+   - Market trends for major holdings
+   - Network metrics (where applicable)
+   - Development activity
+   - Adoption metrics
+   - Recent news impact
+
+4. Technical Analysis:
+   - Current market positioning
+   - Support/resistance levels
+   - Volume analysis
+   - Trend analysis
+
+5. Rebalancing Strategy:
+   - Target allocations with rationale
+   - Suggested entry/exit points
+   - Risk-adjusted position sizing
+   - Market timing considerations
+
+6. Detailed Reasoning:
+   - Market context
+   - Risk-reward rationale
+   - Timeline considerations
+   - Alternative scenarios
 
 {format_instructions}
 """

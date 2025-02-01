@@ -295,20 +295,15 @@ class PortfolioManager:
                 
         return False
 
-    async def analyze_portfolio_with_llm(
-        self,
-        analyzer: 'OpenAILLMAnalyzer',
-        exchange
-    ) -> 'LLMAnalysisResult':
+    async def get_portfolio_data(self, exchange) -> PortfolioData:
         """
-        Analyze the current portfolio using LLM.
+        Get current portfolio data from exchange.
 
         Args:
-            analyzer: Configured OpenAILLMAnalyzer instance
             exchange: Exchange interface instance
 
         Returns:
-            LLMAnalysisResult containing the analysis
+            PortfolioData object containing current portfolio state
         """
         # Get current allocation and portfolio value
         current_allocation = await self.get_current_allocation(exchange)
@@ -331,6 +326,9 @@ class PortfolioManager:
             # Calculate quantity from weight and total value
             quantity = (weight * total_value) / current_price
             
+            # Calculate profit/loss
+            profit_loss = (current_price - avg_entry_price) * quantity if avg_entry_price else Decimal('0')
+            
             positions.append(Position(
                 asset_id=asset,
                 quantity=quantity,
@@ -340,7 +338,7 @@ class PortfolioManager:
             ))
 
         # Create portfolio data object
-        portfolio_data = PortfolioData(
+        return PortfolioData(
             positions=positions,
             total_value=total_value,
             cash_balance=current_allocation.get(self.base_currency, Decimal('0')) * total_value,
@@ -352,6 +350,24 @@ class PortfolioManager:
             }
         )
 
+    async def analyze_portfolio_with_llm(
+        self,
+        analyzer: 'OpenAILLMAnalyzer',
+        exchange
+    ) -> 'LLMAnalysisResult':
+        """
+        Analyze the current portfolio using LLM.
+
+        Args:
+            analyzer: Configured OpenAILLMAnalyzer instance
+            exchange: Exchange interface instance
+
+        Returns:
+            LLMAnalysisResult containing the analysis
+        """
+        # Get portfolio data
+        portfolio_data = await self.get_portfolio_data(exchange)
+        
         # Get LLM analysis
         return await analyzer.analyze_portfolio(portfolio_data)
 

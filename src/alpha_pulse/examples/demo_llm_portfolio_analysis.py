@@ -4,12 +4,14 @@ Demo script for LLM-based portfolio analysis using real exchange data.
 
 import asyncio
 import os
+import webbrowser
 from loguru import logger
 from dotenv import load_dotenv
 
 from alpha_pulse.exchanges import ExchangeType, ExchangeFactory
 from alpha_pulse.portfolio.llm_analysis import OpenAILLMAnalyzer
 from alpha_pulse.portfolio.portfolio_manager import PortfolioManager
+from alpha_pulse.portfolio.html_report import HTMLReportGenerator
 
 # Load environment variables from .env file
 load_dotenv()
@@ -41,28 +43,28 @@ async def main():
 
         analyzer = OpenAILLMAnalyzer(
             api_key=openai_api_key,
-            model_name="gpt-4"
+            model_name="o3-mini"
         )
         logger.info("Initialized LLM analyzer")
 
         # Get portfolio analysis
+        logger.info("Analyzing portfolio...")
+        portfolio_data = await manager.get_portfolio_data(exchange)
         analysis = await manager.analyze_portfolio_with_llm(analyzer, exchange)
         
-        # Print results
-        logger.info("\n=== Portfolio Analysis Results ===")
-        logger.info("\nRecommendations:")
-        for i, rec in enumerate(analysis.recommendations, 1):
-            logger.info(f"{i}. {rec}")
-            
-        logger.info(f"\nRisk Assessment:\n{analysis.risk_assessment}")
+        # Generate HTML report
+        logger.info("Generating HTML report...")
+        report_path = HTMLReportGenerator.generate_report(
+            portfolio_data=portfolio_data,
+            analysis_result=analysis,
+            output_dir="reports"
+        )
         
-        if analysis.rebalancing_suggestions:
-            logger.info("\nRebalancing Suggestions:")
-            for suggestion in analysis.rebalancing_suggestions:
-                logger.info(f"- {suggestion.asset}: {suggestion.target_allocation:.2%}")
-                
-        logger.info(f"\nConfidence Score: {analysis.confidence_score:.2%}")
-        logger.info(f"\nReasoning:\n{analysis.reasoning}")
+        # Open report in browser
+        logger.info(f"Opening report: {report_path}")
+        webbrowser.open(f"file://{os.path.abspath(report_path)}")
+        
+        logger.info("Analysis complete! Check the HTML report for detailed results.")
 
     except Exception as e:
         logger.error(f"Error during demo: {e}")
