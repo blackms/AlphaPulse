@@ -9,11 +9,8 @@ The portfolio module helps you:
 - 🎯 Calculate optimal target allocations using multiple strategies
 - 🔄 Generate smart rebalancing recommendations
 - 📊 Track portfolio metrics and performance
-<<<<<<< HEAD
-=======
 - 🤖 Get AI-powered portfolio insights
 - 📈 Generate interactive HTML reports
->>>>>>> portfolio_enhancement
 
 ## 💼 Allocation Strategies
 
@@ -45,10 +42,7 @@ Implementation details:
 - 📊 Implements inverse-variance allocation
 - 🔄 Supports dynamic reclustering
 - 📈 Provides cluster visualization
-<<<<<<< HEAD
-=======
 - 🔍 Enhanced debug logging for allocation decisions
->>>>>>> portfolio_enhancement
 
 ### 3. 🎯 Black-Litterman Model
 
@@ -66,29 +60,16 @@ Technical implementation:
 
 ### 4. 🤖 LLM-Assisted Strategy
 
-<<<<<<< HEAD
-Optional LLM enhancement that can wrap any base strategy:
-=======
 AI-powered portfolio enhancement that can wrap any base strategy:
->>>>>>> portfolio_enhancement
 - 📰 Processes real-time news and sentiment data
 - 🔍 Analyzes market trends and correlations
 - 🎯 Provides dynamic risk assessments
 - 💡 Generates natural language explanations
-<<<<<<< HEAD
-=======
 - 📊 Creates interactive HTML reports
->>>>>>> portfolio_enhancement
 
 Implementation details:
 - 🔄 Uses async processing for real-time updates
 - 📊 Implements sentiment scoring algorithms
-<<<<<<< HEAD
-- 🎯 Supports multiple LLM providers
-- 📈 Provides confidence metrics for suggestions
-
-## 💻 Usage Example
-=======
 - 🎯 Supports multiple LLM providers (OpenAI, etc.)
 - 📈 Provides confidence metrics for suggestions
 - 🔍 Detailed logging of analysis process
@@ -99,7 +80,6 @@ Implementation details:
 ## 💻 Usage Examples
 
 ### Basic Portfolio Management
->>>>>>> portfolio_enhancement
 
 ```python
 from alpha_pulse.portfolio.portfolio_manager import PortfolioManager
@@ -136,8 +116,6 @@ if result['status'] == 'completed':
               f"${abs(trade['value']):,.2f}")
 ```
 
-<<<<<<< HEAD
-=======
 ### LLM-Enhanced Analysis
 
 ```python
@@ -173,7 +151,6 @@ if analysis.rebalancing_suggestions:
         print(f"- {suggestion.asset}: {suggestion.target_allocation:.2%}")
 ```
 
->>>>>>> portfolio_enhancement
 ## 🔌 Exchange Integration
 
 To use your preferred exchange, implement the `IExchange` interface:
@@ -236,8 +213,6 @@ trading:
   max_slippage: 0.01
   min_trade_value: 10.0
   base_currency: "USDT"
-<<<<<<< HEAD
-=======
 
 # LLM Analysis Settings
 llm:
@@ -246,7 +221,6 @@ llm:
   confidence_threshold: 0.7
   update_frequency: "daily"
   max_tokens: 2000
->>>>>>> portfolio_enhancement
 ```
 
 ## ⚠️ Risk Considerations
@@ -301,8 +275,6 @@ llm:
    - 📈 Stress test strategies
    - 🎯 Monitor live performance
 
-<<<<<<< HEAD
-=======
 ## 📊 Logging and Monitoring
 
 1. 🔍 Debug Logging
@@ -329,7 +301,6 @@ llm:
    - 📈 Performance metrics
    - 🔄 Allocation history
 
->>>>>>> portfolio_enhancement
 ## ⚠️ Disclaimer
 
 This module is for informational purposes only. Always:
