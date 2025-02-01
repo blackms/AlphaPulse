@@ -10,8 +10,10 @@ import numpy as np
 from pathlib import Path
 from decimal import Decimal
 from collections import defaultdict
+from datetime import datetime, UTC
 
 from .interfaces import IRebalancingStrategy
+from .data_models import Position, PortfolioData
 from .strategies.mpt_strategy import MPTStrategy
 from .strategies.hrp_strategy import HRPStrategy
 from .strategies.black_litterman_strategy import BlackLittermanStrategy
@@ -292,6 +294,66 @@ class PortfolioManager:
                 return True
                 
         return False
+
+    async def analyze_portfolio_with_llm(
+        self,
+        analyzer: 'OpenAILLMAnalyzer',
+        exchange
+    ) -> 'LLMAnalysisResult':
+        """
+        Analyze the current portfolio using LLM.
+
+        Args:
+            analyzer: Configured OpenAILLMAnalyzer instance
+            exchange: Exchange interface instance
+
+        Returns:
+            LLMAnalysisResult containing the analysis
+        """
+        # Get current allocation and portfolio value
+        current_allocation = await self.get_current_allocation(exchange)
+        total_value = await exchange.get_portfolio_value()
+        
+        # Get positions data
+        positions = []
+        for asset, weight in current_allocation.items():
+            if asset == self.base_currency:
+                continue
+                
+            symbol = f"{asset}/{self.base_currency}"
+            current_price = await exchange.get_ticker_price(symbol)
+            
+            # Get average entry price from order history
+            avg_entry_price = await exchange.get_average_entry_price(symbol)
+            if not avg_entry_price:
+                avg_entry_price = current_price  # Fallback to current price if no history
+
+            # Calculate quantity from weight and total value
+            quantity = (weight * total_value) / current_price
+            
+            positions.append(Position(
+                asset_id=asset,
+                quantity=quantity,
+                entry_price=avg_entry_price,
+                current_price=current_price,
+                timestamp=datetime.now(UTC)
+            ))
+
+        # Create portfolio data object
+        portfolio_data = PortfolioData(
+            positions=positions,
+            total_value=total_value,
+            cash_balance=current_allocation.get(self.base_currency, Decimal('0')) * total_value,
+            timestamp=datetime.now(UTC),
+            risk_metrics={
+                'volatility_target': self.risk_constraints['volatility_target'],
+                'max_drawdown_limit': self.risk_constraints['max_drawdown_limit'],
+                'correlation_threshold': self.risk_constraints['correlation_threshold']
+            }
+        )
+
+        # Get LLM analysis
+        return await analyzer.analyze_portfolio(portfolio_data)
 
     async def rebalance_portfolio(
         self,

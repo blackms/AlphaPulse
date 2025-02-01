@@ -22,6 +22,7 @@ setup(
         "gymnasium",
         "mlflow>=2.8.0",
         "prometheus-client>=0.19.0",
+        "python-dotenv>=1.0.0",
     ],
     extras_require={
         "dev": [

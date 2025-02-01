@@ -23,6 +23,22 @@ cd AlphaPulse
 pip install -e .
 ```
 
+## 🔐 Environment Setup
+
+Create a `.env` file in the root directory with your API keys:
+
+```env
+# OpenAI API key for LLM-based portfolio analysis
+OPENAI_API_KEY=your_openai_api_key
+
+# Bybit exchange credentials
+ALPHA_PULSE_BYBIT_API_KEY=your_bybit_api_key
+ALPHA_PULSE_BYBIT_API_SECRET=your_bybit_api_secret
+ALPHA_PULSE_BYBIT_TESTNET=false  # Set to true for testnet
+```
+
+> ⚠️ **Important**: Never commit your `.env` file to version control. It's already added to `.gitignore` to prevent accidental commits.
+
 ## 🎯 Usage
 
 ### 1. 🧠 Train a Model
@@ -184,12 +200,56 @@ The system includes comprehensive risk management and portfolio optimization fea
    - Transaction cost consideration
    - Visual allocation comparison
 
-4. 🔄 Exchange Integration:
-   - Real-time balance tracking
-   - Multi-exchange support (Binance, Bybit)
-   - Automated rebalancing suggestions
-   - Support for spot and futures
-   - Secure API key management
+4. 🤖 LLM-Based Portfolio Analysis:
+    - AI-powered portfolio insights
+    - Risk assessment and recommendations
+    - Custom rebalancing suggestions
+    - Confidence scoring
+    - Detailed reasoning for decisions
+
+5. 🔄 Exchange Integration:
+    - Real-time balance tracking
+    - Multi-exchange support (Binance, Bybit)
+    - Automated rebalancing suggestions
+    - Support for spot and futures
+    - Secure API key management
+
+Example usage with LLM Portfolio Analysis:
+
+```python
+from alpha_pulse.portfolio.llm_analysis import OpenAILLMAnalyzer
+from alpha_pulse.portfolio.portfolio_manager import PortfolioManager
+
+import os
+from dotenv import load_dotenv
+
+async def analyze_portfolio():
+    # Load environment variables from .env file
+    load_dotenv()
+    # Initialize LLM analyzer with API key from environment
+    analyzer = OpenAILLMAnalyzer(
+        api_key=os.getenv("OPENAI_API_KEY"),
+        model_name="gpt-4",  # or other available models
+    )
+    
+    # Initialize portfolio manager
+    manager = PortfolioManager("path/to/portfolio_config.yaml")
+    
+    # Get AI-powered analysis
+    analysis = await manager.analyze_portfolio_with_llm(
+        analyzer=analyzer,
+        exchange=exchange
+    )
+    
+    print("Recommendations:", analysis.recommendations)
+    print("Risk Assessment:", analysis.risk_assessment)
+    if analysis.rebalancing_suggestions:
+        print("Suggested Rebalancing:")
+        for suggestion in analysis.rebalancing_suggestions:
+            print(f"- {suggestion['asset']}: {suggestion['target_allocation']:.2%}")
+    print(f"Confidence Score: {analysis.confidence_score:.2%}")
+    print("Reasoning:", analysis.reasoning)
+```
 
 Example usage with the Portfolio Analyzer:
 
