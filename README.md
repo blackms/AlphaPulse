@@ -303,4 +303,11 @@ pytest src/alpha_pulse/tests/test_risk_management.py
 
 ## 📄 License
 
-MIT License - see LICENSE file for details
+GNU Affero General Public License v3.0 (AGPL-3.0) - see LICENSE file for details
+
+This means:
+- 🔓 Source code must be made available when distributing the software
+- 🔄 Modifications must be released under the same license
+- 💼 Cannot be used for commercial purposes without explicit permission
+- 🌐 Network use is considered distribution (must share modifications)
+- 📝 Changes must be documented and dated

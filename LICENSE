@@ -1,0 +1,96 @@
+GNU AFFERO GENERAL PUBLIC LICENSE
+                       Version 3, 19 November 2007
+
+ Copyright (C) 2024 AlphaPulse Trading System
+ Everyone is permitted to copy and distribute verbatim copies
+ of this license document, but changing it is not allowed.
+
+                            Preamble
+
+  The GNU Affero General Public License is a free, copyleft license for
+software and other kinds of works, specifically designed to ensure
+cooperation with the community in the case of network server software.
+
+  This version of the GNU Affero General Public License incorporates
+the terms and conditions of version 3 of the GNU General Public
+License, supplemented by the additional permissions listed below.
+
+                       TERMS AND CONDITIONS
+
+  0. Definitions.
+
+  "This License" refers to version 3 of the GNU Affero General Public License.
+
+  "Copyright" also means copyright-like laws that apply to other kinds of
+works, such as semiconductor masks.
+
+  "The Program" refers to any copyrightable work licensed under this
+License. Each licensee is addressed as "you". "Licensees" and
+"recipients" may be individuals or organizations.
+
+  "Modify" means to copy from or adapt all or part of the work in a fashion
+requiring copyright permission, other than the making of an exact copy. The
+resulting work is called a "modified version" of the earlier work or a work
+"based on" the earlier work.
+
+  "Source Code" refers to the preferred form of the work for making
+modifications to it.
+
+  "Network Use" means providing access to the functionality of the Program
+to users over a computer network.
+
+  1. Source Code.
+
+  The "source code" for a work means the preferred form of the work for
+making modifications to it. "Object code" means any non-source form of a work.
+
+  You may convey verbatim copies of the Program's source code as you
+receive it, in any medium, provided that you conspicuously and appropriately
+publish on each copy an appropriate copyright notice and disclaimer of warranty;
+keep intact all notices stating that this License applies to the code;
+and give all recipients a copy of this License along with the Program.
+
+  2. Basic Permissions.
+
+  All rights granted under this License are granted for the term of
+copyright on the Program, and are irrevocable provided the stated
+conditions are met. This License explicitly affirms your unlimited
+permission to run the unmodified Program.
+
+  3. Network Use is Distribution.
+
+  Notwithstanding any other provision of this License, if you modify the
+Program, your modified version must prominently offer all users
+interacting with it remotely through a computer network (if your version
+supports such interaction) an opportunity to receive the Corresponding
+Source of your version by providing access to the Corresponding Source
+from a network server at no charge, through some standard or customary
+means of facilitating copying of software.
+
+  4. Conveying Modified Source Versions.
+
+  You may convey a work based on the Program, or the modifications to
+produce it from the Program, in the form of source code under the terms
+of section 1, provided that you also meet all of these conditions:
+
+    a) The work must carry prominent notices stating that you modified
+    it, and giving a relevant date.
+
+    b) The work must carry prominent notices stating that it is
+    released under this License.
+
+    c) You must license the entire work, as a whole, under this
+    License to anyone who comes into possession of a copy.
+
+  5. No Commercial Use.
+
+  You may not use this Program, or any derivatives of this Program,
+for commercial purposes without explicit written permission from the
+copyright holder. Commercial purposes include, but are not limited to:
+
+    a) Using the Program to provide services to customers
+    b) Incorporating the Program into a commercial product
+    c) Using the Program to generate revenue
+
+For more information about the GNU Affero General Public License, see
+<https://www.gnu.org/licenses/>.
