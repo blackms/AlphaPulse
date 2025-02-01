@@ -3,13 +3,19 @@ Portfolio analyzer for analyzing and optimizing portfolio allocations.
 """
 from decimal import Decimal
 from typing import Dict, List, Optional, Type
+import numpy as np
 import pandas as pd
+from datetime import datetime, timedelta
 from loguru import logger
 
 from alpha_pulse.exchange_conn.interface import ExchangeConnector, Balance
 from alpha_pulse.portfolio.allocation_strategy import AllocationStrategy, AllocationResult
 from alpha_pulse.portfolio.mpt_strategy import MPTStrategy
 from alpha_pulse.portfolio.hrp_strategy import HRPStrategy
+
+# Default parameters for simulated returns
+DEFAULT_RETURN_MEAN = 0.0002  # 0.02% daily return
+DEFAULT_RETURN_VOL = 0.02    # 2% daily volatility
 
 
 class PortfolioAnalyzer:
@@ -68,42 +74,76 @@ class PortfolioAnalyzer:
     ) -> pd.DataFrame:
         """Get historical returns for assets.
         
+        In this implementation, we simulate returns data for demonstration.
+        In a production environment, this would fetch real historical data
+        from the exchange.
+        
         Args:
             assets: List of asset symbols
             timeframe: Return timeframe
             
         Returns:
             DataFrame of historical returns
+        
+        Raises:
+            ValueError: If no valid assets provided
         """
+        if not assets:
+            raise ValueError("No assets provided")
+        
+        # Generate date range
+        end_date = datetime.now()
+        dates = pd.date_range(
+            end=end_date,
+            periods=self.lookback_days,
+            freq='D'
+        )
+        
         returns_data = {}
+        valid_assets = 0
         
         for asset in assets:
-            if asset == "USDT":
-                # Use risk-free rate for stable coins
-                returns = pd.Series(
-                    [self.strategy.risk_free_rate / 365] * self.lookback_days,
-                    index=pd.date_range(end=pd.Timestamp.now(), periods=self.lookback_days)
-                )
-            else:
-                try:
-                    # Get historical prices
+            try:
+                if asset == "USDT":
+                    # Use risk-free rate for stable coins
+                    returns = pd.Series(
+                        [self.strategy.risk_free_rate / 365] * self.lookback_days,
+                        index=dates
+                    )
+                    valid_assets += 1
+                else:
+                    # Verify asset exists
                     symbol = f"{asset}/USDT"
                     price = await self.exchange.get_ticker_price(symbol)
+                    
                     if price is None:
                         logger.warning(f"Could not get price for {symbol}")
                         continue
                     
-                    # Calculate returns (placeholder - in real implementation,
-                    # we would fetch actual historical data)
+                    # Simulate returns with asset-specific parameters
+                    # In production, fetch real historical data here
+                    volatility = DEFAULT_RETURN_VOL
+                    if asset in ["BTC", "ETH"]:
+                        volatility *= 1.2  # Higher volatility for major coins
+                    
                     returns = pd.Series(
-                        np.random.normal(0.0002, 0.02, self.lookback_days),
-                        index=pd.date_range(end=pd.Timestamp.now(), periods=self.lookback_days)
+                        np.random.normal(
+                            DEFAULT_RETURN_MEAN,
+                            volatility,
+                            self.lookback_days
+                        ),
+                        index=dates
                     )
-                except Exception as e:
-                    logger.error(f"Error getting returns for {asset}: {e}")
-                    continue
-            
-            returns_data[asset] = returns
+                    valid_assets += 1
+                
+                returns_data[asset] = returns
+                
+            except Exception as e:
+                logger.error(f"Error getting returns for {asset}: {e}")
+                continue
+        
+        if valid_assets == 0:
+            raise ValueError("Could not get returns for any assets")
         
         return pd.DataFrame(returns_data)
     
