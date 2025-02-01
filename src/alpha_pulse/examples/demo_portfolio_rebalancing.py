@@ -142,13 +142,6 @@ async def main() -> None:
     """Main function."""
     # Parse arguments
     parser = argparse.ArgumentParser(description="Portfolio rebalancing demo")
-    parser.add_argument("--api-key", help="Exchange API key")
-    parser.add_argument("--api-secret", help="Exchange API secret")
-    parser.add_argument("--testnet", action="store_true", help="Use testnet")
-    args = parser.parse_args()
-    
-    # Parse arguments
-    parser = argparse.ArgumentParser(description="Portfolio rebalancing demo")
     parser.add_argument("--exchange", choices=["binance", "bybit"], default="binance", help="Exchange to use")
     parser.add_argument("--api-key", help="Exchange API key")
     parser.add_argument("--api-secret", help="Exchange API secret")
