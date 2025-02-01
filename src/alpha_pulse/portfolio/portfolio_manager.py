@@ -6,14 +6,62 @@ Coordinates portfolio strategies, risk management, and rebalancing operations.
 import yaml
 from typing import Dict, Optional, Type, List
 import pandas as pd
+import numpy as np
 from pathlib import Path
 from decimal import Decimal
+from collections import defaultdict
 
-from .interfaces import IRebalancingStrategy, IExchange
+from .interfaces import IRebalancingStrategy
 from .strategies.mpt_strategy import MPTStrategy
 from .strategies.hrp_strategy import HRPStrategy
 from .strategies.black_litterman_strategy import BlackLittermanStrategy
 from .strategies.llm_assisted_strategy import LLMAssistedStrategy
+
+
+def create_price_matrix(historical_data: List[Dict], assets: List[str]) -> pd.DataFrame:
+    """
+    Create a price matrix from historical data.
+
+    Args:
+        historical_data: List of dictionaries with timestamp and asset prices
+        assets: List of asset symbols
+
+    Returns:
+        DataFrame with timestamps as index and assets as columns
+    """
+    # Group data by timestamp
+    data_by_timestamp = defaultdict(dict)
+    timestamps = set()
+    
+    for entry in historical_data:
+        timestamp = entry['timestamp']
+        timestamps.add(timestamp)
+        for asset, price in entry.items():
+            if asset != 'timestamp':
+                data_by_timestamp[timestamp][asset] = price
+
+    # Create DataFrame with all timestamps and assets
+    price_matrix = pd.DataFrame(index=sorted(timestamps))
+    for asset in assets:
+        prices = []
+        for timestamp in sorted(timestamps):
+            # Use previous price if missing, or 1.0 for stablecoins
+            if asset in data_by_timestamp[timestamp]:
+                prices.append(data_by_timestamp[timestamp][asset])
+            else:
+                last_price = prices[-1] if prices else (1.0 if asset.endswith('USDT') else None)
+                prices.append(last_price)
+        price_matrix[asset] = prices
+
+    # Forward fill any remaining NaN values
+    price_matrix = price_matrix.ffill()
+    
+    # For any columns that are still all NaN, fill with 1.0 (stablecoins)
+    for col in price_matrix.columns:
+        if price_matrix[col].isna().all():
+            price_matrix[col] = 1.0
+
+    return price_matrix
 
 
 class PortfolioManager:
@@ -37,6 +85,7 @@ class PortfolioManager:
         self.risk_constraints = self._get_risk_constraints()
         self.last_rebalance_time = None
         self.trading_config = self.config.get('trading', {})
+        self.base_currency = self.trading_config.get('base_currency', 'USDT')
 
     def _load_config(self, config_path: str) -> Dict:
         """
@@ -87,7 +136,7 @@ class PortfolioManager:
             'correlation_threshold': self.config.get('correlation_threshold', 0.7)
         }
 
-    def get_current_allocation(self, exchange: IExchange) -> Dict[str, Decimal]:
+    async def get_current_allocation(self, exchange) -> Dict[str, float]:
         """
         Get current portfolio allocation from exchange.
 
@@ -98,14 +147,21 @@ class PortfolioManager:
             Dictionary of current asset weights
         """
         # Get account balances
-        balances = exchange.get_account_balances()
+        balances = await exchange.get_balances()
         
         # Get current prices for conversion to common currency
-        prices = exchange.get_ticker_prices(list(balances.keys()))
+        prices = {}
+        for asset, balance in balances.items():
+            if asset == self.base_currency:
+                prices[asset] = Decimal('1.0')
+            else:
+                price = await exchange.get_ticker_price(f"{asset}/{self.base_currency}")
+                if price:
+                    prices[asset] = price
         
         # Calculate total portfolio value and weights
         total_value = sum(
-            balance * prices.get(asset, Decimal('1.0'))
+            balance.total * prices.get(asset, Decimal('1.0'))
             for asset, balance in balances.items()
         )
         
@@ -113,9 +169,9 @@ class PortfolioManager:
             return {}
         
         return {
-            asset: balance * prices.get(asset, Decimal('1.0')) / total_value
+            asset: balance.total * prices.get(asset, Decimal('1.0')) / total_value
             for asset, balance in balances.items()
-            if balance > 0
+            if balance.total > 0
         }
 
     def compute_rebalancing_trades(
@@ -162,9 +218,9 @@ class PortfolioManager:
                 
         return trades
 
-    def needs_rebalancing(
+    async def needs_rebalancing(
         self,
-        exchange: IExchange,
+        exchange,
         current_allocation: Optional[Dict[str, Decimal]] = None
     ) -> bool:
         """
@@ -187,23 +243,43 @@ class PortfolioManager:
             
         # Get current allocation if not provided
         if current_allocation is None:
-            current_allocation = self.get_current_allocation(exchange)
+            current_allocation = await self.get_current_allocation(exchange)
             
         # Get historical data for analysis
         lookback_days = self.config['strategy']['lookback_period']
         end_time = pd.Timestamp.now()
         start_time = end_time - pd.Timedelta(days=lookback_days)
         
-        historical_data = exchange.get_historical_data(
-            assets=list(current_allocation.keys()),
-            start_time=start_time,
-            end_time=end_time
-        )
+        # Get historical data for each non-stablecoin asset
+        price_data = []
+        for asset in current_allocation.keys():
+            if asset == self.base_currency:
+                continue
+                
+            symbol = f"{asset}/{self.base_currency}"
+            candles = await exchange.fetch_ohlcv(
+                symbol=symbol,
+                timeframe="1d",
+                since=int(start_time.timestamp() * 1000),
+                limit=lookback_days
+            )
             
+            for candle in candles:
+                price_data.append({
+                    'timestamp': candle.timestamp,
+                    asset: float(candle.close)
+                })
+        
+        # Create price matrix
+        price_matrix = create_price_matrix(
+            price_data,
+            list(current_allocation.keys())
+        )
+        
         # Get target allocation
         target = self.strategy.compute_target_allocation(
             current_allocation,
-            historical_data,
+            price_matrix,
             self.risk_constraints
         )
         
@@ -217,9 +293,9 @@ class PortfolioManager:
                 
         return False
 
-    def rebalance_portfolio(
+    async def rebalance_portfolio(
         self,
-        exchange: IExchange,
+        exchange,
         historical_data: Optional[pd.DataFrame] = None
     ) -> Dict:
         """
@@ -233,9 +309,9 @@ class PortfolioManager:
             Dictionary containing rebalancing results
         """
         # Get current allocation
-        current_allocation = self.get_current_allocation(exchange)
+        current_allocation = await self.get_current_allocation(exchange)
         
-        if not self.needs_rebalancing(exchange, current_allocation):
+        if not await self.needs_rebalancing(exchange, current_allocation):
             return {
                 'status': 'skipped',
                 'reason': 'Rebalancing not needed'
@@ -247,10 +323,30 @@ class PortfolioManager:
             end_time = pd.Timestamp.now()
             start_time = end_time - pd.Timedelta(days=lookback_days)
             
-            historical_data = exchange.get_historical_data(
-                assets=list(current_allocation.keys()),
-                start_time=start_time,
-                end_time=end_time
+            # Get historical data for each non-stablecoin asset
+            price_data = []
+            for asset in current_allocation.keys():
+                if asset == self.base_currency:
+                    continue
+                    
+                symbol = f"{asset}/{self.base_currency}"
+                candles = await exchange.fetch_ohlcv(
+                    symbol=symbol,
+                    timeframe="1d",
+                    since=int(start_time.timestamp() * 1000),
+                    limit=lookback_days
+                )
+                
+                for candle in candles:
+                    price_data.append({
+                        'timestamp': candle.timestamp,
+                        asset: float(candle.close)
+                    })
+            
+            # Create price matrix
+            historical_data = create_price_matrix(
+                price_data,
+                list(current_allocation.keys())
             )
             
         # Compute target allocation
@@ -268,7 +364,7 @@ class PortfolioManager:
             }
             
         # Compute required trades
-        total_value = exchange.get_portfolio_value()
+        total_value = await exchange.get_portfolio_value()
         trades = self.compute_rebalancing_trades(
             current_allocation,
             {k: Decimal(str(v)) for k, v in target_allocation.items()},
@@ -279,7 +375,7 @@ class PortfolioManager:
         executed_trades = []
         for trade in trades:
             try:
-                result = exchange.execute_trade(
+                result = await exchange.execute_trade(
                     asset=trade['asset'],
                     amount=abs(trade['value']),
                     side=trade['type'],
