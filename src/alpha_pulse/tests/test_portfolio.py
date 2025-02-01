@@ -38,6 +38,12 @@ class TestAllocationStrategy:
         target = {'BTC': Decimal('0.3'), 'ETH': Decimal('0.7')}
         score = strategy.calculate_rebalance_score(current, target)
         assert Decimal('0.0') < score < Decimal('1.0')
+        
+        # Test with missing assets
+        current = {'BTC': Decimal('1.0')}
+        target = {'BTC': Decimal('0.5'), 'ETH': Decimal('0.5')}
+        score = strategy.calculate_rebalance_score(current, target)
+        assert score == Decimal('0.5')
 
 
 @pytest.fixture
@@ -81,6 +87,36 @@ class TestMPTStrategy:
         assert result.expected_return > 0
         assert result.expected_risk > 0
         assert result.sharpe_ratio > 0
+    
+    def test_mpt_empty_returns(self):
+        """Test MPT with empty returns data."""
+        strategy = MPTStrategy()
+        current_weights = {'BTC': Decimal('1.0')}
+        empty_returns = pd.DataFrame()
+        
+        with pytest.raises(ValueError, match="Returns data is empty"):
+            strategy.calculate_allocation(empty_returns, current_weights)
+    
+    def test_mpt_invalid_constraints(self, sample_returns):
+        """Test MPT with invalid constraints."""
+        strategy = MPTStrategy()
+        current_weights = {'BTC': Decimal('1.0')}
+        
+        # Test min_weight > max_weight
+        with pytest.raises(ValueError, match="Minimum weight cannot exceed maximum weight"):
+            strategy.calculate_allocation(
+                sample_returns,
+                current_weights,
+                constraints={'min_weight': 0.6, 'max_weight': 0.4}
+            )
+        
+        # Test negative weights
+        with pytest.raises(ValueError, match="Minimum weight cannot be negative"):
+            strategy.calculate_allocation(
+                sample_returns,
+                current_weights,
+                constraints={'min_weight': -0.1}
+            )
 
 
 class TestHRPStrategy:
@@ -111,6 +147,15 @@ class TestHRPStrategy:
         assert result.expected_return > 0
         assert result.expected_risk > 0
         assert result.sharpe_ratio > 0
+    
+    def test_hrp_empty_returns(self):
+        """Test HRP with empty returns data."""
+        strategy = HRPStrategy()
+        current_weights = {'BTC': Decimal('1.0')}
+        empty_returns = pd.DataFrame()
+        
+        with pytest.raises(ValueError, match="Returns data is empty"):
+            strategy.calculate_allocation(empty_returns, current_weights)
 
 
 class TestPortfolioAnalyzer:
@@ -142,6 +187,13 @@ class TestPortfolioAnalyzer:
         }
         return exchange
     
+    @pytest.fixture
+    def mock_empty_exchange(self):
+        """Create mock exchange with no balances."""
+        exchange = AsyncMock()
+        exchange.get_balances.return_value = {}
+        return exchange
+    
     @pytest.mark.asyncio
     async def test_get_current_allocation(self, mock_exchange):
         """Test getting current allocation."""
@@ -151,6 +203,13 @@ class TestPortfolioAnalyzer:
         total = sum(float(w) for w in weights.values())
         assert abs(total - 1.0) < 1e-6
         assert all(0 <= float(w) <= 1 for w in weights.values())
+    
+    @pytest.mark.asyncio
+    async def test_get_current_allocation_empty(self, mock_empty_exchange):
+        """Test getting current allocation with no balances."""
+        analyzer = PortfolioAnalyzer(mock_empty_exchange)
+        weights = await analyzer.get_current_allocation()
+        assert weights == {}
     
     @pytest.mark.asyncio
     async def test_get_rebalancing_trades(self, mock_exchange):
@@ -180,3 +239,15 @@ class TestPortfolioAnalyzer:
         assert isinstance(trades, list)
         assert all(isinstance(t, dict) for t in trades)
         assert all(set(t.keys()) == {'asset', 'side', 'value'} for t in trades)
+        
+        # Verify trade values
+        total_trade_value = sum(Decimal(str(t['value'])) for t in trades)
+        assert total_trade_value > 0
+        assert total_trade_value <= total_value
+    
+    @pytest.mark.asyncio
+    async def test_analyze_portfolio_empty_balances(self, mock_empty_exchange):
+        """Test analyzing portfolio with no balances."""
+        analyzer = PortfolioAnalyzer(mock_empty_exchange)
+        result = await analyzer.get_current_allocation()
+        assert result == {}
