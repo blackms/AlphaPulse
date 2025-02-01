@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 from scipy.cluster.hierarchy import linkage, dendrogram
 from scipy.spatial.distance import squareform, pdist
+from decimal import Decimal
 from loguru import logger
 from .base_strategy import BaseStrategy
 
@@ -49,22 +50,25 @@ class HRPStrategy(BaseStrategy):
         logger.debug(f"Input data shape: {historical_data.shape}")
         logger.debug(f"Current allocation: {current_allocation}")
 
-        # Filter for allowed assets only
-        allowed_cols = [col for col in historical_data.columns if col in self.allowed_assets]
-        if not allowed_cols:
-            logger.warning("No allowed assets found in historical data")
-            return current_allocation
-            
-        # Convert data to float64
-        returns = self.compute_returns(historical_data[allowed_cols].astype(np.float64))
-        logger.debug(f"Computed returns shape: {returns.shape}")
-        
-        # Handle case with only one asset
-        if len(returns.columns) == 1:
-            logger.info("Only one asset found, returning single-asset allocation")
-            return {returns.columns[0]: 1.0}
-        
         try:
+            # Filter for allowed assets only and exclude stablecoins
+            allowed_cols = [
+                col for col in historical_data.columns 
+                if col in self.allowed_assets and col not in self.stablecoins
+            ]
+            if not allowed_cols:
+                logger.warning("No valid assets found in historical data")
+                return current_allocation
+                
+            # Convert data to float64
+            returns = self.compute_returns(historical_data[allowed_cols].astype(np.float64))
+            logger.debug(f"Computed returns shape: {returns.shape}")
+            
+            # Handle case with only one asset
+            if len(returns.columns) == 1:
+                logger.info("Only one asset found, returning single-asset allocation")
+                return self._allocate_with_stablecoins({returns.columns[0]: 1.0})
+            
             # Compute correlation matrix
             corr = returns.corr()
             logger.debug(f"Correlation matrix:\n{corr}")
@@ -74,18 +78,20 @@ class HRPStrategy(BaseStrategy):
             corr = (corr + corr.T) / 2.0
             np.fill_diagonal(corr, 1.0)
             
+            # Replace any NaN values with 0 correlation
+            corr = np.nan_to_num(corr, nan=0.0)
+            
             # Compute distance matrix using correlation
             dist = np.sqrt(np.clip((1.0 - corr) / 2.0, 0.0, 1.0))
             logger.debug(f"Distance matrix:\n{dist}")
             
             # Convert to condensed form
             n = len(dist)
-            condensed = np.zeros(n * (n - 1) // 2, dtype=np.float64)
-            k = 0
+            condensed = []
             for i in range(n):
                 for j in range(i + 1, n):
-                    condensed[k] = dist[i, j]
-                    k += 1
+                    condensed.append(dist[i, j])
+            condensed = np.array(condensed, dtype=np.float64)
             
             # Compute linkage
             link = linkage(condensed, method=self.linkage_method)
@@ -100,51 +106,11 @@ class HRPStrategy(BaseStrategy):
             weights = self._get_recursive_bisection(returns_sorted)
             logger.debug(f"Initial weights: {weights}")
             
-            # Create dictionary of weights
+            # Create dictionary of weights for non-stablecoin assets
             allocation = dict(zip(sorted_assets, weights))
             
-            # Adjust for minimum position size and normalize non-stablecoin weights
-            non_stable_allocation = {
-                k: float(v) for k, v in allocation.items()
-                if k not in self.stablecoins and v >= self.min_position
-            }
-            logger.debug(f"Non-stablecoin allocation: {non_stable_allocation}")
-            
-            # Calculate total non-stablecoin weight
-            non_stable_total = sum(non_stable_allocation.values())
-            if non_stable_total > 0:
-                # Scale non-stablecoin weights to (1 - stablecoin_target)
-                target_weight = 1.0 - self.stablecoin_target
-                non_stable_allocation = {
-                    k: v * target_weight / non_stable_total 
-                    for k, v in non_stable_allocation.items()
-                }
-            
-            # Add stablecoins
-            final_allocation = non_stable_allocation.copy()
-            stables = [coin for coin in self.stablecoins if coin in self.allowed_assets]
-            if stables:
-                # Distribute stablecoin allocation equally
-                stable_weight = self.stablecoin_target / len(stables)
-                for coin in stables:
-                    final_allocation[coin] = stable_weight
-            
-            logger.debug(f"Final allocation before validation: {final_allocation}")
-            
-            # Validate position size limits
-            for asset, weight in list(final_allocation.items()):
-                if weight < self.min_position or weight > self.max_position:
-                    logger.warning(f"Removing {asset} due to position size limits: {weight}")
-                    del final_allocation[asset]
-            
-            # Final normalization
-            total = sum(final_allocation.values())
-            if total > 0:
-                final_allocation = {k: v/total for k, v in final_allocation.items()}
-            else:
-                logger.warning("No valid allocations found, returning current allocation")
-                return current_allocation
-            
+            # Add stablecoins and normalize
+            final_allocation = self._allocate_with_stablecoins(allocation)
             logger.info(f"Final target allocation: {final_allocation}")
             return final_allocation
             
@@ -152,6 +118,41 @@ class HRPStrategy(BaseStrategy):
             logger.error(f"Error in HRP allocation computation: {str(e)}")
             logger.exception(e)
             return current_allocation
+
+    def _allocate_with_stablecoins(self, allocation: Dict[str, float]) -> Dict[str, float]:
+        """Add stablecoins to allocation and normalize weights."""
+        try:
+            # Convert all values to float
+            allocation = {k: float(v) for k, v in allocation.items()}
+            
+            # Scale non-stablecoin weights to (1 - stablecoin_target)
+            total = sum(allocation.values())
+            if total > 0:
+                target_weight = 1.0 - self.stablecoin_target
+                allocation = {
+                    k: v * target_weight / total 
+                    for k, v in allocation.items()
+                }
+            
+            # Add stablecoins
+            stables = [coin for coin in self.stablecoins if coin in self.allowed_assets]
+            if stables:
+                # Distribute stablecoin allocation equally
+                stable_weight = self.stablecoin_target / len(stables)
+                for coin in stables:
+                    allocation[coin] = stable_weight
+            
+            # Final normalization
+            total = sum(allocation.values())
+            if total > 0:
+                allocation = {k: v/total for k, v in allocation.items()}
+            
+            return allocation
+            
+        except Exception as e:
+            logger.error(f"Error in stablecoin allocation: {str(e)}")
+            logger.exception(e)
+            return allocation
 
     def _get_quasi_diag(
         self,
