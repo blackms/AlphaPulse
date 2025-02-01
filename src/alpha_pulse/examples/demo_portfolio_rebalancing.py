@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from loguru import logger
 
-from alpha_pulse.exchange_conn.binance import BinanceConnector
+from alpha_pulse.exchanges import ExchangeType, ExchangeFactory, credentials_manager
 from alpha_pulse.portfolio.analyzer import PortfolioAnalyzer
 from alpha_pulse.portfolio.mpt_strategy import MPTStrategy
 from alpha_pulse.portfolio.hrp_strategy import HRPStrategy
@@ -147,20 +147,36 @@ async def main() -> None:
     parser.add_argument("--testnet", action="store_true", help="Use testnet")
     args = parser.parse_args()
     
+    # Parse arguments
+    parser = argparse.ArgumentParser(description="Portfolio rebalancing demo")
+    parser.add_argument("--exchange", choices=["binance", "bybit"], default="binance", help="Exchange to use")
+    parser.add_argument("--api-key", help="Exchange API key")
+    parser.add_argument("--api-secret", help="Exchange API secret")
+    parser.add_argument("--testnet", action="store_true", help="Use testnet")
+    args = parser.parse_args()
+    
     exchange = None
     try:
-        # Initialize exchange connector
-        exchange = BinanceConnector(
-            api_key=args.api_key or "",
-            api_secret=args.api_secret or "",
+        # Save credentials if provided
+        if args.api_key and args.api_secret:
+            credentials_manager.save_credentials(
+                args.exchange,
+                args.api_key,
+                args.api_secret,
+                args.testnet
+            )
+        
+        # Create exchange instance
+        exchange_type = ExchangeType(args.exchange)
+        exchange = await ExchangeFactory.create_exchange(
+            exchange_type,
             testnet=args.testnet
         )
         
-        # Validate API keys if provided
-        if args.api_key and args.api_secret:
-            if not await exchange.validate_api_keys():
-                logger.error("Invalid API keys")
-                return
+        # Validate API keys
+        if not await exchange.validate_api_keys():
+            logger.error("Invalid API keys")
+            return
         
         # Initialize portfolio analyzer
         analyzer = PortfolioAnalyzer(exchange)
@@ -174,7 +190,7 @@ async def main() -> None:
     finally:
         # Clean up
         if exchange:
-            await exchange.exchange.close()
+            await exchange.__aexit__(None, None, None)
 
 
 if __name__ == "__main__":
