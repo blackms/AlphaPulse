@@ -10,7 +10,7 @@ import numpy as np
 from pathlib import Path
 from decimal import Decimal, DivisionByZero
 from collections import defaultdict
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 import asyncio
 from functools import lru_cache
 from asyncio import TimeoutError
@@ -315,8 +315,17 @@ class PortfolioManager:
             return True
             
         # Check rebalancing frequency
-        frequency = pd.Timedelta(self.config['rebalancing_frequency'])
-        if pd.Timestamp.now(tz=UTC) - pd.Timestamp(self.last_rebalance_time, tz=UTC) < frequency:
+        # Convert frequency string to timedelta
+        freq_map = {
+            'hourly': pd.Timedelta(hours=1),
+            'daily': pd.Timedelta(days=1),
+            'weekly': pd.Timedelta(weeks=1)
+        }
+        frequency = freq_map.get(self.config['rebalancing_frequency'])
+        if not frequency:
+            raise ValueError(f"Invalid rebalancing frequency: {self.config['rebalancing_frequency']}")
+            
+        if datetime.now(timezone.utc) - self.last_rebalance_time < frequency.to_pytimedelta():
             return False
             
         # Get current allocation if not provided
@@ -374,7 +383,11 @@ class PortfolioManager:
                     since=start_time,
                     limit=lookback_days
                 )
-                return [{'timestamp': c.timestamp, asset: float(c.close)} for c in candles]
+                # Format timestamp as string representation of datetime constructor
+                return [{
+                    'timestamp': f"datetime({c.timestamp.year}, {c.timestamp.month}, {c.timestamp.day}, {c.timestamp.hour}, {c.timestamp.minute}, tzinfo=timezone.utc)",
+                    asset: float(c.close)
+                } for c in candles]
             except Exception as e:
                 logger.error(f"Failed to fetch data for {asset}: {e}")
                 return []
@@ -508,7 +521,7 @@ class PortfolioManager:
                 quantity=quantity,
                 entry_price=avg_entry_price,
                 current_price=current_price,
-                timestamp=datetime.now(UTC)
+                timestamp=datetime.now(timezone.utc)
             ))
 
         # Create portfolio data object
@@ -516,7 +529,7 @@ class PortfolioManager:
             positions=positions,
             total_value=total_value,
             cash_balance=current_allocation.get(self.base_currency, Decimal('0')) * total_value,
-            timestamp=datetime.now(UTC),
+            timestamp=datetime.now(timezone.utc),
             risk_metrics={
                 'volatility_target': self.risk_constraints['volatility_target'],
                 'max_drawdown_limit': self.risk_constraints['max_drawdown_limit'],
@@ -631,7 +644,7 @@ class PortfolioManager:
                 })
                 await self._attempt_trade_rollback(exchange, executed_trades)
                 
-        self.last_rebalance_time = pd.Timestamp.now()
+        self.last_rebalance_time = datetime.now(timezone.utc)
         
         return {
             'status': 'completed',

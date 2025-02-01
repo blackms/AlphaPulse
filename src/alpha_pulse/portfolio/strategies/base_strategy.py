@@ -39,6 +39,60 @@ class BaseStrategy(IRebalancingStrategy):
         )
         logger.debug(f"Allowed assets: {self.allowed_assets}")
 
+    def get_constraint_violations(self, allocation: Dict[str, float]) -> List[str]:
+        """
+        Get list of constraint violations in the allocation.
+
+        Args:
+            allocation: Portfolio allocation to validate
+
+        Returns:
+            List of constraint violation descriptions
+        """
+        violations = []
+        
+        if not allocation:
+            violations.append("Empty allocation")
+            return violations
+
+        # Check sum of weights is approximately 1
+        total_weight = sum(allocation.values())
+        if not np.isclose(total_weight, 1.0, rtol=1e-3):
+            violations.append(f"Total weight {total_weight} is not close to 1.0")
+
+        # Check position size limits
+        for asset, weight in allocation.items():
+            if weight < 0 or weight > self.max_position:
+                violations.append(
+                    f"Position size violation for {asset}: {weight} "
+                    f"(min: 0, max: {self.max_position})"
+                )
+
+        # Check stablecoin allocation with tolerance
+        stablecoin_total = sum(
+            weight for asset, weight in allocation.items()
+            if asset in self.stablecoins
+        )
+        min_stable = self.stablecoin_target * 0.8
+        max_stable = self.stablecoin_target * 1.2
+        
+        if not (min_stable <= stablecoin_total <= max_stable):
+            violations.append(
+                f"Stablecoin allocation {stablecoin_total} outside target range "
+                f"[{min_stable}, {max_stable}]"
+            )
+
+        # Check only allowed assets are included
+        if self.allowed_assets:
+            disallowed = [
+                asset for asset in allocation
+                if asset not in self.allowed_assets and asset not in self.stablecoins
+            ]
+            if disallowed:
+                violations.append(f"Disallowed assets found: {disallowed}")
+
+        return violations
+
     def validate_constraints(self, allocation: Dict[str, float]) -> bool:
         """
         Validate if allocation meets all strategy constraints.

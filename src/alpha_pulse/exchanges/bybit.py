@@ -2,7 +2,7 @@
 Bybit exchange implementation.
 """
 from decimal import Decimal
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 
 from loguru import logger
@@ -188,7 +188,7 @@ class BybitExchange(CCXTExchange):
             for category in categories:
                 try:
                     # Calculate timestamp for 30 days ago
-                    since = int((datetime.now() - timedelta(days=30)).timestamp() * 1000)
+                    since = int((datetime.now(timezone.utc) - timedelta(days=30)).timestamp() * 1000)
                     
                     params = {
                         'category': category,

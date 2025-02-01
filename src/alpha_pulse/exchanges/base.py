@@ -3,7 +3,7 @@ Base exchange interfaces and common functionality.
 """
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Dict, List, Optional, Any
 
@@ -279,7 +279,7 @@ class CCXTExchange(BaseExchange):
             
             return [
                 OHLCV(
-                    timestamp=datetime.fromtimestamp(candle[0] / 1000),
+                    timestamp=datetime.fromtimestamp(candle[0] / 1000, tz=timezone.utc),
                     open=Decimal(str(candle[1])),
                     high=Decimal(str(candle[2])),
                     low=Decimal(str(candle[3])),

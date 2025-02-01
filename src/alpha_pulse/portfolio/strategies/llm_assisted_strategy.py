@@ -121,6 +121,18 @@ class LLMAssistedStrategy(IRebalancingStrategy, ILLMStrategy):
         
         return self._parse_sentiment_scores(sentiment_analysis)
 
+    def get_constraint_violations(self, allocation: Dict[str, float]) -> List[str]:
+        """
+        Get list of constraint violations in the allocation.
+
+        Args:
+            allocation: Portfolio allocation to validate
+
+        Returns:
+            List of constraint violation descriptions
+        """
+        return self.base_strategy.get_constraint_violations(allocation)
+
     def validate_constraints(self, allocation: Dict[str, float]) -> bool:
         """
         Validate if allocation meets all strategy constraints.
