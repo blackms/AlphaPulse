@@ -143,8 +143,8 @@ class BybitExchange(CCXTExchange):
     async def validate_api_keys(self) -> bool:
         """Validate API keys by attempting to access private endpoints."""
         try:
-            # Bybit requires a specific endpoint for key validation
-            await self.exchange.privateGetApiKey()
+            # Bybit validates keys by attempting to fetch wallet balance
+            await self.exchange.fetch_balance()
             return True
         except Exception as e:
             logger.error(f"Bybit API key validation failed: {e}")

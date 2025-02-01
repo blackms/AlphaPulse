@@ -1,18 +1,18 @@
-# AlphaPulse Trading System
+# 🚀 AlphaPulse Trading System
 
 A modular cryptocurrency trading system with support for backtesting, paper trading, and live execution.
 
-## Features
+## ✨ Features
 
-- Data Pipeline: Fetch and store market data from multiple exchanges
-- Feature Engineering: Calculate technical indicators and generate training features
-- Model Training: Train and evaluate machine learning models
-- Backtesting: Test strategies on historical data
-- Paper Trading: Simulate trading with real-time market data
-- Risk Management: Advanced position sizing and portfolio optimization
-- Live Trading: Execute trades on supported exchanges (coming soon)
+- 📊 Data Pipeline: Fetch and store market data from multiple exchanges
+- 🧮 Feature Engineering: Calculate technical indicators and generate training features
+- 🤖 Model Training: Train and evaluate machine learning models
+- 📈 Backtesting: Test strategies on historical data
+- 🎮 Paper Trading: Simulate trading with real-time market data
+- 🛡️ Risk Management: Advanced position sizing and portfolio optimization
+- 💹 Live Trading: Execute trades on supported exchanges (coming soon)
 
-## Installation
+## 🔧 Installation
 
 ```bash
 # Clone the repository
@@ -23,9 +23,9 @@ cd AlphaPulse
 pip install -e .
 ```
 
-## Usage
+## 🎯 Usage
 
-### 1. Train a Model
+### 1. 🧠 Train a Model
 
 Train a prediction model using historical data:
 
@@ -39,7 +39,7 @@ This will:
 - Train a RandomForest model
 - Save the model to trained_models/crypto_prediction_model.joblib
 
-### 2. Multi-Asset Trading with Risk Management
+### 2. 📊 Multi-Asset Trading with Risk Management
 
 Run the multi-asset trading system with advanced risk management:
 
@@ -61,7 +61,7 @@ Command line arguments:
 - `--api-secret`: Exchange API secret
 - `--interval`: Update interval in seconds (default: 60)
 
-### 3. Paper Trading
+### 3. 🎯 Paper Trading
 
 Run paper trading simulation with real-time market data:
 
@@ -69,12 +69,13 @@ Run paper trading simulation with real-time market data:
 python src/alpha_pulse/examples/demo_paper_trading.py
 ```
 
-### 4. Portfolio Rebalancing
+### 4. 💼 Portfolio Rebalancing
 
 Run portfolio analysis and rebalancing:
 
 ```bash
 python src/alpha_pulse/examples/demo_portfolio_rebalancing.py \
+    --exchange binance \  # or bybit
     --api-key your_api_key \
     --api-secret your_api_secret \
     --testnet  # Optional: use testnet for testing
@@ -87,7 +88,7 @@ This will:
 - Generate rebalancing recommendations
 - Plot current vs target allocations
 
-### 5. Backtesting
+### 5. 📊 Backtesting
 
 Run backtesting on historical data:
 
@@ -95,7 +96,7 @@ Run backtesting on historical data:
 python src/alpha_pulse/examples/demo_backtesting.py
 ```
 
-## Project Structure
+## 📁 Project Structure
 
 ```
 AlphaPulse/
@@ -106,6 +107,11 @@ AlphaPulse/
 │       ├── models/          # ML model implementations
 │       ├── backtesting/     # Backtesting engine
 │       ├── execution/       # Order execution
+│       ├── exchanges/       # Exchange integrations
+│       │   ├── base.py          # Base exchange interface
+│       │   ├── binance.py       # Binance implementation
+│       │   ├── bybit.py         # Bybit implementation
+│       │   └── credentials/     # Secure credential management
 │       ├── risk_management/ # Risk and portfolio management
 │       │   ├── interfaces.py     # Abstract interfaces
 │       │   ├── position_sizing.py # Position sizing strategies
@@ -120,83 +126,83 @@ AlphaPulse/
 └── logs/                   # Application logs
 ```
 
-## Risk Management & Portfolio Optimization
+## 🛡️ Risk Management & Portfolio Optimization
 
 The system includes comprehensive risk management and portfolio optimization features:
 
-### Position Sizing Strategies
+### 📊 Position Sizing Strategies
 
-1. Kelly Criterion:
+1. 🎯 Kelly Criterion:
    - Optimal position sizing based on win rate and profit ratio
    - Adjusts for volatility and signal strength
    - Configurable fraction for conservative sizing
 
-2. Volatility-Based:
+2. 📈 Volatility-Based:
    - Position sizing based on asset volatility
    - Targets specific portfolio risk level
    - Adapts to changing market conditions
 
-3. Adaptive Strategy:
+3. 🔄 Adaptive Strategy:
    - Combines multiple sizing approaches
    - Weights strategies based on market conditions
    - Self-adjusting based on performance
 
-### Risk Analysis
+### 📊 Risk Analysis
 
-1. Risk Metrics:
+1. 📉 Risk Metrics:
    - Value at Risk (VaR)
    - Expected Shortfall (CVaR)
    - Maximum Drawdown
    - Sharpe & Sortino Ratios
    - Volatility Analysis
 
-2. Real-time Monitoring:
+2. 🔍 Real-time Monitoring:
    - Rolling risk metrics
    - Drawdown tracking
    - Position exposure analysis
 
-### Portfolio Optimization & Rebalancing
+### 💼 Portfolio Optimization & Rebalancing
 
-1. Modern Portfolio Theory (MPT):
+1. 📈 Modern Portfolio Theory (MPT):
    - Mean-variance optimization
    - Efficient frontier calculation
    - Risk-adjusted return optimization
    - Sharpe ratio maximization
    - Support for custom constraints
 
-2. Hierarchical Risk Parity (HRP):
+2. 🌳 Hierarchical Risk Parity (HRP):
    - Clustering-based portfolio optimization
    - More robust to estimation errors
    - Better numerical stability
    - Handles high-dimensional portfolios
    - No expected returns estimation needed
 
-3. Portfolio Analysis:
+3. 📊 Portfolio Analysis:
    - Current allocation analysis
    - Rebalancing score calculation
    - Trade size optimization
    - Transaction cost consideration
    - Visual allocation comparison
 
-4. Exchange Integration:
+4. 🔄 Exchange Integration:
    - Real-time balance tracking
-   - Multi-exchange support
+   - Multi-exchange support (Binance, Bybit)
    - Automated rebalancing suggestions
    - Support for spot and futures
-   - Custom API key management
+   - Secure API key management
 
 Example usage with the Portfolio Analyzer:
 
 ```python
-from alpha_pulse.exchange_conn.binance import BinanceConnector
+from alpha_pulse.exchanges import ExchangeType, ExchangeFactory
 from alpha_pulse.portfolio.analyzer import PortfolioAnalyzer
 from alpha_pulse.portfolio.hrp_strategy import HRPStrategy
 
 async def optimize_portfolio():
-    # Initialize exchange connection
-    exchange = BinanceConnector(
-        api_key="your_key",
-        api_secret="your_secret"
+    # Initialize exchange
+    exchange = await ExchangeFactory.create_exchange(
+        exchange_type=ExchangeType.BYBIT,
+        testnet=False
     )
     
     # Create portfolio analyzer with HRP strategy
@@ -225,7 +231,7 @@ async def optimize_portfolio():
     return result, trades
 ```
 
-### Configuration
+### ⚙️ Configuration
 
 Risk management parameters can be configured through `RiskConfig`:
 
@@ -242,7 +248,7 @@ config = RiskConfig(
 )
 ```
 
-### Usage Example
+### 🔍 Usage Example
 
 ```python
 from alpha_pulse.risk_management import RiskManager, RiskConfig
@@ -275,9 +281,9 @@ if risk_manager.evaluate_trade(
     execute_trade(...)
 ```
 
-## Development
+## 🛠️ Development
 
-### Running Tests
+### 🧪 Running Tests
 
 ```bash
 # Run all tests
@@ -287,7 +293,7 @@ pytest src/alpha_pulse/tests/
 pytest src/alpha_pulse/tests/test_risk_management.py
 ```
 
-### Adding New Features
+### ✨ Adding New Features
 
 1. Create feature branch
 2. Add tests
@@ -295,6 +301,6 @@ pytest src/alpha_pulse/tests/test_risk_management.py
 4. Run tests
 5. Submit pull request
 
-## License
+## 📄 License
 
 MIT License - see LICENSE file for details

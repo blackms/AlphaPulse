@@ -8,7 +8,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 from loguru import logger
 
-from alpha_pulse.exchange_conn.interface import ExchangeConnector, Balance
+from alpha_pulse.exchanges import BaseExchange, Balance
 from alpha_pulse.portfolio.allocation_strategy import AllocationStrategy, AllocationResult
 from alpha_pulse.portfolio.mpt_strategy import MPTStrategy
 from alpha_pulse.portfolio.hrp_strategy import HRPStrategy
@@ -23,14 +23,14 @@ class PortfolioAnalyzer:
     
     def __init__(
         self,
-        exchange: ExchangeConnector,
+        exchange: BaseExchange,
         strategy: Optional[AllocationStrategy] = None,
         lookback_days: int = 30
     ):
         """Initialize portfolio analyzer.
         
         Args:
-            exchange: Exchange connector instance
+            exchange: Exchange instance
             strategy: Allocation strategy (defaults to MPT)
             lookback_days: Days of historical data to use
         """
@@ -120,20 +120,23 @@ class PortfolioAnalyzer:
                         logger.warning(f"Could not get price for {symbol}")
                         continue
                     
-                    # Simulate returns with asset-specific parameters
-                    # In production, fetch real historical data here
-                    volatility = DEFAULT_RETURN_VOL
-                    if asset in ["BTC", "ETH"]:
-                        volatility *= 1.2  # Higher volatility for major coins
-                    
-                    returns = pd.Series(
-                        np.random.normal(
-                            DEFAULT_RETURN_MEAN,
-                            volatility,
-                            self.lookback_days
-                        ),
-                        index=dates
+                    # Get historical OHLCV data
+                    ohlcv_data = await self.exchange.fetch_ohlcv(
+                        symbol=symbol,
+                        timeframe=timeframe,
+                        limit=self.lookback_days
                     )
+                    
+                    if not ohlcv_data:
+                        logger.warning(f"No historical data for {symbol}")
+                        continue
+                    
+                    # Calculate returns from close prices
+                    prices = pd.Series(
+                        [float(candle.close) for candle in ohlcv_data],
+                        index=dates[-len(ohlcv_data):]
+                    )
+                    returns = prices.pct_change().fillna(0)
                     valid_assets += 1
                 
                 returns_data[asset] = returns
