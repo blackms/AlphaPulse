@@ -69,7 +69,25 @@ Run paper trading simulation with real-time market data:
 python src/alpha_pulse/examples/demo_paper_trading.py
 ```
 
-### 4. Backtesting
+### 4. Portfolio Rebalancing
+
+Run portfolio analysis and rebalancing:
+
+```bash
+python src/alpha_pulse/examples/demo_portfolio_rebalancing.py \
+    --api-key your_api_key \
+    --api-secret your_api_secret \
+    --testnet  # Optional: use testnet for testing
+```
+
+This will:
+- Connect to the exchange
+- Analyze current portfolio allocation
+- Calculate optimal allocation using MPT and HRP
+- Generate rebalancing recommendations
+- Plot current vs target allocations
+
+### 5. Backtesting
 
 Run backtesting on historical data:
 
@@ -137,22 +155,75 @@ The system includes comprehensive risk management and portfolio optimization fea
    - Drawdown tracking
    - Position exposure analysis
 
-### Portfolio Optimization
+### Portfolio Optimization & Rebalancing
 
-1. Mean-Variance Optimization:
-   - Modern Portfolio Theory implementation
+1. Modern Portfolio Theory (MPT):
+   - Mean-variance optimization
    - Efficient frontier calculation
    - Risk-adjusted return optimization
+   - Sharpe ratio maximization
+   - Support for custom constraints
 
-2. Risk Parity:
-   - Equal risk contribution approach
-   - Volatility targeting
-   - Dynamic rebalancing
+2. Hierarchical Risk Parity (HRP):
+   - Clustering-based portfolio optimization
+   - More robust to estimation errors
+   - Better numerical stability
+   - Handles high-dimensional portfolios
+   - No expected returns estimation needed
 
-3. Adaptive Portfolio Management:
-   - Regime-based strategy selection
-   - Dynamic asset allocation
-   - Risk-based rebalancing
+3. Portfolio Analysis:
+   - Current allocation analysis
+   - Rebalancing score calculation
+   - Trade size optimization
+   - Transaction cost consideration
+   - Visual allocation comparison
+
+4. Exchange Integration:
+   - Real-time balance tracking
+   - Multi-exchange support
+   - Automated rebalancing suggestions
+   - Support for spot and futures
+   - Custom API key management
+
+Example usage with the Portfolio Analyzer:
+
+```python
+from alpha_pulse.exchange_conn.binance import BinanceConnector
+from alpha_pulse.portfolio.analyzer import PortfolioAnalyzer
+from alpha_pulse.portfolio.hrp_strategy import HRPStrategy
+
+async def optimize_portfolio():
+    # Initialize exchange connection
+    exchange = BinanceConnector(
+        api_key="your_key",
+        api_secret="your_secret"
+    )
+    
+    # Create portfolio analyzer with HRP strategy
+    analyzer = PortfolioAnalyzer(
+        exchange=exchange,
+        strategy=HRPStrategy(),
+        lookback_days=30
+    )
+    
+    # Get optimal allocation
+    result = await analyzer.analyze_portfolio(
+        constraints={
+            'min_weight': 0.05,  # Minimum 5% per asset
+            'max_weight': 0.40   # Maximum 40% per asset
+        }
+    )
+    
+    # Get rebalancing trades
+    trades = analyzer.get_rebalancing_trades(
+        current_weights=await analyzer.get_current_allocation(),
+        target_weights=result.weights,
+        total_value=100000,
+        min_trade_value=10
+    )
+    
+    return result, trades
+```
 
 ### Configuration
 
