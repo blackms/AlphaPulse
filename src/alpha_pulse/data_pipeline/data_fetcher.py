@@ -94,7 +94,7 @@ class DataFetcher:
             end_time = datetime.now(UTC)
         start_time = end_time - timedelta(days=days_back)
 
-        # Fetch OHLCV data
+        # Fetch OHLCV data from the exchange
         ohlcv_data = await self.fetch_ohlcv(
             exchange_type=exchange_type,
             symbol=symbol,
@@ -102,8 +102,24 @@ class DataFetcher:
             since=start_time,
             testnet=testnet
         )
-
-        # Save to storage
-        self.storage.save_ohlcv(ohlcv_data)
+        
+        # Convert exchange OHLCV objects to mapped OHLCV objects for storage
+        from alpha_pulse.data_pipeline.models import OHLCVRecord as DB_OHLCV
+        db_ohlcv_data = []
+        for ohlcv in ohlcv_data:
+            db_ohlcv_data.append(DB_OHLCV(
+                exchange=exchange_type.value,
+                symbol=symbol,
+                timeframe=timeframe,
+                timestamp=ohlcv.timestamp,
+                open=ohlcv.open,
+                high=ohlcv.high,
+                low=ohlcv.low,
+                close=ohlcv.close,
+                volume=ohlcv.volume
+            ))
+        
+        # Save the converted OHLCV data to storage
+        self.storage.save_ohlcv(db_ohlcv_data)
 
         logger.info("Data fetched and stored successfully")

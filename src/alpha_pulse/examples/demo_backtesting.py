@@ -1,41 +1,48 @@
 """
-Example script demonstrating the AlphaPulse backtesting framework.
+Example script demonstrating the integration of historical data downloading and backtesting.
+This script fetches historical market data using the HistoricalDataManager, then converts the data into
+a price series for backtesting with a simple trading strategy.
 """
+import asyncio
+from datetime import datetime, timedelta
 import pandas as pd
 import numpy as np
 from loguru import logger
 import matplotlib.pyplot as plt
-from datetime import datetime, timedelta
 
-from alpha_pulse.backtesting import Backtester, DefaultStrategy, TrendFollowingStrategy
+from alpha_pulse.backtesting import Backtester, DefaultStrategy
+from alpha_pulse.data_pipeline.storage import SQLAlchemyStorage
+from alpha_pulse.data_pipeline.historical_data_manager import HistoricalDataManager
+from alpha_pulse.data_pipeline.exchange_data_provider import ExchangeDataProvider
+from alpha_pulse.data_pipeline.models import OHLCV
 
-
-def create_sample_data(days: int = 100) -> tuple[pd.Series, pd.Series]:
-    """Create sample price and signal data for demonstration."""
-    dates = pd.date_range(
-        start=datetime.now() - timedelta(days=days-1),  # Adjust to get exact number of days
-        end=datetime.now(),
-        freq='D'
-    )
-    
-    # Generate random walk prices
-    rw = np.random.normal(0, 0.02, len(dates)).cumsum()
-    prices = pd.Series(
-        100 * np.exp(rw),  # Convert to price levels
-        index=dates
-    )
-    
-    # Generate sample signals (-1 to 1)
-    signals = pd.Series(
-        np.random.normal(0, 1, len(dates)),
-        index=dates
-    )
-    
-    return prices, signals
-
+async def fetch_historical_prices(exchange_id: str, symbol: str, timeframe: str, days: int = 252) -> pd.Series:
+    """
+    Fetch historical prices for a given symbol and timeframe.
+    If data is missing, it downloads and stores the data.
+    """
+    storage = SQLAlchemyStorage()
+    provider = ExchangeDataProvider()
+    await provider.initialize()
+    hdm = HistoricalDataManager(storage, provider)
+    end_time = datetime.now()
+    start_time = end_time - timedelta(days=days)
+    # Fetch historical data; if missing, it will be downloaded.
+    data = await hdm.get_historical_data(exchange_id, symbol, timeframe, start_time, end_time)
+    if not data:
+        logger.error("No historical data fetched.")
+        return pd.Series(dtype=float)
+    # Convert list of OHLCV objects to a Pandas Series using the closing price.
+    data_sorted = sorted(data, key=lambda x: x.timestamp)
+    dates = [ohlcv.timestamp for ohlcv in data_sorted]
+    prices = [ohlcv.close for ohlcv in data_sorted]
+    price_series = pd.Series(prices, index=pd.to_datetime(dates))
+    return price_series
 
 def plot_backtest_results(results, prices):
-    """Plot equity curve and trade points."""
+    """
+    Plot equity curve and trading activity from backtesting results.
+    """
     plt.figure(figsize=(12, 8))
     
     # Plot equity curve
@@ -46,7 +53,7 @@ def plot_backtest_results(results, prices):
     plt.legend()
     plt.grid(True)
     
-    # Plot price and trades
+    # Plot price series and trade points
     plt.subplot(2, 1, 2)
     plt.plot(prices.index, prices.values, label='Price', alpha=0.7)
     
@@ -56,8 +63,8 @@ def plot_backtest_results(results, prices):
     plt.scatter(entries, entry_prices, color='g', marker='^', label='Entry')
     
     # Plot exit points
-    exits = [pos.exit_time for pos in results.positions if pos.exit_time]
-    exit_prices = [pos.exit_price for pos in results.positions if pos.exit_price]
+    exits = [pos.exit_time for pos in results.positions if pos.exit_time is not None]
+    exit_prices = [pos.exit_price for pos in results.positions if pos.exit_price is not None]
     plt.scatter(exits, exit_prices, color='r', marker='v', label='Exit')
     
     plt.title('Trading Activity')
@@ -69,44 +76,38 @@ def plot_backtest_results(results, prices):
     plt.savefig('plots/backtest_results.png')
     logger.info("Saved backtest plots to plots/backtest_results.png")
 
-
-def main():
-    """Run backtesting demonstration."""
-    logger.info("Starting backtesting demonstration...")
-
-    # Create sample data
-    prices, signals = create_sample_data(days=252)  # One year of daily data
+async def main():
+    logger.info("Starting historical data backtesting demonstration...")
+    # Parameters for historical data
+    exchange_id = "binance"
+    symbol = "BTC/USDT"
+    timeframe = "1d"  # Daily data
+    # Fetch historical prices (252 days ~ one trading year)
+    prices = await fetch_historical_prices(exchange_id, symbol, timeframe, days=252)
+    if prices.empty:
+        logger.error("Unable to retrieve historical price data. Exiting demo.")
+        return
     
-    # Initialize backtester with default parameters
+    # Generate dummy trading signals (values between -1 and 1)
+    signals = pd.Series(np.random.uniform(-1, 1, len(prices)), index=prices.index)
+    
+    # Initialize backtester with defined trading parameters.
     backtester = Backtester(
-        commission=0.001,  # 0.1% commission
+        commission=0.001,      # 0.1% commission per trade
         initial_capital=100000,
-        position_size=0.1  # Risk 10% of capital per trade
+        position_size=0.1      # Risk 10% of capital per trade
     )
     
-    # Run backtest with default strategy
-    default_results = backtester.backtest(
+    # Run backtest using DefaultStrategy with a simple threshold.
+    results = backtester.backtest(
         prices=prices,
         signals=signals,
         strategy=DefaultStrategy(threshold=0.0)
     )
     
-    logger.info("\nDefault Strategy Results:")
-    logger.info(default_results)
-    
-    # Run backtest with trend following strategy
-    trend_results = backtester.backtest(
-        prices=prices,
-        signals=signals,
-        strategy=TrendFollowingStrategy(entry_threshold=0.5, exit_threshold=-0.5)
-    )
-    
-    logger.info("\nTrend Following Strategy Results:")
-    logger.info(trend_results)
-    
-    # Plot results
-    plot_backtest_results(trend_results, prices)
-
+    logger.info("Backtest Results:")
+    logger.info(results)
+    plot_backtest_results(results, prices)
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

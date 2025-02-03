@@ -11,7 +11,7 @@ from .exchanges import ExchangeConfig, get_exchange_config
 @dataclass
 class DatabaseConfig:
     """Database configuration settings."""
-    url: str = "sqlite:///data.db"
+    url: str = "postgresql+psycopg2://username:password@localhost:5432/timescaledb"
     echo: bool = False
 
 
