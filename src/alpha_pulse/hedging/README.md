@@ -1,6 +1,38 @@
-# Grid Hedging Module
+# Hedging Module
 
 A modular implementation of grid-based hedging strategies with advanced risk management.
+
+## Directory Structure
+
+```
+hedging/
+├── common/                 # Common utilities and interfaces
+│   ├── interfaces.py      # Abstract interfaces
+│   └── types.py          # Shared type definitions
+│
+├── grid/                  # Grid strategy implementation
+│   ├── bot.py            # Main grid bot implementation
+│   ├── calculator.py     # Grid level calculations
+│   └── config.py         # Grid configuration
+│
+├── risk/                  # Risk management
+│   ├── manager.py        # Risk management implementation
+│   └── analyzers/        # Risk analysis implementations
+│       ├── basic.py      # Basic futures hedge analyzer
+│       └── llm.py        # LLM-enhanced analyzer
+│
+├── execution/            # Order execution
+│   ├── order_manager.py  # Order management
+│   └── position_fetcher.py  # Position data fetching
+│
+├── state/               # State management
+│   ├── manager.py      # State management implementation
+│   └── models.py       # State models and data classes
+│
+└── config/             # Configuration files
+    └── examples/       # Example configurations
+        └── grid_hedge.yaml
+```
 
 ## Architecture
 
@@ -8,44 +40,27 @@ The module follows SOLID principles with clear separation of concerns:
 
 ### Core Components
 
-1. **GridHedgeBot** (`grid_hedge_bot.py`)
-   - Main coordinator class
-   - Manages component lifecycle
-   - Handles high-level strategy execution
+1. **Grid Strategy** (`grid/`)
+   - Main bot implementation
+   - Grid calculations
+   - Configuration management
 
-2. **GridCalculator** (`grid_calculator.py`)
-   - Calculates grid levels
-   - Adjusts for market conditions
-   - Handles dynamic spacing
-
-3. **RiskManager** (`risk_manager.py`)
+2. **Risk Management** (`risk/`)
    - Position sizing
    - Risk limit monitoring
-   - Dynamic stop loss calculation
+   - Multiple analyzer implementations
 
-4. **OrderManager** (`order_manager.py`)
-   - Order placement and cancellation
-   - Risk order management
-   - Order state tracking
+3. **Execution** (`execution/`)
+   - Order management
+   - Position tracking
+   - Exchange integration
 
-5. **StateManager** (`state_manager.py`)
-   - Position state tracking
+4. **State Management** (`state/`)
+   - Position state
    - Performance metrics
    - Status reporting
 
-### Models and Interfaces
-
-1. **Data Models** (`models.py`)
-   - Immutable state classes
-   - Grid level representation
-   - Market state models
-
-2. **Interfaces** (`interfaces.py`)
-   - Component protocols
-   - Abstract base classes
-   - Clean dependency injection
-
-## Features
+### Features
 
 - Dynamic grid spacing based on volatility
 - Advanced risk management
@@ -63,7 +78,7 @@ The module follows SOLID principles with clear separation of concerns:
 
 ```python
 from alpha_pulse.execution.broker_factory import create_broker
-from alpha_pulse.hedging.grid_hedge_bot import GridHedgeBot
+from alpha_pulse.hedging.grid.bot import GridHedgeBot
 
 # Configuration
 config = {
@@ -93,8 +108,8 @@ await bot.execute(current_price)
 You can inject custom implementations of any component:
 
 ```python
-from alpha_pulse.hedging.interfaces import GridCalculator
-from alpha_pulse.hedging.grid_hedge_bot import GridHedgeBot
+from alpha_pulse.hedging.common.interfaces import GridCalculator
+from alpha_pulse.hedging.grid.bot import GridHedgeBot
 
 class CustomGridCalculator(GridCalculator):
     """Custom grid calculation logic."""

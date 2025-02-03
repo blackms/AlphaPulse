@@ -8,12 +8,12 @@ from loguru import logger
 from alpha_pulse.execution.broker_interface import BrokerInterface
 from alpha_pulse.data_pipeline.exchange_data_provider import ExchangeDataProvider
 
-from .grid_calculator import DefaultGridCalculator
-from .interfaces import GridCalculator, OrderManager, RiskManager, StateManager
-from .models import GridState, MarketState
-from .order_manager import GridOrderManager
-from .risk_manager import GridRiskManager
-from .state_manager import GridStateManager
+from ..common.interfaces import GridCalculator, OrderManager, RiskManager, StateManager
+from ..common.types import GridState, MarketState
+from ..execution.order_manager import GridOrderManager
+from ..risk.manager import GridRiskManager
+from ..state.manager import GridStateManager
+from .calculator import DefaultGridCalculator
 
 
 class GridHedgeBot:

@@ -1,11 +1,11 @@
 """
-Interfaces for grid hedging components.
+Core interfaces for hedging components.
 """
 from abc import ABC, abstractmethod
 from decimal import Decimal
 from typing import Dict, List, Protocol, runtime_checkable
 
-from .models import GridLevel, GridMetrics, MarketState, PositionState
+from .types import GridLevel, GridMetrics, MarketState, PositionState
 
 
 @runtime_checkable

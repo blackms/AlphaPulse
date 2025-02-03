@@ -1,5 +1,5 @@
 """
-Data models for grid hedging strategy.
+Common type definitions for hedging module.
 """
 from dataclasses import dataclass
 from datetime import datetime

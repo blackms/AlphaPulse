@@ -5,8 +5,8 @@ from decimal import Decimal
 from typing import Dict, Optional
 from loguru import logger
 
-from .interfaces import RiskManager
-from .models import MarketState, PositionState
+from ..common.interfaces import RiskManager
+from ..common.types import MarketState, PositionState
 
 
 class GridRiskManager(RiskManager):

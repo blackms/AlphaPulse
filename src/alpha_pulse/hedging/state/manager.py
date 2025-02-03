@@ -6,8 +6,8 @@ from decimal import Decimal
 from typing import Dict, Optional
 from loguru import logger
 
-from .interfaces import StateManager
-from .models import GridMetrics, GridState, MarketState, PositionState
+from ..common.interfaces import StateManager
+from ..common.types import GridMetrics, GridState, MarketState, PositionState
 
 
 class GridStateManager(StateManager):

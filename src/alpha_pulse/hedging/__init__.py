@@ -1,9 +1,7 @@
 """
 Grid hedging strategy implementation.
 """
-from .grid_hedge_bot import GridHedgeBot
-from .grid_calculator import DefaultGridCalculator
-from .interfaces import (
+from .common.interfaces import (
     GridCalculator,
     MarketDataProvider,
     OrderManager,
@@ -11,27 +9,23 @@ from .interfaces import (
     StateManager,
     TechnicalAnalyzer
 )
-from .models import (
+from .common.types import (
     GridLevel,
     GridMetrics,
     GridState,
     MarketState,
     PositionState
 )
-from .order_manager import GridOrderManager
-from .risk_manager import GridRiskManager
-from .state_manager import GridStateManager
+from .execution.order_manager import GridOrderManager
+from .grid.bot import GridHedgeBot
+from .grid.calculator import DefaultGridCalculator
+from .risk.manager import GridRiskManager
+from .state.manager import GridStateManager
 
 
 __all__ = [
-    # Main bot
+    # Main Bot
     'GridHedgeBot',
-    
-    # Components
-    'DefaultGridCalculator',
-    'GridOrderManager',
-    'GridRiskManager',
-    'GridStateManager',
     
     # Interfaces
     'GridCalculator',
@@ -41,10 +35,16 @@ __all__ = [
     'StateManager',
     'TechnicalAnalyzer',
     
-    # Models
+    # Types
     'GridLevel',
     'GridMetrics',
     'GridState',
     'MarketState',
-    'PositionState'
+    'PositionState',
+    
+    # Implementations
+    'DefaultGridCalculator',
+    'GridOrderManager',
+    'GridRiskManager',
+    'GridStateManager'
 ]

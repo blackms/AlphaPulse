@@ -9,7 +9,7 @@ from typing import Optional
 from loguru import logger
 
 from alpha_pulse.execution.broker_factory import create_broker, TradingMode
-from alpha_pulse.hedging.grid_hedge_bot import GridHedgeBot
+from alpha_pulse.hedging.grid import GridHedgeBot
 
 
 # Global flag for graceful shutdown

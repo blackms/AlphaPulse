@@ -12,8 +12,8 @@ from alpha_pulse.execution.broker_interface import (
     OrderType
 )
 
-from .interfaces import OrderManager, RiskManager
-from .models import GridLevel, MarketState, PositionState
+from ..common.interfaces import OrderManager, RiskManager
+from ..common.types import GridLevel, MarketState, PositionState
 
 
 class GridOrderManager(OrderManager):

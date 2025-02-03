@@ -5,8 +5,8 @@ from decimal import Decimal
 from typing import List, Optional
 from loguru import logger
 
-from .interfaces import GridCalculator
-from .models import GridLevel, MarketState, PositionState
+from ..common.interfaces import GridCalculator
+from ..common.types import GridLevel, MarketState, PositionState
 
 
 class DefaultGridCalculator(GridCalculator):
