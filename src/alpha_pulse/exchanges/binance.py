@@ -47,17 +47,52 @@ class BinanceExchange(CCXTExchange):
                 'defaultType': 'spot',
                 'adjustForTimeDifference': True,
                 'recvWindow': 60000,  # Extend receive window for high latency
+                'fetchMarkets': True,  # Load markets on initialization
             })
             
             if self.testnet:
                 # Set testnet-specific endpoints
                 self.exchange.urls.update({
+                    'test': {
+                        'public': 'https://testnet.binance.vision/api/v3',
+                        'private': 'https://testnet.binance.vision/api/v3',
+                    },
                     'api': {
                         'public': 'https://testnet.binance.vision/api/v3',
                         'private': 'https://testnet.binance.vision/api/v3',
                         'v1': 'https://testnet.binance.vision/api/v1',
+                        'v3': 'https://testnet.binance.vision/api/v3',
+                        'spot': {
+                            'public': 'https://testnet.binance.vision/api/v3',
+                            'private': 'https://testnet.binance.vision/api/v3'
+                        },
+                        'future': {
+                            'public': 'https://testnet.binancefuture.com/fapi/v1',
+                            'private': 'https://testnet.binancefuture.com/fapi/v1',
+                            'fapiPublic': 'https://testnet.binancefuture.com/fapi/v1',
+                            'fapiPrivate': 'https://testnet.binancefuture.com/fapi/v1',
+                            'dapiPublic': 'https://testnet.binancefuture.com/dapi/v1',
+                            'dapiPrivate': 'https://testnet.binancefuture.com/dapi/v1'
+                        }
                     }
                 })
+    
+    async def get_ticker_price(self, symbol: str) -> Optional[Decimal]:
+        """Get current price for a symbol."""
+        try:
+            # Use v3 API endpoint directly for testnet
+            if self.testnet:
+                response = await self.exchange.publicGetTickerPrice({'symbol': symbol})
+                if 'price' in response:
+                    return Decimal(str(response['price']))
+                return None
+            
+            # Use standard implementation for mainnet
+            return await super().get_ticker_price(symbol)
+            
+        except Exception as e:
+            logger.error(f"Error fetching ticker for {symbol}: {e}")
+            return None
     
     async def get_balances(self) -> Dict[str, Balance]:
         """Get balances for all assets."""
@@ -126,3 +161,21 @@ class BinanceExchange(CCXTExchange):
         except Exception as e:
             logger.error(f"Error fetching Binance OHLCV data: {e}")
             raise
+            
+    async def close(self) -> None:
+        """Close exchange connection."""
+        if self.exchange:
+            await self.exchange.close()
+            
+    def __del__(self):
+        """Ensure resources are released."""
+        if self.exchange:
+            import asyncio
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    loop.create_task(self.close())
+                else:
+                    loop.run_until_complete(self.close())
+            except Exception as e:
+                logger.error(f"Error closing Binance exchange: {e}")
