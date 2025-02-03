@@ -1,112 +1,199 @@
-from typing import Protocol, List, Optional
+"""
+Interfaces for grid hedging components.
+"""
+from abc import ABC, abstractmethod
 from decimal import Decimal
-from .models import SpotPosition, FuturesPosition, HedgeRecommendation
+from typing import Dict, List, Protocol, runtime_checkable
 
-class IHedgeAnalyzer(Protocol):
-    """Interface for hedge analysis implementations."""
+from .models import GridLevel, GridMetrics, MarketState, PositionState
+
+
+@runtime_checkable
+class MarketDataProvider(Protocol):
+    """Protocol for market data providers."""
     
-    async def analyze(
+    async def get_current_price(self, symbol: str) -> Decimal:
+        """Get current market price."""
+        ...
+        
+    async def get_funding_rates(self, symbol: str) -> List[Decimal]:
+        """Get funding rates."""
+        ...
+        
+    async def get_historical_data(
         self,
-        spot_positions: List[SpotPosition],
-        futures_positions: List[FuturesPosition]
-    ) -> HedgeRecommendation:
-        """
-        Analyze current positions and provide hedging recommendations.
-        
-        This method can be implemented as either sync or async. The HedgeManager
-        will handle both cases appropriately.
-        
-        Args:
-            spot_positions: List of current spot positions
-            futures_positions: List of current futures positions
-            
-        Returns:
-            HedgeRecommendation containing analysis results and suggested adjustments
-        """
+        symbol: str,
+        interval: str,
+        limit: int
+    ) -> List[Dict]:
+        """Get historical market data."""
         ...
 
-    def calculate_net_exposure(
+
+@runtime_checkable
+class RiskManager(Protocol):
+    """Protocol for risk management."""
+    
+    def calculate_position_size(
         self,
-        spot_positions: List[SpotPosition],
-        futures_positions: List[FuturesPosition]
+        price: Decimal,
+        volatility: Decimal,
+        available_margin: Decimal
     ) -> Decimal:
-        """
-        Calculate the net exposure across spot and futures positions.
+        """Calculate safe position size."""
+        ...
         
-        Args:
-            spot_positions: List of current spot positions
-            futures_positions: List of current futures positions
-            
-        Returns:
-            Float representing the net exposure in base currency
-        """
-        ...
-
-    def evaluate_hedge_effectiveness(
+    def validate_risk_limits(
         self,
-        spot_positions: List[SpotPosition],
-        futures_positions: List[FuturesPosition]
-    ) -> dict:
-        """
-        Evaluate how effectively the futures positions are hedging spot exposure.
-        
-        Args:
-            spot_positions: List of current spot positions
-            futures_positions: List of current futures positions
-            
-        Returns:
-            Dictionary containing hedge effectiveness metrics
-        """
-        ...
-
-class IPositionFetcher(Protocol):
-    """Interface for fetching position data."""
-    
-    async def get_spot_positions(self) -> List[SpotPosition]:
-        """Fetch current spot positions."""
-        ...
-    
-    async def get_futures_positions(self) -> List[FuturesPosition]:
-        """Fetch current futures positions."""
-        ...
-    
-    async def get_current_price(
-        self,
-        symbol: str,
-        is_futures: bool = False
-    ) -> Optional[Decimal]:
-        """Get current price for a symbol."""
-        ...
-
-class IOrderExecutor(Protocol):
-    """Interface for executing orders."""
-    
-    async def place_futures_order(
-        self,
-        symbol: str,
-        side: str,
-        quantity: float,
-        order_type: str = "MARKET"
-    ) -> str:
-        """Place a futures order."""
-        ...
-    
-    async def close_position(
-        self,
-        symbol: str,
-        position_side: str,
-        quantity: float
-    ) -> str:
-        """Close an existing position."""
-        ...
-
-class IExecutionStrategy(Protocol):
-    """Interface for hedge execution strategies."""
-    
-    async def execute_hedge_adjustments(
-        self,
-        recommendations: HedgeRecommendation,
-        executor: IOrderExecutor
+        position: PositionState,
+        market: MarketState
     ) -> bool:
-        """Execute hedge adjustments according to strategy."""
+        """Check if position meets risk limits."""
         ...
+        
+    def calculate_stop_loss(
+        self,
+        position: PositionState,
+        market: MarketState
+    ) -> Decimal:
+        """Calculate dynamic stop loss level."""
+        ...
+
+
+class OrderManager(ABC):
+    """Abstract base class for order management."""
+    
+    @abstractmethod
+    async def place_grid_orders(
+        self,
+        levels: List[GridLevel],
+        market: MarketState
+    ) -> Dict[str, GridLevel]:
+        """Place grid orders."""
+        pass
+        
+    @abstractmethod
+    async def cancel_orders(self, order_ids: List[str]) -> None:
+        """Cancel orders."""
+        pass
+        
+    @abstractmethod
+    async def update_risk_orders(
+        self,
+        position: PositionState,
+        market: MarketState
+    ) -> None:
+        """Update stop loss and take profit orders."""
+        pass
+
+
+class GridCalculator(ABC):
+    """Abstract base class for grid calculations."""
+    
+    @abstractmethod
+    def calculate_grid_levels(
+        self,
+        market: MarketState,
+        position: PositionState
+    ) -> List[GridLevel]:
+        """Calculate grid levels."""
+        pass
+        
+    @abstractmethod
+    def adjust_for_funding(
+        self,
+        levels: List[GridLevel],
+        funding_rate: Decimal
+    ) -> List[GridLevel]:
+        """Adjust grid levels based on funding rate."""
+        pass
+        
+    @abstractmethod
+    def validate_levels(
+        self,
+        levels: List[GridLevel],
+        market: MarketState
+    ) -> List[GridLevel]:
+        """Validate and filter grid levels."""
+        pass
+
+
+class MetricsCalculator(ABC):
+    """Abstract base class for metrics calculation."""
+    
+    @abstractmethod
+    def update_metrics(
+        self,
+        current: GridMetrics,
+        position: PositionState,
+        market: MarketState
+    ) -> GridMetrics:
+        """Update performance metrics."""
+        pass
+        
+    @abstractmethod
+    def calculate_pnl(
+        self,
+        position: PositionState,
+        market: MarketState
+    ) -> Dict[str, Decimal]:
+        """Calculate PnL metrics."""
+        pass
+
+
+class TechnicalAnalyzer(ABC):
+    """Abstract base class for technical analysis."""
+    
+    @abstractmethod
+    async def get_support_resistance(
+        self,
+        market: MarketState,
+        lookback: int = 20
+    ) -> List[Dict]:
+        """Get support and resistance levels."""
+        pass
+        
+    @abstractmethod
+    def calculate_volatility(
+        self,
+        prices: List[Decimal],
+        window: int = 20
+    ) -> Decimal:
+        """Calculate price volatility."""
+        pass
+        
+    @abstractmethod
+    def detect_trend(
+        self,
+        prices: List[Decimal],
+        window: int = 20
+    ) -> str:
+        """Detect price trend."""
+        pass
+
+
+class StateManager(ABC):
+    """Abstract base class for state management."""
+    
+    @abstractmethod
+    def update_position(
+        self,
+        current: PositionState,
+        **kwargs
+    ) -> PositionState:
+        """Update position state."""
+        pass
+        
+    @abstractmethod
+    def update_metrics(
+        self,
+        current: GridMetrics,
+        **kwargs
+    ) -> GridMetrics:
+        """Update metrics state."""
+        pass
+        
+    @abstractmethod
+    def get_status(self) -> Dict:
+        """Get current strategy status."""
+        pass

@@ -1,64 +1,50 @@
 """
-AlphaPulse Hedging Module
-
-This module provides tools and utilities for managing hedging strategies,
-particularly focusing on spot-futures hedging with support for grid trading.
-
-The module follows SOLID principles:
-- Single Responsibility: Each component has a focused purpose
-- Open/Closed: New strategies can be added without modifying existing code
-- Liskov Substitution: Components implement well-defined interfaces
-- Interface Segregation: Focused interfaces for specific functionality
-- Dependency Inversion: Components depend on abstractions
+Grid hedging strategy implementation.
 """
-
-from .models import (
-    SpotPosition,
-    FuturesPosition,
-    GridBotParams,
-    HedgeAdjustment,
-    HedgeRecommendation
-)
-from .hedge_config import HedgeConfig
+from .grid_hedge_bot import GridHedgeBot
+from .grid_calculator import DefaultGridCalculator
 from .interfaces import (
-    IHedgeAnalyzer,
-    IPositionFetcher,
-    IOrderExecutor,
-    IExecutionStrategy
+    GridCalculator,
+    MarketDataProvider,
+    OrderManager,
+    RiskManager,
+    StateManager,
+    TechnicalAnalyzer
 )
-from .basic_futures_hedge import BasicFuturesHedgeAnalyzer
-from .llm_hedge_analyzer import LLMHedgeAnalyzer
-from .position_fetcher import ExchangePositionFetcher
-from .execution import (
-    BasicExecutionStrategy,
-    ExchangeOrderExecutor
+from .models import (
+    GridLevel,
+    GridMetrics,
+    GridState,
+    MarketState,
+    PositionState
 )
-from .hedge_manager import HedgeManager
+from .order_manager import GridOrderManager
+from .risk_manager import GridRiskManager
+from .state_manager import GridStateManager
+
 
 __all__ = [
-    # Models
-    'SpotPosition',
-    'FuturesPosition',
-    'GridBotParams',
-    'HedgeAdjustment',
-    'HedgeRecommendation',
+    # Main bot
+    'GridHedgeBot',
     
-    # Configuration
-    'HedgeConfig',
+    # Components
+    'DefaultGridCalculator',
+    'GridOrderManager',
+    'GridRiskManager',
+    'GridStateManager',
     
     # Interfaces
-    'IHedgeAnalyzer',
-    'IPositionFetcher',
-    'IOrderExecutor',
-    'IExecutionStrategy',
+    'GridCalculator',
+    'MarketDataProvider',
+    'OrderManager',
+    'RiskManager',
+    'StateManager',
+    'TechnicalAnalyzer',
     
-    # Implementations
-    'BasicFuturesHedgeAnalyzer',
-    'LLMHedgeAnalyzer',  # Added LLM-enhanced analyzer
-    'ExchangePositionFetcher',
-    'BasicExecutionStrategy',
-    'ExchangeOrderExecutor',
-    'HedgeManager'
+    # Models
+    'GridLevel',
+    'GridMetrics',
+    'GridState',
+    'MarketState',
+    'PositionState'
 ]
-
-__version__ = '0.1.0'

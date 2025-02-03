@@ -1,352 +1,260 @@
 """
-Grid-based hedging strategy implementation.
+Grid-based hedging strategy implementation with advanced risk management.
 """
-from datetime import datetime
-from typing import Dict, List, Optional
+from decimal import Decimal
+from typing import Dict, Optional
 from loguru import logger
 
-from alpha_pulse.execution.broker_interface import (
-    BrokerInterface,
-    Order,
-    OrderSide,
-    OrderType,
-    OrderStatus
-)
+from alpha_pulse.execution.broker_interface import BrokerInterface
 from alpha_pulse.data_pipeline.exchange_data_provider import ExchangeDataProvider
-from .grid_hedge_config import GridHedgeConfig, GridLevel, GridDirection
+
+from .grid_calculator import DefaultGridCalculator
+from .interfaces import GridCalculator, OrderManager, RiskManager, StateManager
+from .models import GridState, MarketState
+from .order_manager import GridOrderManager
+from .risk_manager import GridRiskManager
+from .state_manager import GridStateManager
 
 
 class GridHedgeBot:
     """
-    Implements a grid-based hedging strategy that places orders at predefined price levels.
+    Implements a grid-based hedging strategy with advanced risk management.
+    Coordinates multiple specialized components following SOLID principles.
     """
-
+    
     def __init__(
         self,
         broker: BrokerInterface,
-        config: GridHedgeConfig,
-        data_provider: Optional[ExchangeDataProvider] = None
+        data_provider: ExchangeDataProvider,
+        symbol: str,
+        grid_calculator: Optional[GridCalculator] = None,
+        order_manager: Optional[OrderManager] = None,
+        risk_manager: Optional[RiskManager] = None,
+        state_manager: Optional[StateManager] = None,
+        config: Optional[Dict] = None
     ):
         """
-        Initialize the grid hedging bot.
+        Initialize grid hedging bot.
         
         Args:
-            broker: Trading broker implementation
-            config: Grid strategy configuration
-            data_provider: Optional exchange data provider for real market data
-        """
-        self.broker = broker
-        self.config = config
-        self.data_provider = data_provider
-        self.active_orders: Dict[str, GridLevel] = {}
-        self.stop_loss_order_id: Optional[str] = None
-        self.take_profit_order_id: Optional[str] = None
-        self.last_rebalance: Optional[datetime] = None
-        
-        # Validate configuration
-        self.config.validate()
-        logger.info(
-            f"Initialized GridHedgeBot for {config.symbol} with "
-            f"{len(config.grid_levels)} levels"
-        )
-
-    @classmethod
-    async def create_for_spot_hedge(
-        cls,
-        broker: BrokerInterface,
-        symbol: str,
-        data_provider: ExchangeDataProvider,
-        volatility: float = 0.02,
-        spot_quantity: Optional[float] = None,
-    ) -> 'GridHedgeBot':
-        """
-        Create a grid bot configured for hedging a spot position.
-        
-        Args:
-            broker: Trading broker implementation
+            broker: Trading broker interface
+            data_provider: Market data provider
             symbol: Trading symbol
-            data_provider: Exchange data provider for market data
-            volatility: Volatility estimate
-            spot_quantity: Optional spot quantity (if not provided, will use existing position)
-            
-        Returns:
-            Configured GridHedgeBot instance
+            grid_calculator: Optional custom grid calculator
+            order_manager: Optional custom order manager
+            risk_manager: Optional custom risk manager
+            state_manager: Optional custom state manager
+            config: Optional configuration parameters
         """
-        # Get current market price
-        current_price = await data_provider.get_current_price(symbol)
-        if not current_price:
-            raise ValueError(f"Could not get current price for {symbol}")
+        self.symbol = symbol
+        self.data_provider = data_provider
         
-        # Get spot position
-        position = broker.get_position(symbol)
-        if not position and spot_quantity is None:
-            raise ValueError(f"No spot position found for {symbol}")
+        # Load configuration
+        self.config = config or {}
+        self._load_config()
         
-        quantity = spot_quantity if spot_quantity is not None else position.quantity
-        
-        # Create grid configuration
-        config = await GridHedgeConfig.create_hedge_grid(
-            symbol=symbol,
-            current_price=float(current_price),
-            spot_quantity=quantity,
-            volatility=volatility,
-            portfolio_value=broker.get_portfolio_value()
+        # Initialize components
+        self.risk_manager = risk_manager or GridRiskManager(
+            max_position_size=self.max_position_size,
+            max_drawdown=self.max_drawdown,
+            base_stop_loss=self.stop_loss_pct,
+            var_limit=self.var_limit
         )
         
-        return cls(broker, config, data_provider)
-
-    def execute(self, current_price: float) -> None:
+        self.grid_calculator = grid_calculator or DefaultGridCalculator(
+            grid_spacing_pct=self.grid_spacing,
+            num_levels=self.num_levels,
+            min_price_distance=self.min_price_distance,
+            max_position_size=self.max_position_size
+        )
+        
+        self.order_manager = order_manager or GridOrderManager(
+            broker=broker,
+            risk_manager=self.risk_manager,
+            symbol=symbol,
+            max_active_orders=self.max_active_orders
+        )
+        
+        self.state_manager = state_manager or GridStateManager(
+            symbol=symbol
+        )
+        
+        logger.info(
+            f"Initialized GridHedgeBot for {symbol} with "
+            f"{self.num_levels} levels"
+        )
+        
+    def _load_config(self) -> None:
+        """Load and validate configuration."""
+        # Grid parameters
+        self.grid_spacing = Decimal(str(
+            self.config.get('grid_spacing_pct', '0.01')  # 1% default
+        ))
+        self.num_levels = int(self.config.get('num_levels', 5))
+        self.min_price_distance = Decimal(str(
+            self.config.get('min_price_distance', '1.0')
+        ))
+        
+        # Risk parameters
+        self.max_position_size = Decimal(str(
+            self.config.get('max_position_size', '1.0')
+        ))
+        self.max_drawdown = Decimal(str(
+            self.config.get('max_drawdown', '0.1')  # 10% default
+        ))
+        self.stop_loss_pct = Decimal(str(
+            self.config.get('stop_loss_pct', '0.04')  # 4% default
+        ))
+        self.var_limit = Decimal(str(
+            self.config.get('var_limit', '10000')  # $10k default
+        ))
+        
+        # Execution parameters
+        self.max_active_orders = int(self.config.get('max_active_orders', 50))
+        self.rebalance_interval = int(
+            self.config.get('rebalance_interval_seconds', 60)
+        )
+        
+        logger.info("Loaded configuration parameters")
+        
+    async def start(self) -> None:
+        """Start the grid hedging strategy."""
+        try:
+            # Initialize market data
+            current_price = await self.data_provider.get_current_price(self.symbol)
+            if not current_price:
+                raise ValueError(f"Could not get price for {self.symbol}")
+                
+            market_state = MarketState.from_raw(
+                price=current_price,
+                volatility=0.02  # Default volatility
+            )
+            
+            # Calculate initial grid levels
+            levels = self.grid_calculator.calculate_grid_levels(
+                market=market_state,
+                position=self.state_manager.position
+            )
+            
+            # Place initial orders
+            await self.order_manager.place_grid_orders(
+                levels=levels,
+                market=market_state
+            )
+            
+            # Update state
+            self.state_manager.update_state(GridState.ACTIVE)
+            logger.info("Grid hedging strategy started")
+            
+        except Exception as e:
+            logger.error(f"Error starting grid strategy: {str(e)}")
+            self.state_manager.update_state(GridState.ERROR)
+            raise
+            
+    async def stop(self) -> None:
+        """Stop the grid hedging strategy."""
+        try:
+            # Cancel all active orders
+            active_orders = self.order_manager.get_active_orders()
+            await self.order_manager.cancel_orders(list(active_orders.keys()))
+            
+            # Update state
+            self.state_manager.update_state(GridState.STOPPED)
+            logger.info("Grid hedging strategy stopped")
+            
+        except Exception as e:
+            logger.error(f"Error stopping grid strategy: {str(e)}")
+            self.state_manager.update_state(GridState.ERROR)
+            raise
+            
+    async def execute(self, current_price: float) -> None:
         """
-        Execute the grid strategy based on current market conditions.
+        Execute one iteration of the grid strategy.
         
         Args:
-            current_price: Current market price of the trading pair
+            current_price: Current market price
         """
+        if self.state_manager.state != GridState.ACTIVE:
+            logger.warning(
+                f"Grid bot not active. Current state: {self.state_manager.state}"
+            )
+            return
+            
         try:
-            # Check if rebalance is needed
-            if self._should_rebalance():
-                logger.info(f"Rebalancing grid for {self.config.symbol}")
-                self._rebalance_grid(current_price)
-                self.last_rebalance = datetime.now()
+            # Create market state
+            market_state = MarketState.from_raw(
+                price=current_price,
+                volatility=0.02  # TODO: Calculate from historical data
+            )
+            
+            # Check risk limits
+            if not self.risk_manager.validate_risk_limits(
+                position=self.state_manager.position,
+                market=market_state
+            ):
+                logger.warning("Risk limits exceeded")
+                await self.stop()
+                return
                 
-            # Update stop loss and take profit orders
-            self._manage_risk_orders(current_price)
+            # Update risk orders
+            await self.order_manager.update_risk_orders(
+                position=self.state_manager.position,
+                market=market_state
+            )
+            
+            # Calculate and place grid orders
+            levels = self.grid_calculator.calculate_grid_levels(
+                market=market_state,
+                position=self.state_manager.position
+            )
+            
+            await self.order_manager.place_grid_orders(
+                levels=levels,
+                market=market_state
+            )
+            
+            # Update state
+            self.state_manager.record_rebalance()
             
         except Exception as e:
             logger.error(f"Error executing grid strategy: {str(e)}")
-
-    def _should_rebalance(self) -> bool:
-        """Check if grid should be rebalanced based on time interval."""
-        if not self.last_rebalance:
-            return True
-        
-        time_since_rebalance = datetime.now() - self.last_rebalance
-        return time_since_rebalance.seconds >= self.config.rebalance_interval
-
-    def _rebalance_grid(self, current_price: float) -> None:
-        """
-        Rebalance the grid by cancelling invalid orders and placing new ones.
-        
-        Args:
-            current_price: Current market price
-        """
-        # Get current positions and orders
-        positions = self.broker.get_positions()
-        current_position = positions.get(self.config.symbol)
-        current_position_size = (
-            current_position.quantity if current_position else 0.0
-        )
-
-        # Cancel orders that are no longer valid
-        self._cancel_invalid_orders(current_price)
-
-        # Calculate which grid levels need orders
-        levels_needing_orders = self._get_levels_needing_orders(
-            current_price, current_position_size
-        )
-
-        # Place new orders
-        for level in levels_needing_orders:
-            self._place_grid_order(level, current_price)
-
-    def _manage_risk_orders(self, current_price: float) -> None:
-        """
-        Manage stop loss and take profit orders.
-        
-        Args:
-            current_price: Current market price
-        """
-        if not self.config.stop_loss_pct or not self.config.take_profit_pct:
-            return
+            self.state_manager.update_state(GridState.ERROR)
             
-        position = self.broker.get_position(self.config.symbol)
-        if not position:
-            # Cancel any existing risk orders if no position
-            self._cancel_risk_orders()
-            return
-            
-        entry_price = position.avg_entry_price
-        
-        # Calculate stop loss and take profit prices
-        stop_loss_price = entry_price * (1 - self.config.stop_loss_pct)
-        take_profit_price = entry_price * (1 + self.config.take_profit_pct)
-        
-        # Check if we need to place/update stop loss order
-        if not self.stop_loss_order_id:
-            stop_order = Order(
-                symbol=self.config.symbol,
-                side=OrderSide.SELL,
-                quantity=position.quantity,
-                order_type=OrderType.STOP,
-                stop_price=stop_loss_price
-            )
-            result = self.broker.place_order(stop_order)
-            if result.order_id:
-                self.stop_loss_order_id = result.order_id
-                logger.info(
-                    f"Placed stop loss order at {stop_loss_price:.2f} "
-                    f"for {position.quantity}"
-                )
-        
-        # Check if we need to place/update take profit order
-        if not self.take_profit_order_id:
-            take_profit_order = Order(
-                symbol=self.config.symbol,
-                side=OrderSide.SELL,
-                quantity=position.quantity,
-                order_type=OrderType.LIMIT,
-                price=take_profit_price
-            )
-            result = self.broker.place_order(take_profit_order)
-            if result.order_id:
-                self.take_profit_order_id = result.order_id
-                logger.info(
-                    f"Placed take profit order at {take_profit_price:.2f} "
-                    f"for {position.quantity}"
-                )
-        
-        # Check if risk orders were triggered
-        if self.stop_loss_order_id:
-            order = self.broker.get_order(self.stop_loss_order_id)
-            if order and order.status == OrderStatus.FILLED:
-                logger.warning(f"Stop loss triggered at {order.filled_price}")
-                self._cancel_all_orders()  # Cancel all grid orders
-                self.stop_loss_order_id = None
-                self.take_profit_order_id = None
-                
-        if self.take_profit_order_id:
-            order = self.broker.get_order(self.take_profit_order_id)
-            if order and order.status == OrderStatus.FILLED:
-                logger.info(f"Take profit triggered at {order.filled_price}")
-                self._cancel_all_orders()  # Cancel all grid orders
-                self.stop_loss_order_id = None
-                self.take_profit_order_id = None
-
-    def _cancel_risk_orders(self) -> None:
-        """Cancel stop loss and take profit orders."""
-        if self.stop_loss_order_id:
-            self.broker.cancel_order(self.stop_loss_order_id)
-            self.stop_loss_order_id = None
-            
-        if self.take_profit_order_id:
-            self.broker.cancel_order(self.take_profit_order_id)
-            self.take_profit_order_id = None
-
-    def _cancel_all_orders(self) -> None:
-        """Cancel all active orders including grid and risk orders."""
-        # Cancel grid orders
-        for order_id in list(self.active_orders.keys()):
-            if self.broker.cancel_order(order_id):
-                del self.active_orders[order_id]
-        
-        # Cancel risk orders
-        self._cancel_risk_orders()
-
-    def _cancel_invalid_orders(self, current_price: float) -> None:
-        """Cancel orders that are no longer valid for the current price."""
-        for order_id, level in list(self.active_orders.items()):
-            should_cancel = False
-            
-            # Check if order is too far from current price
-            price_diff = abs(level.price - current_price)
-            if price_diff > self.config.grid_spacing * 2:
-                should_cancel = True
-                
-            # Check if order is in wrong direction based on current price
-            if level.is_long and level.price > current_price:
-                should_cancel = True
-            elif not level.is_long and level.price < current_price:
-                should_cancel = True
-                
-            if should_cancel:
-                if self.broker.cancel_order(order_id):
-                    del self.active_orders[order_id]
-                    logger.info(f"Cancelled order at price {level.price}")
-
-    def _get_levels_needing_orders(
-        self,
-        current_price: float,
-        current_position_size: float
-    ) -> List[GridLevel]:
-        """
-        Determine which grid levels need new orders placed.
-        
-        Args:
-            current_price: Current market price
-            current_position_size: Current position size
-            
-        Returns:
-            List of grid levels that need orders
-        """
-        levels_needing_orders = []
-        
-        for level in self.config.grid_levels:
-            # Skip if level already has an active order
-            if any(l.price == level.price for l in self.active_orders.values()):
-                continue
-                
-            # Check if level is valid for current price
-            if level.is_long:
-                # Long levels must be below current price
-                if level.price >= current_price:
-                    continue
-            else:
-                # Short levels must be above current price
-                if level.price <= current_price:
-                    continue
-                    
-            # Check position limits
-            if level.is_long:
-                if current_position_size + level.quantity > self.config.max_position_size:
-                    continue
-            else:
-                if current_position_size - level.quantity < -self.config.max_position_size:
-                    continue
-                    
-            levels_needing_orders.append(level)
-            
-        return levels_needing_orders
-
-    def _place_grid_order(self, level: GridLevel, current_price: float) -> None:
-        """
-        Place a limit order for a grid level.
-        
-        Args:
-            level: Grid level to place order for
-            current_price: Current market price
-        """
-        order = Order(
-            symbol=self.config.symbol,
-            side=OrderSide.BUY if level.is_long else OrderSide.SELL,
-            quantity=level.quantity,
-            order_type=OrderType.LIMIT,
-            price=level.price
-        )
-        
-        result = self.broker.place_order(order)
-        if result.order_id:
-            level.order_id = result.order_id
-            self.active_orders[result.order_id] = level
-            logger.info(
-                f"Placed {order.side.value} order at {level.price} "
-                f"for {level.quantity}"
-            )
-        else:
-            logger.error(f"Failed to place order at price {level.price}")
-
     def get_status(self) -> Dict:
-        """
-        Get current status of the grid strategy.
+        """Get current strategy status."""
+        return self.state_manager.get_status()
         
-        Returns:
-            Dict containing current status information
+    @classmethod
+    async def create(
+        cls,
+        broker: BrokerInterface,
+        symbol: str,
+        config: Optional[Dict] = None
+    ) -> 'GridHedgeBot':
         """
-        return {
-            "symbol": self.config.symbol,
-            "active_orders": len(self.active_orders),
-            "grid_levels": len(self.config.grid_levels),
-            "stop_loss_active": bool(self.stop_loss_order_id),
-            "take_profit_active": bool(self.take_profit_order_id),
-            "last_rebalance": self.last_rebalance.isoformat() 
-                if self.last_rebalance else None
-        }
+        Create and initialize a new grid hedging bot.
+        
+        Args:
+            broker: Trading broker interface
+            symbol: Trading symbol
+            config: Optional configuration parameters
+            
+        Returns:
+            Initialized GridHedgeBot instance
+        """
+        # Create data provider
+        data_provider = ExchangeDataProvider()
+        await data_provider.initialize()
+        
+        # Create bot instance
+        bot = cls(
+            broker=broker,
+            data_provider=data_provider,
+            symbol=symbol,
+            config=config
+        )
+        
+        # Start strategy
+        await bot.start()
+        
+        return bot

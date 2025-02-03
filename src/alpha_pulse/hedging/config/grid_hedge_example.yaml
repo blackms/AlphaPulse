@@ -6,41 +6,116 @@ trading_mode: PAPER  # REAL, PAPER, or RECOMMENDATION
 
 # Grid parameters
 grid:
-  volatility: 0.02  # 2% daily volatility
-  num_levels: 5     # Number of grid levels
-  direction: SHORT  # For hedging spot positions
-  rebalance_interval: 60  # Seconds between grid rebalances
+  spacing_pct: 0.01          # 1% grid spacing
+  num_levels: 5              # Number of levels each side
+  min_price_distance: 1.0    # Minimum distance between levels
+  rebalance_interval: 60     # Seconds between rebalances
+  max_active_orders: 50      # Maximum concurrent orders
+
+# Position limits
+position:
+  max_size: 1.0             # Maximum position size in base currency
+  min_size: 0.001           # Minimum position size in base currency
+  size_increment: 0.001     # Position size increment
+  quote_currency_limit: 100000  # Maximum position value in quote currency
 
 # Risk management
 risk:
-  stop_loss_pct: 0.04    # 4% stop loss (2 standard deviations)
-  take_profit_pct: 0.06  # 6% take profit (1.5x stop loss)
-  max_position_size: 1.0  # Maximum position size in BTC
-  max_drawdown_pct: 0.25  # Maximum allowed drawdown
+  max_drawdown: 0.10        # 10% maximum drawdown
+  var_limit: 10000          # Value at Risk limit in quote currency
+  correlation_limit: 0.8    # Maximum correlation between positions
+  
+  # Stop loss configuration
+  stop_loss:
+    base_pct: 0.04          # 4% base stop loss
+    atr_multiplier: 2.0     # ATR multiplier for dynamic stops
+    trailing: true          # Enable trailing stops
+    min_profit: 0.02        # Minimum profit to start trailing
+    
+  # Take profit configuration
+  take_profit:
+    base_pct: 0.06          # 6% base take profit
+    risk_reward_ratio: 1.5  # Risk/reward ratio
+    partial_exits: true     # Enable partial profit taking
+    exit_levels: [0.3, 0.3, 0.4]  # Exit 30%, 30%, 40%
 
-# Position sizing
-position:
-  target_volatility: 0.01  # 1% daily target volatility
-  max_size_pct: 0.20      # Maximum 20% of portfolio per grid level
-  volatility_lookback: 20  # Days for volatility calculation
+# Market analysis
+analysis:
+  volatility_window: 20     # Days for volatility calculation
+  support_resistance:
+    enabled: true           # Use support/resistance levels
+    strength_threshold: 0.7  # Minimum level strength
+    touch_count: 3          # Minimum touches for valid level
+    
+  volume_profile:
+    enabled: true           # Use volume profile analysis
+    lookback_days: 30       # Days for volume analysis
+    value_area: 0.7         # Value area percentage
 
-# Risk analysis
-risk_analysis:
-  rolling_window: 20    # Days for risk metrics
-  var_confidence: 0.95  # VaR confidence level
-  mc_simulations: 10000 # Monte Carlo simulations
+# Execution
+execution:
+  retry_attempts: 3         # Order placement retry attempts
+  retry_delay: 1           # Seconds between retries
+  
+  # Smart order routing
+  order_routing:
+    enabled: true          # Enable smart order routing
+    min_spread: 0.0001     # Minimum spread to consider
+    max_slippage: 0.001    # Maximum allowed slippage
+    
+  # Funding rate optimization  
+  funding_rate:
+    enabled: true          # Enable funding rate optimization
+    check_interval: 3600   # Check every hour
+    threshold: 0.001       # 0.1% threshold for adjustment
+    hedge_ratios: [0.8, 1.2]  # Adjustment ratios
 
-# Exchange settings
+# Performance monitoring
+monitoring:
+  metrics_interval: 60     # Seconds between metrics updates
+  
+  # Performance targets
+  targets:
+    min_win_rate: 0.6     # Minimum win rate
+    min_profit_factor: 1.5  # Minimum profit factor
+    min_sharpe_ratio: 1.0  # Minimum Sharpe ratio
+    
+  # Alerts
+  alerts:
+    enabled: true         # Enable alerting
+    drawdown_threshold: 0.05  # 5% drawdown alert
+    var_threshold: 0.8    # 80% of VaR limit alert
+    
+  # Logging
+  logging:
+    level: INFO
+    file_rotation: "1 day"
+    include_timestamps: true
+    
+# Exchange specific
 exchange:
-  name: binance  # or bybit
-  testnet: true  # Use testnet for safety
+  name: binance           # Exchange name
+  testnet: true          # Use testnet
+  
+  # Rate limits
+  rate_limits:
+    orders_per_second: 10
+    orders_per_day: 100000
+    
+  # Credentials (use environment variables)
   credentials:
-    # These should be set via environment variables
     api_key: ${EXCHANGE_API_KEY}
     api_secret: ${EXCHANGE_API_SECRET}
 
-# Logging
-logging:
-  level: INFO
-  rotation: "1 day"
-  format: "{time} | {level} | {message}"
+# Development and testing
+development:
+  backtesting:
+    enabled: false       # Enable backtesting mode
+    start_date: "2025-01-01"
+    end_date: "2025-02-01"
+    
+  # Feature flags
+  features:
+    dynamic_spacing: true    # Dynamic grid spacing
+    funding_optimization: true  # Funding rate optimization
+    correlation_check: true    # Position correlation check

@@ -1,81 +1,126 @@
 """
-Paper trading broker implementation for simulated trading.
+Paper trading broker implementation.
 """
-from datetime import datetime
+from decimal import Decimal
 from typing import Dict, List, Optional
-import logging
-import uuid
-
 from loguru import logger
 
 from .broker_interface import (
     BrokerInterface,
     Order,
+    OrderResult,
     OrderSide,
     OrderStatus,
-    OrderType,
-    Position,
+    Position
 )
-
-
-class RiskLimits:
-    """Risk management limits configuration."""
-    def __init__(
-        self,
-        max_position_size: float = 100000.0,  # Maximum position size in base currency
-        max_portfolio_size: float = 1000000.0,  # Maximum total portfolio value
-        max_drawdown_pct: float = 0.25,  # Maximum drawdown as percentage (0.25 = 25%)
-        stop_loss_pct: float = 0.10,  # Stop loss percentage per position (0.10 = 10%)
-    ):
-        self.max_position_size = max_position_size
-        self.max_portfolio_size = max_portfolio_size
-        self.max_drawdown_pct = max_drawdown_pct
-        self.stop_loss_pct = stop_loss_pct
 
 
 class PaperBroker(BrokerInterface):
     """Paper trading broker implementation."""
-
-    def __init__(
-        self,
-        initial_balance: float = 100000.0,
-        risk_limits: Optional[RiskLimits] = None,
-    ):
+    
+    def __init__(self, initial_balance: float = 100000.0):
         """
-        Initialize paper trading broker.
+        Initialize paper broker.
         
         Args:
-            initial_balance: Initial cash balance
-            risk_limits: Risk management limits
+            initial_balance: Initial balance in quote currency
         """
-        self._cash_balance = initial_balance
-        self._initial_balance = initial_balance
-        self._positions: Dict[str, Position] = {}
-        self._orders: Dict[str, Order] = {}
-        self._market_prices: Dict[str, float] = {}
-        self._risk_limits = risk_limits or RiskLimits()
-        self._logger = logger
-
+        self.balance = Decimal(str(initial_balance))
+        self.positions: Dict[str, Position] = {}
+        self.orders: Dict[str, Order] = {}
+        self.market_prices: Dict[str, Decimal] = {}
+        
+        logger.info(f"Initialized paper broker with {initial_balance} balance")
+        
+    def get_portfolio_value(self) -> Decimal:
+        """Get total portfolio value."""
+        total = self.balance
+        
+        for symbol, position in self.positions.items():
+            if symbol in self.market_prices:
+                price = self.market_prices[symbol]
+                total += Decimal(str(position.quantity)) * price
+                
+        return total
+        
+    def get_available_margin(self) -> Decimal:
+        """Get available margin for trading."""
+        # Use 80% of portfolio value as available margin
+        return self.get_portfolio_value() * Decimal('0.8')
+        
+    def get_position(self, symbol: str) -> Optional[Position]:
+        """Get position for symbol."""
+        return self.positions.get(symbol)
+        
+    def get_positions(self) -> Dict[str, Position]:
+        """Get all positions."""
+        return self.positions.copy()
+        
+    def get_order(self, order_id: str) -> Optional[Order]:
+        """Get order by ID."""
+        return self.orders.get(order_id)
+        
+    async def place_order(self, order: Order) -> OrderResult:
+        """Place a new order."""
+        try:
+            # Validate order
+            if not self._validate_order(order):
+                return OrderResult(
+                    success=False,
+                    error="Invalid order parameters"
+                )
+                
+            # Check available margin
+            required_margin = (
+                Decimal(str(order.quantity)) *
+                Decimal(str(order.price or self.market_prices.get(order.symbol, 0)))
+            )
+            if required_margin > self.get_available_margin():
+                return OrderResult(
+                    success=False,
+                    error="Insufficient margin"
+                )
+                
+            # Store order
+            self.orders[order.order_id] = order
+            
+            # Execute market orders immediately
+            if order.order_type == OrderType.MARKET:
+                return await self._execute_market_order(order)
+                
+            return OrderResult(
+                success=True,
+                order_id=order.order_id
+            )
+            
+        except Exception as e:
+            logger.error(f"Error placing order: {str(e)}")
+            return OrderResult(
+                success=False,
+                error=str(e)
+            )
+            
+    async def cancel_order(self, order_id: str) -> bool:
+        """Cancel an order."""
+        if order_id in self.orders:
+            del self.orders[order_id]
+            return True
+        return False
+        
+    def update_market_data(self, symbol: str, price: float) -> None:
+        """Update market data."""
+        self.market_prices[symbol] = Decimal(str(price))
+        
+        # Check for triggered orders
+        self._check_triggered_orders(symbol)
+        
     async def initialize_spot_position(
         self,
         symbol: str,
         quantity: float,
         price: float
-    ) -> Position:
-        """
-        Initialize a paper trading spot position.
-        
-        Args:
-            symbol: Trading symbol
-            quantity: Position size
-            price: Entry price
-            
-        Returns:
-            Created position
-            
-        Raises:
-            ValueError: If position creation fails
-        """
+    ) -> None:
+        """Initialize spot position."""
         # Create market buy order
         order = Order(
             symbol=symbol,
@@ -85,229 +130,133 @@ class PaperBroker(BrokerInterface):
             price=price
         )
         
-        # Update market data first
-        self.update_market_data(symbol, price)
-        
-        # Place the order
-        result = self.place_order(order)
-        if result.status != OrderStatus.FILLED:
-            raise ValueError(f"Failed to create initial spot position: {result.status}")
-        
-        # Verify position
-        position = self.get_position(symbol)
-        if not position or position.quantity != quantity:
-            raise ValueError("Failed to verify spot position")
-        
-        self._logger.info(
-            f"Initialized paper spot position: {quantity} {symbol} @ {price}"
-        )
-        return position
-
-    def place_order(self, order: Order) -> Order:
-        """Place a new order in the paper trading system."""
-        # Validate order
-        if not self._validate_order(order):
-            order.status = OrderStatus.REJECTED
-            return order
-
-        # Generate order ID
-        order.order_id = str(uuid.uuid4())
-        
-        # For market orders, execute immediately
-        if order.order_type == OrderType.MARKET:
-            self._execute_market_order(order)
+        # Execute order
+        result = await self._execute_market_order(order)
+        if result.success:
+            logger.info(
+                f"Initialized paper spot position: {quantity} {symbol} @ {price}"
+            )
         else:
-            # Store limit/stop orders for later execution
-            self._orders[order.order_id] = order
-            self._logger.info(f"Order placed: {order}")
-
-        return order
-
-    def cancel_order(self, order_id: str) -> bool:
-        """Cancel an existing order."""
-        if order_id not in self._orders:
-            return False
-        
-        order = self._orders.pop(order_id)
-        order.status = OrderStatus.CANCELLED
-        self._logger.info(f"Order cancelled: {order}")
-        return True
-
-    def get_order(self, order_id: str) -> Optional[Order]:
-        """Get current state of an order."""
-        return self._orders.get(order_id)
-
-    def get_orders(self, symbol: Optional[str] = None) -> List[Order]:
-        """Get all active orders, optionally filtered by symbol."""
-        if symbol:
-            return [o for o in self._orders.values() if o.symbol == symbol]
-        return list(self._orders.values())
-
-    def get_position(self, symbol: str) -> Optional[Position]:
-        """Get current position for a symbol."""
-        return self._positions.get(symbol)
-
-    def get_positions(self) -> Dict[str, Position]:
-        """Get all current positions."""
-        return self._positions.copy()
-
-    def get_account_balance(self) -> float:
-        """Get current account cash balance."""
-        return self._cash_balance
-
-    def get_portfolio_value(self) -> float:
-        """Get total portfolio value (cash + positions)."""
-        positions_value = sum(
-            pos.quantity * self._market_prices.get(pos.symbol, 0)
-            for pos in self._positions.values()
-        )
-        return self._cash_balance + positions_value
-
-    def update_market_data(self, symbol: str, current_price: float) -> None:
-        """Update market data and check pending orders."""
-        self._market_prices[symbol] = current_price
-        
-        # Update position PnL
-        if symbol in self._positions:
-            self._update_position_pnl(symbol)
-            self._check_stop_loss(symbol)
-
-        # Check pending orders for execution
-        self._check_pending_orders(symbol)
-
+            logger.error(f"Failed to initialize position: {result.error}")
+            
     def _validate_order(self, order: Order) -> bool:
-        """Validate order parameters and risk limits."""
-        # Check if we have market data for the symbol
-        if order.symbol not in self._market_prices:
-            self._logger.warning(f"No market data for symbol: {order.symbol}")
-            return False
-
-        current_price = self._market_prices[order.symbol]
-        order_value = order.quantity * current_price
-
-        # Check if we have enough cash for buy orders
-        if order.side == OrderSide.BUY:
-            if order_value > self._cash_balance:
-                self._logger.warning("Insufficient funds for order")
+        """Validate order parameters."""
+        try:
+            if not order.symbol or not order.quantity or order.quantity <= 0:
                 return False
-
-        # Check position size limits
-        current_position = self._positions.get(order.symbol)
-        new_position_size = order_value
-        if current_position:
-            if order.side == OrderSide.BUY:
-                new_position_size += current_position.quantity * current_price
-            else:
-                new_position_size = abs(
-                    (current_position.quantity - order.quantity) * current_price
-                )
-
-        if new_position_size > self._risk_limits.max_position_size:
-            self._logger.warning("Order exceeds maximum position size")
+                
+            if order.order_type != OrderType.MARKET and not order.price:
+                return False
+                
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error validating order: {str(e)}")
             return False
-
-        # Check portfolio value limits
-        if self.get_portfolio_value() + order_value > self._risk_limits.max_portfolio_size:
-            self._logger.warning("Order exceeds maximum portfolio size")
-            return False
-
-        return True
-
-    def _execute_market_order(self, order: Order) -> None:
+            
+    async def _execute_market_order(self, order: Order) -> OrderResult:
         """Execute a market order."""
-        current_price = self._market_prices[order.symbol]
-        
-        # Update cash balance
-        order_value = order.quantity * current_price
-        if order.side == OrderSide.BUY:
-            self._cash_balance -= order_value
-        else:
-            self._cash_balance += order_value
-
-        # Update position
-        position = self._positions.get(order.symbol)
-        if position is None:
-            if order.side == OrderSide.BUY:
-                position = Position(
-                    symbol=order.symbol,
-                    quantity=order.quantity,
-                    avg_entry_price=current_price,
+        try:
+            # Get execution price
+            price = (
+                Decimal(str(order.price))
+                if order.price
+                else self.market_prices.get(order.symbol)
+            )
+            if not price:
+                return OrderResult(
+                    success=False,
+                    error="No price available"
                 )
-                self._positions[order.symbol] = position
-        else:
+                
+            # Update position
+            position = self.positions.get(order.symbol)
+            quantity = Decimal(str(order.quantity))
+            
             if order.side == OrderSide.BUY:
-                # Update average entry price
-                total_quantity = position.quantity + order.quantity
-                position.avg_entry_price = (
-                    (position.quantity * position.avg_entry_price + order_value)
-                    / total_quantity
-                )
-                position.quantity = total_quantity
-            else:
-                # Update position quantity and realized PnL
-                position.realized_pnl += (
-                    current_price - position.avg_entry_price
-                ) * order.quantity
-                position.quantity -= order.quantity
-                if position.quantity <= 0:
-                    del self._positions[order.symbol]
-
-        # Update order status
-        order.status = OrderStatus.FILLED
-        order.filled_quantity = order.quantity
-        order.filled_price = current_price
-        self._logger.info(f"Order executed: {order}")
-
-    def _check_pending_orders(self, symbol: str) -> None:
-        """Check if any pending orders should be executed."""
-        current_price = self._market_prices[symbol]
+                # Deduct balance
+                required_funds = quantity * price
+                if required_funds > self.balance:
+                    return OrderResult(
+                        success=False,
+                        error="Insufficient funds"
+                    )
+                self.balance -= required_funds
+                
+                # Update position
+                if position:
+                    new_quantity = position.quantity + quantity
+                    new_avg_price = (
+                        (position.quantity * position.avg_entry_price +
+                         quantity * price) / new_quantity
+                    )
+                    position.quantity = float(new_quantity)
+                    position.avg_entry_price = float(new_avg_price)
+                else:
+                    self.positions[order.symbol] = Position(
+                        symbol=order.symbol,
+                        quantity=float(quantity),
+                        avg_entry_price=float(price)
+                    )
+                    
+            else:  # SELL
+                if not position or position.quantity < quantity:
+                    return OrderResult(
+                        success=False,
+                        error="Insufficient position"
+                    )
+                    
+                # Add to balance
+                self.balance += quantity * price
+                
+                # Update position
+                position.quantity = float(position.quantity - quantity)
+                if position.quantity == 0:
+                    del self.positions[order.symbol]
+                    
+            # Update order status
+            order.status = OrderStatus.FILLED
+            order.filled_quantity = float(quantity)
+            order.filled_price = float(price)
+            
+            logger.info(f"Order executed: {order}")
+            
+            return OrderResult(
+                success=True,
+                order_id=order.order_id,
+                filled_quantity=float(quantity),
+                filled_price=float(price)
+            )
+            
+        except Exception as e:
+            logger.error(f"Error executing market order: {str(e)}")
+            return OrderResult(
+                success=False,
+                error=str(e)
+            )
+            
+    def _check_triggered_orders(self, symbol: str) -> None:
+        """Check for triggered orders."""
+        if symbol not in self.market_prices:
+            return
+            
+        current_price = self.market_prices[symbol]
         
-        # Find orders that should be executed
-        executable_orders = []
-        for order in self._orders.values():
+        for order_id, order in list(self.orders.items()):
             if order.symbol != symbol:
                 continue
-
-            if order.order_type == OrderType.LIMIT:
-                if (order.side == OrderSide.BUY and current_price <= order.price) or (
-                    order.side == OrderSide.SELL and current_price >= order.price
-                ):
-                    executable_orders.append(order)
-            
-            elif order.order_type == OrderType.STOP:
-                if (order.side == OrderSide.BUY and current_price >= order.stop_price) or (
-                    order.side == OrderSide.SELL and current_price <= order.stop_price
-                ):
-                    executable_orders.append(order)
-
-        # Execute orders
-        for order in executable_orders:
-            if self._validate_order(order):
-                self._execute_market_order(order)
-            del self._orders[order.order_id]
-
-    def _update_position_pnl(self, symbol: str) -> None:
-        """Update unrealized PnL for a position."""
-        position = self._positions[symbol]
-        current_price = self._market_prices[symbol]
-        position.unrealized_pnl = (
-            current_price - position.avg_entry_price
-        ) * position.quantity
-        position.timestamp = datetime.now()
-
-    def _check_stop_loss(self, symbol: str) -> None:
-        """Check if stop loss should be triggered."""
-        position = self._positions[symbol]
-        current_price = self._market_prices[symbol]
-        
-        loss_pct = (current_price - position.avg_entry_price) / position.avg_entry_price
-        if abs(loss_pct) >= self._risk_limits.stop_loss_pct:
-            # Create and execute stop loss order
-            stop_order = Order(
-                symbol=symbol,
-                side=OrderSide.SELL if position.quantity > 0 else OrderSide.BUY,
-                quantity=abs(position.quantity),
-                order_type=OrderType.MARKET,
-            )
-            self._execute_market_order(stop_order)
-            self._logger.warning(f"Stop loss triggered for {symbol}")
+                
+            # Check stop orders
+            if (order.order_type == OrderType.STOP and
+                order.stop_price and
+                current_price <= Decimal(str(order.stop_price))):
+                asyncio.create_task(self._execute_market_order(order))
+                continue
+                
+            # Check limit orders
+            if order.order_type == OrderType.LIMIT and order.price:
+                price = Decimal(str(order.price))
+                if ((order.side == OrderSide.BUY and current_price <= price) or
+                    (order.side == OrderSide.SELL and current_price >= price)):
+                    asyncio.create_task(self._execute_market_order(order))
+                    continue

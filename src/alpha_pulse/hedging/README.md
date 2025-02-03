@@ -1,153 +1,193 @@
-# Hedging Module
+# Grid Hedging Module
 
-This module provides hedging strategies for managing risk in cryptocurrency portfolios.
+A modular implementation of grid-based hedging strategies with advanced risk management.
 
-## Grid Hedging Strategy
+## Architecture
 
-The grid hedging strategy automatically manages hedge positions using a grid of orders placed at predefined price levels. It supports multiple trading modes and includes risk management features.
+The module follows SOLID principles with clear separation of concerns:
 
-### Features
+### Core Components
 
-- Dynamic grid spacing based on market volatility
-- Risk-based position sizing
-- Stop loss and take profit management
-- Multiple trading modes (Real, Paper, Recommendation)
-- Real-time market data integration
+1. **GridHedgeBot** (`grid_hedge_bot.py`)
+   - Main coordinator class
+   - Manages component lifecycle
+   - Handles high-level strategy execution
 
-### Components
+2. **GridCalculator** (`grid_calculator.py`)
+   - Calculates grid levels
+   - Adjusts for market conditions
+   - Handles dynamic spacing
 
-- `GridHedgeBot`: Main strategy implementation
-- `GridHedgeConfig`: Configuration and parameter calculation
-- `IBroker`: Interface for order execution
-- `ExchangeDataProvider`: Real-time market data
+3. **RiskManager** (`risk_manager.py`)
+   - Position sizing
+   - Risk limit monitoring
+   - Dynamic stop loss calculation
 
-### Usage
+4. **OrderManager** (`order_manager.py`)
+   - Order placement and cancellation
+   - Risk order management
+   - Order state tracking
+
+5. **StateManager** (`state_manager.py`)
+   - Position state tracking
+   - Performance metrics
+   - Status reporting
+
+### Models and Interfaces
+
+1. **Data Models** (`models.py`)
+   - Immutable state classes
+   - Grid level representation
+   - Market state models
+
+2. **Interfaces** (`interfaces.py`)
+   - Component protocols
+   - Abstract base classes
+   - Clean dependency injection
+
+## Features
+
+- Dynamic grid spacing based on volatility
+- Advanced risk management
+  * Position sizing based on risk metrics
+  * Dynamic stop loss levels
+  * Value at Risk (VaR) monitoring
+- Support/resistance level integration
+- Funding rate optimization
+- Comprehensive logging with loguru
+- Multiple trading modes (Real/Paper/Recommendation)
+
+## Usage
+
+### Basic Example
 
 ```python
-from alpha_pulse.execution.broker_factory import create_broker, TradingMode
-from alpha_pulse.data_pipeline.exchange_data_provider import ExchangeDataProvider
-from alpha_pulse.exchanges import ExchangeType
+from alpha_pulse.execution.broker_factory import create_broker
 from alpha_pulse.hedging.grid_hedge_bot import GridHedgeBot
 
-# Initialize components
-data_provider = ExchangeDataProvider(
-    exchange_type=ExchangeType.BINANCE,
-    testnet=True
-)
-await data_provider.initialize()
+# Configuration
+config = {
+    "grid_spacing_pct": "0.01",    # 1% grid spacing
+    "num_levels": 5,               # 5 levels each side
+    "max_position_size": "1.0",    # 1 BTC max position
+    "max_drawdown": "0.1",         # 10% max drawdown
+    "stop_loss_pct": "0.04",       # 4% stop loss
+    "var_limit": "10000",          # $10k VaR limit
+}
 
-# Create broker (Paper, Real, or Recommendation)
-broker = create_broker(trading_mode=TradingMode.PAPER)
-
-# Create and run grid bot
-bot = await GridHedgeBot.create_for_spot_hedge(
+# Create and start bot
+broker = create_broker(trading_mode="PAPER")
+bot = await GridHedgeBot.create(
     broker=broker,
     symbol="BTCUSDT",
-    data_provider=data_provider,
-    volatility=0.02,  # 2% daily volatility
-    spot_quantity=1.0  # Size to hedge
+    config=config
 )
 
 # Execute strategy
-current_price = await data_provider.get_current_price("BTCUSDT")
-bot.execute(current_price)
+current_price = await bot.data_provider.get_current_price("BTCUSDT")
+await bot.execute(current_price)
 ```
 
-### Configuration
+### Custom Components
 
-The grid strategy can be configured with:
+You can inject custom implementations of any component:
 
-- Grid spacing: Calculated from market volatility
-- Position sizing: Based on risk metrics and spot position
-- Stop loss: Default 4% (2 standard deviations)
-- Take profit: Default 6% (1.5x stop loss)
-- Number of levels: Default 5
+```python
+from alpha_pulse.hedging.interfaces import GridCalculator
+from alpha_pulse.hedging.grid_hedge_bot import GridHedgeBot
 
-Example configuration in `grid_hedge_example.yaml`:
+class CustomGridCalculator(GridCalculator):
+    """Custom grid calculation logic."""
+    def calculate_grid_levels(self, market, position):
+        # Custom implementation
+        pass
+
+# Use custom calculator
+bot = GridHedgeBot(
+    broker=broker,
+    data_provider=data_provider,
+    symbol="BTCUSDT",
+    grid_calculator=CustomGridCalculator(),
+    config=config
+)
+```
+
+## Risk Management
+
+The strategy includes multiple layers of risk management:
+
+1. **Position Level**
+   - Maximum position size limits
+   - Dynamic position sizing based on volatility
+   - Correlation-aware exposure calculation
+
+2. **Order Level**
+   - Dynamic grid spacing
+   - Support/resistance integration
+   - Volume-based adjustments
+
+3. **Portfolio Level**
+   - Value at Risk (VaR) monitoring
+   - Maximum drawdown limits
+   - Portfolio-wide exposure tracking
+
+4. **Market Level**
+   - Volatility-based adjustments
+   - Funding rate optimization
+   - Market impact consideration
+
+## Configuration
+
+### Grid Parameters
 
 ```yaml
-symbol: BTCUSDT
-trading_mode: PAPER  # REAL, PAPER, or RECOMMENDATION
-grid:
-  volatility: 0.02  # 2% daily volatility
-  num_levels: 5
-  direction: SHORT  # For hedging spot
-risk:
-  stop_loss_pct: 0.04  # 4% stop loss
-  take_profit_pct: 0.06  # 6% take profit
+grid_spacing_pct: "0.01"    # Grid spacing as percentage
+num_levels: 5               # Number of levels each side
+min_price_distance: "1.0"   # Minimum distance between levels
 ```
 
-### Trading Modes
+### Risk Parameters
 
-1. **REAL Trading**
-   - Connects to exchange APIs
-   - Places actual orders
-   - Requires API credentials
-   ```bash
-   export EXCHANGE_API_KEY="your-key"
-   export EXCHANGE_API_SECRET="your-secret"
-   ```
+```yaml
+max_position_size: "1.0"    # Maximum position size
+max_drawdown: "0.1"         # Maximum allowed drawdown
+stop_loss_pct: "0.04"       # Base stop loss percentage
+var_limit: "10000"          # VaR limit in quote currency
+```
 
-2. **PAPER Trading**
-   - Simulates trading with real market data
-   - Useful for testing strategies
-   - No real orders placed
+### Execution Parameters
 
-3. **RECOMMENDATION Mode**
-   - Logs potential trades without execution
-   - Useful for monitoring strategy signals
+```yaml
+max_active_orders: 50       # Maximum number of active orders
+rebalance_interval: 60      # Seconds between rebalances
+```
 
-### Risk Management
+## Logging
 
-The strategy includes several risk management features:
+The module uses loguru for structured logging:
 
-1. **Grid Parameters**
-   - Spacing based on volatility
-   - Position sizing based on risk metrics
-   - Maximum position limits
+```python
+logger.add(
+    "logs/grid_hedge.log",
+    rotation="1 day",
+    level="INFO"
+)
+```
 
-2. **Stop Loss**
-   - Default: 4% from entry (2σ)
-   - Automatically placed and monitored
-   - Cancels all grid orders when triggered
+Example log output:
+```
+2025-02-03 11:35:43 | INFO     | Initialized GridHedgeBot for BTCUSDT with 5 levels
+2025-02-03 11:35:44 | INFO     | Grid Status - Price: 95236.15, Position: 1.00000000
+2025-02-03 11:35:45 | WARNING  | VaR (12000.00) exceeds limit (10000.00)
+```
 
-3. **Take Profit**
-   - Default: 6% from entry (1.5x stop loss)
-   - Automatically placed and monitored
-   - Cancels all grid orders when triggered
+## Testing
 
-4. **Position Monitoring**
-   - Tracks spot and futures positions
-   - Ensures hedge ratio stays within limits
-   - Rebalances grid as needed
-
-### Example
-
-Running the grid hedge demo:
-
+Run the test suite:
 ```bash
-# Paper trading with real market data
-python -m alpha_pulse.examples.demo_grid_hedge_integration
-
-# Real trading (requires API keys)
-python -m alpha_pulse.examples.demo_grid_hedge_integration --trading-mode REAL
-
-# Recommendation mode
-python -m alpha_pulse.examples.demo_grid_hedge_integration --trading-mode RECOMMENDATION
+python -m pytest src/alpha_pulse/tests/hedging/
 ```
 
-### Logging
-
-The strategy uses loguru for comprehensive logging:
-
-```
-2025-02-03 11:11:25.255 | INFO | Creating hedge grid for BTCUSDT - 
-  Spot: 1.00000000, 
-  Price: 95203.05, 
-  Grid Spacing: 952.03, 
-  Position Step: 0.20000000, 
-  Stop Loss: 4.00%, 
-  Take Profit: 6.00%
-```
-
-Logs are stored in the `logs/` directory with rotation enabled.
+Run with specific mode:
+```bash
+TRADING_MODE=paper python -m alpha_pulse.examples.demo_grid_hedge_integration

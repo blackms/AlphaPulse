@@ -1,24 +1,33 @@
 """
-AlphaPulse execution module for live and paper trading functionality.
+Trading execution module.
 """
-
 from .broker_interface import (
     BrokerInterface,
     Order,
+    OrderResult,
     OrderSide,
     OrderStatus,
     OrderType,
     Position
 )
-from .paper_broker import PaperBroker, RiskLimits
+from .paper_broker import PaperBroker
+from .broker_factory import create_broker, TradingMode
+
 
 __all__ = [
+    # Interfaces
     'BrokerInterface',
     'Order',
+    'OrderResult',
     'OrderSide',
     'OrderStatus',
     'OrderType',
     'Position',
+    
+    # Implementations
     'PaperBroker',
-    'RiskLimits'
+    
+    # Factory
+    'create_broker',
+    'TradingMode'
 ]
