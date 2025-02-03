@@ -2,6 +2,57 @@
 
 The hedging module provides a flexible system for managing and automating hedging strategies using futures contracts. The implementation follows SOLID principles to ensure maintainability, extensibility, and testability.
 
+## Grid Hedging Strategy
+
+The module now includes a grid-based hedging strategy that can operate in multiple trading modes:
+
+### Trading Modes
+
+1. **REAL**: Execute trades on actual exchanges (Binance/Bybit)
+2. **PAPER**: Simulate trades without real execution
+3. **RECOMMENDATION**: Log trade signals without execution
+
+### Grid Strategy Components
+
+- `GridHedgeConfig`: Configures grid parameters
+  ```python
+  config = GridHedgeConfig.create_symmetric_grid(
+      symbol="BTCUSDT",
+      center_price=40000.0,
+      grid_spacing=100.0,    # Price difference between levels
+      num_levels=5,          # Levels above/below center
+      position_step_size=0.001,  # Position size per level
+      max_position_size=0.01,    # Maximum total position
+      grid_direction=GridDirection.BOTH
+  )
+  ```
+
+- `GridHedgeBot`: Implements the grid strategy
+  ```python
+  from alpha_pulse.execution.broker_factory import create_broker, TradingMode
+  
+  # Create broker for desired mode
+  broker = create_broker(
+      trading_mode=TradingMode.PAPER,  # or REAL, RECOMMENDATION
+      exchange_name="binance",  # Required for REAL mode
+      api_key="...",           # Required for REAL mode
+      api_secret="..."         # Required for REAL mode
+  )
+  
+  # Create and run bot
+  bot = GridHedgeBot(broker, config)
+  bot.execute(current_price=40000.0)
+  ```
+
+### Grid Strategy Features
+
+- Symmetric or asymmetric grid creation
+- Dynamic grid rebalancing
+- Position size limits
+- Multiple trading directions (LONG, SHORT, BOTH)
+- Configurable rebalance intervals
+- Stop loss and take profit options
+
 ## Architecture
 
 The module is built on several key interfaces that enable flexible component composition:
@@ -12,6 +63,7 @@ The module is built on several key interfaces that enable flexible component com
 - `IPositionFetcher`: Retrieves position data from data sources
 - `IOrderExecutor`: Executes trading orders
 - `IExecutionStrategy`: Implements hedge execution logic
+- `IBroker`: Provides unified interface for different trading modes
 
 ### Components
 
@@ -28,10 +80,14 @@ The module is built on several key interfaces that enable flexible component com
 3. **Execution**
    - `BasicExecutionStrategy`: Implements basic execution logic
    - `ExchangeOrderExecutor`: Executes orders through exchanges
+   - `RealBroker`: Handles real exchange trading
+   - `PaperBroker`: Simulates trading execution
+   - `RecommendationOnlyBroker`: Logs trade signals
 
 4. **Orchestration**
    - `HedgeManager`: Coordinates the hedging process
    - `HedgeConfig`: Configures hedging parameters
+   - `GridHedgeBot`: Manages grid-based hedging
 
 ## SOLID Principles Implementation
 
@@ -40,12 +96,14 @@ Each class has a single, well-defined purpose:
 - `HedgeManager`: Orchestrates the hedging process
 - `ExchangePositionFetcher`: Handles position data retrieval
 - `BasicExecutionStrategy`: Manages execution logic
+- `GridHedgeBot`: Manages grid-based trading
 
 ### Open/Closed Principle
 New functionality can be added without modifying existing code:
 - New analyzers can implement `IHedgeAnalyzer`
 - New execution strategies can implement `IExecutionStrategy`
 - New position sources can implement `IPositionFetcher`
+- New brokers can implement `IBroker`
 
 ### Liskov Substitution Principle
 Components are interchangeable through their interfaces:
@@ -55,6 +113,9 @@ analyzer: IHedgeAnalyzer = BasicFuturesHedgeAnalyzer(config)
 
 # Any IExecutionStrategy implementation can be used
 strategy: IExecutionStrategy = BasicExecutionStrategy()
+
+# Any IBroker implementation can be used
+broker: IBroker = create_broker(trading_mode)
 ```
 
 ### Interface Segregation Principle
@@ -62,6 +123,7 @@ Interfaces are focused and minimal:
 - `IPositionFetcher`: Only position retrieval methods
 - `IOrderExecutor`: Only order execution methods
 - `IExecutionStrategy`: Only strategy execution methods
+- `IBroker`: Core trading operations
 
 ### Dependency Inversion Principle
 High-level components depend on abstractions:
@@ -74,6 +136,10 @@ class HedgeManager:
         execution_strategy: IExecutionStrategy,
         order_executor: IOrderExecutor
     ):
+        ...
+
+class GridHedgeBot:
+    def __init__(self, broker: IBroker, config: GridHedgeConfig):
         ...
 ```
 
@@ -123,7 +189,7 @@ config = HedgeConfig(
     max_margin_usage=Decimal('0.8'),
     min_position_size={'BTC': Decimal('0.001')},
     max_position_size={'BTC': Decimal('1.0')},
-    grid_bot_enabled=False
+    grid_bot_enabled=True  # Enable grid hedging
 )
 ```
 
@@ -131,36 +197,12 @@ config = HedgeConfig(
 - `max_drawdown`: Maximum allowed drawdown
 - `stop_loss_threshold`: Stop loss trigger level
 - `hedge_ratio_threshold`: Allowed hedge ratio deviation
+- `grid_rebalance_interval`: Time between grid checks
 
 ### Execution Parameters
 - `execution_delay`: Delay between trades
 - `max_slippage`: Maximum allowed slippage
-
-## Extending the System
-
-### Adding a New Analyzer
-```python
-class AdvancedHedgeAnalyzer(IHedgeAnalyzer):
-    def analyze(
-        self,
-        spot_positions: List[SpotPosition],
-        futures_positions: List[FuturesPosition]
-    ) -> HedgeRecommendation:
-        # Implement advanced analysis logic
-        ...
-```
-
-### Adding a New Execution Strategy
-```python
-class SmartExecutionStrategy(IExecutionStrategy):
-    async def execute_hedge_adjustments(
-        self,
-        recommendation: HedgeRecommendation,
-        executor: IOrderExecutor
-    ) -> bool:
-        # Implement smart execution logic
-        ...
-```
+- `grid_spacing`: Price difference between grid levels
 
 ## Important Notes
 
@@ -168,24 +210,23 @@ class SmartExecutionStrategy(IExecutionStrategy):
    - Always test strategies in dry-run mode first
    - Monitor margin usage carefully
    - Consider funding rates for futures positions
+   - Test grid parameters in paper trading mode
 
 2. **Exchange Support**
-   - Currently supports Bybit
+   - Currently supports Binance and Bybit
    - Ensure API keys have proper permissions
    - Use testnet for initial testing
 
 3. **Performance Monitoring**
    - Track hedge effectiveness over time
    - Monitor correlation between spot and futures
-   - Adjust parameters based on market conditions
+   - Adjust grid parameters based on market conditions
 
 ## Example Scripts
 
-See `examples/demo_hedging.py` for a complete demonstration of:
-- Component setup and configuration
-- Position analysis
-- Hedge management
-- Emergency position closure
+See the following examples for complete demonstrations:
+- `examples/demo_hedging.py`: Basic hedging setup
+- `examples/demo_grid_hedge_integration.py`: Grid hedging with multiple modes
 
 ## Contributing
 

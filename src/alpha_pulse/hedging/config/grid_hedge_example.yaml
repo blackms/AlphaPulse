@@ -1,0 +1,47 @@
+# Grid Hedge Configuration Example
+
+# Trading mode (REAL, PAPER, or RECOMMENDATION)
+trading_mode: "PAPER"
+
+# Exchange settings (required for REAL mode)
+exchange:
+  name: "binance"  # or "bybit"
+  testnet: true    # Use testnet for testing
+  # API credentials should be provided via environment variables
+  # EXCHANGE_API_KEY and EXCHANGE_API_SECRET
+
+# Grid parameters
+grid:
+  symbol: "BTCUSDT"
+  direction: "BOTH"  # LONG, SHORT, or BOTH
+  center_price: 40000.0
+  grid_spacing: 100.0
+  num_levels: 5
+  position_step_size: 0.001  # Size per grid level
+  max_position_size: 0.01    # Maximum total position
+
+# Risk management
+risk:
+  stop_loss_pct: 0.10       # 10% stop loss
+  take_profit_pct: 0.20     # 20% take profit
+  max_orders: 10            # Maximum concurrent orders
+  max_drawdown_pct: 0.25    # Maximum 25% drawdown
+
+# Execution parameters
+execution:
+  rebalance_interval: 60    # Seconds between grid checks
+  order_timeout: 60         # Seconds to wait for order fill
+  max_slippage_pct: 0.001   # Maximum allowed slippage (0.1%)
+
+# Logging configuration
+logging:
+  level: "INFO"
+  file: "logs/grid_hedge_{datetime}.log"
+  rotation: "1 day"
+  retention: "1 week"
+
+# Monitoring
+monitoring:
+  metrics_enabled: true
+  prometheus_port: 9090
+  alert_webhook_url: ""     # Optional Discord/Slack webhook
