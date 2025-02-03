@@ -6,6 +6,8 @@ from typing import Dict, List, Optional
 import logging
 import uuid
 
+from loguru import logger
+
 from .broker_interface import (
     BrokerInterface,
     Order,
@@ -39,13 +41,67 @@ class PaperBroker(BrokerInterface):
         initial_balance: float = 100000.0,
         risk_limits: Optional[RiskLimits] = None,
     ):
+        """
+        Initialize paper trading broker.
+        
+        Args:
+            initial_balance: Initial cash balance
+            risk_limits: Risk management limits
+        """
         self._cash_balance = initial_balance
         self._initial_balance = initial_balance
         self._positions: Dict[str, Position] = {}
         self._orders: Dict[str, Order] = {}
         self._market_prices: Dict[str, float] = {}
         self._risk_limits = risk_limits or RiskLimits()
-        self._logger = logging.getLogger(__name__)
+        self._logger = logger
+
+    async def initialize_spot_position(
+        self,
+        symbol: str,
+        quantity: float,
+        price: float
+    ) -> Position:
+        """
+        Initialize a paper trading spot position.
+        
+        Args:
+            symbol: Trading symbol
+            quantity: Position size
+            price: Entry price
+            
+        Returns:
+            Created position
+            
+        Raises:
+            ValueError: If position creation fails
+        """
+        # Create market buy order
+        order = Order(
+            symbol=symbol,
+            side=OrderSide.BUY,
+            quantity=quantity,
+            order_type=OrderType.MARKET,
+            price=price
+        )
+        
+        # Update market data first
+        self.update_market_data(symbol, price)
+        
+        # Place the order
+        result = self.place_order(order)
+        if result.status != OrderStatus.FILLED:
+            raise ValueError(f"Failed to create initial spot position: {result.status}")
+        
+        # Verify position
+        position = self.get_position(symbol)
+        if not position or position.quantity != quantity:
+            raise ValueError("Failed to verify spot position")
+        
+        self._logger.info(
+            f"Initialized paper spot position: {quantity} {symbol} @ {price}"
+        )
+        return position
 
     def place_order(self, order: Order) -> Order:
         """Place a new order in the paper trading system."""

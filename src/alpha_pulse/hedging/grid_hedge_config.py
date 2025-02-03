@@ -2,8 +2,12 @@
 Configuration for grid hedging strategy.
 """
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from enum import Enum
+from loguru import logger
+
+from alpha_pulse.risk_management.analysis import RiskAnalyzer
+from alpha_pulse.risk_management.position_sizing import VolatilityBasedSizer
 
 
 class GridDirection(Enum):
@@ -20,6 +24,15 @@ class GridLevel:
     quantity: float
     is_long: bool = True  # True for long, False for short
     order_id: Optional[str] = None  # Filled when order is placed
+
+
+@dataclass
+class GridParameters:
+    """Grid strategy parameters."""
+    grid_spacing: float
+    position_step: float
+    stop_loss: float
+    take_profit: float
 
 
 @dataclass
@@ -48,70 +61,160 @@ class GridHedgeConfig:
     # Execution parameters
     rebalance_interval: int = 60  # Seconds between grid rebalances
     order_timeout: int = 60  # Seconds to wait for order fill
+
+    @staticmethod
+    async def calculate_grid_parameters(
+        current_price: float,
+        spot_quantity: float,
+        volatility: float,
+        risk_analyzer: RiskAnalyzer,
+        position_sizer: VolatilityBasedSizer,
+        portfolio_value: float,
+        historical_returns=None,
+        num_levels: int = 5,
+    ) -> GridParameters:
+        """
+        Calculate grid parameters based on risk metrics.
+        
+        Args:
+            current_price: Current market price
+            spot_quantity: Spot position size
+            volatility: Market volatility estimate
+            risk_analyzer: Risk analyzer instance
+            position_sizer: Position sizer instance
+            portfolio_value: Total portfolio value
+            historical_returns: Historical returns data (optional)
+            num_levels: Number of grid levels
+            
+        Returns:
+            GridParameters instance
+        """
+        # Calculate position size per grid level using volatility-based sizing
+        position_result = position_sizer.calculate_position_size(
+            symbol="BTCUSDT",
+            current_price=current_price,
+            portfolio_value=portfolio_value,
+            volatility=volatility,
+            signal_strength=1.0,  # Full signal for hedging
+            historical_returns=historical_returns
+        )
+        
+        # Calculate grid spacing based on volatility
+        # Use 0.5 standard deviations for grid spacing
+        grid_spacing = current_price * volatility * 0.5
+        
+        # Calculate position step size (ensure total matches spot position)
+        position_step = min(
+            spot_quantity / num_levels,  # Even distribution
+            position_result.size / current_price  # Risk-based limit
+        )
+        
+        # Calculate stop loss and take profit using VaR
+        if historical_returns is not None:
+            metrics = risk_analyzer.calculate_metrics(historical_returns)
+            stop_loss = metrics.var_95  # Use 95% VaR for stop loss
+            take_profit = -stop_loss * 1.5  # Target 1.5x risk/reward
+        else:
+            # Default to volatility-based levels if no historical data
+            stop_loss = volatility * 2  # 2 standard deviations
+            take_profit = stop_loss * 1.5
+        
+        return GridParameters(
+            grid_spacing=grid_spacing,
+            position_step=position_step,
+            stop_loss=stop_loss,
+            take_profit=take_profit
+        )
     
     @classmethod
-    def create_symmetric_grid(
+    async def create_hedge_grid(
         cls,
         symbol: str,
-        center_price: float,
-        grid_spacing: float,
-        num_levels: int,
-        position_step_size: float,
-        max_position_size: float,
-        grid_direction: GridDirection = GridDirection.BOTH,
+        current_price: float,
+        spot_quantity: float,
+        volatility: float,
+        portfolio_value: float,
+        risk_analyzer: Optional[RiskAnalyzer] = None,
+        position_sizer: Optional[VolatilityBasedSizer] = None,
+        historical_returns=None,
+        num_levels: int = 5,
     ) -> 'GridHedgeConfig':
         """
-        Create a symmetric grid around a center price.
+        Create a grid configuration for hedging.
         
         Args:
             symbol: Trading symbol
-            center_price: Price to center the grid around
-            grid_spacing: Price difference between levels
-            num_levels: Number of levels above and below center
-            position_step_size: Position size per grid level
-            max_position_size: Maximum total position size
-            grid_direction: Direction of grid trades
+            current_price: Current market price
+            spot_quantity: Spot position size to hedge
+            volatility: Market volatility estimate
+            portfolio_value: Total portfolio value
+            risk_analyzer: Risk analyzer instance (optional)
+            position_sizer: Position sizer instance (optional)
+            historical_returns: Historical returns data (optional)
+            num_levels: Number of grid levels
             
         Returns:
             GridHedgeConfig instance
         """
-        upper_price = center_price + (grid_spacing * num_levels)
-        lower_price = center_price - (grid_spacing * num_levels)
+        # Initialize risk components if not provided
+        if not risk_analyzer:
+            risk_analyzer = RiskAnalyzer(
+                rolling_window=20,  # 20-day window
+                var_confidence=0.95,
+            )
         
+        if not position_sizer:
+            position_sizer = VolatilityBasedSizer(
+                target_volatility=0.01,  # 1% daily target
+                max_size_pct=0.2,  # Maximum 20% of portfolio per grid level
+                volatility_lookback=20,
+            )
+        
+        # Calculate grid parameters
+        params = await cls.calculate_grid_parameters(
+            current_price=current_price,
+            spot_quantity=spot_quantity,
+            volatility=volatility,
+            risk_analyzer=risk_analyzer,
+            position_sizer=position_sizer,
+            portfolio_value=portfolio_value,
+            historical_returns=historical_returns,
+            num_levels=num_levels
+        )
+        
+        # Create grid levels
         grid_levels = []
+        for i in range(num_levels):
+            price = current_price + (params.grid_spacing * (i + 1))
+            grid_levels.append(GridLevel(
+                price=price,
+                quantity=params.position_step,
+                is_long=False  # Short for hedging
+            ))
         
-        # Create grid levels based on direction
-        if grid_direction in [GridDirection.LONG, GridDirection.BOTH]:
-            # Long levels below center
-            for i in range(num_levels):
-                price = center_price - (grid_spacing * (i + 1))
-                grid_levels.append(GridLevel(
-                    price=price,
-                    quantity=position_step_size,
-                    is_long=True
-                ))
-                
-        if grid_direction in [GridDirection.SHORT, GridDirection.BOTH]:
-            # Short levels above center
-            for i in range(num_levels):
-                price = center_price + (grid_spacing * (i + 1))
-                grid_levels.append(GridLevel(
-                    price=price,
-                    quantity=position_step_size,
-                    is_long=False
-                ))
+        logger.info(
+            f"Creating hedge grid for {symbol} - "
+            f"Spot: {spot_quantity:.8f}, "
+            f"Price: {current_price:.2f}, "
+            f"Grid Spacing: {params.grid_spacing:.2f}, "
+            f"Position Step: {params.position_step:.8f}, "
+            f"Stop Loss: {params.stop_loss:.2%}, "
+            f"Take Profit: {params.take_profit:.2%}"
+        )
         
         return cls(
             symbol=symbol,
-            grid_direction=grid_direction,
+            grid_direction=GridDirection.SHORT,
             grid_levels=grid_levels,
-            upper_price=upper_price,
-            lower_price=lower_price,
-            grid_spacing=grid_spacing,
-            max_position_size=max_position_size,
-            position_step_size=position_step_size
+            upper_price=current_price + (params.grid_spacing * num_levels),
+            lower_price=current_price,
+            grid_spacing=params.grid_spacing,
+            max_position_size=spot_quantity,
+            position_step_size=params.position_step,
+            stop_loss_pct=params.stop_loss,
+            take_profit_pct=params.take_profit
         )
-        
+    
     def validate(self) -> bool:
         """
         Validate the grid configuration.
