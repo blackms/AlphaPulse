@@ -1,44 +1,44 @@
-# AlphaPulse
+# AlphaPulse 🚀
 
 A comprehensive cryptocurrency trading and portfolio management system.
 
-## Features
+## Features ✨
 
-### Portfolio Management
-- Black-Litterman portfolio optimization
-- Hierarchical Risk Parity (HRP) strategy
-- Modern Portfolio Theory (MPT) implementation
-- LLM-assisted portfolio analysis
+### Portfolio Management 💼
+- 💹 Black-Litterman portfolio optimization
+- 📊 Hierarchical Risk Parity (HRP) strategy
+- 🏛 Modern Portfolio Theory (MPT) implementation
+- 🤖 LLM-assisted portfolio analysis
 
-### Risk Management
-- Multi-asset risk analysis
-- Position sizing optimization
-- Portfolio-level risk controls
-- Real-time monitoring
+### Risk Management 🔒
+- 📉 Multi-asset risk analysis
+- ⚖️ Position sizing optimization
+- 🚦 Portfolio-level risk controls
+- ⏱️ Real-time monitoring
 
-### Hedging Strategies
-- Grid-based hedging with risk management
-- Basic futures hedging
-- Position tracking and rebalancing
-- Multiple trading modes (Real/Paper/Recommendation)
+### Hedging Strategies 🛡
+- 🧮 Grid-based hedging with risk management
+- 💱 Basic futures hedging
+- 🔄 Position tracking and rebalancing
+- 🎭 Multiple trading modes (Real/Paper/Recommendation)
 
-### Data Pipeline
-- Real-time market data integration
-- Historical data management
-- Feature engineering
-- Database integration
+### Data Pipeline 📡
+- ⏱️ Real-time market data integration
+- 🗄️ Historical data management
+- 🛠️ Feature engineering
+- 💾 Database integration
 
-### Execution
-- Multi-exchange support (Binance, Bybit)
-- Paper trading simulation
-- Real-time order management
-- Risk-aware execution
+### Execution ⚡
+- 🌐 Multi-exchange support (Binance, Bybit)
+- 📝 Paper trading simulation
+- 📈 Real-time order management
+- 🛡️ Risk-aware execution
 
-### Machine Learning
-- Feature generation
-- Model training pipeline
-- Reinforcement learning integration
-- LLM-powered analysis
+### Machine Learning 🤖
+- 🔧 Feature generation
+- 🎓 Model training pipeline
+- 🧠 Reinforcement learning integration
+- 💡 LLM-powered analysis
 
 ## Installation
 
