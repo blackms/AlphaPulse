@@ -1,78 +1,74 @@
-# Hedging Module
+# 📊 Grid Hedging Module
 
 A modular implementation of grid-based hedging strategies with advanced risk management.
 
-## Directory Structure
+## 🏗️ Directory Structure
 
 ```
 hedging/
-├── common/                 # Common utilities and interfaces
-│   ├── interfaces.py      # Abstract interfaces
-│   └── types.py          # Shared type definitions
+├── common/                 # 🔧 Common utilities
+│   ├── interfaces.py      # Core interfaces
+│   └── types.py          # Data models
 │
-├── grid/                  # Grid strategy implementation
-│   ├── bot.py            # Main grid bot implementation
-│   ├── calculator.py     # Grid level calculations
+├── grid/                  # 📈 Grid strategy
+│   ├── bot.py            # Main bot implementation
+│   ├── calculator.py     # Grid calculations
 │   └── config.py         # Grid configuration
 │
-├── risk/                  # Risk management
-│   ├── manager.py        # Risk management implementation
-│   └── analyzers/        # Risk analysis implementations
-│       ├── basic.py      # Basic futures hedge analyzer
-│       └── llm.py        # LLM-enhanced analyzer
+├── risk/                  # ⚠️ Risk management
+│   ├── analyzers/        # Risk analyzers
+│   │   ├── basic.py      # Basic analyzer
+│   │   └── llm.py        # LLM analyzer
+│   ├── config.py         # Risk config
+│   └── manager.py        # Risk manager
 │
-├── execution/            # Order execution
+├── execution/            # 🔄 Order execution
 │   ├── order_manager.py  # Order management
-│   └── position_fetcher.py  # Position data fetching
+│   └── position_fetcher.py  # Position data
 │
-├── state/               # State management
-│   ├── manager.py      # State management implementation
-│   └── models.py       # State models and data classes
-│
-└── config/             # Configuration files
-    └── examples/       # Example configurations
-        └── grid_hedge.yaml
+└── state/               # 📝 State management
+    └── manager.py      # State manager
 ```
 
-## Architecture
+## 🏛️ Architecture
 
 The module follows SOLID principles with clear separation of concerns:
 
 ### Core Components
 
-1. **Grid Strategy** (`grid/`)
+1. **Grid Strategy** (`grid/`) 📈
    - Main bot implementation
    - Grid calculations
    - Configuration management
 
-2. **Risk Management** (`risk/`)
+2. **Risk Management** (`risk/`) ⚠️
    - Position sizing
    - Risk limit monitoring
    - Multiple analyzer implementations
 
-3. **Execution** (`execution/`)
+3. **Execution** (`execution/`) 🔄
    - Order management
    - Position tracking
    - Exchange integration
 
-4. **State Management** (`state/`)
+4. **State Management** (`state/`) 📝
    - Position state
    - Performance metrics
    - Status reporting
 
-### Features
+### ✨ Features
 
-- Dynamic grid spacing based on volatility
-- Advanced risk management
+- 📊 Dynamic grid spacing based on volatility
+- ⚠️ Advanced risk management
   * Position sizing based on risk metrics
   * Dynamic stop loss levels
   * Value at Risk (VaR) monitoring
-- Support/resistance level integration
-- Funding rate optimization
-- Comprehensive logging with loguru
-- Multiple trading modes (Real/Paper/Recommendation)
+- 📈 Support/resistance level integration
+- 💰 Funding rate optimization
+- 📝 Comprehensive logging with loguru
+- 🔄 Multiple trading modes (Real/Paper/Recommendation)
 
-## Usage
+## 🚀 Usage
 
 ### Basic Example
 
@@ -127,31 +123,31 @@ bot = GridHedgeBot(
 )
 ```
 
-## Risk Management
+## 🛡️ Risk Management
 
 The strategy includes multiple layers of risk management:
 
-1. **Position Level**
+1. **Position Level** 📊
    - Maximum position size limits
    - Dynamic position sizing based on volatility
    - Correlation-aware exposure calculation
 
-2. **Order Level**
+2. **Order Level** 🔄
    - Dynamic grid spacing
    - Support/resistance integration
    - Volume-based adjustments
 
-3. **Portfolio Level**
+3. **Portfolio Level** 💼
    - Value at Risk (VaR) monitoring
    - Maximum drawdown limits
    - Portfolio-wide exposure tracking
 
-4. **Market Level**
+4. **Market Level** 📈
    - Volatility-based adjustments
    - Funding rate optimization
    - Market impact consideration
 
-## Configuration
+## ⚙️ Configuration
 
 ### Grid Parameters
 
@@ -177,7 +173,7 @@ max_active_orders: 50       # Maximum number of active orders
 rebalance_interval: 60      # Seconds between rebalances
 ```
 
-## Logging
+## 📝 Logging
 
 The module uses loguru for structured logging:
 
@@ -196,7 +192,7 @@ Example log output:
 2025-02-03 11:35:45 | WARNING  | VaR (12000.00) exceeds limit (10000.00)
 ```
 
-## Testing
+## 🧪 Testing
 
 Run the test suite:
 ```bash
