@@ -1,47 +1,46 @@
-# Grid Hedge Configuration Example
+# Grid Hedging Strategy Configuration
 
-# Trading mode (REAL, PAPER, or RECOMMENDATION)
-trading_mode: "PAPER"
-
-# Exchange settings (required for REAL mode)
-exchange:
-  name: "binance"  # or "bybit"
-  testnet: true    # Use testnet for testing
-  # API credentials should be provided via environment variables
-  # EXCHANGE_API_KEY and EXCHANGE_API_SECRET
+# Trading parameters
+symbol: BTCUSDT
+trading_mode: PAPER  # REAL, PAPER, or RECOMMENDATION
 
 # Grid parameters
 grid:
-  symbol: "BTCUSDT"
-  direction: "BOTH"  # LONG, SHORT, or BOTH
-  center_price: 40000.0
-  grid_spacing: 100.0
-  num_levels: 5
-  position_step_size: 0.001  # Size per grid level
-  max_position_size: 0.01    # Maximum total position
+  volatility: 0.02  # 2% daily volatility
+  num_levels: 5     # Number of grid levels
+  direction: SHORT  # For hedging spot positions
+  rebalance_interval: 60  # Seconds between grid rebalances
 
 # Risk management
 risk:
-  stop_loss_pct: 0.10       # 10% stop loss
-  take_profit_pct: 0.20     # 20% take profit
-  max_orders: 10            # Maximum concurrent orders
-  max_drawdown_pct: 0.25    # Maximum 25% drawdown
+  stop_loss_pct: 0.04    # 4% stop loss (2 standard deviations)
+  take_profit_pct: 0.06  # 6% take profit (1.5x stop loss)
+  max_position_size: 1.0  # Maximum position size in BTC
+  max_drawdown_pct: 0.25  # Maximum allowed drawdown
 
-# Execution parameters
-execution:
-  rebalance_interval: 60    # Seconds between grid checks
-  order_timeout: 60         # Seconds to wait for order fill
-  max_slippage_pct: 0.001   # Maximum allowed slippage (0.1%)
+# Position sizing
+position:
+  target_volatility: 0.01  # 1% daily target volatility
+  max_size_pct: 0.20      # Maximum 20% of portfolio per grid level
+  volatility_lookback: 20  # Days for volatility calculation
 
-# Logging configuration
+# Risk analysis
+risk_analysis:
+  rolling_window: 20    # Days for risk metrics
+  var_confidence: 0.95  # VaR confidence level
+  mc_simulations: 10000 # Monte Carlo simulations
+
+# Exchange settings
+exchange:
+  name: binance  # or bybit
+  testnet: true  # Use testnet for safety
+  credentials:
+    # These should be set via environment variables
+    api_key: ${EXCHANGE_API_KEY}
+    api_secret: ${EXCHANGE_API_SECRET}
+
+# Logging
 logging:
-  level: "INFO"
-  file: "logs/grid_hedge_{datetime}.log"
+  level: INFO
   rotation: "1 day"
-  retention: "1 week"
-
-# Monitoring
-monitoring:
-  metrics_enabled: true
-  prometheus_port: 9090
-  alert_webhook_url: ""     # Optional Discord/Slack webhook
+  format: "{time} | {level} | {message}"

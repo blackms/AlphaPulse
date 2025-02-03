@@ -1,24 +1,49 @@
-# 🚀 AlphaPulse Trading System
+# AlphaPulse
 
-A modular cryptocurrency trading system with support for backtesting, paper trading, and live execution.
+A comprehensive cryptocurrency trading and portfolio management system.
 
-## ✨ Features
+## Features
 
-- 📊 Data Pipeline: Fetch and store market data from multiple exchanges
-- 🧮 Feature Engineering: Calculate technical indicators and generate training features
-- 🤖 Model Training: Train and evaluate machine learning models
-- 📈 Backtesting: Test strategies on historical data
-- 🎮 Paper Trading: Simulate trading with real-time market data
-- 🛡️ Risk Management: Advanced position sizing and portfolio optimization
-- 💹 Live Trading: Execute trades on supported exchanges
-- 🤖 LLM Integration: AI-powered portfolio analysis and recommendations
-- 🔄 Hedging: Intelligent spot-futures hedging with LLM insights
-- 📊 Enhanced Logging: Comprehensive debug and monitoring capabilities
+### Portfolio Management
+- Black-Litterman portfolio optimization
+- Hierarchical Risk Parity (HRP) strategy
+- Modern Portfolio Theory (MPT) implementation
+- LLM-assisted portfolio analysis
 
-## 🔧 Installation
+### Risk Management
+- Multi-asset risk analysis
+- Position sizing optimization
+- Portfolio-level risk controls
+- Real-time monitoring
+
+### Hedging Strategies
+- Grid-based hedging with risk management
+- Basic futures hedging
+- Position tracking and rebalancing
+- Multiple trading modes (Real/Paper/Recommendation)
+
+### Data Pipeline
+- Real-time market data integration
+- Historical data management
+- Feature engineering
+- Database integration
+
+### Execution
+- Multi-exchange support (Binance, Bybit)
+- Paper trading simulation
+- Real-time order management
+- Risk-aware execution
+
+### Machine Learning
+- Feature generation
+- Model training pipeline
+- Reinforcement learning integration
+- LLM-powered analysis
+
+## Installation
 
 ```bash
-# Clone the repository
+# Clone repository
 git clone https://github.com/yourusername/AlphaPulse.git
 cd AlphaPulse
 
@@ -26,451 +51,131 @@ cd AlphaPulse
 pip install -e .
 ```
 
-## 🔐 Environment Setup
+## Quick Start
 
-Create a `.env` file in the root directory with your API keys:
-
-```env
-# OpenAI API key for LLM-based portfolio analysis
-OPENAI_API_KEY=your_openai_api_key
-
-# Bybit exchange credentials
-ALPHA_PULSE_BYBIT_API_KEY=your_bybit_api_key
-ALPHA_PULSE_BYBIT_API_SECRET=your_bybit_api_secret
-ALPHA_PULSE_BYBIT_TESTNET=false  # Set to true for testnet
-```
-
-> ⚠️ **Important**: Never commit your `.env` file to version control. It's already added to `.gitignore` to prevent accidental commits.
-
-## 🎯 Usage
-
-### 1. 🧠 Train a Model
-
-Train a prediction model using historical data:
-
-```bash
-python src/alpha_pulse/examples/train_test_model.py
-```
-
-This will:
-- Generate sample training data
-- Calculate technical indicators
-- Train a RandomForest model
-- Save the model to trained_models/crypto_prediction_model.joblib
-
-### 2. 📊 Multi-Asset Trading with Risk Management
-
-Run the multi-asset trading system with advanced risk management:
-
-```bash
-# Using default settings (3 assets)
-python src/alpha_pulse/examples/demo_multi_asset_risk.py
-
-# Custom configuration
-python src/alpha_pulse/examples/demo_multi_asset_risk.py \
-    --symbols BTC/USDT ETH/USDT BNB/USDT SOL/USDT \
-    --exchange binance \
-    --interval 60
-```
-
-Command line arguments:
-- `--symbols`: Trading symbols (space-separated)
-- `--exchange`: Exchange ID (default: binance)
-- `--api-key`: Exchange API key
-- `--api-secret`: Exchange API secret
-- `--interval`: Update interval in seconds (default: 60)
-
-### 3. 🎮 Paper Trading
-
-Run paper trading simulation with real-time market data:
-
-```bash
-python src/alpha_pulse/examples/demo_paper_trading.py
-```
-
-### 4. 💼 Portfolio Analysis and Rebalancing
-
-Run portfolio analysis with LLM insights and automated rebalancing:
-
-```bash
-# LLM-powered portfolio analysis
-python src/alpha_pulse/examples/demo_llm_portfolio_analysis.py
-
-# Portfolio rebalancing
-python src/alpha_pulse/examples/demo_portfolio_rebalancing.py
-```
-
-The LLM analysis will:
-- Connect to the exchange
-- Analyze current portfolio allocation
-- Generate AI-powered insights and recommendations
-- Create an interactive HTML report
-- Provide detailed risk assessment
-- Suggest optimal rebalancing targets
-
-The rebalancing demo will:
-- Connect to the exchange
-- Analyze current portfolio allocation
-- Calculate optimal allocation using MPT and HRP
-- Generate rebalancing recommendations
-- Execute trades if approved
-- Provide detailed logging of the process
-
-### 5. 🔄 Hedging Management
-
-Run intelligent spot-futures hedging with LLM insights:
-
-```bash
-python src/alpha_pulse/examples/demo_hedging.py
-```
-
-The hedging system will:
-1. Analyze current spot and futures positions
-2. Calculate hedge ratios and exposures
-3. Generate recommendations using both quantitative and LLM analysis
-4. Provide detailed execution strategies
-5. Monitor and adjust hedges as needed
-
-Example usage with the Hedging Manager:
+### Portfolio Management
 
 ```python
-from alpha_pulse.exchanges import BybitExchange
-from alpha_pulse.hedging import (
-    HedgeConfig,
-    LLMHedgeAnalyzer,
-    HedgeManager,
-    ExchangePositionFetcher,
-    BasicExecutionStrategy,
-    ExchangeOrderExecutor
-)
-
-async def manage_hedges():
-    # Initialize exchange
-    exchange = BybitExchange(testnet=False)
-    await exchange.initialize()
-    
-    # Create hedge configuration
-    config = HedgeConfig(
-        hedge_ratio_target=0.0,     # Target no hedging
-        max_leverage=3.0,           # Maximum 3x leverage
-        max_margin_usage=0.8,       # Maximum 80% margin usage
-        min_position_size={         # Minimum position sizes
-            'BTC': 0.001,
-            'ETH': 0.01
-        },
-        max_position_size={         # Maximum position sizes
-            'BTC': 1.0,
-            'ETH': 10.0
-        }
-    )
-    
-    # Initialize components
-    analyzer = LLMHedgeAnalyzer(config, os.getenv("OPENAI_API_KEY"))
-    position_fetcher = ExchangePositionFetcher(exchange)
-    execution_strategy = BasicExecutionStrategy()
-    order_executor = ExchangeOrderExecutor(exchange)
-    
-    # Create hedge manager
-    manager = HedgeManager(
-        hedge_analyzer=analyzer,
-        position_fetcher=position_fetcher,
-        execution_strategy=execution_strategy,
-        order_executor=order_executor,
-        execute_hedge=False  # Set to True for live trading
-    )
-    
-    # Analyze and manage hedges
-    await manager.manage_hedge()
-```
-
-The hedging system provides:
-1. 📊 Quantitative Analysis:
-   - Precise hedge ratio calculations
-   - Position sizing and exposure tracking
-   - Margin usage monitoring
-   - Risk metrics computation
-
-2. 🤖 LLM-Enhanced Analysis:
-   - Market context and timing recommendations
-   - Execution strategy optimization
-   - Risk management insights
-   - Detailed reasoning for decisions
-
-3. 🔄 Execution Management:
-   - Automated hedge adjustments
-   - Market impact minimization
-   - Stop-loss management
-   - Position monitoring
-
-### 6. 📊 Backtesting
-
-Run backtesting on historical data:
-
-```bash
-python src/alpha_pulse/examples/demo_backtesting.py
-```
-
-## 📁 Project Structure
-
-```
-AlphaPulse/
-├── src/
-│   └── alpha_pulse/
-│       ├── data_pipeline/    # Data fetching and storage
-│       ├── features/         # Feature engineering
-│       ├── models/          # ML model implementations
-│       ├── backtesting/     # Backtesting engine
-│       ├── execution/       # Order execution
-│       ├── exchanges/       # Exchange integrations
-│       │   ├── base.py          # Base exchange interface
-│       │   ├── binance.py       # Binance implementation
-│       │   ├── bybit.py         # Bybit implementation
-│       │   └── credentials/     # Secure credential management
-│       ├── risk_management/ # Risk and portfolio management
-│       │   ├── interfaces.py     # Abstract interfaces
-│       │   ├── position_sizing.py # Position sizing strategies
-│       │   ├── analysis.py       # Risk metrics calculation
-│       │   ├── portfolio.py      # Portfolio optimization
-│       │   └── manager.py        # Risk management system
-│       ├── config/          # Configuration settings
-│       ├── examples/        # Example scripts
-│       └── tests/           # Unit tests
-├── trained_models/          # Saved model files
-├── feature_cache/          # Cached feature data
-└── logs/                   # Application logs
-```
-
-## 🛡️ Risk Management & Portfolio Optimization
-
-The system includes comprehensive risk management and portfolio optimization features:
-
-### 📊 Position Sizing Strategies
-
-1. 🎯 Kelly Criterion:
-   - Optimal position sizing based on win rate and profit ratio
-   - Adjusts for volatility and signal strength
-   - Configurable fraction for conservative sizing
-
-2. 📈 Volatility-Based:
-   - Position sizing based on asset volatility
-   - Targets specific portfolio risk level
-   - Adapts to changing market conditions
-
-3. 🔄 Adaptive Strategy:
-   - Combines multiple sizing approaches
-   - Weights strategies based on market conditions
-   - Self-adjusting based on performance
-
-### 📊 Risk Analysis
-
-1. 📉 Risk Metrics:
-   - Value at Risk (VaR)
-   - Expected Shortfall (CVaR)
-   - Maximum Drawdown
-   - Sharpe & Sortino Ratios
-   - Volatility Analysis
-
-2. 🔍 Real-time Monitoring:
-   - Rolling risk metrics
-   - Drawdown tracking
-   - Position exposure analysis
-
-### 💼 Portfolio Optimization & Rebalancing
-
-1. 📈 Modern Portfolio Theory (MPT):
-   - Mean-variance optimization
-   - Efficient frontier calculation
-   - Risk-adjusted return optimization
-   - Sharpe ratio maximization
-   - Support for custom constraints
-
-2. 🌳 Hierarchical Risk Parity (HRP):
-   - Clustering-based portfolio optimization
-   - More robust to estimation errors
-   - Better numerical stability
-   - Handles high-dimensional portfolios
-   - No expected returns estimation needed
-
-3. 📊 Portfolio Analysis:
-   - Current allocation analysis
-   - Rebalancing score calculation
-   - Trade size optimization
-   - Transaction cost consideration
-   - Visual allocation comparison
-
-4. 🤖 LLM-Based Portfolio Analysis:
-    - AI-powered portfolio insights
-    - Risk assessment and recommendations
-    - Custom rebalancing suggestions
-    - Confidence scoring
-    - Detailed reasoning for decisions
-    - Interactive HTML reports
-    - Real-time market context
-    - Natural language explanations
-
-5. 🔄 Exchange Integration:
-    - Real-time balance tracking
-    - Multi-exchange support (Binance, Bybit)
-    - Automated rebalancing execution
-    - Support for spot and futures
-    - Secure API key management
-    - Enhanced error handling
-    - Comprehensive logging
-
-Example usage with LLM Portfolio Analysis:
-
-```python
-from alpha_pulse.portfolio.llm_analysis import OpenAILLMAnalyzer
 from alpha_pulse.portfolio.portfolio_manager import PortfolioManager
-from alpha_pulse.portfolio.html_report import HTMLReportGenerator
+from alpha_pulse.portfolio.strategies import BlackLittermanStrategy
 
-import os
-from dotenv import load_dotenv
+# Initialize portfolio manager
+manager = PortfolioManager(strategy=BlackLittermanStrategy())
 
-async def analyze_portfolio():
-    # Load environment variables
-    load_dotenv()
-    
-    # Initialize LLM analyzer
-    analyzer = OpenAILLMAnalyzer(
-        api_key=os.getenv("OPENAI_API_KEY"),
-        model_name="o3-mini",  # or other available models
-    )
-    
-    # Initialize portfolio manager
-    manager = PortfolioManager("portfolio_config.yaml")
-    
-    # Get portfolio data and analysis
-    portfolio_data = await manager.get_portfolio_data(exchange)
-    analysis = await manager.analyze_portfolio_with_llm(analyzer, exchange)
-    
-    # Generate HTML report
-    report_path = HTMLReportGenerator.generate_report(
-        portfolio_data=portfolio_data,
-        analysis_result=analysis,
-        output_dir="reports"
-    )
-    
-    print("Analysis complete! Check the HTML report for detailed results.")
+# Run optimization
+optimal_weights = manager.optimize_portfolio(assets, returns)
 ```
 
-Example usage with the Portfolio Analyzer:
+### Grid Hedging
 
 ```python
-from alpha_pulse.exchanges import ExchangeType, ExchangeFactory
-from alpha_pulse.portfolio.analyzer import PortfolioAnalyzer
-from alpha_pulse.portfolio.hrp_strategy import HRPStrategy
+from alpha_pulse.execution.broker_factory import create_broker, TradingMode
+from alpha_pulse.hedging.grid_hedge_bot import GridHedgeBot
 
-async def optimize_portfolio():
-    # Initialize exchange
-    exchange = await ExchangeFactory.create_exchange(
-        exchange_type=ExchangeType.BYBIT,
-        testnet=False
-    )
-    
-    # Create portfolio analyzer with HRP strategy
-    analyzer = PortfolioAnalyzer(
-        exchange=exchange,
-        strategy=HRPStrategy(),
-        lookback_days=30
-    )
-    
-    # Get optimal allocation
-    result = await analyzer.analyze_portfolio(
-        constraints={
-            'min_weight': 0.05,  # Minimum 5% per asset
-            'max_weight': 0.40   # Maximum 40% per asset
-        }
-    )
-    
-    # Get rebalancing trades
-    trades = analyzer.get_rebalancing_trades(
-        current_weights=await analyzer.get_current_allocation(),
-        target_weights=result.weights,
-        total_value=100000,
-        min_trade_value=10
-    )
-    
-    return result, trades
+# Create paper trading broker
+broker = create_broker(trading_mode=TradingMode.PAPER)
+
+# Initialize grid hedging bot
+bot = await GridHedgeBot.create_for_spot_hedge(
+    broker=broker,
+    symbol="BTCUSDT",
+    volatility=0.02,  # 2% daily volatility
+    spot_quantity=1.0  # Amount to hedge
+)
+
+# Run strategy
+bot.execute(current_price)
 ```
 
-### ⚙️ Configuration
-
-Risk management parameters can be configured through `RiskConfig`:
+### Data Pipeline
 
 ```python
-from alpha_pulse.risk_management import RiskConfig
+from alpha_pulse.data_pipeline.data_fetcher import DataFetcher
+from alpha_pulse.features.feature_engineering import FeatureEngineer
 
-config = RiskConfig(
-    max_position_size=0.2,      # Maximum 20% per position
-    max_portfolio_leverage=1.5,  # Maximum 150% portfolio leverage
-    max_drawdown=0.25,          # Maximum 25% drawdown
-    stop_loss=0.1,              # 10% stop-loss per position
-    target_volatility=0.15,     # Target 15% annual volatility
-    var_confidence=0.95,        # 95% VaR confidence level
-)
+# Fetch market data
+fetcher = DataFetcher()
+data = await fetcher.fetch_ohlcv("BTCUSDT", "1h")
+
+# Generate features
+engineer = FeatureEngineer()
+features = engineer.calculate_features(data)
 ```
 
-### 🔍 Usage Example
+## Configuration
 
-```python
-from alpha_pulse.risk_management import RiskManager, RiskConfig
+### Exchange Credentials
 
-# Initialize risk management system
-risk_manager = RiskManager(
-    config=RiskConfig(
-        max_position_size=0.2,
-        max_drawdown=0.25,
-    )
-)
+Create a credentials file at `src/alpha_pulse/exchanges/credentials/config.yaml`:
 
-# Calculate position size
-size_result = risk_manager.calculate_position_size(
-    symbol="BTC/USDT",
-    current_price=50000.0,
-    signal_strength=0.8,
-)
+```yaml
+binance:
+  api_key: "your-api-key"
+  api_secret: "your-api-secret"
+  testnet: true  # Use testnet for testing
 
-# Evaluate trade
-if risk_manager.evaluate_trade(
-    symbol="BTC/USDT",
-    side="buy",
-    quantity=size_result.size,
-    current_price=50000.0,
-    portfolio_value=100000.0,
-    current_positions=positions
-):
-    # Execute trade
-    execute_trade(...)
+bybit:
+  api_key: "your-api-key"
+  api_secret: "your-api-secret"
+  testnet: true
 ```
 
-## 🛠️ Development
+### Grid Hedging
 
-### 🧪 Running Tests
+Configure hedging parameters in `src/alpha_pulse/hedging/config/grid_hedge.yaml`:
+
+```yaml
+symbol: BTCUSDT
+trading_mode: PAPER  # REAL, PAPER, or RECOMMENDATION
+grid:
+  volatility: 0.02  # 2% daily volatility
+  num_levels: 5
+  direction: SHORT  # For hedging spot
+risk:
+  stop_loss_pct: 0.04  # 4% stop loss
+  take_profit_pct: 0.06  # 6% take profit
+```
+
+## Examples
+
+The `src/alpha_pulse/examples/` directory contains example scripts:
+
+- `demo_portfolio_rebalancing.py`: Portfolio optimization
+- `demo_grid_hedge_integration.py`: Grid hedging strategy
+- `demo_feature_engineering.py`: Feature calculation
+- `demo_model_training.py`: ML model training
+- `demo_rl_trading.py`: Reinforcement learning
+- `demo_llm_portfolio_analysis.py`: LLM integration
+
+## Documentation
+
+Detailed documentation for each module:
+
+- [Portfolio Management](src/alpha_pulse/portfolio/README.md)
+- [Risk Management](src/alpha_pulse/risk_management/README.md)
+- [Hedging Strategies](src/alpha_pulse/hedging/README.md)
+- [Data Pipeline](src/alpha_pulse/data_pipeline/README.md)
+- [Feature Engineering](src/alpha_pulse/features/README.md)
+- [Reinforcement Learning](src/alpha_pulse/rl/README.md)
+
+## Testing
 
 ```bash
 # Run all tests
-pytest src/alpha_pulse/tests/
+python -m pytest src/alpha_pulse/tests/
 
-# Run specific test module
-pytest src/alpha_pulse/tests/test_risk_management.py
+# Run specific test file
+python -m pytest src/alpha_pulse/tests/test_hedging.py
 ```
 
-### ✨ Adding New Features
+## Contributing
 
-1. Create feature branch
-2. Add tests
-3. Implement feature
-4. Run tests
-5. Submit pull request
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
 
-## 📄 License
+## License
 
-GNU Affero General Public License v3.0 (AGPL-3.0) - see LICENSE file for details
-
-This means:
-- 🔓 Source code must be made available when distributing the software
-- 🔄 Modifications must be released under the same license
-- 💼 Cannot be used for commercial purposes without explicit permission
-- 🌐 Network use is considered distribution (must share modifications)
-- 📝 Changes must be documented and dated
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
