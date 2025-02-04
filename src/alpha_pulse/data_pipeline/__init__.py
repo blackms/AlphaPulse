@@ -32,13 +32,17 @@ from alpha_pulse.data_pipeline.core.interfaces import (
     IDataFetcher,
     IMarketDataProvider
 )
-from alpha_pulse.data_pipeline.core.models import (
-    DataPipelineError,
+from alpha_pulse.data_pipeline.core.errors import DataPipelineError
+from alpha_pulse.data_pipeline.core.config import (
     StorageConfig,
     DataFetchConfig,
     MarketDataConfig,
+    DataPipelineConfig
+)
+from alpha_pulse.data_pipeline.core import (
     TIMEFRAME_DURATIONS,
-    validate_timeframe
+    validate_timeframe,
+    validate_symbol
 )
 
 # Implementation components
@@ -59,8 +63,10 @@ __all__ = [
     'StorageConfig',
     'DataFetchConfig',
     'MarketDataConfig',
+    'DataPipelineConfig',
     'TIMEFRAME_DURATIONS',
     'validate_timeframe',
+    'validate_symbol',
     
     # Implementations
     'SQLAlchemyStorage',

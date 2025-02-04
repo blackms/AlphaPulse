@@ -6,13 +6,26 @@ from alpha_pulse.data_pipeline.core.interfaces import (
     IDataFetcher,
     IMarketDataProvider
 )
-from alpha_pulse.data_pipeline.core.models import (
-    DataPipelineError,
+from alpha_pulse.data_pipeline.core.errors import DataPipelineError
+from alpha_pulse.data_pipeline.core.config import (
     StorageConfig,
     DataFetchConfig,
     MarketDataConfig,
-    TIMEFRAME_DURATIONS,
-    validate_timeframe
+    DataPipelineConfig
+)
+
+# Get timeframe durations from MarketDataConfig's default
+_default_config = MarketDataConfig()
+TIMEFRAME_DURATIONS = _default_config.timeframe_durations
+
+# Import validation functions
+from alpha_pulse.data_pipeline.core.validation import (
+    validate_timeframe,
+    validate_symbol,
+    validate_exchange_type,
+    validate_time_range,
+    validate_ohlcv,
+    validate_ohlcv_list
 )
 
 __all__ = [
@@ -26,6 +39,14 @@ __all__ = [
     'StorageConfig',
     'DataFetchConfig',
     'MarketDataConfig',
+    'DataPipelineConfig',
     'TIMEFRAME_DURATIONS',
-    'validate_timeframe'
+    
+    # Validation
+    'validate_timeframe',
+    'validate_symbol',
+    'validate_exchange_type',
+    'validate_time_range',
+    'validate_ohlcv',
+    'validate_ohlcv_list'
 ]

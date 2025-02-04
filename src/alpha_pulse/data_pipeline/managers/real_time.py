@@ -15,10 +15,8 @@ from alpha_pulse.data_pipeline.core.interfaces import (
     IOHLCVStorage,
     IMarketDataProvider
 )
-from alpha_pulse.data_pipeline.core.models import (
-    MarketDataConfig,
-    DataPipelineError
-)
+from alpha_pulse.data_pipeline.core.errors import DataPipelineError
+from alpha_pulse.data_pipeline.core.config import MarketDataConfig
 
 
 class RealTimeDataError(DataPipelineError):

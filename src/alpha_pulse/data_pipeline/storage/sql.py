@@ -14,10 +14,8 @@ from sqlalchemy.sql import select
 from alpha_pulse.exchanges import OHLCV, ExchangeType
 from alpha_pulse.config.settings import settings
 from alpha_pulse.data_pipeline.core.interfaces import IDataStorage
-from alpha_pulse.data_pipeline.core.models import (
-    StorageConfig,
-    DataPipelineError
-)
+from alpha_pulse.data_pipeline.core.errors import DataPipelineError
+from alpha_pulse.data_pipeline.core.config import StorageConfig
 from alpha_pulse.data_pipeline.models import Base, OHLCVRecord
 
 

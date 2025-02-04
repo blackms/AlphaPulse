@@ -13,13 +13,16 @@ from alpha_pulse.exchanges import OHLCV, ExchangeType
 from alpha_pulse.data_pipeline.core.interfaces import (
     IHistoricalDataManager,
     IHistoricalDataStorage,
-    IDataFetcher
+    IDataFetcher,
+    IOHLCVStorage
 )
-from alpha_pulse.data_pipeline.core.models import (
-    DataPipelineError,
-    TIMEFRAME_DURATIONS,
-    validate_timeframe
-)
+from alpha_pulse.data_pipeline.core.errors import DataPipelineError
+from alpha_pulse.data_pipeline.core.config import MarketDataConfig
+from alpha_pulse.data_pipeline.core.validation import validate_timeframe
+
+# Get timeframe durations from MarketDataConfig's default
+_default_config = MarketDataConfig()
+TIMEFRAME_DURATIONS = _default_config.timeframe_durations
 
 
 class HistoricalDataError(DataPipelineError):
@@ -70,7 +73,7 @@ class HistoricalDataManager(IHistoricalDataManager):
             HistoricalDataError: If data check fails
         """
         try:
-            validate_timeframe(timeframe)
+            validate_timeframe(timeframe, list(TIMEFRAME_DURATIONS.keys()))
 
             # Get existing data range
             data = self.get_historical_data(
@@ -190,7 +193,7 @@ class HistoricalDataManager(IHistoricalDataManager):
             HistoricalDataError: If data retrieval fails
         """
         try:
-            validate_timeframe(timeframe)
+            validate_timeframe(timeframe, list(TIMEFRAME_DURATIONS.keys()))
             return self.storage.get_historical_data(
                 exchange_type, symbol, timeframe,
                 start_time, end_time

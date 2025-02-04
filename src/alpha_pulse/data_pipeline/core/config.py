@@ -7,7 +7,7 @@ components, following the Single Responsibility Principle.
 from dataclasses import dataclass, field
 from typing import Dict
 
-from alpha_pulse.data_pipeline.core.models import DataPipelineError
+from alpha_pulse.data_pipeline.core.errors import DataPipelineError
 
 
 class ConfigurationError(DataPipelineError):

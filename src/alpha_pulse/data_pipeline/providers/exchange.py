@@ -12,10 +12,8 @@ from loguru import logger
 
 from alpha_pulse.exchanges import ExchangeType, ExchangeFactory, BaseExchange
 from alpha_pulse.data_pipeline.core.interfaces import IMarketDataProvider
-from alpha_pulse.data_pipeline.core.models import (
-    MarketDataConfig,
-    DataPipelineError
-)
+from alpha_pulse.data_pipeline.core.errors import DataPipelineError
+from alpha_pulse.data_pipeline.core.config import MarketDataConfig
 
 
 class MarketDataError(DataPipelineError):

@@ -16,10 +16,8 @@ from alpha_pulse.exchanges import (
     BaseExchange
 )
 from alpha_pulse.data_pipeline.core.interfaces import IDataFetcher
-from alpha_pulse.data_pipeline.core.models import (
-    DataFetchConfig,
-    DataPipelineError
-)
+from alpha_pulse.data_pipeline.core.errors import DataPipelineError
+from alpha_pulse.data_pipeline.core.config import DataFetchConfig
 
 
 class DataFetchError(DataPipelineError):

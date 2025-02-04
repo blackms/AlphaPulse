@@ -13,6 +13,7 @@ from alpha_pulse.exchanges import ExchangeType
 from alpha_pulse.data_pipeline import (
     SQLAlchemyStorage,
     StorageConfig,
+    MarketDataConfig,
     validate_timeframe,
     validate_symbol
 )
@@ -52,9 +53,13 @@ def main():
         symbol = "BTC/USDT"
         timeframe = "1d"
         
+        # Get valid timeframes from MarketDataConfig
+        market_config = MarketDataConfig()
+        valid_timeframes = list(market_config.timeframe_durations.keys())
+        
         # Validate inputs
         validate_symbol(symbol)
-        validate_timeframe(timeframe)
+        validate_timeframe(timeframe, valid_timeframes)
         
         # Query data for the last 30 days
         end_time = datetime.now(UTC)
