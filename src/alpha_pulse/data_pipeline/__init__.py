@@ -32,7 +32,13 @@ from alpha_pulse.data_pipeline.core.interfaces import (
     IDataFetcher,
     IMarketDataProvider
 )
-from alpha_pulse.data_pipeline.core.errors import DataPipelineError
+from alpha_pulse.data_pipeline.core.errors import (
+    DataPipelineError,
+    StorageError,
+    DataFetchError,
+    ValidationError,
+    MarketDataError
+)
 from alpha_pulse.data_pipeline.core.config import (
     StorageConfig,
     DataFetchConfig,
@@ -60,6 +66,10 @@ __all__ = [
     
     # Models and Configs
     'DataPipelineError',
+    'StorageError',
+    'DataFetchError',
+    'ValidationError',
+    'MarketDataError',
     'StorageConfig',
     'DataFetchConfig',
     'MarketDataConfig',

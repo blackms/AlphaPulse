@@ -8,7 +8,7 @@ This script demonstrates:
 4. Progress monitoring
 """
 import asyncio
-from datetime import datetime, timedelta, UTC
+from datetime import datetime, timedelta, timezone
 from typing import List, Tuple
 from loguru import logger
 
@@ -19,6 +19,7 @@ from alpha_pulse.data_pipeline import (
     HistoricalDataManager,
     StorageConfig,
     DataFetchConfig,
+    MarketDataConfig,
     validate_timeframe,
     validate_symbol,
     DataFetchError,
@@ -47,13 +48,17 @@ async def download_historical_data(
         List of (timeframe, record count) tuples
     """
     results = []
-    end_time = datetime.now(UTC)
+    end_time = datetime.now(timezone.utc)
     start_time = end_time - timedelta(days=days)
+    
+    # Get valid timeframes from MarketDataConfig
+    market_config = MarketDataConfig()
+    valid_timeframes = list(market_config.timeframe_durations.keys())
     
     for timeframe in timeframes:
         try:
             # Validate inputs
-            validate_timeframe(timeframe)
+            validate_timeframe(timeframe, valid_timeframes)
             validate_symbol(symbol)
             
             logger.info(f"📥 Downloading {timeframe} data for {symbol}...")
@@ -90,12 +95,6 @@ async def main():
     """Download historical data for multiple timeframes."""
     logger.info("🚀 Starting historical data download...")
     
-    # Configuration
-    exchange_type = ExchangeType.BINANCE
-    symbol = "BTC/USDT"
-    timeframes = ["1m", "5m", "15m", "1h", "4h", "1d"]
-    days = 30
-    
     try:
         # Initialize components with configuration
         storage = SQLAlchemyStorage(
@@ -117,26 +116,38 @@ async def main():
         # Create manager
         manager = HistoricalDataManager(storage, fetcher)
         
-        # Download data
-        results = await download_historical_data(
-            manager=manager,
-            exchange_type=exchange_type,
-            symbol=symbol,
-            timeframes=timeframes,
-            days=days
-        )
+        # Configuration
+        exchange_type = ExchangeType.BINANCE
+        symbol = "BTCUSDT"  # Remove '/' for Binance compatibility
+        timeframes = ["1m", "5m", "15m", "1h", "4h", "1d"]
+        days = 30
         
-        # Display summary
-        logger.info("\n📊 Download Summary:")
-        total_records = 0
-        for timeframe, count in results:
-            logger.info(f"{timeframe}: {count:,} records")
-            total_records += count
+        try:
+            # Download data
+            results = await download_historical_data(
+                manager=manager,
+                exchange_type=exchange_type,
+                symbol=symbol,
+                timeframes=timeframes,
+                days=days
+            )
             
-        if total_records > 0:
-            logger.info(f"\n✨ Successfully downloaded {total_records:,} total records")
-        else:
-            logger.warning("\n⚠️ No data was downloaded")
+            # Display summary
+            logger.info("\n📊 Download Summary:")
+            total_records = 0
+            for timeframe, count in results:
+                logger.info(f"{timeframe}: {count:,} records")
+                total_records += count
+                
+            if total_records > 0:
+                logger.info(f"\n✨ Successfully downloaded {total_records:,} total records")
+            else:
+                logger.warning("\n⚠️ No data was downloaded")
+                
+        finally:
+            # Clean up resources
+            if hasattr(fetcher, 'close'):
+                await fetcher.close()
             
     except Exception as e:
         logger.error(f"❌ Fatal error: {str(e)}")

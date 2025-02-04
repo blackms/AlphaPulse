@@ -1,7 +1,7 @@
 """
 Market data models for AlphaPulse data pipeline.
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, Integer, Float, String, DateTime, MetaData
 from sqlalchemy.orm import declarative_base
 
@@ -49,11 +49,16 @@ class OHLCVRecord(Base):
         Returns:
             Database record
         """
+        # Ensure timestamp is timezone-aware
+        timestamp = ohlcv.timestamp
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=timezone.utc)
+            
         return cls(
             exchange=exchange_type.value,
             symbol=symbol,
             timeframe=timeframe,
-            timestamp=ohlcv.timestamp,
+            timestamp=timestamp,
             open=float(ohlcv.open),
             high=float(ohlcv.high),
             low=float(ohlcv.low),
@@ -67,11 +72,19 @@ class OHLCVRecord(Base):
         Returns:
             OHLCV model
         """
+        # Ensure timestamp is timezone-aware
+        timestamp = self.timestamp
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=timezone.utc)
+            
         return OHLCV(
-            timestamp=self.timestamp,
+            timestamp=timestamp,
             open=self.open,
             high=self.high,
             low=self.low,
             close=self.close,
-            volume=self.volume
+            volume=self.volume,
+            exchange=self.exchange,
+            symbol=self.symbol,
+            timeframe=self.timeframe
         )

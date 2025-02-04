@@ -45,14 +45,18 @@ async def demo_historical_data():
         end_time = datetime.now(UTC)
         start_time = end_time - timedelta(days=7)
         
+        # Get valid timeframes from MarketDataConfig
+        market_config = MarketDataConfig()
+        valid_timeframes = list(market_config.timeframe_durations.keys())
+        
         # Validate timeframe
         timeframe = "1h"
-        validate_timeframe(timeframe)
+        validate_timeframe(timeframe, valid_timeframes)
         
         # Ensure data is available
         await manager.ensure_data_available(
             exchange_type=ExchangeType.BINANCE,
-            symbol="BTC/USDT",
+            symbol="BTCUSDT",  # Remove '/' for Binance compatibility
             timeframe=timeframe,
             start_time=start_time,
             end_time=end_time
@@ -61,7 +65,7 @@ async def demo_historical_data():
         # Get the data
         data = manager.get_historical_data(
             exchange_type=ExchangeType.BINANCE,
-            symbol="BTC/USDT",
+            symbol="BTCUSDT",  # Remove '/' for Binance compatibility
             timeframe=timeframe,
             start_time=start_time,
             end_time=end_time
@@ -101,8 +105,8 @@ async def demo_real_time_data():
     manager = RealTimeDataManager(provider, storage)
     
     try:
-        # Start monitoring symbols
-        symbols = ["BTC/USDT", "ETH/USDT"]
+        # Start monitoring symbols (without '/' for Binance compatibility)
+        symbols = ["BTCUSDT", "ETHUSDT"]
         await manager.start(symbols)
         logger.info(f"✅ Started monitoring {len(symbols)} symbols")
         

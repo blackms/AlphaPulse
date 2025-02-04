@@ -28,6 +28,22 @@ def validate_exchange_type(exchange_type: ExchangeType) -> None:
         )
 
 
+def normalize_symbol(symbol: str) -> str:
+    """
+    Normalize trading symbol to exchange format.
+
+    Args:
+        symbol: Symbol to normalize (e.g., 'BTC/USDT' or 'BTCUSDT')
+
+    Returns:
+        Normalized symbol (e.g., 'BTCUSDT' for Binance)
+    """
+    if '/' in symbol:
+        base, quote = symbol.split('/')
+        return f"{base}{quote}"
+    return symbol
+
+
 def validate_symbol(symbol: str) -> None:
     """
     Validate trading symbol.
@@ -41,11 +57,21 @@ def validate_symbol(symbol: str) -> None:
     if not symbol or not isinstance(symbol, str):
         raise ValidationError("Symbol must be a non-empty string")
     
-    if '/' not in symbol:
-        raise ValidationError(
-            f"Invalid symbol format: {symbol}. "
-            f"Must be in format 'BASE/QUOTE' (e.g., 'BTC/USDT')"
-        )
+    # Accept both formats: 'BTC/USDT' and 'BTCUSDT'
+    if '/' in symbol:
+        parts = symbol.split('/')
+        if len(parts) != 2 or not parts[0] or not parts[1]:
+            raise ValidationError(
+                f"Invalid symbol format: {symbol}. "
+                f"Must be in format 'BASE/QUOTE' (e.g., 'BTC/USDT')"
+            )
+    else:
+        # For non-separated format, ensure it's at least 2 characters
+        if len(symbol) < 2:
+            raise ValidationError(
+                f"Invalid symbol format: {symbol}. "
+                f"Symbol must be at least 2 characters"
+            )
 
 
 def validate_timeframe(timeframe: str, valid_timeframes: List[str]) -> None:

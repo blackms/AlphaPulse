@@ -31,6 +31,9 @@ class OHLCV:
     low: Decimal
     close: Decimal
     volume: Decimal
+    exchange: Optional[str] = None
+    symbol: Optional[str] = None
+    timeframe: Optional[str] = None
 
 
 class BaseExchange(ABC):
@@ -284,7 +287,10 @@ class CCXTExchange(BaseExchange):
                     high=Decimal(str(candle[2])),
                     low=Decimal(str(candle[3])),
                     close=Decimal(str(candle[4])),
-                    volume=Decimal(str(candle[5]))
+                    volume=Decimal(str(candle[5])),
+                    exchange=self.exchange_id,
+                    symbol=symbol,
+                    timeframe=timeframe
                 )
                 for candle in raw_data
             ]
