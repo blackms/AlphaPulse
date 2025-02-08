@@ -22,15 +22,33 @@ from alpha_pulse.data_pipeline import (
     HistoricalDataManager,
     StorageConfig,
     DataFetchConfig,
+    MarketDataConfig,
     validate_timeframe,
     validate_symbol
 )
-from alpha_pulse.backtesting import (
-    Backtester,
-    DefaultStrategy,
-    TrendFollowingStrategy,
-    MeanReversionStrategy
-)
+from alpha_pulse.backtesting.backtester import Backtester
+from alpha_pulse.backtesting.strategy import BaseStrategy
+from alpha_pulse.backtesting.models import Position
+
+
+class SimpleStrategy(BaseStrategy):
+    """Simple strategy that works with pandas Series."""
+    
+    def __init__(self, threshold: float = 0.0):
+        self.threshold = threshold
+        logger.info(f"Initialized SimpleStrategy with threshold {threshold}")
+    
+    def should_enter(self, signal: pd.Series) -> bool:
+        """Enter long position when signal is above threshold."""
+        if isinstance(signal, pd.Series):
+            signal = signal.iloc[-1]  # Get the latest signal value
+        return float(signal) > self.threshold
+    
+    def should_exit(self, signal: pd.Series, position: Position) -> bool:
+        """Exit long position when signal drops below threshold."""
+        if isinstance(signal, pd.Series):
+            signal = signal.iloc[-1]  # Get the latest signal value
+        return float(signal) <= self.threshold
 
 
 async def fetch_historical_prices(
@@ -53,9 +71,13 @@ async def fetch_historical_prices(
     Returns:
         Price series indexed by timestamp
     """
+    # Get valid timeframes from MarketDataConfig
+    market_config = MarketDataConfig()
+    valid_timeframes = list(market_config.timeframe_durations.keys())
+    
     # Validate inputs
     validate_symbol(symbol)
-    validate_timeframe(timeframe)
+    validate_timeframe(timeframe, valid_timeframes)
     
     # Define time range
     end_time = datetime.now(UTC)
@@ -102,7 +124,8 @@ def plot_backtest_results(results, prices: pd.Series, save_path: Path):
     
     # Plot equity curve
     plt.subplot(2, 1, 1)
-    plt.plot(results.equity_curve.index, results.equity_curve.values, label='Portfolio Value')
+    equity_curve = pd.Series(results.equity_curve)
+    plt.plot(equity_curve.index, equity_curve.values, label='Portfolio Value')
     plt.title('Backtest Results')
     plt.ylabel('Portfolio Value ($)')
     plt.legend()
@@ -115,12 +138,14 @@ def plot_backtest_results(results, prices: pd.Series, save_path: Path):
     # Plot entry points
     entries = [pos.entry_time for pos in results.positions]
     entry_prices = [pos.entry_price for pos in results.positions]
-    plt.scatter(entries, entry_prices, color='g', marker='^', label='Entry')
+    if entries:
+        plt.scatter(entries, entry_prices, color='g', marker='^', label='Entry')
     
     # Plot exit points
     exits = [pos.exit_time for pos in results.positions if pos.exit_time]
     exit_prices = [pos.exit_price for pos in results.positions if pos.exit_price]
-    plt.scatter(exits, exit_prices, color='r', marker='v', label='Exit')
+    if exits:
+        plt.scatter(exits, exit_prices, color='r', marker='v', label='Exit')
     
     plt.title('Trading Activity')
     plt.ylabel('Price ($)')
@@ -176,16 +201,13 @@ async def main():
             position_size=0.1      # Risk 10% of capital per trade
         )
         
-        # Test different strategies
-        strategies = {
-            "Default": DefaultStrategy(threshold=0.0),
-            "Trend Following": TrendFollowingStrategy(),
-            "Mean Reversion": MeanReversionStrategy()
-        }
+        # Test different thresholds
+        thresholds = [-0.5, 0.0, 0.5]
         
         logger.info("\n📈 Running backtests...")
-        for name, strategy in strategies.items():
-            logger.info(f"\nTesting {name} strategy:")
+        for threshold in thresholds:
+            strategy = SimpleStrategy(threshold=threshold)
+            logger.info(f"\nTesting strategy with threshold {threshold}:")
             
             # Run backtest
             results = backtester.backtest(
@@ -201,7 +223,7 @@ async def main():
             logger.info(f"Win Rate: {results.win_rate:.2%}")
             
             # Plot results
-            plot_path = plots_dir / f"backtest_results_{name.lower().replace(' ', '_')}.png"
+            plot_path = plots_dir / f"backtest_results_threshold_{threshold:.1f}.png"
             plot_backtest_results(results, prices, plot_path)
         
         logger.info("\n✨ Backtesting completed successfully!")
@@ -209,6 +231,10 @@ async def main():
     except Exception as e:
         logger.error(f"❌ Error during backtesting: {str(e)}")
         raise
+    finally:
+        # Clean up resources
+        if hasattr(fetcher, 'close'):
+            await fetcher.close()
 
 
 if __name__ == "__main__":

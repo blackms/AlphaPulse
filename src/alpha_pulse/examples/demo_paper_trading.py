@@ -11,12 +11,16 @@ from pathlib import Path
 from typing import List, Optional, Dict
 from functools import wraps
 
-from alpha_pulse.data_pipeline.data_fetcher import DataFetcher
-from alpha_pulse.data_pipeline.exchange import CCXTExchangeFactory
-from alpha_pulse.data_pipeline.storage import SQLAlchemyStorage
-from alpha_pulse.data_pipeline.models import OHLCV
+from alpha_pulse.exchanges import ExchangeType, ExchangeFactory
+from alpha_pulse.data_pipeline import (
+    SQLAlchemyStorage,
+    ExchangeFetcher,
+    HistoricalDataManager,
+    StorageConfig,
+    DataFetchConfig
+)
 from alpha_pulse.features.feature_engineering import calculate_technical_indicators
-from alpha_pulse.execution import PaperBroker, OrderSide, OrderType, Order, RiskLimits
+from alpha_pulse.execution import PaperBroker, OrderSide, OrderType, Order
 from alpha_pulse.config.settings import TRAINED_MODELS_DIR, settings
 from alpha_pulse.config.exchanges import get_exchange_config
 from alpha_pulse.monitoring.metrics import (
@@ -68,19 +72,12 @@ class PaperTradingSystem:
         settings.exchange = exchange_config
         
         # Initialize components
-        self.data_fetcher = DataFetcher(
-            exchange_factory=CCXTExchangeFactory(),
-            storage=SQLAlchemyStorage()
-        )
-        self.broker = PaperBroker(
-            initial_balance=initial_balance,
-            risk_limits=RiskLimits(
-                max_position_size=initial_balance * 0.2,  # 20% max per position
-                max_portfolio_size=initial_balance * 1.5,  # 150% max portfolio value
-                max_drawdown_pct=0.25,  # 25% max drawdown
-                stop_loss_pct=0.10,  # 10% stop loss per position
-            )
-        )
+        storage = SQLAlchemyStorage(config=StorageConfig())
+        fetcher = ExchangeFetcher(config=DataFetchConfig())
+        self.data_manager = HistoricalDataManager(storage, fetcher)
+        
+        # Initialize paper broker with initial balance
+        self.broker = PaperBroker(initial_balance=initial_balance)
         
         # Load trained model and feature names
         model_data = joblib.load(model_path)
@@ -103,7 +100,7 @@ class PaperTradingSystem:
         
         try:
             while True:
-                current_time = datetime.now()
+                current_time = datetime.now(UTC)
                 
                 for symbol in self.symbols:
                     # Skip if not enough time has passed since last update
@@ -111,12 +108,25 @@ class PaperTradingSystem:
                         (current_time - self.last_updates[symbol]).seconds < self.update_interval):
                         continue
                     
-                    # Fetch latest data
-                    ohlcv_data = self.data_fetcher.fetch_ohlcv(
-                        exchange_id=settings.exchange.id,
+                    # Ensure data is available
+                    end_time = current_time
+                    start_time = end_time - timedelta(hours=2)  # Get 2 hours of data for features
+                    
+                    await self.data_manager.ensure_data_available(
+                        exchange_type=ExchangeType.BINANCE,
                         symbol=symbol,
                         timeframe="1m",
-                        limit=100  # Enough data for feature calculation
+                        start_time=start_time,
+                        end_time=end_time
+                    )
+                    
+                    # Get historical data
+                    ohlcv_data = self.data_manager.get_historical_data(
+                        exchange_type=ExchangeType.BINANCE,
+                        symbol=symbol,
+                        timeframe="1m",
+                        start_time=start_time,
+                        end_time=end_time
                     )
                     
                     if not ohlcv_data:
@@ -124,17 +134,14 @@ class PaperTradingSystem:
                         continue
                     
                     # Convert OHLCV data to DataFrame
-                    df = pd.DataFrame([
-                        {
-                            'timestamp': candle.timestamp,
-                            'open': candle.open,
-                            'high': candle.high,
-                            'low': candle.low,
-                            'close': candle.close,
-                            'volume': candle.volume
-                        }
-                        for candle in ohlcv_data
-                    ])
+                    df = pd.DataFrame([{
+                        'timestamp': candle.timestamp,
+                        'open': candle.open,
+                        'high': candle.high,
+                        'low': candle.low,
+                        'close': candle.close,
+                        'volume': candle.volume
+                    } for candle in ohlcv_data])
                     df.set_index('timestamp', inplace=True)
                     
                     # Process data and make trading decisions
@@ -238,7 +245,7 @@ class PaperTradingSystem:
 
     def _log_performance(self):
         """Log current performance metrics."""
-        portfolio_value = self.broker.get_portfolio_value()
+        portfolio_value = float(self.broker.get_portfolio_value())  # Convert Decimal to float
         self.portfolio_values.append({
             'timestamp': datetime.now(),
             'value': portfolio_value
@@ -272,7 +279,7 @@ class PaperTradingSystem:
 
     def _log_final_results(self):
         """Log final trading session results."""
-        final_value = self.broker.get_portfolio_value()
+        final_value = float(self.broker.get_portfolio_value())  # Convert Decimal to float
         total_pnl = final_value - self.initial_portfolio_value
         total_pnl_pct = (total_pnl / self.initial_portfolio_value) * 100
         
