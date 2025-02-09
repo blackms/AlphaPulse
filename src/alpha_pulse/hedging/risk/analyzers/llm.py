@@ -9,15 +9,15 @@ from loguru import logger
 from langchain_openai import ChatOpenAI
 from langchain.schema import HumanMessage, SystemMessage
 
-from .interfaces import IHedgeAnalyzer
-from .models import (
-    SpotPosition,
-    FuturesPosition,
-    HedgeRecommendation,
-    HedgeAdjustment
+from alpha_pulse.hedging.common.interfaces import RiskManager as IHedgeAnalyzer
+from alpha_pulse.hedging.common.types import (
+    PositionState as SpotPosition,
+    PositionState as FuturesPosition,
+    GridMetrics as HedgeRecommendation,
+    GridLevel as HedgeAdjustment
 )
-from .hedge_config import HedgeConfig
-from .basic_futures_hedge import BasicFuturesHedgeAnalyzer
+from alpha_pulse.hedging.risk.config import HedgeConfig
+from alpha_pulse.hedging.risk.analyzers.basic import BasicFuturesHedgeAnalyzer
 
 class LLMHedgeAnalyzer(IHedgeAnalyzer):
     """

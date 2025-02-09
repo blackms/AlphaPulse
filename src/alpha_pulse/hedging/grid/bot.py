@@ -6,7 +6,7 @@ from typing import Dict, Optional
 from loguru import logger
 
 from alpha_pulse.execution.broker_interface import BrokerInterface
-from alpha_pulse.data_pipeline.exchange_data_provider import ExchangeDataProvider
+from alpha_pulse.data_pipeline.providers.exchange import ExchangeDataProvider
 
 from ..common.interfaces import GridCalculator, OrderManager, RiskManager, StateManager
 from ..common.types import GridState, MarketState

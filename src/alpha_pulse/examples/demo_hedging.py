@@ -4,11 +4,12 @@ import os
 from loguru import logger
 
 from alpha_pulse.exchanges.bybit import BybitExchange
-from alpha_pulse.hedging.hedge_config import HedgeConfig
-from alpha_pulse.hedging.llm_hedge_analyzer import LLMHedgeAnalyzer
-from alpha_pulse.hedging.hedge_manager import HedgeManager
-from alpha_pulse.hedging.position_fetcher import ExchangePositionFetcher
-from alpha_pulse.hedging.execution import BasicExecutionStrategy, ExchangeOrderExecutor
+from alpha_pulse.hedging.risk.config import HedgeConfig
+from alpha_pulse.hedging.risk.analyzers.llm import LLMHedgeAnalyzer
+from alpha_pulse.hedging.risk.manager import HedgeManager
+from alpha_pulse.hedging.execution.position_fetcher import ExchangePositionFetcher
+from alpha_pulse.hedging.execution.order_manager import GridOrderManager as ExchangeOrderExecutor
+from alpha_pulse.hedging.common.interfaces import OrderManager as BasicExecutionStrategy
 
 async def main():
     """

@@ -1,12 +1,99 @@
 """
-Risk management for grid hedging strategy.
+Risk management for hedging strategies.
 """
 from decimal import Decimal
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 from loguru import logger
 
 from ..common.interfaces import RiskManager
 from ..common.types import MarketState, PositionState
+
+
+class HedgeManager:
+    """Coordinates hedge analysis, position management, and execution."""
+    
+    def __init__(
+        self,
+        hedge_analyzer,
+        position_fetcher,
+        execution_strategy,
+        order_executor,
+        execute_hedge: bool = False
+    ):
+        """
+        Initialize hedge manager.
+        
+        Args:
+            hedge_analyzer: Component for analyzing and recommending hedges
+            position_fetcher: Component for fetching current positions
+            execution_strategy: Component for executing hedge adjustments
+            order_executor: Component for placing orders
+            execute_hedge: Whether to execute hedge trades (False for analysis only)
+        """
+        self.hedge_analyzer = hedge_analyzer
+        self.position_fetcher = position_fetcher
+        self.execution_strategy = execution_strategy
+        self.order_executor = order_executor
+        self.execute_hedge = execute_hedge
+        
+        logger.info(
+            f"Initialized hedge manager "
+            f"(execute_hedge: {execute_hedge})"
+        )
+    
+    async def manage_hedge(self) -> None:
+        """Analyze and adjust hedge positions."""
+        try:
+            # Get current positions
+            spot_positions = await self.position_fetcher.get_spot_positions()
+            futures_positions = await self.position_fetcher.get_futures_positions()
+            
+            # Get hedge recommendations
+            recommendation = await self.hedge_analyzer.analyze(
+                spot_positions,
+                futures_positions
+            )
+            
+            if not self.execute_hedge:
+                logger.info("Skipping hedge execution (dry run)")
+                return
+                
+            # Execute recommended adjustments
+            if recommendation.adjustments:
+                for adj in recommendation.adjustments:
+                    await self.execution_strategy.execute_adjustment(
+                        adjustment=adj,
+                        order_executor=self.order_executor
+                    )
+            else:
+                logger.info("No hedge adjustments needed")
+                
+        except Exception as e:
+            logger.error(f"Error managing hedge: {str(e)}")
+            raise
+    
+    async def close_all_hedges(self) -> None:
+        """Close all hedge positions."""
+        try:
+            if not self.execute_hedge:
+                logger.info("Skipping hedge closure (dry run)")
+                return
+                
+            # Get current futures positions
+            futures_positions = await self.position_fetcher.get_futures_positions()
+            
+            # Close each position
+            for pos in futures_positions:
+                await self.order_executor.close_position(
+                    symbol=pos.symbol,
+                    quantity=pos.quantity,
+                    side=pos.side
+                )
+                logger.info(f"Closed hedge position for {pos.symbol}")
+                
+        except Exception as e:
+            logger.error(f"Error closing hedges: {str(e)}")
+            raise
 
 
 class GridRiskManager(RiskManager):

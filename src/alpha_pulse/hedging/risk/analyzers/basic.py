@@ -2,15 +2,15 @@ from decimal import Decimal
 from typing import List, Dict, Optional
 from loguru import logger
 
-from .interfaces import IHedgeAnalyzer
-from .models import (
-    SpotPosition,
-    FuturesPosition,
-    HedgeRecommendation,
-    HedgeAdjustment,
-    GridBotParams
+from alpha_pulse.hedging.common.interfaces import RiskManager as IHedgeAnalyzer
+from alpha_pulse.hedging.common.types import (
+    PositionState as SpotPosition,
+    PositionState as FuturesPosition,
+    GridMetrics as HedgeRecommendation,
+    GridLevel as HedgeAdjustment,
+    GridState as GridBotParams
 )
-from .hedge_config import HedgeConfig
+from alpha_pulse.hedging.risk.config import HedgeConfig
 
 class BasicFuturesHedgeAnalyzer(IHedgeAnalyzer):
     """Basic implementation of futures-based hedging analysis."""
