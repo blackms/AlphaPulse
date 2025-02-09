@@ -17,6 +17,43 @@ class GridState(Enum):
 
 
 @dataclass(frozen=True)
+class SpotPosition:
+    """Immutable spot position state."""
+    symbol: str
+    quantity: Decimal
+    avg_price: Decimal
+    current_price: Optional[Decimal] = None
+    market_value: Optional[Decimal] = None
+
+    @property
+    def pnl(self) -> Optional[Decimal]:
+        """Calculate unrealized PnL."""
+        if self.current_price is None:
+            return None
+        return (self.current_price - self.avg_price) * self.quantity
+
+
+@dataclass(frozen=True)
+class FuturesPosition:
+    """Immutable futures position state."""
+    symbol: str
+    quantity: Decimal
+    side: str
+    entry_price: Decimal
+    leverage: Decimal
+    margin_used: Decimal
+    current_price: Optional[Decimal] = None
+    pnl: Optional[Decimal] = None
+
+    @property
+    def notional_value(self) -> Optional[Decimal]:
+        """Calculate notional value."""
+        if self.current_price is None:
+            return None
+        return self.quantity * self.current_price
+
+
+@dataclass(frozen=True)
 class PositionState:
     """Immutable position state."""
     spot_quantity: Decimal

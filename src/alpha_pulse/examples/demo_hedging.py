@@ -8,8 +8,8 @@ from alpha_pulse.hedging.risk.config import HedgeConfig
 from alpha_pulse.hedging.risk.analyzers.llm import LLMHedgeAnalyzer
 from alpha_pulse.hedging.risk.manager import HedgeManager
 from alpha_pulse.hedging.execution.position_fetcher import ExchangePositionFetcher
-from alpha_pulse.hedging.execution.order_manager import GridOrderManager as ExchangeOrderExecutor
-from alpha_pulse.hedging.common.interfaces import OrderManager as BasicExecutionStrategy
+from alpha_pulse.hedging.execution.order_executor import ExchangeOrderExecutor
+from alpha_pulse.hedging.execution.strategy import BasicExecutionStrategy
 
 async def main():
     """
