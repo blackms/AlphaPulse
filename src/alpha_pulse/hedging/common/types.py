@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Optional
+from typing import Dict, List, Optional
 
 
 class GridState(Enum):
@@ -88,6 +88,26 @@ class PositionState:
             funding_paid=kwargs.get('funding_paid', self.funding_paid),
             last_update=datetime.now()
         )
+
+
+@dataclass(frozen=True)
+class HedgeAdjustment:
+    """Immutable hedge adjustment recommendation."""
+    symbol: str
+    desired_delta: Decimal
+    side: str  # BUY/SELL
+    recommendation: str
+    priority: str  # HIGH/MEDIUM/LOW
+
+
+@dataclass(frozen=True)
+class HedgeRecommendation:
+    """Immutable hedge recommendation."""
+    adjustments: List[HedgeAdjustment]
+    current_net_exposure: Decimal
+    target_net_exposure: Decimal
+    commentary: str
+    risk_metrics: Dict[str, Decimal]
 
 
 @dataclass(frozen=True)
