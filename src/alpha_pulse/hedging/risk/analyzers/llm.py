@@ -11,10 +11,10 @@ from langchain.schema import HumanMessage, SystemMessage
 
 from alpha_pulse.hedging.common.interfaces import RiskManager as IHedgeAnalyzer
 from alpha_pulse.hedging.common.types import (
-    PositionState as SpotPosition,
-    PositionState as FuturesPosition,
-    GridMetrics as HedgeRecommendation,
-    GridLevel as HedgeAdjustment
+    SpotPosition,
+    FuturesPosition,
+    HedgeRecommendation,
+    HedgeAdjustment
 )
 from alpha_pulse.hedging.risk.config import HedgeConfig
 from alpha_pulse.hedging.risk.analyzers.basic import BasicFuturesHedgeAnalyzer
