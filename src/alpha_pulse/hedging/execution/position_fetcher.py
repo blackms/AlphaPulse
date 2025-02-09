@@ -1,8 +1,8 @@
 from decimal import Decimal
 from typing import List, Optional
-from ..exchanges.base import BaseExchange
-from .interfaces import IPositionFetcher
-from .models import SpotPosition, FuturesPosition
+from alpha_pulse.exchanges.base import BaseExchange
+from alpha_pulse.hedging.common.interfaces import MarketDataProvider as IPositionFetcher
+from alpha_pulse.hedging.common.types import PositionState as SpotPosition, PositionState as FuturesPosition
 
 class ExchangePositionFetcher(IPositionFetcher):
     """Fetches position data from an exchange."""
