@@ -7,7 +7,7 @@ from loguru import logger
 
 from alpha_pulse.api.middleware import LoggingMiddleware, RateLimitMiddleware
 from alpha_pulse.api.dependencies import cleanup_exchange
-from .routers import positions
+from .routers import positions, portfolio
 
 # Create FastAPI application
 app = FastAPI(

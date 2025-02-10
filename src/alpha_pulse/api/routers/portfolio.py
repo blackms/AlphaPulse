@@ -9,6 +9,7 @@ from loguru import logger
 
 from alpha_pulse.exchanges.base import BaseExchange
 from alpha_pulse.portfolio.portfolio_manager import PortfolioManager
+from pathlib import Path
 from alpha_pulse.portfolio.data_models import PortfolioAnalysis, PortfolioMetrics
 from ..dependencies import get_exchange_client, verify_api_key
 
@@ -41,14 +42,40 @@ async def get_portfolio_analysis(
 ):
     """Get detailed portfolio analysis."""
     try:
-        portfolio_manager = PortfolioManager(exchange)
-        analysis = await portfolio_manager.analyze_portfolio()
+        # Initialize portfolio manager with config
+        config_path = Path(__file__).parent.parent.parent / "portfolio" / "portfolio_config.yaml"
+        portfolio_manager = PortfolioManager(str(config_path))
+        
+        # Get current allocation
+        current_allocation = await portfolio_manager.get_current_allocation(exchange)
+        
+        # Get historical data for analysis
+        historical_data = await portfolio_manager._fetch_historical_data(exchange, list(current_allocation.keys()))
+        
+        # Get target allocation
+        target = portfolio_manager.strategy.compute_target_allocation(
+            current_allocation,
+            historical_data,
+            portfolio_manager.risk_constraints
+        )
+        
+        # Get portfolio data for risk metrics
+        portfolio_data = await portfolio_manager.get_portfolio_data(exchange)
         
         return PortfolioAnalysisResponse(
-            allocation=analysis.allocation,
-            risk_metrics=analysis.risk_metrics,
-            performance_metrics=analysis.performance_metrics,
-            recommendations=analysis.recommendations
+            allocation={k: float(v) for k, v in current_allocation.items()},
+            risk_metrics=portfolio_data.risk_metrics,
+            performance_metrics={
+                "daily_returns": 0.0,  # TODO: Calculate from historical data
+                "weekly_returns": 0.0,
+                "monthly_returns": 0.0,
+                "sharpe_ratio": float(portfolio_data.risk_metrics.get('sharpe_ratio', 0.0))
+            },
+            recommendations=[
+                f"Target allocation differs from current for {asset}: {float(target.get(asset, 0)) - float(current_allocation.get(asset, 0)):.2%}"
+                for asset in set(target) | set(current_allocation)
+                if abs(float(target.get(asset, 0)) - float(current_allocation.get(asset, 0))) > 0.01
+            ]
         )
     except Exception as e:
         logger.error(f"Error performing portfolio analysis: {str(e)}")
@@ -67,17 +94,22 @@ async def get_portfolio_metrics(
 ):
     """Get current portfolio metrics."""
     try:
-        portfolio_manager = PortfolioManager(exchange)
-        metrics = await portfolio_manager.get_portfolio_metrics()
+        # Initialize portfolio manager with config
+        config_path = Path(__file__).parent.parent.parent / "portfolio" / "portfolio_config.yaml"
+        portfolio_manager = PortfolioManager(str(config_path))
         
+        # Get portfolio data
+        portfolio_data = await portfolio_manager.get_portfolio_data(exchange)
+        
+        # Extract metrics from portfolio data
         return PortfolioMetricsResponse(
-            total_value=float(metrics.total_value),
-            pnl_24h=float(metrics.pnl_24h),
-            pnl_7d=float(metrics.pnl_7d),
-            risk_level=metrics.risk_level,
-            sharpe_ratio=float(metrics.sharpe_ratio),
-            volatility=float(metrics.volatility),
-            max_drawdown=float(metrics.max_drawdown)
+            total_value=float(portfolio_data.total_value),
+            pnl_24h=0.0,  # TODO: Calculate from historical data
+            pnl_7d=0.0,   # TODO: Calculate from historical data
+            risk_level="MODERATE",  # TODO: Calculate from risk metrics
+            sharpe_ratio=float(portfolio_data.risk_metrics.get('sharpe_ratio', 0.0)),
+            volatility=float(portfolio_data.risk_metrics.get('volatility_target', 0.15)),
+            max_drawdown=float(portfolio_data.risk_metrics.get('max_drawdown_limit', 0.25))
         )
     except Exception as e:
         logger.error(f"Error fetching portfolio metrics: {str(e)}")
@@ -96,14 +128,30 @@ async def get_portfolio_performance(
 ):
     """Get historical portfolio performance."""
     try:
-        portfolio_manager = PortfolioManager(exchange)
-        performance = await portfolio_manager.get_historical_performance()
+        # Initialize portfolio manager with config
+        config_path = Path(__file__).parent.parent.parent / "portfolio" / "portfolio_config.yaml"
+        portfolio_manager = PortfolioManager(str(config_path))
         
-        # Convert Decimal values to float for JSON serialization
-        return {
-            timestamp: float(value) 
-            for timestamp, value in performance.items()
-        }
+        # Get current portfolio data
+        portfolio_data = await portfolio_manager.get_portfolio_data(exchange)
+        
+        # Get historical data for all assets
+        historical_data = await portfolio_manager._fetch_historical_data(
+            exchange,
+            [pos.asset_id for pos in portfolio_data.positions]
+        )
+        
+        # Calculate daily portfolio values
+        performance = {}
+        for date in historical_data.index:
+            daily_value = sum(
+                float(pos.quantity) * historical_data.loc[date, pos.asset_id]
+                for pos in portfolio_data.positions
+                if pos.asset_id in historical_data.columns
+            )
+            performance[date.strftime("%Y-%m-%d")] = daily_value
+            
+        return performance
     except Exception as e:
         logger.error(f"Error fetching portfolio performance: {str(e)}")
         raise HTTPException(
