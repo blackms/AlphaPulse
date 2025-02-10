@@ -1,12 +1,17 @@
 """
 Router for hedging-related endpoints.
 """
+import os
 from typing import List, Dict, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from decimal import Decimal
 from loguru import logger
 import pandas as pd
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 from alpha_pulse.exchanges.base import BaseExchange
 from alpha_pulse.hedging.risk.config import HedgeConfig
@@ -23,6 +28,8 @@ class HedgeAnalysisResponse(BaseModel):
     """Hedge analysis response model."""
     commentary: str
     adjustments: List[Dict[str, str]]
+    current_net_exposure: float
+    target_net_exposure: float
     risk_metrics: Dict[str, float]
 
 class HedgeExecutionResponse(BaseModel):
@@ -41,6 +48,11 @@ async def analyze_hedge_positions(
 ):
     """Analyze current hedge positions and provide recommendations."""
     try:
+        # Get OpenAI API key
+        openai_api_key = os.getenv("OPENAI_API_KEY")
+        if not openai_api_key:
+            raise ValueError("OPENAI_API_KEY environment variable is required")
+
         # Initialize components
         config = HedgeConfig(
             hedge_ratio_target=Decimal('0.0'),  # Fully hedged
@@ -52,7 +64,7 @@ async def analyze_hedge_positions(
         )
         
         position_fetcher = ExchangePositionFetcher(exchange)
-        hedge_analyzer = LLMHedgeAnalyzer(config)
+        hedge_analyzer = LLMHedgeAnalyzer(config, openai_api_key)
         
         # Get current positions
         spot_positions = await position_fetcher.get_spot_positions()
@@ -71,10 +83,10 @@ async def analyze_hedge_positions(
                 }
                 for adj in recommendation.adjustments
             ],
+            current_net_exposure=float(recommendation.current_net_exposure),
+            target_net_exposure=float(recommendation.target_net_exposure),
             risk_metrics={
-                "net_exposure": float(recommendation.metrics.get("net_exposure", 0)),
-                "hedge_ratio": float(recommendation.metrics.get("hedge_ratio", 0)),
-                "margin_usage": float(recommendation.metrics.get("margin_usage", 0))
+                k: float(v) for k, v in recommendation.risk_metrics.items()
             }
         )
     except Exception as e:
@@ -94,6 +106,11 @@ async def execute_hedge_adjustments(
 ):
     """Execute recommended hedge adjustments."""
     try:
+        # Get OpenAI API key
+        openai_api_key = os.getenv("OPENAI_API_KEY")
+        if not openai_api_key:
+            raise ValueError("OPENAI_API_KEY environment variable is required")
+
         # Initialize components
         config = HedgeConfig(
             hedge_ratio_target=Decimal('0.0'),  # Fully hedged
@@ -106,7 +123,7 @@ async def execute_hedge_adjustments(
         
         position_fetcher = ExchangePositionFetcher(exchange)
         order_executor = ExchangeOrderExecutor(exchange)
-        hedge_analyzer = LLMHedgeAnalyzer(config)
+        hedge_analyzer = LLMHedgeAnalyzer(config, openai_api_key)
         execution_strategy = BasicExecutionStrategy()
         
         # Create hedge manager
@@ -151,6 +168,11 @@ async def close_all_hedges(
 ):
     """Close all hedge positions."""
     try:
+        # Get OpenAI API key
+        openai_api_key = os.getenv("OPENAI_API_KEY")
+        if not openai_api_key:
+            raise ValueError("OPENAI_API_KEY environment variable is required")
+
         # Initialize components
         config = HedgeConfig(
             hedge_ratio_target=Decimal('0.0'),
@@ -163,7 +185,7 @@ async def close_all_hedges(
         
         position_fetcher = ExchangePositionFetcher(exchange)
         order_executor = ExchangeOrderExecutor(exchange)
-        hedge_analyzer = LLMHedgeAnalyzer(config)
+        hedge_analyzer = LLMHedgeAnalyzer(config, openai_api_key)
         execution_strategy = BasicExecutionStrategy()
         
         # Create hedge manager

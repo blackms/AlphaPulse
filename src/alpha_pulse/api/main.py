@@ -7,7 +7,7 @@ from loguru import logger
 
 from alpha_pulse.api.middleware import LoggingMiddleware, RateLimitMiddleware
 from alpha_pulse.api.dependencies import cleanup_exchange
-from .routers import positions, portfolio
+from .routers import positions, portfolio, hedging
 
 # Create FastAPI application
 app = FastAPI(
@@ -59,8 +59,8 @@ async def root():
 # Include routers
 app.include_router(positions, prefix="/api/v1/positions", tags=["positions"])
 app.include_router(portfolio, prefix="/api/v1/portfolio", tags=["portfolio"])
+app.include_router(hedging, prefix="/api/v1/hedging", tags=["hedging"])
 
 # Additional routers will be added as they are implemented:
-# - Hedging operations
 # - Risk management
 # - Trading execution
