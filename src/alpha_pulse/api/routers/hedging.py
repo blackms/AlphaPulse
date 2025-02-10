@@ -138,6 +138,13 @@ async def execute_hedge_adjustments(
         # Execute hedge adjustments
         result = await manager.manage_hedge()
         
+        if result is None:
+            return HedgeExecutionResponse(
+                status="completed",
+                executed_trades=[],
+                message="No hedge adjustments needed"
+            )
+            
         return HedgeExecutionResponse(
             status="completed",
             executed_trades=[
@@ -200,6 +207,13 @@ async def close_all_hedges(
         # Close all hedges
         result = await manager.close_all_hedges()
         
+        if result is None:
+            return HedgeExecutionResponse(
+                status="completed",
+                executed_trades=[],
+                message="No hedge positions to close"
+            )
+            
         return HedgeExecutionResponse(
             status="completed",
             executed_trades=[
