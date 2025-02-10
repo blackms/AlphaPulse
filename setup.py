@@ -24,6 +24,12 @@ setup(
         "prometheus-client>=0.19.0",
         "python-dotenv>=1.0.0",
         "plotly>=5.18.0",
+        # API dependencies
+        "fastapi>=0.104.0",
+        "uvicorn>=0.24.0",
+        "pydantic>=2.4.2",
+        "python-jose[cryptography]",
+        "passlib[bcrypt]",
     ],
     extras_require={
         "dev": [
