@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
 from alpha_pulse.api.middleware import LoggingMiddleware, RateLimitMiddleware
+from alpha_pulse.api.dependencies import cleanup_exchange
 from .routers import positions
 
 # Create FastAPI application
@@ -35,6 +36,7 @@ async def startup_event():
 async def shutdown_event():
     """Cleanup resources on shutdown."""
     logger.info("Shutting down AlphaPulse API")
+    await cleanup_exchange()
 
 @app.get("/health")
 async def health_check():

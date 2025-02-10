@@ -12,7 +12,7 @@ def main():
     uvicorn.run(
         "alpha_pulse.api.main:app",
         host="0.0.0.0",
-        port=8000,
+        port=18001,  # Use a different port
         reload=True,  # Enable auto-reload for development
         log_level="info"
     )
