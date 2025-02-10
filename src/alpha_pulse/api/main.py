@@ -5,6 +5,9 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
+from .middleware import LoggingMiddleware, RateLimitMiddleware
+from .routers import positions
+
 # Create FastAPI application
 app = FastAPI(
     title="AlphaPulse API",
@@ -12,7 +15,9 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Configure CORS
+# Configure middleware
+app.add_middleware(LoggingMiddleware)
+app.add_middleware(RateLimitMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # TODO: Configure this for production
@@ -49,10 +54,11 @@ async def root():
         "description": "Trading system API providing access to positions, portfolio analysis, and trading operations."
     }
 
-# Import and include routers
-# TODO: Add routers for different endpoints
-# app.include_router(positions.router, prefix="/api/v1/positions", tags=["positions"])
-# app.include_router(portfolio.router, prefix="/api/v1/portfolio", tags=["portfolio"])
-# app.include_router(hedging.router, prefix="/api/v1/hedging", tags=["hedging"])
-# app.include_router(risk.router, prefix="/api/v1/risk", tags=["risk"])
-# app.include_router(trading.router, prefix="/api/v1/trading", tags=["trading"])
+# Include routers
+app.include_router(positions.router, prefix="/api/v1/positions", tags=["positions"])
+
+# Additional routers will be added as they are implemented:
+# - Portfolio analysis
+# - Hedging operations
+# - Risk management
+# - Trading execution
