@@ -58,9 +58,9 @@ async def root():
 
 # Include routers
 app.include_router(positions, prefix="/api/v1/positions", tags=["positions"])
+app.include_router(portfolio, prefix="/api/v1/portfolio", tags=["portfolio"])
 
 # Additional routers will be added as they are implemented:
-# - Portfolio analysis
 # - Hedging operations
 # - Risk management
 # - Trading execution

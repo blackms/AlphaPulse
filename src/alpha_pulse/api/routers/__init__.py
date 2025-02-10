@@ -2,6 +2,8 @@
 Router package for AlphaPulse API.
 """
 from .positions import router as positions_router
+from .portfolio import router as portfolio_router
 
-# Export the router as positions for cleaner imports
+# Export the routers for cleaner imports
 positions = positions_router
+portfolio = portfolio_router

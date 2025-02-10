@@ -41,6 +41,27 @@ class PortfolioData:
         }
 
 @dataclass
+class PortfolioMetrics:
+    """Portfolio performance and risk metrics."""
+    total_value: Decimal
+    pnl_24h: Decimal
+    pnl_7d: Decimal
+    risk_level: str
+    sharpe_ratio: Decimal
+    volatility: Decimal
+    max_drawdown: Decimal
+    timestamp: datetime
+
+@dataclass
+class PortfolioAnalysis:
+    """Comprehensive portfolio analysis results."""
+    allocation: Dict[str, float]
+    risk_metrics: Dict[str, float]
+    performance_metrics: Dict[str, float]
+    recommendations: List[str]
+    timestamp: datetime
+
+@dataclass
 class LLMAnalysisResult:
     """Represents the analysis results from the LLM."""
     recommendations: List[str]
