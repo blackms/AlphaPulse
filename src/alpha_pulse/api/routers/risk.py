@@ -5,9 +5,11 @@ from typing import List, Dict
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from decimal import Decimal
+import pandas as pd
 from loguru import logger
 
 from alpha_pulse.exchanges.base import BaseExchange
+from alpha_pulse.exchanges import OHLCV
 from alpha_pulse.risk_management.manager import RiskManager, RiskConfig
 from alpha_pulse.risk_management.analysis import RiskAnalyzer
 from alpha_pulse.risk_management.position_sizing import PositionSizer
@@ -17,13 +19,13 @@ router = APIRouter()
 
 class RiskMetricsResponse(BaseModel):
     """Risk metrics response model."""
+    volatility: float
     var_95: float
-    var_99: float
-    expected_shortfall: float
-    sharpe_ratio: float
+    cvar_95: float
     max_drawdown: float
-    beta: float
-    correlation_matrix: Dict[str, Dict[str, float]]
+    sharpe_ratio: float
+    sortino_ratio: float
+    calmar_ratio: float
 
 class RiskLimitsResponse(BaseModel):
     """Risk limits response model."""
@@ -84,22 +86,28 @@ async def get_risk_metrics(
     """Get detailed risk metrics."""
     try:
         risk_analyzer = RiskAnalyzer(exchange)
-        metrics = await risk_analyzer.calculate_risk_metrics()
+        # Get historical data for risk calculations
+        candles = await exchange.fetch_ohlcv(
+            symbol="BTC/USDT",  # Use BTC as market proxy
+            timeframe="1d",
+            limit=252  # One year of daily data
+        )
+        
+        # Calculate returns
+        prices = pd.Series([float(c.close) for c in candles])
+        returns = prices.pct_change().dropna()
+        
+        # Calculate risk metrics
+        metrics = risk_analyzer.calculate_metrics(returns)
         
         return RiskMetricsResponse(
+            volatility=float(metrics.volatility),
             var_95=float(metrics.var_95),
-            var_99=float(metrics.var_99),
-            expected_shortfall=float(metrics.expected_shortfall),
-            sharpe_ratio=float(metrics.sharpe_ratio),
+            cvar_95=float(metrics.cvar_95),
             max_drawdown=float(metrics.max_drawdown),
-            beta=float(metrics.beta),
-            correlation_matrix={
-                asset: {
-                    corr_asset: float(corr)
-                    for corr_asset, corr in correlations.items()
-                }
-                for asset, correlations in metrics.correlation_matrix.items()
-            }
+            sharpe_ratio=float(metrics.sharpe_ratio),
+            sortino_ratio=float(metrics.sortino_ratio),
+            calmar_ratio=float(metrics.calmar_ratio)
         )
     except Exception as e:
         logger.error(f"Error calculating risk metrics: {str(e)}")
@@ -118,26 +126,32 @@ async def get_risk_limits(
 ):
     """Get current risk limits."""
     try:
-        risk_manager = RiskManager(exchange)
-        limits = await risk_manager.get_risk_limits()
+        risk_manager = RiskManager(
+            exchange=exchange,
+            config=RiskConfig(
+                max_position_size=0.2,
+                max_portfolio_leverage=1.5,
+                max_drawdown=0.25,
+                target_volatility=0.15
+            )
+        )
         
+        # Get portfolio value as Decimal
+        portfolio_value = await exchange.get_portfolio_value()
+        portfolio_value_float = float(portfolio_value)
+        
+        # Get position limits
+        position_limits = risk_manager.get_position_limits(portfolio_value_float)
+        
+        # Get risk report for additional limits
+        risk_report = risk_manager.get_risk_report()
+        
+        # Calculate limits using float values to avoid decimal/float operation issues
         return RiskLimitsResponse(
-            position_limits={
-                asset: float(limit)
-                for asset, limit in limits.position_limits.items()
-            },
-            margin_limits={
-                asset: float(limit)
-                for asset, limit in limits.margin_limits.items()
-            },
-            exposure_limits={
-                asset: float(limit)
-                for asset, limit in limits.exposure_limits.items()
-            },
-            drawdown_limits={
-                asset: float(limit)
-                for asset, limit in limits.drawdown_limits.items()
-            }
+            position_limits={"default": float(position_limits["default"])},
+            margin_limits={"total": float(portfolio_value) * risk_manager.config.max_portfolio_leverage},
+            exposure_limits={"total": float(portfolio_value)},
+            drawdown_limits={"max": float(portfolio_value) * risk_manager.config.max_drawdown}
         )
     except Exception as e:
         logger.error(f"Error fetching risk limits: {str(e)}")
