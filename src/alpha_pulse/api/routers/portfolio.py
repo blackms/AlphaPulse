@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from decimal import Decimal
 from loguru import logger
+import pandas as pd
 
 from alpha_pulse.exchanges.base import BaseExchange
 from alpha_pulse.portfolio.portfolio_manager import PortfolioManager
@@ -141,17 +142,34 @@ async def get_portfolio_performance(
             [pos.asset_id for pos in portfolio_data.positions]
         )
         
-        # Calculate daily portfolio values
-        performance = {}
-        for date in historical_data.index:
-            daily_value = sum(
-                float(pos.quantity) * historical_data.loc[date, pos.asset_id]
-                for pos in portfolio_data.positions
-                if pos.asset_id in historical_data.columns
-            )
-            performance[date.strftime("%Y-%m-%d")] = daily_value
+        try:
+            # Calculate daily portfolio values
+            performance = {}
+            for date_str in historical_data.index:
+                # Convert string date to datetime if needed
+                date = date_str if isinstance(date_str, str) else date_str.strftime("%Y-%m-%d")
+                daily_value = 0.0
+                try:
+                    for pos in portfolio_data.positions:
+                        if pos.asset_id in historical_data.columns:
+                            value = historical_data.loc[date_str, pos.asset_id]
+                            if not pd.isna(value):
+                                daily_value += float(pos.quantity) * value
+                    
+                    # Only include non-zero values
+                    if daily_value > 0:
+                        performance[date] = daily_value
+                except Exception as e:
+                    logger.warning(f"Error calculating daily value for {date}: {str(e)}")
+                    continue
             
-        return performance
+            return performance
+        except Exception as e:
+            logger.error(f"Error calculating portfolio performance: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to calculate portfolio performance"
+            )
     except Exception as e:
         logger.error(f"Error fetching portfolio performance: {str(e)}")
         raise HTTPException(
