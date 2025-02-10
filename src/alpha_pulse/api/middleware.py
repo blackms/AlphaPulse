@@ -4,7 +4,7 @@ Middleware components for the AlphaPulse API.
 import time
 from typing import Callable
 from fastapi import Request, Response
-from fastapi.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from loguru import logger
 from prometheus_client import Counter, Histogram
 

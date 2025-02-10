@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
-from .middleware import LoggingMiddleware, RateLimitMiddleware
+from alpha_pulse.api.middleware import LoggingMiddleware, RateLimitMiddleware
 from .routers import positions
 
 # Create FastAPI application
@@ -55,7 +55,7 @@ async def root():
     }
 
 # Include routers
-app.include_router(positions.router, prefix="/api/v1/positions", tags=["positions"])
+app.include_router(positions, prefix="/api/v1/positions", tags=["positions"])
 
 # Additional routers will be added as they are implemented:
 # - Portfolio analysis
