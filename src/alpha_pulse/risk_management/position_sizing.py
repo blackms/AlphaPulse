@@ -1,15 +1,14 @@
 """
 Position sizing implementations for AlphaPulse.
 """
+from dataclasses import dataclass
 from typing import Dict, Optional
 import numpy as np
 import pandas as pd
-from dataclasses import dataclass
-
 from loguru import logger
+from decimal import Decimal
 
 from .interfaces import IPositionSizer, PositionSizeResult
-
 
 @dataclass
 class KellyParams:
@@ -18,6 +17,92 @@ class KellyParams:
     profit_ratio: float  # Average win/loss ratio
     fraction: float = 1.0  # Kelly fraction (1.0 = full Kelly)
 
+@dataclass
+class PositionSizeRecommendation:
+    """Position size recommendation."""
+    recommended_size: Decimal
+    max_size: Decimal
+    risk_per_trade: Decimal
+    stop_loss: Decimal
+    take_profit: Decimal
+
+class PositionSizer:
+    """High-level position sizer that uses adaptive strategy."""
+    
+    def __init__(self, exchange):
+        """Initialize position sizer with exchange."""
+        self.exchange = exchange
+        self.adaptive_sizer = AdaptivePositionSizer()
+    
+    async def get_position_size_recommendation(self, asset: str) -> PositionSizeRecommendation:
+        """Get position size recommendation for an asset."""
+        try:
+            # Get current price and portfolio value
+            current_price = await self.exchange.get_ticker_price(f"{asset}/USDT")
+            portfolio_value = await self.exchange.get_portfolio_value()
+            
+            # Get historical data for volatility calculation
+            candles = await self.exchange.fetch_ohlcv(
+                symbol=f"{asset}/USDT",
+                timeframe="1d",
+                limit=30
+            )
+            
+            # Calculate historical returns
+            prices = pd.Series([c.close for c in candles])
+            returns = prices.pct_change().dropna()
+            
+            # Calculate volatility
+            volatility = float(returns.std())
+            
+            # Use moderate signal strength as default
+            signal_strength = 0.5
+            
+            # Get position size recommendation
+            result = self.adaptive_sizer.calculate_position_size(
+                symbol=asset,
+                current_price=float(current_price),
+                portfolio_value=float(portfolio_value),
+                volatility=volatility,
+                signal_strength=signal_strength,
+                historical_returns=returns
+            )
+            
+            # Calculate stop loss and take profit levels
+            atr = self._calculate_atr(candles)
+            stop_loss = current_price - (atr * Decimal('2'))
+            take_profit = current_price + (atr * Decimal('3'))
+            
+            return PositionSizeRecommendation(
+                recommended_size=Decimal(str(result.size)),
+                max_size=Decimal(str(portfolio_value * self.adaptive_sizer.max_size_pct)),
+                risk_per_trade=Decimal(str(result.size * volatility)),
+                stop_loss=stop_loss,
+                take_profit=take_profit
+            )
+            
+        except Exception as e:
+            logger.error(f"Error calculating position size for {asset}: {str(e)}")
+            raise
+    
+    def _calculate_atr(self, candles, period: int = 14) -> Decimal:
+        """Calculate Average True Range."""
+        try:
+            high = pd.Series([c.high for c in candles])
+            low = pd.Series([c.low for c in candles])
+            close = pd.Series([c.close for c in candles])
+            
+            tr1 = high - low
+            tr2 = abs(high - close.shift())
+            tr3 = abs(low - close.shift())
+            
+            tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+            atr = tr.rolling(window=period).mean().iloc[-1]
+            
+            return Decimal(str(atr))
+        except Exception as e:
+            logger.error(f"Error calculating ATR: {str(e)}")
+            return Decimal('0')
 
 class KellyCriterionSizer(IPositionSizer):
     """Position sizer using the Kelly Criterion."""
