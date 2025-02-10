@@ -8,7 +8,7 @@ from decimal import Decimal
 from loguru import logger
 
 from alpha_pulse.exchanges.base import BaseExchange
-from alpha_pulse.risk_management.manager import RiskManager
+from alpha_pulse.risk_management.manager import RiskManager, RiskConfig
 from alpha_pulse.risk_management.analysis import RiskAnalyzer
 from alpha_pulse.risk_management.position_sizing import PositionSizer
 from ..dependencies import get_exchange_client, verify_api_key
@@ -51,7 +51,15 @@ async def get_risk_exposure(
 ):
     """Get current risk exposure metrics."""
     try:
-        risk_manager = RiskManager(exchange)
+        risk_manager = RiskManager(
+            exchange=exchange,
+            config=RiskConfig(
+                max_position_size=0.2,
+                max_portfolio_leverage=1.5,
+                max_drawdown=0.25,
+                target_volatility=0.15
+            )
+        )
         exposure = await risk_manager.calculate_risk_exposure()
         
         return {

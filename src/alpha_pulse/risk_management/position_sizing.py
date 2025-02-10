@@ -49,34 +49,43 @@ class PositionSizer:
             )
             
             # Calculate historical returns
-            prices = pd.Series([c.close for c in candles])
+            prices = pd.Series([float(c.close) for c in candles])
             returns = prices.pct_change().dropna()
             
             # Calculate volatility
-            volatility = float(returns.std())
+            volatility = Decimal(str(returns.std()))
             
             # Use moderate signal strength as default
-            signal_strength = 0.5
+            signal_strength = Decimal('0.5')
+            
+            # Convert values to Decimal
+            current_price_dec = Decimal(str(current_price))
+            portfolio_value_dec = Decimal(str(portfolio_value))
             
             # Get position size recommendation
             result = self.adaptive_sizer.calculate_position_size(
                 symbol=asset,
-                current_price=float(current_price),
-                portfolio_value=float(portfolio_value),
-                volatility=volatility,
-                signal_strength=signal_strength,
+                current_price=float(current_price_dec),
+                portfolio_value=float(portfolio_value_dec),
+                volatility=float(volatility),
+                signal_strength=float(signal_strength),
                 historical_returns=returns
             )
             
             # Calculate stop loss and take profit levels
             atr = self._calculate_atr(candles)
-            stop_loss = current_price - (atr * Decimal('2'))
-            take_profit = current_price + (atr * Decimal('3'))
+            stop_loss = current_price_dec - (atr * Decimal('2'))
+            take_profit = current_price_dec + (atr * Decimal('3'))
+            
+            # Convert result values to Decimal
+            recommended_size = Decimal(str(result.size))
+            max_size = portfolio_value_dec * Decimal(str(self.adaptive_sizer.max_size_pct))
+            risk_per_trade = recommended_size * volatility
             
             return PositionSizeRecommendation(
-                recommended_size=Decimal(str(result.size)),
-                max_size=Decimal(str(portfolio_value * self.adaptive_sizer.max_size_pct)),
-                risk_per_trade=Decimal(str(result.size * volatility)),
+                recommended_size=recommended_size,
+                max_size=max_size,
+                risk_per_trade=risk_per_trade,
                 stop_loss=stop_loss,
                 take_profit=take_profit
             )

@@ -51,6 +51,7 @@ class RiskManager(IRiskManager):
 
     def __init__(
         self,
+        exchange,
         config: Optional[RiskConfig] = None,
         position_sizer: Optional[IPositionSizer] = None,
         risk_analyzer: Optional[RiskAnalyzer] = None,
@@ -60,11 +61,13 @@ class RiskManager(IRiskManager):
         Initialize risk management system.
 
         Args:
+            exchange: Exchange interface instance
             config: Risk management configuration
             position_sizer: Position sizing strategy
             risk_analyzer: Risk analysis component
             portfolio_optimizer: Portfolio optimization strategy
         """
+        self.exchange = exchange
         self.config = config or RiskConfig()
         self.position_sizer = position_sizer or AdaptivePositionSizer()
         self.risk_analyzer = risk_analyzer or RiskAnalyzer()
@@ -77,6 +80,55 @@ class RiskManager(IRiskManager):
         self._historical_metrics: List[RiskMetrics] = []
         
         logger.info("Initialized RiskManager")
+
+    async def calculate_risk_exposure(self) -> Dict[str, float]:
+        """Calculate current risk exposure for all positions."""
+        try:
+            # Get current positions and portfolio value
+            portfolio_value = await self.exchange.get_portfolio_value()
+            self.state.portfolio_value = portfolio_value
+
+            # Get spot and futures positions
+            spot_positions = {}
+            futures_positions = {}
+            
+            balances = await self.exchange.get_balances()
+            for asset, balance in balances.items():
+                if balance.total > 0:
+                    if asset == 'USDT':
+                        value = balance.total
+                    else:
+                        price = await self.exchange.get_ticker_price(f"{asset}/USDT")
+                        if price:
+                            value = balance.total * price
+                        else:
+                            continue
+                    spot_positions[asset] = value
+
+            # Calculate exposure metrics
+            exposure = {}
+            
+            # Net exposure
+            for asset, value in spot_positions.items():
+                exposure[f"{asset}_net_exposure"] = float(value)
+                
+                # Calculate exposure as percentage of portfolio
+                if portfolio_value > 0:
+                    exposure[f"{asset}_exposure_pct"] = float(value / portfolio_value)
+                else:
+                    exposure[f"{asset}_exposure_pct"] = 0.0
+
+            # Add portfolio-level metrics
+            exposure["total_exposure"] = float(sum(spot_positions.values()))
+            exposure["exposure_ratio"] = float(
+                sum(spot_positions.values()) / portfolio_value if portfolio_value > 0 else 0
+            )
+
+            return exposure
+            
+        except Exception as e:
+            logger.error(f"Error calculating risk exposure: {str(e)}")
+            raise
 
     def evaluate_trade(
         self,
