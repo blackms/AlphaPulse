@@ -1,63 +1,63 @@
 """
-Core interfaces for the data pipeline system.
-Following SOLID principles and Python best practices.
+Data pipeline interfaces and data models.
 """
-from abc import ABC, abstractmethod
-from datetime import datetime
-from typing import Dict, List, Optional, Any, Protocol
 from dataclasses import dataclass
-import pandas as pd
+from datetime import datetime
+from decimal import Decimal
+from typing import Dict, Optional, Any, List
 
 
 @dataclass
 class MarketData:
-    """Container for market data."""
+    """Market data model."""
     symbol: str
     timestamp: datetime
-    open: float
-    high: float
-    low: float
-    close: float
-    volume: float
-    additional_data: Optional[Dict[str, Any]] = None
+    open: Decimal
+    high: Decimal
+    low: Decimal
+    close: Decimal
+    volume: Decimal
+    vwap: Optional[Decimal] = None
+    trades: Optional[int] = None
+    source: Optional[str] = None
 
 
 @dataclass
 class FundamentalData:
-    """Container for fundamental data."""
+    """Fundamental data model."""
     symbol: str
     timestamp: datetime
-    financial_ratios: Dict[str, float]
-    balance_sheet: Dict[str, float]
-    income_statement: Dict[str, float]
-    cash_flow: Dict[str, float]
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: Dict[str, Any]  # Market cap, sector, etc.
+    financial_ratios: Dict[str, float]  # P/E, P/B, etc.
+    balance_sheet: Dict[str, float]  # Assets, liabilities, etc.
+    income_statement: Dict[str, float]  # Revenue, net income, etc.
+    cash_flow: Dict[str, float]  # Operating cash flow, free cash flow, etc.
+    source: Optional[str] = None
 
 
 @dataclass
 class SentimentData:
-    """Container for sentiment data."""
+    """Sentiment data model."""
     symbol: str
     timestamp: datetime
-    news_sentiment: float
-    social_sentiment: float
-    analyst_sentiment: float
-    source_data: Dict[str, Any]
-    metadata: Optional[Dict[str, Any]] = None
+    news_sentiment: float  # -1 to 1
+    social_sentiment: float  # -1 to 1
+    analyst_sentiment: Optional[float] = None  # -1 to 1
+    source_data: Optional[Dict[str, List[Dict[str, Any]]]] = None
+    source: Optional[str] = None
 
 
 @dataclass
 class TechnicalIndicators:
-    """Container for technical indicators."""
+    """Technical indicators model."""
     symbol: str
     timestamp: datetime
-    trend_indicators: Dict[str, float]
-    momentum_indicators: Dict[str, float]
-    volatility_indicators: Dict[str, float]
-    volume_indicators: Dict[str, float]
-    metadata: Optional[Dict[str, Any]] = None
-
-
+    trend: Dict[str, Any]  # SMA, EMA, MACD
+    momentum: Dict[str, Any]  # RSI, Stochastic
+    volatility: Dict[str, Any]  # Bollinger Bands, ATR
+    volume: Dict[str, Any]  # OBV, AD
+    source: Optional[str] = None
+    
 class DataProvider(Protocol):
     """Protocol for data providers."""
     

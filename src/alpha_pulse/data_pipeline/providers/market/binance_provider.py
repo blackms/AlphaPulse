@@ -2,34 +2,56 @@
 Binance market data provider implementation.
 """
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, List, Optional, Any
-import pandas as pd
-from binance.client import AsyncClient
-from binance.exceptions import BinanceAPIException
+import aiohttp
+from decimal import Decimal
+import logging
 
 from ...interfaces import MarketData
 from ..base import BaseDataProvider, retry_on_error, CacheMixin
 
+logger = logging.getLogger(__name__)
+
 
 class BinanceMarketDataProvider(BaseDataProvider, CacheMixin):
     """
-    Market data provider implementation for Binance exchange.
+    Market data provider implementation using Binance API.
     
     Features:
-    - Real-time and historical data fetching
-    - Rate limiting and error handling
-    - Data validation and cleaning
-    - Response caching
-    - Automatic reconnection
+    - Historical price data
+    - Real-time price data
+    - Order book data
+    - Trade data
     """
+
+    BASE_URL = "https://api.binance.com/api/v3/"
+    BASE_URL_TESTNET = "https://testnet.binance.vision/api/v3/"
+
+    INTERVAL_MAP = {
+        "1m": "1m",
+        "5m": "5m",
+        "15m": "15m",
+        "30m": "30m",
+        "1h": "1h",
+        "2h": "2h",
+        "4h": "4h",
+        "6h": "6h",
+        "8h": "8h",
+        "12h": "12h",
+        "1d": "1d",
+        "3d": "3d",
+        "1w": "1w",
+        "1M": "1M"
+    }
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
-        api_secret: Optional[str] = None,
-        testnet: bool = False,
-        cache_ttl: int = 300
+        api_key: str,
+        api_secret: str,
+        testnet: bool = True,
+        cache_ttl: int = 300,  # 5 minutes cache
+        session: Optional[aiohttp.ClientSession] = None
     ):
         """
         Initialize Binance provider.
@@ -37,82 +59,74 @@ class BinanceMarketDataProvider(BaseDataProvider, CacheMixin):
         Args:
             api_key: Binance API key
             api_secret: Binance API secret
-            testnet: Use testnet environment
+            testnet: Whether to use testnet
             cache_ttl: Cache time-to-live in seconds
+            session: Optional aiohttp session
         """
         super().__init__("binance", "market", api_key)
         CacheMixin.__init__(self, cache_ttl)
         self._api_secret = api_secret
         self._testnet = testnet
-        self._client: Optional[AsyncClient] = None
-        self._initialized = False
-        self._initialization_lock = asyncio.Lock()
+        self._session = session
+        self._base_url = self.BASE_URL_TESTNET if testnet else self.BASE_URL
+        self._headers = {
+            "X-MBX-APIKEY": api_key
+        }
 
-    async def _ensure_initialized(self):
-        """Ensure client is initialized."""
-        if not self._initialized:
-            async with self._initialization_lock:
-                if not self._initialized:  # Double-check pattern
-                    self._client = await AsyncClient.create(
-                        api_key=self._api_key,
-                        api_secret=self._api_secret,
-                        testnet=self._testnet
-                    )
-                    self._initialized = True
+    async def _ensure_session(self):
+        """Ensure aiohttp session exists."""
+        if not self._session:
+            self._session = aiohttp.ClientSession()
 
     async def _execute_request(
         self,
         endpoint: str,
-        method: str,
-        params: Optional[Dict[str, Any]],
-        headers: Optional[Dict[str, str]],
-        data: Optional[Dict[str, Any]]
+        method: str = "GET",
+        params: Optional[Dict[str, Any]] = None,
+        headers: Optional[Dict[str, str]] = None,
+        data: Optional[Dict[str, Any]] = None,
+        signed: bool = False
     ) -> Any:
         """Execute Binance API request."""
-        await self._ensure_initialized()
+        await self._ensure_session()
+        url = self._base_url + endpoint
+        
+        request_headers = {**self._headers}
+        if headers:
+            request_headers.update(headers)
+
         try:
-            if method == "GET":
-                if endpoint == "klines":
-                    return await self._client.get_klines(**params)
-                elif endpoint == "ticker":
-                    return await self._client.get_ticker(**params)
-            raise ValueError(f"Unsupported method or endpoint: {method} {endpoint}")
-        except BinanceAPIException as e:
-            raise DataFetchError(f"Binance API error: {str(e)}")
+            async with self._session.request(
+                method=method,
+                url=url,
+                params=params,
+                headers=request_headers,
+                json=data
+            ) as response:
+                if response.status == 429:  # Rate limit
+                    retry_after = int(response.headers.get('Retry-After', 60))
+                    logger.warning(f"Rate limit exceeded, waiting {retry_after}s")
+                    await asyncio.sleep(retry_after)
+                    return await self._execute_request(
+                        endpoint, method, params, headers, data, signed
+                    )
+                
+                response.raise_for_status()
+                return await response.json()
+        except aiohttp.ClientError as e:
+            logger.error(f"Request failed: {str(e)}")
+            raise
 
     async def _process_response(self, response: Any) -> Any:
         """Process Binance API response."""
-        if isinstance(response, list) and len(response) > 0:
-            if isinstance(response[0], list):  # Klines data
-                return self._process_klines(response)
-            return response
+        if not response:
+            return None
+            
+        # Check for API error messages
+        if isinstance(response, dict) and "code" in response:
+            raise ValueError(f"API Error: {response.get('msg', 'Unknown error')}")
+            
         return response
-
-    def _process_klines(self, klines: List[List]) -> List[MarketData]:
-        """Process klines data into MarketData objects."""
-        processed_data = []
-        for kline in klines:
-            try:
-                market_data = MarketData(
-                    symbol=kline[0],  # Symbol is added later
-                    timestamp=datetime.fromtimestamp(kline[0] / 1000),
-                    open=float(kline[1]),
-                    high=float(kline[2]),
-                    low=float(kline[3]),
-                    close=float(kline[4]),
-                    volume=float(kline[5]),
-                    additional_data={
-                        "quote_volume": float(kline[7]),
-                        "trades": int(kline[8]),
-                        "taker_buy_volume": float(kline[9]),
-                        "taker_buy_quote_volume": float(kline[10])
-                    }
-                )
-                processed_data.append(market_data)
-            except (IndexError, ValueError) as e:
-                logger.warning(f"Error processing kline data: {str(e)}")
-                continue
-        return processed_data
 
     @retry_on_error(max_retries=3)
     async def get_historical_data(
@@ -126,87 +140,116 @@ class BinanceMarketDataProvider(BaseDataProvider, CacheMixin):
         Get historical market data from Binance.
 
         Args:
-            symbol: Trading pair symbol (e.g., 'BTCUSDT')
+            symbol: Trading pair symbol (e.g., "BTCUSDT")
             start_time: Start time for historical data
             end_time: End time for historical data
-            interval: Kline interval (1m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w, 1M)
+            interval: Data interval (e.g., "1d" for daily)
 
         Returns:
             List of MarketData objects
         """
-        cache_key = f"historical_{symbol}_{start_time}_{end_time}_{interval}"
+        cache_key = f"hist_{symbol}_{interval}_{start_time}_{end_time}"
         cached_data = self._get_from_cache(cache_key)
         if cached_data:
             return cached_data
 
+        # Convert interval to Binance format
+        binance_interval = self.INTERVAL_MAP.get(interval)
+        if not binance_interval:
+            raise ValueError(f"Invalid interval: {interval}")
+
+        # Prepare request parameters
         params = {
-            "symbol": symbol,
-            "interval": interval,
+            "symbol": symbol.upper(),
+            "interval": binance_interval,
             "startTime": int(start_time.timestamp() * 1000),
             "endTime": int(end_time.timestamp() * 1000),
-            "limit": 1000
+            "limit": 1000  # Maximum allowed
         }
 
-        all_klines = []
-        current_start = start_time
-
-        while current_start < end_time:
-            params["startTime"] = int(current_start.timestamp() * 1000)
+        try:
+            # Fetch klines data
             klines = await self._make_request("klines", params=params)
-            if not klines:
-                break
-
-            all_klines.extend(klines)
             
-            # Update start time for next batch
-            last_kline_time = datetime.fromtimestamp(klines[-1][0] / 1000)
-            if last_kline_time <= current_start:
-                break
-            current_start = last_kline_time + timedelta(milliseconds=1)
+            if not klines:
+                return []
 
-        processed_data = self._process_klines(all_klines)
-        for data in processed_data:
-            data.symbol = symbol
+            # Process klines data
+            market_data = []
+            for kline in klines:
+                timestamp = datetime.fromtimestamp(kline[0] / 1000)
+                market_data.append(
+                    MarketData(
+                        symbol=symbol,
+                        timestamp=timestamp,
+                        open=Decimal(str(kline[1])),
+                        high=Decimal(str(kline[2])),
+                        low=Decimal(str(kline[3])),
+                        close=Decimal(str(kline[4])),
+                        volume=Decimal(str(kline[5])),
+                        trades=int(kline[8]),
+                        vwap=Decimal(str(kline[7])) if kline[7] else None,
+                        source="binance"
+                    )
+                )
 
-        # Cache the results
-        self._store_in_cache(cache_key, processed_data)
-        return processed_data
+            # Cache the processed data
+            self._store_in_cache(cache_key, market_data)
+            return market_data
+            
+        except Exception as e:
+            logger.error(f"Error fetching historical data: {str(e)}")
+            raise
 
     @retry_on_error(max_retries=3)
-    async def get_real_time_data(self, symbol: str) -> MarketData:
+    async def get_latest_price(self, symbol: str) -> MarketData:
         """
-        Get real-time market data from Binance.
+        Get latest price data from Binance.
 
         Args:
-            symbol: Trading pair symbol (e.g., 'BTCUSDT')
+            symbol: Trading pair symbol (e.g., "BTCUSDT")
 
         Returns:
-            MarketData object with current market data
+            MarketData object with latest price
         """
-        params = {"symbol": symbol}
-        ticker = await self._make_request("ticker", params=params)
+        cache_key = f"price_{symbol}"
+        cached_data = self._get_from_cache(cache_key)
+        if cached_data:
+            return cached_data
 
-        market_data = MarketData(
-            symbol=symbol,
-            timestamp=datetime.fromtimestamp(ticker["closeTime"] / 1000),
-            open=float(ticker["openPrice"]),
-            high=float(ticker["highPrice"]),
-            low=float(ticker["lowPrice"]),
-            close=float(ticker["lastPrice"]),
-            volume=float(ticker["volume"]),
-            additional_data={
-                "price_change": float(ticker["priceChange"]),
-                "price_change_percent": float(ticker["priceChangePercent"]),
-                "weighted_avg_price": float(ticker["weightedAvgPrice"]),
-                "quote_volume": float(ticker["quoteVolume"]),
-                "trades": int(ticker["count"])
-            }
-        )
+        try:
+            # Get 24hr ticker
+            ticker = await self._make_request(
+                "ticker/24hr",
+                params={"symbol": symbol.upper()}
+            )
+            
+            if not ticker:
+                raise ValueError(f"No data available for {symbol}")
 
-        return await self.validate_and_clean_data(market_data)
+            # Create MarketData object
+            market_data = MarketData(
+                symbol=symbol,
+                timestamp=datetime.now(),
+                open=Decimal(str(ticker["openPrice"])),
+                high=Decimal(str(ticker["highPrice"])),
+                low=Decimal(str(ticker["lowPrice"])),
+                close=Decimal(str(ticker["lastPrice"])),
+                volume=Decimal(str(ticker["volume"])),
+                trades=int(ticker["count"]),
+                vwap=Decimal(str(ticker["weightedAvgPrice"])),
+                source="binance"
+            )
+
+            # Cache the data
+            self._store_in_cache(cache_key, market_data)
+            return market_data
+            
+        except Exception as e:
+            logger.error(f"Error fetching latest price: {str(e)}")
+            raise
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Clean up resources on exit."""
-        if self._client:
-            await self._client.close_connection()
-        self._initialized = False
+        if self._session:
+            await self._session.close()

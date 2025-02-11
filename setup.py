@@ -28,14 +28,12 @@ setup(
         
         # Data Pipeline Dependencies
         "python-binance>=1.0.19",  # Binance API
-        "financial-modeling-prep>=0.2.4",  # FMP API
         "newsapi-python>=0.2.7",  # NewsAPI
         "tweepy>=4.14.0",  # Twitter API
         "textblob>=0.17.1",  # Text sentiment analysis
         "ta-lib>=0.4.0",  # Technical analysis
         "aiofiles>=23.2.1",  # Async file operations
         "aiodns>=3.1.1",  # Async DNS resolution
-        "cchardet>=2.1.7",  # Character encoding detection
         "ujson>=5.8.0",  # Fast JSON parsing
         "pyyaml>=6.0.1",  # YAML configuration
         "python-jose[cryptography]",  # JWT handling
