@@ -145,19 +145,23 @@ async def run_paper_trading_demo(config: Dict[str, Any], symbols: list):
         # Process signals
         executed_trades = []
         for signal in signals:
-            # Calculate position size
-            position_size = await risk_manager.calculate_position_size(
+            # Calculate position size (non-async)
+            position_size = risk_manager.calculate_position_size(
                 symbol=signal.symbol,
                 current_price=market_data.prices[signal.symbol].iloc[-1],
                 signal_strength=signal.confidence
             )
             
+            # Calculate trade size in units
+            current_price = market_data.prices[signal.symbol].iloc[-1]
+            trade_size = position_size.size / current_price if current_price > 0 else 0
+            
             # Validate trade with risk management
-            if await risk_manager.evaluate_trade(
+            if risk_manager.evaluate_trade(
                 symbol=signal.symbol,
                 side=signal.direction.value,
-                quantity=position_size.quantity,
-                current_price=market_data.prices[signal.symbol].iloc[-1],
+                quantity=trade_size,
+                current_price=current_price,
                 portfolio_value=portfolio_value,
                 current_positions=current_positions
             ):
@@ -165,8 +169,8 @@ async def run_paper_trading_demo(config: Dict[str, Any], symbols: list):
                 trade_result = await paper_actuator.execute_trade(
                     symbol=signal.symbol,
                     side=signal.direction.value,
-                    quantity=position_size.quantity,
-                    price=market_data.prices[signal.symbol].iloc[-1]
+                    quantity=trade_size,
+                    price=current_price
                 )
                 executed_trades.append(trade_result)
                 

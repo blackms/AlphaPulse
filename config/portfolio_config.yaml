@@ -1,0 +1,56 @@
+# Portfolio Management Configuration
+
+strategy:
+  name: black_litterman  # Portfolio optimization strategy
+  lookback_period: 252   # Days of historical data to consider
+  rebalancing_threshold: 0.05  # 5% threshold for rebalancing
+
+rebalancing_frequency: daily  # Rebalancing frequency
+
+trading:
+  base_currency: USDT
+  min_trade_value: 10000  # Minimum trade size in base currency
+  execution_style: market  # Order type
+
+risk_constraints:
+  volatility_target: 0.15      # Target annual volatility
+  max_drawdown_limit: 0.25     # Maximum allowed drawdown
+  correlation_threshold: 0.7    # Maximum correlation between assets
+  max_position_size: 0.20      # Maximum position size as fraction of portfolio
+  min_position_size: 0.01      # Minimum position size as fraction of portfolio
+  max_sector_exposure: 0.30    # Maximum exposure to any sector
+
+black_litterman:
+  risk_aversion: 2.5          # Risk aversion parameter
+  tau: 0.05                   # Uncertainty in prior
+  market_risk_premium: 0.06   # Market risk premium
+  confidence_interval: 0.95   # Confidence interval for views
+
+optimization:
+  target_return: 0.15         # Target annual return
+  risk_free_rate: 0.00       # Risk-free rate
+  max_iteration: 1000        # Maximum optimization iterations
+  convergence_tolerance: 1e-8 # Convergence tolerance
+
+constraints:
+  long_only: true            # Long-only portfolio
+  max_leverage: 1.0          # Maximum portfolio leverage
+  allow_shorting: false      # Disable short selling
+
+monitoring:
+  performance_window: 252    # Days for performance metrics
+  risk_metrics:
+    - sharpe_ratio
+    - sortino_ratio
+    - max_drawdown
+    - var_95
+    - beta
+    - tracking_error
+  rebalancing_report: true   # Generate rebalancing reports
+  risk_report: true         # Generate risk reports
+
+data:
+  price_source: close       # Use closing prices
+  returns_frequency: daily  # Daily returns calculation
+  fill_method: forward     # Forward fill missing data
+  min_history: 252        # Minimum required history days

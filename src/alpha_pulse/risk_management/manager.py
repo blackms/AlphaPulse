@@ -181,6 +181,29 @@ class RiskManager(IRiskManager):
 
         return True
 
+    def calculate_position_size(
+        self,
+        symbol: str,
+        current_price: float,
+        signal_strength: float,
+        historical_returns: Optional[pd.Series] = None,
+    ) -> PositionSizeResult:
+        """Calculate recommended position size."""
+        volatility = (
+            self.state.risk_metrics.volatility
+            if self.state.risk_metrics
+            else 0.15  # Default assumption
+        )
+        
+        return self.position_sizer.calculate_position_size(
+            symbol=symbol,
+            current_price=current_price,
+            portfolio_value=self.state.portfolio_value,
+            volatility=volatility,
+            signal_strength=signal_strength,
+            historical_returns=historical_returns,
+        )
+
     def update_risk_metrics(
         self,
         portfolio_returns: pd.Series,
@@ -246,29 +269,6 @@ class RiskManager(IRiskManager):
         
         # Return same limit for all assets (can be extended to be asset-specific)
         return {'default': adjusted_limit}
-
-    def calculate_position_size(
-        self,
-        symbol: str,
-        current_price: float,
-        signal_strength: float,
-        historical_returns: Optional[pd.Series] = None,
-    ) -> PositionSizeResult:
-        """Calculate recommended position size."""
-        volatility = (
-            self.state.risk_metrics.volatility
-            if self.state.risk_metrics
-            else 0.15  # Default assumption
-        )
-        
-        return self.position_sizer.calculate_position_size(
-            symbol=symbol,
-            current_price=current_price,
-            portfolio_value=self.state.portfolio_value,
-            volatility=volatility,
-            signal_strength=signal_strength,
-            historical_returns=historical_returns,
-        )
 
     def _should_rebalance(self, asset_returns: Dict[str, pd.Series]) -> bool:
         """Determine if portfolio rebalancing is needed."""
