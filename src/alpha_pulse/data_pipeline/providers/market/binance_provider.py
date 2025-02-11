@@ -6,7 +6,7 @@ import hashlib
 import time
 import asyncio
 from typing import Dict, List, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 import pandas as pd
 from loguru import logger
 import aiohttp
@@ -25,6 +25,25 @@ class BinanceMarketDataProvider(BaseDataProvider, CacheMixin):
     - Order book data
     - Trade data
     """
+
+    # Binance interval mappings
+    INTERVALS = {
+        "1m": 60,
+        "3m": 180,
+        "5m": 300,
+        "15m": 900,
+        "30m": 1800,
+        "1h": 3600,
+        "2h": 7200,
+        "4h": 14400,
+        "6h": 21600,
+        "8h": 28800,
+        "12h": 43200,
+        "1d": 86400,
+        "3d": 259200,
+        "1w": 604800,
+        "1M": 2592000,
+    }
 
     def __init__(
         self,
@@ -86,13 +105,53 @@ class BinanceMarketDataProvider(BaseDataProvider, CacheMixin):
         """Parse Binance kline data into MarketData object."""
         return MarketData(
             symbol=self.current_symbol,
-            timestamp=datetime.fromtimestamp(kline[0] / 1000),
+            timestamp=datetime.fromtimestamp(kline[0] / 1000, tz=timezone.utc),
             open=float(kline[1]),
             high=float(kline[2]),
             low=float(kline[3]),
             close=float(kline[4]),
             volume=float(kline[5])
         )
+
+    async def _fetch_historical_chunk(
+        self,
+        symbol: str,
+        start_ms: int,
+        end_ms: int,
+        interval: str,
+        limit: int = 1000
+    ) -> List[MarketData]:
+        """
+        Fetch a chunk of historical data.
+
+        Args:
+            symbol: Trading symbol
+            start_ms: Start time in milliseconds
+            end_ms: End time in milliseconds
+            interval: Data interval
+            limit: Maximum number of candles to fetch
+
+        Returns:
+            List of MarketData objects
+        """
+        params = {
+            'symbol': symbol,
+            'interval': interval,
+            'startTime': start_ms,
+            'endTime': end_ms,
+            'limit': limit
+        }
+        
+        response = await self._execute_request(
+            endpoint="v3/klines",
+            params=params
+        )
+        
+        data = await self._process_response(response)
+        if not isinstance(data, list):
+            raise DataFetchError(f"Unexpected response format: {data}")
+        
+        return [self._parse_kline_data(kline) for kline in data]
 
     @retry_on_error(retries=3, delay=2.0)
     async def get_historical_data(
@@ -122,34 +181,60 @@ class BinanceMarketDataProvider(BaseDataProvider, CacheMixin):
         if cached_data is not None:
             return cached_data
 
-        # Prepare request parameters
-        params = {
-            'symbol': symbol,
-            'interval': interval,
-            'startTime': int(start_time.timestamp() * 1000),
-            'endTime': int(end_time.timestamp() * 1000),
-            'limit': 1000
-        }
+        # Convert timestamps to UTC milliseconds
+        start_ms = int(start_time.astimezone(timezone.utc).timestamp() * 1000)
+        end_ms = int(end_time.astimezone(timezone.utc).timestamp() * 1000)
 
         try:
             logger.debug(f"Fetching historical data for {symbol}")
-            response = await self._execute_request(
-                endpoint="v3/klines",
-                params=params
-            )
             
-            # Parse JSON response
-            data = await self._process_response(response)
-            if not isinstance(data, list):
-                raise DataFetchError(f"Unexpected response format: {data}")
+            # Calculate number of intervals needed
+            interval_seconds = self.INTERVALS[interval]
+            total_seconds = (end_ms - start_ms) / 1000
+            total_intervals = int(total_seconds / interval_seconds)
             
-            # Parse response into MarketData objects
-            market_data = [self._parse_kline_data(kline) for kline in data]
+            logger.debug(f"Need {total_intervals} intervals for {symbol}")
+            
+            # Fetch data in chunks of 1000 candles
+            all_data = []
+            chunk_start_ms = start_ms
+            
+            while chunk_start_ms < end_ms:
+                chunk_data = await self._fetch_historical_chunk(
+                    symbol=symbol,
+                    start_ms=chunk_start_ms,
+                    end_ms=end_ms,
+                    interval=interval
+                )
+                
+                if not chunk_data:
+                    break
+                    
+                all_data.extend(chunk_data)
+                
+                # Update start time for next chunk
+                chunk_start_ms = int(chunk_data[-1].timestamp.timestamp() * 1000) + 1
+                
+                # Add small delay to avoid rate limits
+                await asyncio.sleep(0.1)
+            
+            # Sort by timestamp and remove duplicates
+            all_data.sort(key=lambda x: x.timestamp)
+            unique_data = []
+            seen_timestamps = set()
+            
+            for item in all_data:
+                ts = item.timestamp
+                if ts not in seen_timestamps:
+                    seen_timestamps.add(ts)
+                    unique_data.append(item)
+            
+            logger.debug(f"Fetched {len(unique_data)} data points for {symbol}")
             
             # Cache the results
-            self._set_in_cache(cache_key, market_data)
+            self._set_in_cache(cache_key, unique_data)
             
-            return market_data
+            return unique_data
             
         except Exception as e:
             logger.exception(f"Error fetching historical data for {symbol}: {str(e)}")

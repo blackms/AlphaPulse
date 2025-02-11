@@ -9,6 +9,7 @@ import pandas as pd
 import os
 from loguru import logger
 import sys
+import inspect
 
 from .interfaces import (
     IDataManager,
@@ -46,6 +47,17 @@ def _process_config(config: Dict[str, Any]) -> Dict[str, Any]:
         else:
             processed[key] = _interpolate_env_vars(value)
     return processed
+
+
+def _filter_init_params(cls, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Filter parameters to only include those accepted by the class's __init__."""
+    sig = inspect.signature(cls.__init__)
+    valid_params = {
+        name: params[name]
+        for name in sig.parameters
+        if name in params and name != 'self'
+    }
+    return valid_params
 
 
 class DataManager(IDataManager):
@@ -87,8 +99,8 @@ class DataManager(IDataManager):
         self._sentiment_provider = None
         self._technical_provider = None
         
-        # Track client sessions
-        self._sessions = []
+        # Track providers for cleanup
+        self._providers = []
 
     async def initialize(self) -> None:
         """Initialize all data providers."""
@@ -100,42 +112,59 @@ class DataManager(IDataManager):
                 return
 
             try:
+                # Get connection settings
+                conn_config = self._config.get("connection", {})
+                common_params = {
+                    "request_timeout": conn_config.get("request_timeout", 30),
+                    "tcp_connector_limit": conn_config.get("tcp_connector_limit", 100)
+                }
+
                 # Initialize market data provider (Binance for crypto)
                 if self._config.get("market_data", {}).get("binance"):
                     logger.debug("Initializing Binance market data provider")
-                    self._market_provider = BinanceMarketDataProvider(
-                        api_key=self._config["market_data"]["binance"].get("api_key"),
-                        api_secret=self._config["market_data"]["binance"].get("api_secret"),
-                        testnet=self._config["market_data"]["binance"].get("testnet", True)
-                    )
-                    if hasattr(self._market_provider, "_session"):
-                        self._sessions.append(self._market_provider._session)
+                    binance_params = {
+                        "api_key": self._config["market_data"]["binance"].get("api_key"),
+                        "api_secret": self._config["market_data"]["binance"].get("api_secret"),
+                        "testnet": self._config["market_data"]["binance"].get("testnet", True),
+                        **common_params
+                    }
+                    filtered_params = _filter_init_params(BinanceMarketDataProvider, binance_params)
+                    self._market_provider = BinanceMarketDataProvider(**filtered_params)
+                    self._providers.append(self._market_provider)
 
                 # Initialize fundamental data provider (Alpha Vantage)
                 if self._config.get("fundamental_data", {}).get("alpha_vantage"):
                     logger.debug("Initializing Alpha Vantage fundamental data provider")
-                    self._fundamental_provider = AlphaVantageProvider(
-                        api_key=self._config["fundamental_data"]["alpha_vantage"].get("api_key")
-                    )
-                    if hasattr(self._fundamental_provider, "_session"):
-                        self._sessions.append(self._fundamental_provider._session)
+                    av_params = {
+                        "api_key": self._config["fundamental_data"]["alpha_vantage"].get("api_key"),
+                        **common_params
+                    }
+                    filtered_params = _filter_init_params(AlphaVantageProvider, av_params)
+                    self._fundamental_provider = AlphaVantageProvider(**filtered_params)
+                    self._providers.append(self._fundamental_provider)
 
                 # Initialize sentiment data provider (Finnhub)
                 if self._config.get("sentiment_data", {}).get("finnhub"):
                     logger.debug("Initializing Finnhub sentiment data provider")
                     finnhub_config = self._config["sentiment_data"]["finnhub"]
-                    self._sentiment_provider = FinnhubProvider(
-                        api_key=finnhub_config.get("api_key"),
-                        cache_ttl=finnhub_config.get("cache_ttl", 300)
-                    )
-                    if hasattr(self._sentiment_provider, "_session"):
-                        self._sessions.append(self._sentiment_provider._session)
+                    finnhub_params = {
+                        "api_key": finnhub_config.get("api_key"),
+                        "cache_ttl": finnhub_config.get("cache_ttl", 300),
+                        **common_params
+                    }
+                    filtered_params = _filter_init_params(FinnhubProvider, finnhub_params)
+                    self._sentiment_provider = FinnhubProvider(**filtered_params)
+                    self._providers.append(self._sentiment_provider)
 
                 # Initialize technical analysis provider
                 logger.debug("Initializing TA-Lib technical analysis provider")
-                self._technical_provider = TALibProvider(
-                    max_workers=self._max_workers
-                )
+                talib_params = {
+                    "max_workers": self._max_workers,
+                    **common_params
+                }
+                filtered_params = _filter_init_params(TALibProvider, talib_params)
+                self._technical_provider = TALibProvider(**filtered_params)
+                self._providers.append(self._technical_provider)
 
                 self._initialized = True
                 logger.info("Data manager initialized successfully")
@@ -181,6 +210,7 @@ class DataManager(IDataManager):
                     end_time=end_time,
                     interval=interval
                 )
+                logger.debug(f"Received {len(data)} data points for {symbol}")
                 return symbol, data
             except Exception as e:
                 logger.exception(f"Error fetching market data for {symbol}: {str(e)}")
@@ -291,7 +321,7 @@ class DataManager(IDataManager):
         
         for symbol, data in market_data.items():
             try:
-                logger.debug(f"Calculating technical indicators for {symbol}")
+                logger.debug(f"Converting market data to DataFrame for {symbol}")
                 # Convert MarketData list to DataFrame
                 df = pd.DataFrame([
                     {
@@ -309,6 +339,7 @@ class DataManager(IDataManager):
                 df = df.sort_values('timestamp')
                 df.set_index('timestamp', inplace=True)
                 
+                logger.debug(f"Calculating technical indicators for {symbol} with {len(df)} data points")
                 indicators = self._technical_provider.get_technical_indicators(
                     df=df,
                     symbol=symbol
@@ -330,17 +361,19 @@ class DataManager(IDataManager):
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Async context manager exit."""
-        # Clean up sessions
-        for session in self._sessions:
-            if session and not session.closed:
-                try:
-                    await session.close()
-                except Exception as e:
-                    logger.exception(f"Error closing session: {str(e)}")
-        self._sessions.clear()
+        # Clean up providers
+        for provider in self._providers:
+            try:
+                if hasattr(provider, '__aexit__'):
+                    await provider.__aexit__(exc_type, exc_val, exc_tb)
+                    logger.debug(f"Cleaned up provider: {provider.provider_name}")
+            except Exception as e:
+                logger.exception(f"Error cleaning up provider: {str(e)}")
+        self._providers.clear()
         
         # Clean up executor
         try:
             self._executor.shutdown(wait=True)
+            logger.debug("Shut down executor")
         except Exception as e:
             logger.exception(f"Error shutting down executor: {str(e)}")

@@ -6,7 +6,7 @@ market_data:
     provider: "binance"
     api_key: "${BINANCE_API_KEY}"
     api_secret: "${BINANCE_API_SECRET}"
-    testnet: true
+    testnet: false  # Changed to use real API
     cache_ttl: 300  # 5 minutes
 
 # Fundamental Data Provider (Alpha Vantage)
@@ -49,3 +49,8 @@ rate_limiting:
   enabled: true
   requests_per_minute: 60
   burst_size: 10
+
+# Connection Settings
+connection:
+  request_timeout: 30  # seconds
+  tcp_connector_limit: 100  # maximum concurrent connections

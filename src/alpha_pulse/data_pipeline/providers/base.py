@@ -111,6 +111,7 @@ class BaseDataProvider:
         self._tcp_connector_limit = tcp_connector_limit
         self._session = None
         self._session_lock = asyncio.Lock()
+        self._connector = None
 
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create aiohttp session."""
@@ -118,13 +119,13 @@ class BaseDataProvider:
             async with self._session_lock:
                 if self._session is None or self._session.closed:
                     logger.debug(f"Creating new session for {self.provider_name}")
-                    connector = aiohttp.TCPConnector(
+                    self._connector = aiohttp.TCPConnector(
                         limit=self._tcp_connector_limit,
                         enable_cleanup_closed=True
                     )
                     timeout = aiohttp.ClientTimeout(total=self._request_timeout)
                     self._session = aiohttp.ClientSession(
-                        connector=connector,
+                        connector=self._connector,
                         timeout=timeout,
                         headers=self._default_headers
                     )
@@ -228,17 +229,17 @@ class BaseDataProvider:
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Async context manager exit."""
-        if self._session:
-            try:
-                if not self._session.closed:
-                    logger.debug(f"Closing session for {self.provider_name}")
-                    await self._session.close()
-                    
-                # Wait for all connections to close
-                if hasattr(self._session, '_connector'):
-                    await self._session._connector.close()
-                    
-            except Exception as e:
-                logger.exception(f"Error closing session: {str(e)}")
-            finally:
-                self._session = None
+        try:
+            if self._session and not self._session.closed:
+                await self._session.close()
+                logger.debug(f"Closed session for {self.provider_name}")
+            
+            if self._connector:
+                await self._connector.close()
+                logger.debug(f"Closed connector for {self.provider_name}")
+                
+        except Exception as e:
+            logger.exception(f"Error during cleanup for {self.provider_name}: {str(e)}")
+        finally:
+            self._session = None
+            self._connector = None

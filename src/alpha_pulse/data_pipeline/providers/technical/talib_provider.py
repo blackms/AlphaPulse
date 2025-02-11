@@ -35,30 +35,15 @@ class TALibProvider(BaseDataProvider):
         super().__init__("talib", "technical", None)
         self._executor = ThreadPoolExecutor(max_workers=max_workers)
 
-    async def _execute_request(
-        self,
-        endpoint: str,
-        method: str = "GET",
-        params: Optional[Dict[str, Any]] = None,
-        headers: Optional[Dict[str, str]] = None,
-        data: Optional[Dict[str, Any]] = None
-    ) -> Any:
-        """Execute request (not used in this provider)."""
-        return None  # Not needed for TA-Lib
-
-    async def _process_response(self, response: Any) -> Any:
-        """Process response (not used in this provider)."""
-        return response  # Not needed for TA-Lib
-
     def _calculate_trend_indicators(
         self,
         df: pd.DataFrame
     ) -> Dict[str, List[float]]:
         """Calculate trend indicators."""
         try:
-            close = df['close'].values
-            high = df['high'].values
-            low = df['low'].values
+            close = df['close'].values.astype(float)
+            high = df['high'].values.astype(float)
+            low = df['low'].values.astype(float)
             
             # SMA - Simple Moving Average
             sma_20 = talib.SMA(close, timeperiod=20)
@@ -101,10 +86,10 @@ class TALibProvider(BaseDataProvider):
     ) -> Dict[str, List[float]]:
         """Calculate momentum indicators."""
         try:
-            close = df['close'].values
-            high = df['high'].values
-            low = df['low'].values
-            volume = df['volume'].values
+            close = df['close'].values.astype(float)
+            high = df['high'].values.astype(float)
+            low = df['low'].values.astype(float)
+            volume = df['volume'].values.astype(float)
             
             # RSI - Relative Strength Index
             rsi = talib.RSI(close, timeperiod=14)
@@ -144,9 +129,9 @@ class TALibProvider(BaseDataProvider):
     ) -> Dict[str, List[float]]:
         """Calculate volatility indicators."""
         try:
-            close = df['close'].values
-            high = df['high'].values
-            low = df['low'].values
+            close = df['close'].values.astype(float)
+            high = df['high'].values.astype(float)
+            low = df['low'].values.astype(float)
             
             # Bollinger Bands
             bb_upper, bb_middle, bb_lower = talib.BBANDS(
@@ -180,10 +165,10 @@ class TALibProvider(BaseDataProvider):
     ) -> Dict[str, List[float]]:
         """Calculate volume indicators."""
         try:
-            close = df['close'].values
-            high = df['high'].values
-            low = df['low'].values
-            volume = df['volume'].values
+            close = df['close'].values.astype(float)
+            high = df['high'].values.astype(float)
+            low = df['low'].values.astype(float)
+            volume = df['volume'].values.astype(float)
             
             # OBV - On Balance Volume
             obv = talib.OBV(close, volume)
@@ -227,6 +212,12 @@ class TALibProvider(BaseDataProvider):
         """
         try:
             logger.debug(f"Calculating technical indicators for {symbol} with {len(df)} data points")
+            
+            # Ensure DataFrame is properly sorted
+            df = df.sort_index()
+            
+            # Log data range
+            logger.debug(f"Data range for {symbol}: {df.index[0]} to {df.index[-1]}")
             
             # Calculate all indicators
             trend = self._calculate_trend_indicators(df)
