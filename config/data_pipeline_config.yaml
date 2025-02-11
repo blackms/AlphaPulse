@@ -16,25 +16,49 @@ market_data:
       - 4h
       - 1d
 
+  bybit:  # Alternative market data provider
+    api_key: ${BYBIT_API_KEY}
+    api_secret: ${BYBIT_API_SECRET}
+    testnet: ${ALPHA_PULSE_BYBIT_TESTNET}
+    rate_limit: 20
+    cache_ttl: 300
+    timeframes:
+      - 1m
+      - 5m
+      - 15m
+      - 1h
+      - 4h
+      - 1d
+
 # Fundamental Data Providers
 fundamental_data:
-  financial_modeling_prep:
-    api_key: ${FMP_API_KEY}
+  alpha_vantage:
+    api_key: ${ALPHA_VANTAGE_API_KEY}
     cache_ttl: 3600  # 1 hour
-    rate_limit: 10
+    rate_limit: 5  # Free tier: 5 requests per minute
     endpoints:
-      - financial-statements
-      - company-profile
-      - key-metrics
-      - ratios
-      - cash-flow-statement
+      - OVERVIEW  # Company overview
+      - INCOME_STATEMENT  # Annual and quarterly income statements
+      - BALANCE_SHEET  # Annual and quarterly balance sheets
+      - CASH_FLOW  # Annual and quarterly cash flow statements
+      - EARNINGS  # Annual and quarterly earnings
+      - GLOBAL_QUOTE  # Real-time quote data
 
 # Sentiment Data Providers
 sentiment_data:
-  news_api:
-    api_key: ${NEWS_API_KEY}
-    cache_ttl: 900  # 15 minutes
-    rate_limit: 10
+  finnhub:
+    api_key: ${FINNHUB_API_KEY}
+    cache_ttl: 300  # 5 minutes
+    rate_limit: 60  # 60 calls per minute
+    endpoints:
+      - company-news
+      - news-sentiment
+      - social-sentiment
+    sentiment_weights:
+      news: 0.6
+      social: 0.4
+    news_lookback_days: 7
+    social_lookback_hours: 24
     source_weights:
       reuters: 1.0
       bloomberg: 1.0
@@ -45,16 +69,6 @@ sentiment_data:
       seeking-alpha: 0.7
       yahoo-finance: 0.7
       default: 0.5
-
-  twitter:
-    bearer_token: ${TWITTER_BEARER_TOKEN}
-    cache_ttl: 300  # 5 minutes
-    rate_limit: 450
-    metrics:
-      retweet_weight: 2.0
-      like_weight: 1.0
-      reply_weight: 1.5
-      quote_weight: 1.5
 
 # Technical Analysis Configuration
 technical_analysis:

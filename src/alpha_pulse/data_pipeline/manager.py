@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any
 import logging
 from concurrent.futures import ThreadPoolExecutor
+import pandas as pd
 
 from .interfaces import (
     IDataManager,
@@ -15,8 +16,8 @@ from .interfaces import (
     TechnicalIndicators
 )
 from .providers.market.binance_provider import BinanceMarketDataProvider
-from .providers.fundamental.fmp_provider import FMPProvider
-from .providers.sentiment.news_sentiment_provider import NewsSentimentProvider
+from .providers.fundamental.alpha_vantage_provider import AlphaVantageProvider
+from .providers.sentiment.finnhub_provider import FinnhubProvider
 from .providers.technical.talib_provider import TALibProvider
 
 logger = logging.getLogger(__name__)
@@ -71,23 +72,27 @@ class DataManager(IDataManager):
                 return
 
             try:
-                # Initialize market data provider
-                self._market_provider = BinanceMarketDataProvider(
-                    api_key=self._config.get("binance", {}).get("api_key"),
-                    api_secret=self._config.get("binance", {}).get("api_secret"),
-                    testnet=self._config.get("binance", {}).get("testnet", True)
-                )
+                # Initialize market data provider (Binance for crypto)
+                if self._config.get("market_data", {}).get("binance"):
+                    self._market_provider = BinanceMarketDataProvider(
+                        api_key=self._config["market_data"]["binance"].get("api_key"),
+                        api_secret=self._config["market_data"]["binance"].get("api_secret"),
+                        testnet=self._config["market_data"]["binance"].get("testnet", True)
+                    )
 
-                # Initialize fundamental data provider
-                self._fundamental_provider = FMPProvider(
-                    api_key=self._config.get("fmp", {}).get("api_key")
-                )
+                # Initialize fundamental data provider (Alpha Vantage)
+                if self._config.get("fundamental_data", {}).get("alpha_vantage"):
+                    self._fundamental_provider = AlphaVantageProvider(
+                        api_key=self._config["fundamental_data"]["alpha_vantage"].get("api_key")
+                    )
 
-                # Initialize sentiment data provider
-                self._sentiment_provider = NewsSentimentProvider(
-                    news_api_key=self._config.get("news_api", {}).get("api_key"),
-                    twitter_bearer_token=self._config.get("twitter", {}).get("bearer_token")
-                )
+                # Initialize sentiment data provider (Finnhub)
+                if self._config.get("sentiment_data", {}).get("finnhub"):
+                    finnhub_config = self._config["sentiment_data"]["finnhub"]
+                    self._sentiment_provider = FinnhubProvider(
+                        api_key=finnhub_config.get("api_key"),
+                        cache_ttl=finnhub_config.get("cache_ttl", 300)
+                    )
 
                 # Initialize technical analysis provider
                 self._technical_provider = TALibProvider(
@@ -126,6 +131,8 @@ class DataManager(IDataManager):
             Dictionary mapping symbols to their market data
         """
         await self._ensure_initialized()
+        if not self._market_provider:
+            raise RuntimeError("Market data provider not initialized")
 
         async def fetch_symbol_data(symbol: str) -> tuple[str, List[MarketData]]:
             try:
@@ -160,6 +167,8 @@ class DataManager(IDataManager):
             Dictionary mapping symbols to their fundamental data
         """
         await self._ensure_initialized()
+        if not self._fundamental_provider:
+            raise RuntimeError("Fundamental data provider not initialized")
 
         async def fetch_symbol_fundamentals(symbol: str) -> tuple[str, Optional[FundamentalData]]:
             try:
@@ -192,32 +201,22 @@ class DataManager(IDataManager):
             Dictionary mapping symbols to their sentiment data
         """
         await self._ensure_initialized()
+        if not self._sentiment_provider:
+            raise RuntimeError("Sentiment data provider not initialized")
 
-        async def fetch_symbol_sentiment(symbol: str) -> tuple[str, Optional[Dict]]:
+        # Get configuration
+        finnhub_config = self._config["sentiment_data"]["finnhub"]
+        lookback_days = finnhub_config.get("news_lookback_days", 7)
+        lookback_hours = finnhub_config.get("social_lookback_hours", 24)
+
+        async def fetch_symbol_sentiment(symbol: str) -> tuple[str, Optional[SentimentData]]:
             try:
-                # Fetch news and social sentiment concurrently
-                news_task = self._sentiment_provider.get_news_sentiment(symbol)
-                social_task = self._sentiment_provider.get_social_sentiment(symbol)
-                
-                news_data, social_data = await asyncio.gather(news_task, social_task)
-                
-                # Calculate aggregate sentiment
-                news_sentiment = sum(
-                    article["sentiment_score"] * article["credibility_score"]
-                    for article in news_data
-                ) / len(news_data) if news_data else 0
-
-                social_sentiment = sum(
-                    post["sentiment_score"] * post["engagement_score"]
-                    for post in social_data
-                ) / len(social_data) if social_data else 0
-
-                return symbol, {
-                    "news_sentiment": news_sentiment,
-                    "social_sentiment": social_sentiment,
-                    "news_data": news_data,
-                    "social_data": social_data
-                }
+                data = await self._sentiment_provider.get_sentiment_data(
+                    symbol=symbol,
+                    lookback_days=lookback_days,
+                    lookback_hours=lookback_hours
+                )
+                return symbol, data
             except Exception as e:
                 logger.error(f"Error fetching sentiment data for {symbol}: {str(e)}")
                 return symbol, None
@@ -227,18 +226,7 @@ class DataManager(IDataManager):
         results = await asyncio.gather(*tasks)
         
         return {
-            symbol: SentimentData(
-                symbol=symbol,
-                timestamp=datetime.now(),
-                news_sentiment=data["news_sentiment"],
-                social_sentiment=data["social_sentiment"],
-                analyst_sentiment=0.0,  # Not implemented yet
-                source_data={
-                    "news": data["news_data"],
-                    "social": data["social_data"]
-                }
-            )
-            for symbol, data in results
+            symbol: data for symbol, data in results
             if data is not None
         }
 
@@ -255,6 +243,9 @@ class DataManager(IDataManager):
         Returns:
             Dictionary mapping symbols to their technical indicators
         """
+        if not self._technical_provider:
+            raise RuntimeError("Technical analysis provider not initialized")
+
         results = {}
         
         for symbol, data in market_data.items():
