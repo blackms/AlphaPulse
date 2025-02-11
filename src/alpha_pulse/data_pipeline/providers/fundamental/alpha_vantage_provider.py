@@ -6,9 +6,12 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any
 import aiohttp
 from urllib.parse import urljoin
+import logging
 
 from ...interfaces import FundamentalData
 from ..base import BaseDataProvider, retry_on_error, CacheMixin
+
+logger = logging.getLogger(__name__)
 
 
 class AlphaVantageProvider(BaseDataProvider, CacheMixin):
@@ -74,6 +77,19 @@ class AlphaVantageProvider(BaseDataProvider, CacheMixin):
             response.raise_for_status()
             return await response.json()
 
+    async def _process_response(self, response: Any) -> Any:
+        """Process Alpha Vantage API response."""
+        if not response:
+            return None
+            
+        # Check for API error messages
+        if "Error Message" in response:
+            raise ValueError(f"API Error: {response['Error Message']}")
+        if "Note" in response:  # API limit warning
+            logger.warning(f"API Note: {response['Note']}")
+            
+        return response
+
     @retry_on_error(max_retries=3)
     async def get_financial_statements(
         self,
@@ -115,72 +131,80 @@ class AlphaVantageProvider(BaseDataProvider, CacheMixin):
             })
         ]
 
-        income_stmt, balance_sheet, cash_flow, overview = \
-            await asyncio.gather(*tasks)
+        try:
+            income_stmt, balance_sheet, cash_flow, overview = \
+                await asyncio.gather(*tasks)
+        except Exception as e:
+            logger.error(f"Error fetching financial data: {str(e)}")
+            raise
 
         # Process and validate the data
         if not all([income_stmt, balance_sheet, cash_flow, overview]):
             raise ValueError(f"Missing fundamental data for {symbol}")
 
-        # Get the most recent data
-        latest_income = income_stmt.get("annualReports", [{}])[0]
-        latest_balance = balance_sheet.get("annualReports", [{}])[0]
-        latest_cash_flow = cash_flow.get("annualReports", [{}])[0]
+        try:
+            # Get the most recent data
+            latest_income = income_stmt.get("annualReports", [{}])[0]
+            latest_balance = balance_sheet.get("annualReports", [{}])[0]
+            latest_cash_flow = cash_flow.get("annualReports", [{}])[0]
 
-        fundamental_data = FundamentalData(
-            symbol=symbol,
-            timestamp=datetime.now(),
-            financial_ratios={
-                "pe_ratio": float(overview.get("PERatio", 0)),
-                "pb_ratio": float(overview.get("PriceToBookRatio", 0)),
-                "ps_ratio": float(overview.get("PriceToSalesRatio", 0)),
-                "roe": float(overview.get("ReturnOnEquityTTM", 0)),
-                "roa": float(overview.get("ReturnOnAssetsTTM", 0)),
-                "current_ratio": float(overview.get("CurrentRatio", 0)),
-                "debt_to_equity": float(overview.get("DebtToEquityRatio", 0)),
-                "gross_margin": float(overview.get("GrossProfitTTM", 0)) / 
-                               float(overview.get("RevenueTTM", 1)),
-                "operating_margin": float(overview.get("OperatingMarginTTM", 0)),
-                "net_margin": float(overview.get("ProfitMargin", 0)),
-                "dividend_yield": float(overview.get("DividendYield", 0))
-            },
-            balance_sheet={
-                "total_assets": float(latest_balance.get("totalAssets", 0)),
-                "total_liabilities": float(latest_balance.get("totalLiabilities", 0)),
-                "total_equity": float(latest_balance.get("totalShareholderEquity", 0)),
-                "cash": float(latest_balance.get("cashAndShortTermInvestments", 0)),
-                "debt": float(latest_balance.get("shortLongTermDebtTotal", 0)),
-                "working_capital": float(latest_balance.get("totalCurrentAssets", 0)) -
-                                 float(latest_balance.get("totalCurrentLiabilities", 0))
-            },
-            income_statement={
-                "revenue": float(latest_income.get("totalRevenue", 0)),
-                "gross_profit": float(latest_income.get("grossProfit", 0)),
-                "operating_income": float(latest_income.get("operatingIncome", 0)),
-                "net_income": float(latest_income.get("netIncome", 0)),
-                "eps": float(overview.get("EPS", 0)),
-                "ebitda": float(latest_income.get("ebitda", 0))
-            },
-            cash_flow={
-                "operating_cash_flow": float(latest_cash_flow.get("operatingCashflow", 0)),
-                "investing_cash_flow": float(latest_cash_flow.get("cashflowFromInvestment", 0)),
-                "financing_cash_flow": float(latest_cash_flow.get("cashflowFromFinancing", 0)),
-                "free_cash_flow": float(latest_cash_flow.get("operatingCashflow", 0)) -
-                                float(latest_cash_flow.get("capitalExpenditures", 0)),
-                "capex": float(latest_cash_flow.get("capitalExpenditures", 0))
-            },
-            metadata={
-                "sector": overview.get("Sector", ""),
-                "industry": overview.get("Industry", ""),
-                "market_cap": float(overview.get("MarketCapitalization", 0)),
-                "beta": float(overview.get("Beta", 0)),
-                "volume": float(overview.get("Volume", 0)),
-                "exchange": overview.get("Exchange", ""),
-                "currency": overview.get("Currency", ""),
-                "country": overview.get("Country", ""),
-                "last_updated": datetime.now().isoformat()
-            }
-        )
+            fundamental_data = FundamentalData(
+                symbol=symbol,
+                timestamp=datetime.now(),
+                financial_ratios={
+                    "pe_ratio": float(overview.get("PERatio", 0)),
+                    "pb_ratio": float(overview.get("PriceToBookRatio", 0)),
+                    "ps_ratio": float(overview.get("PriceToSalesRatio", 0)),
+                    "roe": float(overview.get("ReturnOnEquityTTM", 0)),
+                    "roa": float(overview.get("ReturnOnAssetsTTM", 0)),
+                    "current_ratio": float(overview.get("CurrentRatio", 0)),
+                    "debt_to_equity": float(overview.get("DebtToEquityRatio", 0)),
+                    "gross_margin": float(overview.get("GrossProfitTTM", 0)) / 
+                                float(overview.get("RevenueTTM", 1)),
+                    "operating_margin": float(overview.get("OperatingMarginTTM", 0)),
+                    "net_margin": float(overview.get("ProfitMargin", 0)),
+                    "dividend_yield": float(overview.get("DividendYield", 0))
+                },
+                balance_sheet={
+                    "total_assets": float(latest_balance.get("totalAssets", 0)),
+                    "total_liabilities": float(latest_balance.get("totalLiabilities", 0)),
+                    "total_equity": float(latest_balance.get("totalShareholderEquity", 0)),
+                    "cash": float(latest_balance.get("cashAndShortTermInvestments", 0)),
+                    "debt": float(latest_balance.get("shortLongTermDebtTotal", 0)),
+                    "working_capital": float(latest_balance.get("totalCurrentAssets", 0)) -
+                                    float(latest_balance.get("totalCurrentLiabilities", 0))
+                },
+                income_statement={
+                    "revenue": float(latest_income.get("totalRevenue", 0)),
+                    "gross_profit": float(latest_income.get("grossProfit", 0)),
+                    "operating_income": float(latest_income.get("operatingIncome", 0)),
+                    "net_income": float(latest_income.get("netIncome", 0)),
+                    "eps": float(overview.get("EPS", 0)),
+                    "ebitda": float(latest_income.get("ebitda", 0))
+                },
+                cash_flow={
+                    "operating_cash_flow": float(latest_cash_flow.get("operatingCashflow", 0)),
+                    "investing_cash_flow": float(latest_cash_flow.get("cashflowFromInvestment", 0)),
+                    "financing_cash_flow": float(latest_cash_flow.get("cashflowFromFinancing", 0)),
+                    "free_cash_flow": float(latest_cash_flow.get("operatingCashflow", 0)) -
+                                    float(latest_cash_flow.get("capitalExpenditures", 0)),
+                    "capex": float(latest_cash_flow.get("capitalExpenditures", 0))
+                },
+                metadata={
+                    "sector": overview.get("Sector", ""),
+                    "industry": overview.get("Industry", ""),
+                    "market_cap": float(overview.get("MarketCapitalization", 0)),
+                    "beta": float(overview.get("Beta", 0)),
+                    "volume": float(overview.get("Volume", 0)),
+                    "exchange": overview.get("Exchange", ""),
+                    "currency": overview.get("Currency", ""),
+                    "country": overview.get("Country", ""),
+                    "last_updated": datetime.now().isoformat()
+                }
+            )
+        except Exception as e:
+            logger.error(f"Error processing financial data: {str(e)}")
+            raise
 
         # Cache the processed data
         self._store_in_cache(cache_key, fundamental_data)
@@ -210,23 +234,27 @@ class AlphaVantageProvider(BaseDataProvider, CacheMixin):
         if not overview:
             raise ValueError(f"Invalid profile data for {symbol}")
 
-        processed_data = {
-            "name": overview.get("Name", ""),
-            "description": overview.get("Description", ""),
-            "sector": overview.get("Sector", ""),
-            "industry": overview.get("Industry", ""),
-            "country": overview.get("Country", ""),
-            "exchange": overview.get("Exchange", ""),
-            "currency": overview.get("Currency", ""),
-            "market_cap": float(overview.get("MarketCapitalization", 0)),
-            "pe_ratio": float(overview.get("PERatio", 0)),
-            "dividend_yield": float(overview.get("DividendYield", 0)),
-            "beta": float(overview.get("Beta", 0)),
-            "52_week_high": float(overview.get("52WeekHigh", 0)),
-            "52_week_low": float(overview.get("52WeekLow", 0)),
-            "shares_outstanding": float(overview.get("SharesOutstanding", 0)),
-            "updated_at": datetime.now().isoformat()
-        }
+        try:
+            processed_data = {
+                "name": overview.get("Name", ""),
+                "description": overview.get("Description", ""),
+                "sector": overview.get("Sector", ""),
+                "industry": overview.get("Industry", ""),
+                "country": overview.get("Country", ""),
+                "exchange": overview.get("Exchange", ""),
+                "currency": overview.get("Currency", ""),
+                "market_cap": float(overview.get("MarketCapitalization", 0)),
+                "pe_ratio": float(overview.get("PERatio", 0)),
+                "dividend_yield": float(overview.get("DividendYield", 0)),
+                "beta": float(overview.get("Beta", 0)),
+                "52_week_high": float(overview.get("52WeekHigh", 0)),
+                "52_week_low": float(overview.get("52WeekLow", 0)),
+                "shares_outstanding": float(overview.get("SharesOutstanding", 0)),
+                "updated_at": datetime.now().isoformat()
+            }
+        except Exception as e:
+            logger.error(f"Error processing company profile: {str(e)}")
+            raise
 
         # Cache the processed data
         self._store_in_cache(cache_key, processed_data)
