@@ -24,6 +24,8 @@ setup(
         "prometheus-client>=0.19.0",
         "python-dotenv>=1.0.0",
         "plotly>=5.18.0",
+        "textblob>=0.17.1",  # Added for sentiment analysis
+        "ta-lib>=0.4.0",     # Added for technical analysis
         # API dependencies
         "fastapi>=0.104.0",
         "uvicorn>=0.24.0",

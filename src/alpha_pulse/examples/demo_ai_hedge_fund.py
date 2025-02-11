@@ -8,22 +8,26 @@ import numpy as np
 from typing import Dict, Any
 import yaml
 import logging
+from pathlib import Path
 
 from alpha_pulse.agents.manager import AgentManager
 from alpha_pulse.agents.interfaces import MarketData
 from alpha_pulse.risk_management.manager import RiskManager, RiskConfig
 from alpha_pulse.portfolio.portfolio_manager import PortfolioManager
-from alpha_pulse.data_pipeline.managers.real_time import RealTimeDataManager
+from alpha_pulse.data_pipeline.managers.mock_data import MockDataManager
 from alpha_pulse.execution.paper_actuator import PaperActuator
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
 
 async def load_market_data(symbols: list, lookback_days: int = 365) -> MarketData:
     """Load market data for demonstration."""
-    data_manager = RealTimeDataManager()
+    data_manager = MockDataManager()  # Using mock data for demo
     
     # Calculate date range
     end_date = datetime.now()
@@ -54,6 +58,44 @@ async def load_market_data(symbols: list, lookback_days: int = 365) -> MarketDat
         sentiment=sentiment,
         timestamp=datetime.now()
     )
+
+
+def ensure_config_exists():
+    """Ensure the configuration file exists."""
+    config_path = Path("config/ai_hedge_fund_config.yaml")
+    if not config_path.exists():
+        config = {
+            "agents": {
+                "agent_weights": {
+                    "activist": 0.15,
+                    "value": 0.20,
+                    "fundamental": 0.20,
+                    "sentiment": 0.15,
+                    "technical": 0.15,
+                    "valuation": 0.15
+                }
+            },
+            "risk": {
+                "max_position_size": 0.20,
+                "max_portfolio_leverage": 1.5,
+                "max_drawdown": 0.25,
+                "stop_loss": 0.10,
+                "var_confidence": 0.95,
+                "risk_free_rate": 0.00,
+                "target_volatility": 0.15,
+                "rebalance_threshold": 0.10
+            },
+            "execution": {
+                "mode": "paper",
+                "initial_balance": 1000000,
+                "slippage": 0.001,
+                "fee_rate": 0.001
+            }
+        }
+        
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(config_path, 'w') as f:
+            yaml.dump(config, f, default_flow_style=False)
 
 
 async def run_paper_trading_demo(config: Dict[str, Any], symbols: list):
@@ -155,10 +197,11 @@ async def run_paper_trading_demo(config: Dict[str, Any], symbols: list):
         performance = agent_manager.get_agent_performance()
         for agent_type, metrics in performance.items():
             logger.info(f"\n{agent_type.capitalize()} Agent:")
-            logger.info(f"Signal Accuracy: {metrics.signal_accuracy:.2%}")
-            logger.info(f"Profit Factor: {metrics.profit_factor:.2f}")
-            logger.info(f"Sharpe Ratio: {metrics.sharpe_ratio:.2f}")
-            logger.info(f"Max Drawdown: {metrics.max_drawdown:.2%}")
+            if metrics:
+                logger.info(f"Signal Accuracy: {metrics.signal_accuracy:.2%}")
+                logger.info(f"Profit Factor: {metrics.profit_factor:.2f}")
+                logger.info(f"Sharpe Ratio: {metrics.sharpe_ratio:.2f}")
+                logger.info(f"Max Drawdown: {metrics.max_drawdown:.2%}")
             
         # Get risk report
         logger.info("\nRisk Management Report:")
@@ -182,6 +225,9 @@ async def run_paper_trading_demo(config: Dict[str, Any], symbols: list):
 
 async def main():
     """Main entry point."""
+    # Ensure configuration exists
+    ensure_config_exists()
+    
     # Load configuration
     with open("config/ai_hedge_fund_config.yaml", "r") as f:
         config = yaml.safe_load(f)
