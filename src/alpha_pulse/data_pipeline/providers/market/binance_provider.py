@@ -4,13 +4,14 @@ Binance market data provider implementation.
 import hmac
 import hashlib
 import time
+import asyncio
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 import pandas as pd
 from loguru import logger
 import aiohttp
 
-from ...interfaces import MarketData
+from ...interfaces import MarketData, DataFetchError
 from ..base import BaseDataProvider, retry_on_error, CacheMixin
 
 
@@ -31,7 +32,8 @@ class BinanceMarketDataProvider(BaseDataProvider, CacheMixin):
         api_secret: str,
         testnet: bool = True,
         cache_ttl: int = 300,
-        request_timeout: int = 30
+        request_timeout: int = 30,
+        tcp_connector_limit: int = 100
     ):
         """
         Initialize Binance provider.
@@ -42,6 +44,7 @@ class BinanceMarketDataProvider(BaseDataProvider, CacheMixin):
             testnet: Use testnet if True
             cache_ttl: Cache time-to-live in seconds
             request_timeout: Request timeout in seconds
+            tcp_connector_limit: Maximum number of concurrent connections
         """
         base_url = "https://testnet.binance.vision/api" if testnet else "https://api.binance.com/api"
         default_headers = {
@@ -55,13 +58,14 @@ class BinanceMarketDataProvider(BaseDataProvider, CacheMixin):
             provider_name="binance",
             provider_type="market",
             base_url=base_url,
-            default_headers=default_headers
+            default_headers=default_headers,
+            request_timeout=request_timeout,
+            tcp_connector_limit=tcp_connector_limit
         )
         CacheMixin.__init__(self, cache_ttl=cache_ttl)
         
         self._api_secret = api_secret
         self._testnet = testnet
-        self._request_timeout = request_timeout
 
     def _generate_signature(self, params: Dict[str, Any]) -> str:
         """Generate HMAC SHA256 signature."""
@@ -89,31 +93,6 @@ class BinanceMarketDataProvider(BaseDataProvider, CacheMixin):
             close=float(kline[4]),
             volume=float(kline[5])
         )
-
-    async def _execute_request(
-        self,
-        endpoint: str,
-        method: str = "GET",
-        params: Optional[Dict[str, Any]] = None,
-        headers: Optional[Dict[str, str]] = None,
-        data: Optional[Dict[str, Any]] = None
-    ) -> aiohttp.ClientResponse:
-        """Execute request with proper error handling."""
-        try:
-            return await super()._execute_request(
-                endpoint=endpoint,
-                method=method,
-                params=params,
-                headers=headers,
-                data=data,
-                timeout=self._request_timeout
-            )
-        except aiohttp.ClientError as e:
-            logger.error(f"Binance API request failed: {str(e)}")
-            if "429" in str(e):
-                logger.warning("Rate limit exceeded, backing off...")
-                await asyncio.sleep(10)  # Back off for 10 seconds
-            raise
 
     @retry_on_error(retries=3, delay=2.0)
     async def get_historical_data(
@@ -159,15 +138,10 @@ class BinanceMarketDataProvider(BaseDataProvider, CacheMixin):
                 params=params
             )
             
-            # Read response content before processing
-            content = await response.read()
-            if not content:
-                raise ValueError("Empty response from Binance API")
-                
             # Parse JSON response
-            data = await response.json()
+            data = await self._process_response(response)
             if not isinstance(data, list):
-                raise ValueError(f"Unexpected response format: {data}")
+                raise DataFetchError(f"Unexpected response format: {data}")
             
             # Parse response into MarketData objects
             market_data = [self._parse_kline_data(kline) for kline in data]
@@ -206,15 +180,10 @@ class BinanceMarketDataProvider(BaseDataProvider, CacheMixin):
                 params={'symbol': symbol}
             )
             
-            # Read response content before processing
-            content = await response.read()
-            if not content:
-                raise ValueError("Empty response from Binance API")
-                
             # Parse JSON response
-            data = await response.json()
+            data = await self._process_response(response)
             if not isinstance(data, dict) or 'price' not in data:
-                raise ValueError(f"Unexpected response format: {data}")
+                raise DataFetchError(f"Unexpected response format: {data}")
             
             price = float(data['price'])
             

@@ -88,7 +88,9 @@ class BaseDataProvider:
         provider_name: str,
         provider_type: str,
         base_url: Optional[str],
-        default_headers: Optional[Dict[str, str]] = None
+        default_headers: Optional[Dict[str, str]] = None,
+        request_timeout: int = 30,
+        tcp_connector_limit: int = 100
     ):
         """
         Initialize base provider.
@@ -98,11 +100,15 @@ class BaseDataProvider:
             provider_type: Type of data provided
             base_url: Base URL for API requests
             default_headers: Default headers to include in requests
+            request_timeout: Request timeout in seconds
+            tcp_connector_limit: Maximum number of concurrent connections
         """
         self.provider_name = provider_name
         self.provider_type = provider_type
         self.base_url = base_url
         self._default_headers = default_headers or {}
+        self._request_timeout = request_timeout
+        self._tcp_connector_limit = tcp_connector_limit
         self._session = None
         self._session_lock = asyncio.Lock()
 
@@ -112,7 +118,14 @@ class BaseDataProvider:
             async with self._session_lock:
                 if self._session is None or self._session.closed:
                     logger.debug(f"Creating new session for {self.provider_name}")
+                    connector = aiohttp.TCPConnector(
+                        limit=self._tcp_connector_limit,
+                        enable_cleanup_closed=True
+                    )
+                    timeout = aiohttp.ClientTimeout(total=self._request_timeout)
                     self._session = aiohttp.ClientSession(
+                        connector=connector,
+                        timeout=timeout,
                         headers=self._default_headers
                     )
         return self._session
@@ -130,7 +143,7 @@ class BaseDataProvider:
         params: Optional[Dict[str, Any]] = None,
         headers: Optional[Dict[str, str]] = None,
         data: Optional[Dict[str, Any]] = None,
-        timeout: int = 30
+        timeout: Optional[int] = None
     ) -> aiohttp.ClientResponse:
         """
         Execute HTTP request.
@@ -141,7 +154,7 @@ class BaseDataProvider:
             params: Query parameters
             headers: Request headers
             data: Request body
-            timeout: Request timeout in seconds
+            timeout: Request timeout in seconds (overrides default)
 
         Returns:
             aiohttp.ClientResponse
@@ -153,33 +166,40 @@ class BaseDataProvider:
             session = await self._get_session()
             logger.debug(f"Executing {method} request to {url}")
             
+            timeout_obj = aiohttp.ClientTimeout(
+                total=timeout or self._request_timeout
+            )
+            
             async with session.request(
                 method=method,
                 url=url,
                 params=params,
                 headers=request_headers,
                 json=data,
-                timeout=aiohttp.ClientTimeout(total=timeout)
+                timeout=timeout_obj,
+                raise_for_status=True
             ) as response:
                 # Log API errors
                 if response.status >= 400:
+                    response_text = await response.text()
                     logger.error(
                         f"API Error: Status {response.status} "
                         f"URL: {url} "
                         f"Headers: {request_headers} "
-                        f"Params: {params}"
+                        f"Params: {params}\n"
+                        f"Response: {response_text}"
                     )
-                    response_text = await response.text()
-                    logger.error(f"Response: {response_text}")
+                    response.raise_for_status()
                 
-                response.raise_for_status()
+                # Ensure response is fully read
+                await response.read()
                 return response
                 
         except aiohttp.ClientError as e:
             logger.error(f"Request failed: {str(e)}")
             raise DataFetchError(f"Failed to fetch data: {str(e)}")
         except asyncio.TimeoutError:
-            logger.error(f"Request timed out after {timeout}s: {url}")
+            logger.error(f"Request timed out after {timeout or self._request_timeout}s: {url}")
             raise DataFetchError(f"Request timed out: {url}")
         except Exception as e:
             logger.exception(f"Unexpected error during request: {str(e)}")
@@ -196,7 +216,8 @@ class BaseDataProvider:
             Processed response data
         """
         try:
-            return await response.json()
+            # Response should already be read in _execute_request
+            return await response.json(content_type=None)
         except Exception as e:
             logger.exception(f"Error processing response: {str(e)}")
             raise DataFetchError(f"Failed to process response: {str(e)}")
@@ -212,6 +233,11 @@ class BaseDataProvider:
                 if not self._session.closed:
                     logger.debug(f"Closing session for {self.provider_name}")
                     await self._session.close()
+                    
+                # Wait for all connections to close
+                if hasattr(self._session, '_connector'):
+                    await self._session._connector.close()
+                    
             except Exception as e:
                 logger.exception(f"Error closing session: {str(e)}")
             finally:

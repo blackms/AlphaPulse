@@ -11,6 +11,7 @@ from loguru import logger
 import sys
 
 from alpha_pulse.data_pipeline.manager import DataManager
+from alpha_pulse.data_pipeline.interfaces import DataFetchError
 
 # Configure loguru logger
 logger.remove()  # Remove default handler
@@ -48,86 +49,89 @@ async def main():
         await manager.initialize()
 
         # Test symbols
-        stock_symbols = ["AAPL", "MSFT", "GOOGL"]  # For fundamental and sentiment data
         crypto_symbols = ["BTCUSDT", "ETHUSDT"]  # For market data
 
-        # Time range for historical data (90 days for better technical analysis)
+        # Time range for historical data (180 days for better technical analysis)
         end_time = datetime.now()
-        start_time = end_time - timedelta(days=90)
+        start_time = end_time - timedelta(days=180)  # Increased from 90 to 180 days
 
         # 1. Get Market Data (Crypto)
         logger.info("Fetching Market Data (Crypto)")
-        market_data = await manager.get_market_data(
-            symbols=crypto_symbols,
-            start_time=start_time,
-            end_time=end_time,
-            interval="1d"
-        )
-        
-        for symbol, data in market_data.items():
-            logger.info(f"{symbol} Market Data:")
-            for entry in data[-5:]:  # Show last 5 days
-                logger.info(
-                    f"Date: {entry.timestamp.date()} | "
-                    f"Open: ${entry.open:,.2f} | "
-                    f"Close: ${entry.close:,.2f} | "
-                    f"Volume: {entry.volume:,.2f}"
-                )
-
-        # 2. Get Fundamental Data (Stocks)
-        logger.info("Fetching Fundamental Data")
-        fundamental_data = await manager.get_fundamental_data(symbols=stock_symbols)
-        
-        for symbol, data in fundamental_data.items():
-            logger.info(f"{symbol} Fundamental Data:")
-            logger.info(f"Market Cap: ${data.metadata.get('market_cap', 0):,.2f}")
-            logger.info(f"P/E Ratio: {data.financial_ratios.get('pe_ratio', 0):.2f}")
-            logger.info(f"Revenue: ${data.income_statement.get('revenue', 0):,.2f}")
-            logger.info(f"Net Income: ${data.income_statement.get('net_income', 0):,.2f}")
-            logger.info(f"Free Cash Flow: ${data.cash_flow.get('free_cash_flow', 0):,.2f}")
-
-        # 3. Get Sentiment Data (Stocks)
-        logger.info("Fetching Sentiment Data")
-        sentiment_data = await manager.get_sentiment_data(symbols=stock_symbols)
-        
-        for symbol, data in sentiment_data.items():
-            logger.info(f"{symbol} Sentiment Analysis:")
-            logger.info(f"News Sentiment: {data.news_sentiment:.1%}")
-            logger.info(f"Social Sentiment: {data.social_sentiment:.1%}")
+        try:
+            market_data = await manager.get_market_data(
+                symbols=crypto_symbols,
+                start_time=start_time,
+                end_time=end_time,
+                interval="1d"
+            )
             
-            # Show recent news
-            if data.source_data.get("news"):
-                logger.info("Recent News Headlines:")
-                for article in sorted(
-                    data.source_data["news"],
-                    key=lambda x: x["datetime"],
-                    reverse=True
-                )[:3]:  # Show 3 most recent
+            for symbol, data in market_data.items():
+                logger.info(f"\n{symbol} Market Data:")
+                logger.info("Last 5 days:")
+                for entry in data[-5:]:  # Show last 5 days
                     logger.info(
-                        f"Headline: {article['headline']}\n"
-                        f"Source: {article['source']}\n"
-                        f"Time: {article['datetime']}\n"
-                        f"Sentiment: {article['sentiment_score']:.1%}"
+                        f"Date: {entry.timestamp.date()} | "
+                        f"Open: ${entry.open:,.2f} | "
+                        f"Close: ${entry.close:,.2f} | "
+                        f"Volume: {entry.volume:,.2f}"
                     )
+                logger.info(f"Total data points: {len(data)}")
 
-        # 4. Get Technical Indicators
-        logger.info("Calculating Technical Indicators")
-        technical_data = manager.get_technical_indicators(market_data)
-        
-        for symbol, indicators in technical_data.items():
-            logger.info(f"{symbol} Technical Analysis:")
-            # Get the latest values (last non-NaN value)
-            rsi = next((x for x in reversed(indicators.momentum['rsi']) if not pd.isna(x)), float('nan'))
-            macd = next((x for x in reversed(indicators.trend['macd']) if not pd.isna(x)), float('nan'))
-            signal = next((x for x in reversed(indicators.trend['macd_signal']) if not pd.isna(x)), float('nan'))
-            bb_upper = next((x for x in reversed(indicators.volatility['bb_upper']) if not pd.isna(x)), float('nan'))
-            bb_lower = next((x for x in reversed(indicators.volatility['bb_lower']) if not pd.isna(x)), float('nan'))
-            
-            logger.info(f"RSI: {rsi:.2f}")
-            logger.info(f"MACD: {macd:.2f}")
-            logger.info(f"Signal: {signal:.2f}")
-            logger.info(f"BB Upper: {bb_upper:.2f}")
-            logger.info(f"BB Lower: {bb_lower:.2f}")
+            # 2. Get Technical Indicators
+            logger.info("\nCalculating Technical Indicators")
+            try:
+                technical_data = manager.get_technical_indicators(market_data)
+                
+                for symbol, indicators in technical_data.items():
+                    logger.info(f"\n{symbol} Technical Analysis:")
+                    
+                    # Get the latest non-NaN values
+                    def get_latest_value(values):
+                        """Get latest non-NaN value from list."""
+                        valid_values = [x for x in values if not pd.isna(x)]
+                        return valid_values[-1] if valid_values else float('nan')
+                    
+                    # RSI (14-day)
+                    rsi = get_latest_value(indicators.momentum['rsi'])
+                    logger.info(f"RSI (14-day): {rsi:.2f}")
+                    
+                    # MACD (12,26,9)
+                    macd = get_latest_value(indicators.trend['macd'])
+                    signal = get_latest_value(indicators.trend['macd_signal'])
+                    logger.info(f"MACD: {macd:.2f}")
+                    logger.info(f"Signal: {signal:.2f}")
+                    logger.info(f"MACD Histogram: {(macd - signal):.2f}")
+                    
+                    # Bollinger Bands (20,2)
+                    bb_upper = get_latest_value(indicators.volatility['bb_upper'])
+                    bb_middle = get_latest_value(indicators.volatility['bb_middle'])
+                    bb_lower = get_latest_value(indicators.volatility['bb_lower'])
+                    logger.info(f"Bollinger Bands:")
+                    logger.info(f"  Upper: {bb_upper:.2f}")
+                    logger.info(f"  Middle: {bb_middle:.2f}")
+                    logger.info(f"  Lower: {bb_lower:.2f}")
+                    
+                    # Additional indicators
+                    if 'sma_20' in indicators.trend:
+                        sma_20 = get_latest_value(indicators.trend['sma_20'])
+                        logger.info(f"SMA (20-day): {sma_20:.2f}")
+                    if 'sma_50' in indicators.trend:
+                        sma_50 = get_latest_value(indicators.trend['sma_50'])
+                        logger.info(f"SMA (50-day): {sma_50:.2f}")
+                    if 'atr' in indicators.volatility:
+                        atr = get_latest_value(indicators.volatility['atr'])
+                        logger.info(f"ATR (14-day): {atr:.2f}")
+            except Exception as e:
+                logger.error(f"Failed to calculate technical indicators: {str(e)}")
+
+        except DataFetchError as e:
+            logger.error(f"Failed to fetch market data: {str(e)}")
+            market_data = {}
+
+        logger.info("\nNote: Skipping Fundamental and Sentiment data due to API key issues.")
+        logger.info("Please ensure you have valid API keys in your .env file for:")
+        logger.info("- Alpha Vantage (fundamental data)")
+        logger.info("- Finnhub (sentiment data)")
 
     except Exception as e:
         logger.exception(f"Error in main execution: {str(e)}")
@@ -137,6 +141,7 @@ async def main():
         if manager:
             try:
                 await manager.__aexit__(None, None, None)
+                logger.debug("Successfully cleaned up data manager")
             except Exception as e:
                 logger.exception(f"Error during cleanup: {str(e)}")
 

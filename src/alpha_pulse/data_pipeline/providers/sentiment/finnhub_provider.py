@@ -4,8 +4,9 @@ Finnhub sentiment data provider implementation.
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
 from loguru import logger
+import aiohttp
 
-from ...interfaces import SentimentData
+from ...interfaces import SentimentData, DataFetchError
 from ..base import BaseDataProvider, retry_on_error, CacheMixin
 
 
@@ -23,7 +24,9 @@ class FinnhubProvider(BaseDataProvider, CacheMixin):
     def __init__(
         self,
         api_key: str,
-        cache_ttl: int = 300  # 5 minutes cache for sentiment data
+        cache_ttl: int = 300,  # 5 minutes cache for sentiment data
+        request_timeout: int = 30,
+        tcp_connector_limit: int = 100
     ):
         """
         Initialize Finnhub provider.
@@ -31,13 +34,17 @@ class FinnhubProvider(BaseDataProvider, CacheMixin):
         Args:
             api_key: Finnhub API key
             cache_ttl: Cache time-to-live in seconds
+            request_timeout: Request timeout in seconds
+            tcp_connector_limit: Maximum number of concurrent connections
         """
         BaseDataProvider.__init__(
             self,
             provider_name="finnhub",
             provider_type="sentiment",
             base_url="https://finnhub.io/api/v1",
-            default_headers={"X-Finnhub-Token": api_key}
+            default_headers={"X-Finnhub-Token": api_key},
+            request_timeout=request_timeout,
+            tcp_connector_limit=tcp_connector_limit
         )
         CacheMixin.__init__(self, cache_ttl=cache_ttl)
 
@@ -57,7 +64,7 @@ class FinnhubProvider(BaseDataProvider, CacheMixin):
                 
         return (total_sentiment / count) if count > 0 else 0.0
 
-    @retry_on_error(retries=3, delay=1.0)
+    @retry_on_error(retries=3, delay=2.0)
     async def get_news_sentiment(
         self,
         symbol: str,
@@ -96,7 +103,11 @@ class FinnhubProvider(BaseDataProvider, CacheMixin):
                     'to': end_date.strftime('%Y-%m-%d')
                 }
             )
+            
+            # Parse JSON response
             news_data = await self._process_response(response)
+            if not isinstance(news_data, list):
+                raise DataFetchError(f"Unexpected response format: {news_data}")
             
             # Process news data
             processed_news = []
@@ -126,7 +137,7 @@ class FinnhubProvider(BaseDataProvider, CacheMixin):
             logger.exception(f"Error fetching news data: {str(e)}")
             raise
 
-    @retry_on_error(retries=3, delay=1.0)
+    @retry_on_error(retries=3, delay=2.0)
     async def get_social_sentiment(
         self,
         symbol: str,
@@ -152,14 +163,21 @@ class FinnhubProvider(BaseDataProvider, CacheMixin):
         try:
             logger.debug(f"Fetching social sentiment for {symbol}")
             
+            # Calculate timestamp
+            from_time = int((datetime.now() - timedelta(hours=lookback_hours)).timestamp())
+            
             response = await self._execute_request(
                 endpoint="stock/social-sentiment",
                 params={
                     'symbol': symbol,
-                    'from': int((datetime.now() - timedelta(hours=lookback_hours)).timestamp())
+                    'from': from_time
                 }
             )
+            
+            # Parse JSON response
             sentiment_data = await self._process_response(response)
+            if not isinstance(sentiment_data, dict):
+                raise DataFetchError(f"Unexpected response format: {sentiment_data}")
             
             # Calculate average sentiment
             reddit = sentiment_data.get('reddit', [])
@@ -171,7 +189,8 @@ class FinnhubProvider(BaseDataProvider, CacheMixin):
             result = {
                 'reddit_sentiment': reddit_score,
                 'twitter_sentiment': twitter_score,
-                'overall_sentiment': (reddit_score + twitter_score) / 2 if reddit or twitter else 0
+                'overall_sentiment': (reddit_score + twitter_score) / 2 if reddit or twitter else 0,
+                'raw_data': sentiment_data
             }
             
             # Cache the results
@@ -214,7 +233,7 @@ class FinnhubProvider(BaseDataProvider, CacheMixin):
                 social_sentiment=social_data['overall_sentiment'],
                 source_data={
                     'news': news_data['news'],
-                    'social': social_data
+                    'social': social_data['raw_data']
                 }
             )
             
