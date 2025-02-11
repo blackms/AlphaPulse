@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 import logging
 from dotenv import load_dotenv
 import yaml
+import pandas as pd
 
 from alpha_pulse.data_pipeline.manager import DataManager
 
@@ -20,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 async def main():
     """Main execution function."""
+    manager = None
     try:
         # Load environment variables
         load_dotenv()
@@ -36,9 +38,9 @@ async def main():
         stock_symbols = ["AAPL", "MSFT", "GOOGL"]  # For fundamental and sentiment data
         crypto_symbols = ["BTCUSDT", "ETHUSDT"]  # For market data
 
-        # Time range for historical data
+        # Time range for historical data (30 days for better technical analysis)
         end_time = datetime.now()
-        start_time = end_time - timedelta(days=7)
+        start_time = end_time - timedelta(days=30)
 
         # 1. Get Market Data (Crypto)
         logger.info("\nFetching Market Data (Crypto):")
@@ -65,11 +67,11 @@ async def main():
         
         for symbol, data in fundamental_data.items():
             logger.info(f"\n{symbol} Fundamental Data:")
-            logger.info(f"Market Cap: ${data.metadata['market_cap']:,.2f}")
-            logger.info(f"P/E Ratio: {data.financial_ratios['pe_ratio']:.2f}")
-            logger.info(f"Revenue: ${data.income_statement['revenue']:,.2f}")
-            logger.info(f"Net Income: ${data.income_statement['net_income']:,.2f}")
-            logger.info(f"Free Cash Flow: ${data.cash_flow['free_cash_flow']:,.2f}")
+            logger.info(f"Market Cap: ${data.metadata.get('market_cap', 0):,.2f}")
+            logger.info(f"P/E Ratio: {data.financial_ratios.get('pe_ratio', 0):.2f}")
+            logger.info(f"Revenue: ${data.income_statement.get('revenue', 0):,.2f}")
+            logger.info(f"Net Income: ${data.income_statement.get('net_income', 0):,.2f}")
+            logger.info(f"Free Cash Flow: ${data.cash_flow.get('free_cash_flow', 0):,.2f}")
 
         # 3. Get Sentiment Data (Stocks)
         logger.info("\nFetching Sentiment Data:")
@@ -101,18 +103,25 @@ async def main():
         
         for symbol, indicators in technical_data.items():
             logger.info(f"\n{symbol} Technical Analysis:")
-            logger.info(f"RSI: {indicators.momentum['rsi'][-1]:.2f}")
-            logger.info(f"MACD: {indicators.trend['macd'][-1]:.2f}")
-            logger.info(f"Signal: {indicators.trend['macd_signal'][-1]:.2f}")
-            logger.info(f"BB Upper: {indicators.volatility['bb_upper'][-1]:.2f}")
-            logger.info(f"BB Lower: {indicators.volatility['bb_lower'][-1]:.2f}")
+            # Get the latest values (last non-NaN value)
+            rsi = next((x for x in reversed(indicators.momentum['rsi']) if not pd.isna(x)), float('nan'))
+            macd = next((x for x in reversed(indicators.trend['macd']) if not pd.isna(x)), float('nan'))
+            signal = next((x for x in reversed(indicators.trend['macd_signal']) if not pd.isna(x)), float('nan'))
+            bb_upper = next((x for x in reversed(indicators.volatility['bb_upper']) if not pd.isna(x)), float('nan'))
+            bb_lower = next((x for x in reversed(indicators.volatility['bb_lower']) if not pd.isna(x)), float('nan'))
+            
+            logger.info(f"RSI: {rsi:.2f}")
+            logger.info(f"MACD: {macd:.2f}")
+            logger.info(f"Signal: {signal:.2f}")
+            logger.info(f"BB Upper: {bb_upper:.2f}")
+            logger.info(f"BB Lower: {bb_lower:.2f}")
 
     except Exception as e:
         logger.error(f"Error in main execution: {str(e)}", exc_info=True)
         raise
     finally:
         # Clean up
-        if 'manager' in locals():
+        if manager:
             await manager.__aexit__(None, None, None)
 
 

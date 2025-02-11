@@ -8,6 +8,7 @@ import pandas as pd
 import numpy as np
 import talib
 import logging
+from datetime import datetime
 
 from ...interfaces import TechnicalIndicators
 from ..base import BaseDataProvider
@@ -45,22 +46,21 @@ class TALibProvider(BaseDataProvider):
         data: Optional[Dict[str, Any]] = None
     ) -> Any:
         """Execute request (not used in this provider)."""
-        pass  # Not needed for TA-Lib
+        return None  # Not needed for TA-Lib
 
     async def _process_response(self, response: Any) -> Any:
         """Process response (not used in this provider)."""
-        pass  # Not needed for TA-Lib
+        return response  # Not needed for TA-Lib
 
     def _calculate_trend_indicators(
         self,
-        data: pd.DataFrame,
-        symbol: str
+        df: pd.DataFrame
     ) -> Dict[str, np.ndarray]:
         """Calculate trend indicators."""
         try:
-            close = data['close'].values
-            high = data['high'].values
-            low = data['low'].values
+            close = df['close'].values
+            high = df['high'].values
+            low = df['low'].values
             
             # SMA - Simple Moving Average
             sma_20 = talib.SMA(close, timeperiod=20)
@@ -83,30 +83,29 @@ class TALibProvider(BaseDataProvider):
             adx = talib.ADX(high, low, close, timeperiod=14)
             
             return {
-                'sma_20': sma_20,
-                'sma_50': sma_50,
-                'sma_200': sma_200,
-                'ema_12': ema_12,
-                'ema_26': ema_26,
-                'macd': macd,
-                'macd_signal': macd_signal,
-                'macd_hist': macd_hist,
-                'adx': adx
+                'sma_20': sma_20.tolist(),
+                'sma_50': sma_50.tolist(),
+                'sma_200': sma_200.tolist(),
+                'ema_12': ema_12.tolist(),
+                'ema_26': ema_26.tolist(),
+                'macd': macd.tolist(),
+                'macd_signal': macd_signal.tolist(),
+                'macd_hist': macd_hist.tolist(),
+                'adx': adx.tolist()
             }
         except Exception as e:
-            logger.error(f"Error calculating trend indicators for {symbol}: {str(e)}")
+            logger.error(f"Error calculating trend indicators: {str(e)}")
             raise
 
     def _calculate_momentum_indicators(
         self,
-        data: pd.DataFrame,
-        symbol: str
+        df: pd.DataFrame
     ) -> Dict[str, np.ndarray]:
         """Calculate momentum indicators."""
         try:
-            close = data['close'].values
-            high = data['high'].values
-            low = data['low'].values
+            close = df['close'].values
+            high = df['high'].values
+            low = df['low'].values
             
             # RSI - Relative Strength Index
             rsi = talib.RSI(close, timeperiod=14)
@@ -124,33 +123,32 @@ class TALibProvider(BaseDataProvider):
             )
             
             # MFI - Money Flow Index
-            volume = data['volume'].values
+            volume = df['volume'].values
             mfi = talib.MFI(high, low, close, volume, timeperiod=14)
             
             # CCI - Commodity Channel Index
             cci = talib.CCI(high, low, close, timeperiod=14)
             
             return {
-                'rsi': rsi,
-                'stoch_k': slowk,
-                'stoch_d': slowd,
-                'mfi': mfi,
-                'cci': cci
+                'rsi': rsi.tolist(),
+                'stoch_k': slowk.tolist(),
+                'stoch_d': slowd.tolist(),
+                'mfi': mfi.tolist(),
+                'cci': cci.tolist()
             }
         except Exception as e:
-            logger.error(f"Error calculating momentum indicators for {symbol}: {str(e)}")
+            logger.error(f"Error calculating momentum indicators: {str(e)}")
             raise
 
     def _calculate_volatility_indicators(
         self,
-        data: pd.DataFrame,
-        symbol: str
+        df: pd.DataFrame
     ) -> Dict[str, np.ndarray]:
         """Calculate volatility indicators."""
         try:
-            close = data['close'].values
-            high = data['high'].values
-            low = data['low'].values
+            close = df['close'].values
+            high = df['high'].values
+            low = df['low'].values
             
             # Bollinger Bands
             bb_upper, bb_middle, bb_lower = talib.BBANDS(
@@ -168,27 +166,26 @@ class TALibProvider(BaseDataProvider):
             stddev = talib.STDDEV(close, timeperiod=20, nbdev=2)
             
             return {
-                'bb_upper': bb_upper,
-                'bb_middle': bb_middle,
-                'bb_lower': bb_lower,
-                'atr': atr,
-                'stddev': stddev
+                'bb_upper': bb_upper.tolist(),
+                'bb_middle': bb_middle.tolist(),
+                'bb_lower': bb_lower.tolist(),
+                'atr': atr.tolist(),
+                'stddev': stddev.tolist()
             }
         except Exception as e:
-            logger.error(f"Error calculating volatility indicators for {symbol}: {str(e)}")
+            logger.error(f"Error calculating volatility indicators: {str(e)}")
             raise
 
     def _calculate_volume_indicators(
         self,
-        data: pd.DataFrame,
-        symbol: str
+        df: pd.DataFrame
     ) -> Dict[str, np.ndarray]:
         """Calculate volume indicators."""
         try:
-            close = data['close'].values
-            high = data['high'].values
-            low = data['low'].values
-            volume = data['volume'].values
+            close = df['close'].values
+            high = df['high'].values
+            low = df['low'].values
+            volume = df['volume'].values
             
             # OBV - On Balance Volume
             obv = talib.OBV(close, volume)
@@ -207,77 +204,49 @@ class TALibProvider(BaseDataProvider):
             )
             
             return {
-                'obv': obv,
-                'ad': ad,
-                'adosc': adosc
+                'obv': obv.tolist(),
+                'ad': ad.tolist(),
+                'adosc': adosc.tolist()
             }
         except Exception as e:
-            logger.error(f"Error calculating volume indicators for {symbol}: {str(e)}")
+            logger.error(f"Error calculating volume indicators: {str(e)}")
             raise
 
     def get_technical_indicators(
         self,
-        data: Dict[str, List[Any]],
-        symbol: Optional[str] = None
-    ) -> Dict[str, TechnicalIndicators]:
+        df: pd.DataFrame,
+        symbol: str
+    ) -> TechnicalIndicators:
         """
-        Calculate technical indicators for market data.
+        Calculate technical indicators.
 
         Args:
-            data: Dictionary mapping symbols to their market data
-            symbol: Optional specific symbol to calculate for
+            df: DataFrame with OHLCV data
+            symbol: Trading symbol
 
         Returns:
-            Dictionary mapping symbols to their technical indicators
+            TechnicalIndicators object
         """
-        results = {}
-        
-        # Process all symbols if none specified
-        symbols = [symbol] if symbol else list(data.keys())
-        
-        for sym in symbols:
-            if sym not in data:
-                logger.warning(f"No data available for {sym}")
-                continue
-                
-            try:
-                # Convert market data to DataFrame
-                df = pd.DataFrame([
-                    {
-                        'open': d.open,
-                        'high': d.high,
-                        'low': d.low,
-                        'close': d.close,
-                        'volume': d.volume
-                    }
-                    for d in data[sym]
-                ])
-                
-                if df.empty:
-                    logger.warning(f"Empty data for {sym}")
-                    continue
-                
-                # Calculate all indicators
-                trend = self._calculate_trend_indicators(df, sym)
-                momentum = self._calculate_momentum_indicators(df, sym)
-                volatility = self._calculate_volatility_indicators(df, sym)
-                volume = self._calculate_volume_indicators(df, sym)
-                
-                # Create TechnicalIndicators object
-                results[sym] = TechnicalIndicators(
-                    symbol=sym,
-                    timestamp=data[sym][-1].timestamp,
-                    trend=trend,
-                    momentum=momentum,
-                    volatility=volatility,
-                    volume=volume
-                )
-                
-            except Exception as e:
-                logger.error(f"Error calculating indicators for {sym}: {str(e)}")
-                continue
-        
-        return results
+        try:
+            # Calculate all indicators
+            trend = self._calculate_trend_indicators(df)
+            momentum = self._calculate_momentum_indicators(df)
+            volatility = self._calculate_volatility_indicators(df)
+            volume = self._calculate_volume_indicators(df)
+            
+            return TechnicalIndicators(
+                symbol=symbol,
+                timestamp=datetime.now(),
+                trend=trend,
+                momentum=momentum,
+                volatility=volatility,
+                volume=volume,
+                source="talib"
+            )
+            
+        except Exception as e:
+            logger.error(f"Error calculating indicators: {str(e)}")
+            raise
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Clean up resources on exit."""

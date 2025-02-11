@@ -1,10 +1,12 @@
 """
 Data pipeline interfaces and data models.
 """
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from typing import Dict, Optional, Any, List
+from typing import Dict, Optional, Any, List, Protocol
+import pandas as pd
 
 
 @dataclass
@@ -57,7 +59,8 @@ class TechnicalIndicators:
     volatility: Dict[str, Any]  # Bollinger Bands, ATR
     volume: Dict[str, Any]  # OBV, AD
     source: Optional[str] = None
-    
+
+
 class DataProvider(Protocol):
     """Protocol for data providers."""
     

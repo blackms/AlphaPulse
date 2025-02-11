@@ -1,191 +1,51 @@
 # Data Pipeline Configuration
 
-# Market Data Providers
+# Market Data Provider (Binance)
 market_data:
-  binance:
-    api_key: ${BINANCE_API_KEY}  # Set in environment
-    api_secret: ${BINANCE_API_SECRET}
+  binance:  # Added this nesting level
+    provider: "binance"
+    api_key: "${BINANCE_API_KEY}"
+    api_secret: "${BINANCE_API_SECRET}"
     testnet: true
-    rate_limit: 20  # Requests per second
     cache_ttl: 300  # 5 minutes
-    timeframes:
-      - 1m
-      - 5m
-      - 15m
-      - 1h
-      - 4h
-      - 1d
 
-  bybit:  # Alternative market data provider
-    api_key: ${BYBIT_API_KEY}
-    api_secret: ${BYBIT_API_SECRET}
-    testnet: ${ALPHA_PULSE_BYBIT_TESTNET}
-    rate_limit: 20
-    cache_ttl: 300
-    timeframes:
-      - 1m
-      - 5m
-      - 15m
-      - 1h
-      - 4h
-      - 1d
-
-# Fundamental Data Providers
+# Fundamental Data Provider (Alpha Vantage)
 fundamental_data:
-  alpha_vantage:
-    api_key: ${ALPHA_VANTAGE_API_KEY}
+  alpha_vantage:  # Added this nesting level
+    provider: "alpha_vantage"
+    api_key: "${ALPHA_VANTAGE_API_KEY}"
     cache_ttl: 3600  # 1 hour
-    rate_limit: 5  # Free tier: 5 requests per minute
-    endpoints:
-      - OVERVIEW  # Company overview
-      - INCOME_STATEMENT  # Annual and quarterly income statements
-      - BALANCE_SHEET  # Annual and quarterly balance sheets
-      - CASH_FLOW  # Annual and quarterly cash flow statements
-      - EARNINGS  # Annual and quarterly earnings
-      - GLOBAL_QUOTE  # Real-time quote data
 
-# Sentiment Data Providers
+# Sentiment Data Provider (Finnhub)
 sentiment_data:
-  finnhub:
-    api_key: ${FINNHUB_API_KEY}
+  finnhub:  # Added this nesting level
+    provider: "finnhub"
+    api_key: "${FINNHUB_API_KEY}"
     cache_ttl: 300  # 5 minutes
-    rate_limit: 60  # 60 calls per minute
-    endpoints:
-      - company-news
-      - news-sentiment
-      - social-sentiment
-    sentiment_weights:
-      news: 0.6
-      social: 0.4
     news_lookback_days: 7
     social_lookback_hours: 24
-    source_weights:
-      reuters: 1.0
-      bloomberg: 1.0
-      financial-times: 0.9
-      wall-street-journal: 0.9
-      cnbc: 0.8
-      marketwatch: 0.8
-      seeking-alpha: 0.7
-      yahoo-finance: 0.7
-      default: 0.5
 
-# Technical Analysis Configuration
+# Technical Analysis Provider (TA-Lib)
 technical_analysis:
-  cache_ttl: 300  # 5 minutes
+  provider: "talib"
   max_workers: 4
-  indicators:
-    trend:
-      sma:
-        periods: [20, 50, 200]
-      ema:
-        periods: [12, 26]
-      macd:
-        fast_period: 12
-        slow_period: 26
-        signal_period: 9
-
-    momentum:
-      rsi:
-        period: 14
-        overbought: 70
-        oversold: 30
-      stoch:
-        k_period: 14
-        d_period: 3
-        slow_k_period: 3
-      adx:
-        period: 14
-        trend_strength: 25
-
-    volatility:
-      bbands:
-        period: 20
-        dev_up: 2
-        dev_down: 2
-      atr:
-        period: 14
-
-    volume:
-      obv: {}
-      ad: {}
-      adosc:
-        fast_period: 3
-        slow_period: 10
 
 # General Settings
-general:
-  max_workers: 4
-  default_cache_ttl: 300
-  log_level: INFO
-  retry:
-    max_attempts: 3
-    initial_delay: 1
-    max_delay: 10
-    exponential_base: 2
-  timeout:
-    connect: 10
-    read: 30
-    total: 60
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
-# Error Handling
+cache:
+  enabled: true
+  backend: "memory"
+  default_ttl: 300  # 5 minutes
+
 error_handling:
   max_retries: 3
-  retry_delay: 1
+  retry_delay: 1.0  # seconds
   exponential_backoff: true
-  error_log_path: logs/data_pipeline_errors.log
-  alert_on_failure: true
 
-# Monitoring
-monitoring:
+rate_limiting:
   enabled: true
-  metrics:
-    - request_latency
-    - error_rate
-    - cache_hit_rate
-    - data_freshness
-  prometheus:
-    enabled: true
-    port: 9090
-  health_check:
-    enabled: true
-    interval: 60
-    timeout: 5
-
-# Data Validation
-validation:
-  market_data:
-    required_fields:
-      - timestamp
-      - open
-      - high
-      - low
-      - close
-      - volume
-    price_validation:
-      min_price: 0
-      max_price_change: 50  # Percent
-    volume_validation:
-      min_volume: 0
-      max_volume_change: 1000  # Percent
-
-  fundamental_data:
-    required_fields:
-      - financial_ratios
-      - balance_sheet
-      - income_statement
-      - cash_flow
-    ratio_validation:
-      min_pe_ratio: 0
-      max_pe_ratio: 1000
-      min_pb_ratio: 0
-      max_pb_ratio: 100
-
-  sentiment_data:
-    required_fields:
-      - news_sentiment
-      - social_sentiment
-      - source_data
-    sentiment_validation:
-      min_score: -1
-      max_score: 1
+  requests_per_minute: 60
+  burst_size: 10

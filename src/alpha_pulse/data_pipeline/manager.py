@@ -7,6 +7,7 @@ from typing import Dict, List, Optional, Any
 import logging
 from concurrent.futures import ThreadPoolExecutor
 import pandas as pd
+import os
 
 from .interfaces import (
     IDataManager,
@@ -21,6 +22,31 @@ from .providers.sentiment.finnhub_provider import FinnhubProvider
 from .providers.technical.talib_provider import TALibProvider
 
 logger = logging.getLogger(__name__)
+
+
+def _interpolate_env_vars(value: str) -> str:
+    """Interpolate environment variables in string."""
+    if isinstance(value, str) and value.startswith("${") and value.endswith("}"):
+        env_var = value[2:-1]
+        return os.environ.get(env_var, value)
+    return value
+
+
+def _process_config(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Process configuration dictionary and interpolate environment variables."""
+    processed = {}
+    for key, value in config.items():
+        if isinstance(value, dict):
+            processed[key] = _process_config(value)
+        elif isinstance(value, list):
+            processed[key] = [
+                _process_config(item) if isinstance(item, dict)
+                else _interpolate_env_vars(item)
+                for item in value
+            ]
+        else:
+            processed[key] = _interpolate_env_vars(value)
+    return processed
 
 
 class DataManager(IDataManager):
@@ -50,7 +76,7 @@ class DataManager(IDataManager):
             config: Configuration dictionary containing API keys and settings
             max_workers: Maximum number of worker threads
         """
-        self._config = config
+        self._config = _process_config(config)
         self._max_workers = max_workers
         self._executor = ThreadPoolExecutor(max_workers=max_workers)
         self._initialized = False
@@ -253,17 +279,17 @@ class DataManager(IDataManager):
                 # Convert MarketData list to DataFrame
                 df = pd.DataFrame([
                     {
-                        'open': d.open,
-                        'high': d.high,
-                        'low': d.low,
-                        'close': d.close,
-                        'volume': d.volume
+                        'open': float(d.open),
+                        'high': float(d.high),
+                        'low': float(d.low),
+                        'close': float(d.close),
+                        'volume': float(d.volume)
                     }
                     for d in data
                 ])
                 
                 indicators = self._technical_provider.get_technical_indicators(
-                    data=df,
+                    df=df,  # Changed from data=df to df=df
                     symbol=symbol
                 )
                 results[symbol] = indicators
