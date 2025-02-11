@@ -1,0 +1,138 @@
+# AI Hedge Fund Configuration
+
+# Agent Configuration
+agents:
+  # Agent weights in signal aggregation
+  agent_weights:
+    activist: 0.15
+    value: 0.20
+    fundamental: 0.20
+    sentiment: 0.15
+    technical: 0.15
+    valuation: 0.15
+
+  # Individual agent configurations
+  agent_configs:
+    activist:
+      min_market_cap: 1000000000  # $1B minimum
+      max_market_cap: 50000000000  # $50B maximum
+      min_ownership_target: 0.05   # 5% minimum ownership
+      holding_period: 360          # Days
+      target_sectors:
+        - Technology
+        - Consumer
+        - Industrial
+        - Healthcare
+
+    value:
+      min_roe: 0.15               # 15% minimum ROE
+      min_roic: 0.12              # 12% minimum ROIC
+      max_debt_to_equity: 0.5     # 0.5x maximum leverage
+      min_interest_coverage: 5     # 5x minimum coverage
+      min_operating_margin: 0.15   # 15% minimum margin
+      holding_period: 720          # Days
+      preferred_sectors:
+        - Consumer Staples
+        - Financials
+        - Healthcare
+        - Industrials
+
+    fundamental:
+      min_revenue_growth: 0.10     # 10% minimum growth
+      min_gross_margin: 0.30       # 30% minimum margin
+      min_ebitda_margin: 0.15      # 15% minimum EBITDA margin
+      min_net_margin: 0.10         # 10% minimum net margin
+      min_current_ratio: 1.5       # 1.5x minimum liquidity
+      analysis_timeframes:
+        short_term: 90             # 3 months
+        medium_term: 180           # 6 months
+        long_term: 360             # 1 year
+
+    sentiment:
+      news_weight: 0.30            # News sentiment weight
+      social_media_weight: 0.25    # Social media sentiment weight
+      market_data_weight: 0.25     # Market data sentiment weight
+      analyst_weight: 0.20         # Analyst sentiment weight
+      momentum_window: 14          # Momentum calculation window
+      volume_window: 5             # Volume analysis window
+
+    technical:
+      trend_weight: 0.30           # Trend analysis weight
+      momentum_weight: 0.20        # Momentum indicator weight
+      volatility_weight: 0.20      # Volatility analysis weight
+      volume_weight: 0.15          # Volume analysis weight
+      pattern_weight: 0.15         # Pattern recognition weight
+      timeframes:
+        short: 14                  # Short-term MA
+        medium: 50                 # Medium-term MA
+        long: 200                  # Long-term MA
+
+    valuation:
+      dcf_weight: 0.30             # DCF valuation weight
+      multiples_weight: 0.30       # Multiples valuation weight
+      asset_weight: 0.20           # Asset-based valuation weight
+      dividend_weight: 0.20        # Dividend-based valuation weight
+      discount_rate: 0.10          # 10% discount rate
+      growth_rates:
+        high_growth: 0.15          # 15% high growth rate
+        moderate_growth: 0.08      # 8% moderate growth rate
+        stable_growth: 0.03        # 3% stable growth rate
+
+# Risk Management Configuration
+risk:
+  max_position_size: 0.20          # Maximum 20% position size
+  max_portfolio_leverage: 1.5      # Maximum 1.5x leverage
+  max_drawdown: 0.25              # Maximum 25% drawdown
+  stop_loss: 0.10                 # 10% stop loss
+  var_confidence: 0.95            # 95% VaR confidence
+  risk_free_rate: 0.00            # Risk-free rate
+  target_volatility: 0.15         # Target 15% volatility
+  rebalance_threshold: 0.10       # 10% rebalance threshold
+
+# Portfolio Management Configuration
+portfolio:
+  rebalancing_frequency: daily     # Daily rebalancing
+  min_trade_value: 10000          # $10,000 minimum trade
+  base_currency: USDT             # Base currency
+  strategy:
+    name: black_litterman         # Portfolio strategy
+    lookback_period: 252          # Lookback period
+    rebalancing_threshold: 0.05   # 5% threshold
+
+# Data Pipeline Configuration
+data:
+  update_frequency: 300           # 5 minutes update frequency
+  cache_duration: 3600           # 1 hour cache duration
+  providers:
+    - binance                    # Data providers
+    - yahoo_finance
+    - alpha_vantage
+  features:
+    - price
+    - volume
+    - fundamentals
+    - sentiment
+    - technical_indicators
+
+# Execution Configuration
+execution:
+  mode: paper                    # Paper trading mode
+  order_type: market            # Market order type
+  max_slippage: 0.001          # 0.1% maximum slippage
+  retry_attempts: 3             # Maximum retry attempts
+  timeout: 30                   # 30 seconds timeout
+
+# Monitoring Configuration
+monitoring:
+  metrics_interval: 300         # 5 minutes metrics interval
+  log_level: INFO              # Logging level
+  alert_channels:
+    - email
+    - telegram
+  performance_report:
+    frequency: daily           # Daily performance reports
+    metrics:
+      - returns
+      - sharpe_ratio
+      - drawdown
+      - win_rate
