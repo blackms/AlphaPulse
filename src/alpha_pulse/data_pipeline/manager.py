@@ -1,0 +1,295 @@
+"""
+Main data manager coordinating all data providers.
+"""
+import asyncio
+from datetime import datetime
+from typing import Dict, List, Optional, Any
+import logging
+from concurrent.futures import ThreadPoolExecutor
+
+from .interfaces import (
+    IDataManager,
+    MarketData,
+    FundamentalData,
+    SentimentData,
+    TechnicalIndicators
+)
+from .providers.market.binance_provider import BinanceMarketDataProvider
+from .providers.fundamental.fmp_provider import FMPProvider
+from .providers.sentiment.news_sentiment_provider import NewsSentimentProvider
+from .providers.technical.talib_provider import TALibProvider
+
+logger = logging.getLogger(__name__)
+
+
+class DataManager(IDataManager):
+    """
+    Main data manager implementing the Facade pattern.
+    
+    Coordinates all data providers and provides a unified interface
+    for accessing market, fundamental, sentiment, and technical data.
+    
+    Features:
+    - Unified data access interface
+    - Provider coordination
+    - Error handling and recovery
+    - Data validation and cleaning
+    - Concurrent data fetching
+    """
+
+    def __init__(
+        self,
+        config: Dict[str, Any],
+        max_workers: int = 4
+    ):
+        """
+        Initialize data manager.
+
+        Args:
+            config: Configuration dictionary containing API keys and settings
+            max_workers: Maximum number of worker threads
+        """
+        self._config = config
+        self._max_workers = max_workers
+        self._executor = ThreadPoolExecutor(max_workers=max_workers)
+        self._initialized = False
+        self._initialization_lock = asyncio.Lock()
+        
+        # Initialize providers
+        self._market_provider = None
+        self._fundamental_provider = None
+        self._sentiment_provider = None
+        self._technical_provider = None
+
+    async def initialize(self) -> None:
+        """Initialize all data providers."""
+        if self._initialized:
+            return
+
+        async with self._initialization_lock:
+            if self._initialized:  # Double-check pattern
+                return
+
+            try:
+                # Initialize market data provider
+                self._market_provider = BinanceMarketDataProvider(
+                    api_key=self._config.get("binance", {}).get("api_key"),
+                    api_secret=self._config.get("binance", {}).get("api_secret"),
+                    testnet=self._config.get("binance", {}).get("testnet", True)
+                )
+
+                # Initialize fundamental data provider
+                self._fundamental_provider = FMPProvider(
+                    api_key=self._config.get("fmp", {}).get("api_key")
+                )
+
+                # Initialize sentiment data provider
+                self._sentiment_provider = NewsSentimentProvider(
+                    news_api_key=self._config.get("news_api", {}).get("api_key"),
+                    twitter_bearer_token=self._config.get("twitter", {}).get("bearer_token")
+                )
+
+                # Initialize technical analysis provider
+                self._technical_provider = TALibProvider(
+                    max_workers=self._max_workers
+                )
+
+                self._initialized = True
+                logger.info("Data manager initialized successfully")
+
+            except Exception as e:
+                logger.error(f"Error initializing data manager: {str(e)}")
+                raise
+
+    async def _ensure_initialized(self):
+        """Ensure data manager is initialized."""
+        if not self._initialized:
+            await self.initialize()
+
+    async def get_market_data(
+        self,
+        symbols: List[str],
+        start_time: datetime,
+        end_time: datetime,
+        interval: str = "1d"
+    ) -> Dict[str, List[MarketData]]:
+        """
+        Get market data for multiple symbols.
+
+        Args:
+            symbols: List of trading symbols
+            start_time: Start time for historical data
+            end_time: End time for historical data
+            interval: Data interval
+
+        Returns:
+            Dictionary mapping symbols to their market data
+        """
+        await self._ensure_initialized()
+
+        async def fetch_symbol_data(symbol: str) -> tuple[str, List[MarketData]]:
+            try:
+                data = await self._market_provider.get_historical_data(
+                    symbol=symbol,
+                    start_time=start_time,
+                    end_time=end_time,
+                    interval=interval
+                )
+                return symbol, data
+            except Exception as e:
+                logger.error(f"Error fetching market data for {symbol}: {str(e)}")
+                return symbol, []
+
+        # Fetch data concurrently
+        tasks = [fetch_symbol_data(symbol) for symbol in symbols]
+        results = await asyncio.gather(*tasks)
+        
+        return {symbol: data for symbol, data in results if data}
+
+    async def get_fundamental_data(
+        self,
+        symbols: List[str]
+    ) -> Dict[str, FundamentalData]:
+        """
+        Get fundamental data for multiple symbols.
+
+        Args:
+            symbols: List of trading symbols
+
+        Returns:
+            Dictionary mapping symbols to their fundamental data
+        """
+        await self._ensure_initialized()
+
+        async def fetch_symbol_fundamentals(symbol: str) -> tuple[str, Optional[FundamentalData]]:
+            try:
+                data = await self._fundamental_provider.get_financial_statements(symbol)
+                return symbol, data
+            except Exception as e:
+                logger.error(f"Error fetching fundamental data for {symbol}: {str(e)}")
+                return symbol, None
+
+        # Fetch data concurrently
+        tasks = [fetch_symbol_fundamentals(symbol) for symbol in symbols]
+        results = await asyncio.gather(*tasks)
+        
+        return {
+            symbol: data for symbol, data in results
+            if data is not None
+        }
+
+    async def get_sentiment_data(
+        self,
+        symbols: List[str]
+    ) -> Dict[str, SentimentData]:
+        """
+        Get sentiment data for multiple symbols.
+
+        Args:
+            symbols: List of trading symbols
+
+        Returns:
+            Dictionary mapping symbols to their sentiment data
+        """
+        await self._ensure_initialized()
+
+        async def fetch_symbol_sentiment(symbol: str) -> tuple[str, Optional[Dict]]:
+            try:
+                # Fetch news and social sentiment concurrently
+                news_task = self._sentiment_provider.get_news_sentiment(symbol)
+                social_task = self._sentiment_provider.get_social_sentiment(symbol)
+                
+                news_data, social_data = await asyncio.gather(news_task, social_task)
+                
+                # Calculate aggregate sentiment
+                news_sentiment = sum(
+                    article["sentiment_score"] * article["credibility_score"]
+                    for article in news_data
+                ) / len(news_data) if news_data else 0
+
+                social_sentiment = sum(
+                    post["sentiment_score"] * post["engagement_score"]
+                    for post in social_data
+                ) / len(social_data) if social_data else 0
+
+                return symbol, {
+                    "news_sentiment": news_sentiment,
+                    "social_sentiment": social_sentiment,
+                    "news_data": news_data,
+                    "social_data": social_data
+                }
+            except Exception as e:
+                logger.error(f"Error fetching sentiment data for {symbol}: {str(e)}")
+                return symbol, None
+
+        # Fetch data concurrently
+        tasks = [fetch_symbol_sentiment(symbol) for symbol in symbols]
+        results = await asyncio.gather(*tasks)
+        
+        return {
+            symbol: SentimentData(
+                symbol=symbol,
+                timestamp=datetime.now(),
+                news_sentiment=data["news_sentiment"],
+                social_sentiment=data["social_sentiment"],
+                analyst_sentiment=0.0,  # Not implemented yet
+                source_data={
+                    "news": data["news_data"],
+                    "social": data["social_data"]
+                }
+            )
+            for symbol, data in results
+            if data is not None
+        }
+
+    def get_technical_indicators(
+        self,
+        market_data: Dict[str, List[MarketData]]
+    ) -> Dict[str, TechnicalIndicators]:
+        """
+        Calculate technical indicators for market data.
+
+        Args:
+            market_data: Dictionary of market data by symbol
+
+        Returns:
+            Dictionary mapping symbols to their technical indicators
+        """
+        results = {}
+        
+        for symbol, data in market_data.items():
+            try:
+                # Convert MarketData list to DataFrame
+                df = pd.DataFrame([
+                    {
+                        'open': d.open,
+                        'high': d.high,
+                        'low': d.low,
+                        'close': d.close,
+                        'volume': d.volume
+                    }
+                    for d in data
+                ])
+                
+                indicators = self._technical_provider.get_technical_indicators(
+                    data=df,
+                    symbol=symbol
+                )
+                results[symbol] = indicators
+                
+            except Exception as e:
+                logger.error(
+                    f"Error calculating technical indicators for {symbol}: {str(e)}"
+                )
+                continue
+                
+        return results
+
+    async def __aenter__(self):
+        """Async context manager entry."""
+        await self.initialize()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Async context manager exit."""
+        self._executor.shutdown(wait=True)
