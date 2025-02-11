@@ -4,10 +4,11 @@ Main data manager coordinating all data providers.
 import asyncio
 from datetime import datetime
 from typing import Dict, List, Optional, Any
-import logging
 from concurrent.futures import ThreadPoolExecutor
 import pandas as pd
 import os
+from loguru import logger
+import sys
 
 from .interfaces import (
     IDataManager,
@@ -20,8 +21,6 @@ from .providers.market.binance_provider import BinanceMarketDataProvider
 from .providers.fundamental.alpha_vantage_provider import AlphaVantageProvider
 from .providers.sentiment.finnhub_provider import FinnhubProvider
 from .providers.technical.talib_provider import TALibProvider
-
-logger = logging.getLogger(__name__)
 
 
 def _interpolate_env_vars(value: str) -> str:
@@ -87,6 +86,9 @@ class DataManager(IDataManager):
         self._fundamental_provider = None
         self._sentiment_provider = None
         self._technical_provider = None
+        
+        # Track client sessions
+        self._sessions = []
 
     async def initialize(self) -> None:
         """Initialize all data providers."""
@@ -100,27 +102,37 @@ class DataManager(IDataManager):
             try:
                 # Initialize market data provider (Binance for crypto)
                 if self._config.get("market_data", {}).get("binance"):
+                    logger.debug("Initializing Binance market data provider")
                     self._market_provider = BinanceMarketDataProvider(
                         api_key=self._config["market_data"]["binance"].get("api_key"),
                         api_secret=self._config["market_data"]["binance"].get("api_secret"),
                         testnet=self._config["market_data"]["binance"].get("testnet", True)
                     )
+                    if hasattr(self._market_provider, "_session"):
+                        self._sessions.append(self._market_provider._session)
 
                 # Initialize fundamental data provider (Alpha Vantage)
                 if self._config.get("fundamental_data", {}).get("alpha_vantage"):
+                    logger.debug("Initializing Alpha Vantage fundamental data provider")
                     self._fundamental_provider = AlphaVantageProvider(
                         api_key=self._config["fundamental_data"]["alpha_vantage"].get("api_key")
                     )
+                    if hasattr(self._fundamental_provider, "_session"):
+                        self._sessions.append(self._fundamental_provider._session)
 
                 # Initialize sentiment data provider (Finnhub)
                 if self._config.get("sentiment_data", {}).get("finnhub"):
+                    logger.debug("Initializing Finnhub sentiment data provider")
                     finnhub_config = self._config["sentiment_data"]["finnhub"]
                     self._sentiment_provider = FinnhubProvider(
                         api_key=finnhub_config.get("api_key"),
                         cache_ttl=finnhub_config.get("cache_ttl", 300)
                     )
+                    if hasattr(self._sentiment_provider, "_session"):
+                        self._sessions.append(self._sentiment_provider._session)
 
                 # Initialize technical analysis provider
+                logger.debug("Initializing TA-Lib technical analysis provider")
                 self._technical_provider = TALibProvider(
                     max_workers=self._max_workers
                 )
@@ -129,7 +141,7 @@ class DataManager(IDataManager):
                 logger.info("Data manager initialized successfully")
 
             except Exception as e:
-                logger.error(f"Error initializing data manager: {str(e)}")
+                logger.exception(f"Error initializing data manager: {str(e)}")
                 raise
 
     async def _ensure_initialized(self):
@@ -162,6 +174,7 @@ class DataManager(IDataManager):
 
         async def fetch_symbol_data(symbol: str) -> tuple[str, List[MarketData]]:
             try:
+                logger.debug(f"Fetching market data for {symbol}")
                 data = await self._market_provider.get_historical_data(
                     symbol=symbol,
                     start_time=start_time,
@@ -170,7 +183,7 @@ class DataManager(IDataManager):
                 )
                 return symbol, data
             except Exception as e:
-                logger.error(f"Error fetching market data for {symbol}: {str(e)}")
+                logger.exception(f"Error fetching market data for {symbol}: {str(e)}")
                 return symbol, []
 
         # Fetch data concurrently
@@ -198,10 +211,11 @@ class DataManager(IDataManager):
 
         async def fetch_symbol_fundamentals(symbol: str) -> tuple[str, Optional[FundamentalData]]:
             try:
+                logger.debug(f"Fetching fundamental data for {symbol}")
                 data = await self._fundamental_provider.get_financial_statements(symbol)
                 return symbol, data
             except Exception as e:
-                logger.error(f"Error fetching fundamental data for {symbol}: {str(e)}")
+                logger.exception(f"Error fetching fundamental data for {symbol}: {str(e)}")
                 return symbol, None
 
         # Fetch data concurrently
@@ -237,6 +251,7 @@ class DataManager(IDataManager):
 
         async def fetch_symbol_sentiment(symbol: str) -> tuple[str, Optional[SentimentData]]:
             try:
+                logger.debug(f"Fetching sentiment data for {symbol}")
                 data = await self._sentiment_provider.get_sentiment_data(
                     symbol=symbol,
                     lookback_days=lookback_days,
@@ -244,7 +259,7 @@ class DataManager(IDataManager):
                 )
                 return symbol, data
             except Exception as e:
-                logger.error(f"Error fetching sentiment data for {symbol}: {str(e)}")
+                logger.exception(f"Error fetching sentiment data for {symbol}: {str(e)}")
                 return symbol, None
 
         # Fetch data concurrently
@@ -276,9 +291,11 @@ class DataManager(IDataManager):
         
         for symbol, data in market_data.items():
             try:
+                logger.debug(f"Calculating technical indicators for {symbol}")
                 # Convert MarketData list to DataFrame
                 df = pd.DataFrame([
                     {
+                        'timestamp': d.timestamp,
                         'open': float(d.open),
                         'high': float(d.high),
                         'low': float(d.low),
@@ -288,14 +305,18 @@ class DataManager(IDataManager):
                     for d in data
                 ])
                 
+                # Sort by timestamp and set as index
+                df = df.sort_values('timestamp')
+                df.set_index('timestamp', inplace=True)
+                
                 indicators = self._technical_provider.get_technical_indicators(
-                    df=df,  # Changed from data=df to df=df
+                    df=df,
                     symbol=symbol
                 )
                 results[symbol] = indicators
                 
             except Exception as e:
-                logger.error(
+                logger.exception(
                     f"Error calculating technical indicators for {symbol}: {str(e)}"
                 )
                 continue
@@ -309,4 +330,17 @@ class DataManager(IDataManager):
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Async context manager exit."""
-        self._executor.shutdown(wait=True)
+        # Clean up sessions
+        for session in self._sessions:
+            if session and not session.closed:
+                try:
+                    await session.close()
+                except Exception as e:
+                    logger.exception(f"Error closing session: {str(e)}")
+        self._sessions.clear()
+        
+        # Clean up executor
+        try:
+            self._executor.shutdown(wait=True)
+        except Exception as e:
+            logger.exception(f"Error shutting down executor: {str(e)}")

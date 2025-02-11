@@ -1,208 +1,205 @@
 """
-Base classes for data providers implementing common functionality.
+Base provider implementation with common functionality.
 """
+from typing import Dict, List, Optional, Any
+import aiohttp
+from loguru import logger
 import asyncio
-import logging
-from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
-from typing import Any, Dict, Generic, List, Optional, TypeVar, Union
-from functools import wraps
 
-from ..interfaces import (
-    DataProvider,
-    DataFetchError,
-    DataValidationError,
-    ProviderError,
-    MarketData,
-    FundamentalData,
-    SentimentData
-)
-
-logger = logging.getLogger(__name__)
-
-T = TypeVar('T', MarketData, FundamentalData, SentimentData)
+from ..interfaces import DataFetchError
 
 
-def retry_on_error(max_retries: int = 3, delay: float = 1.0):
-    """Decorator for retrying failed API calls."""
+def retry_on_error(retries: int = 3, delay: float = 1.0):
+    """
+    Retry decorator for API requests.
+
+    Args:
+        retries: Maximum number of retries
+        delay: Delay between retries in seconds
+    """
     def decorator(func):
-        @wraps(func)
         async def wrapper(*args, **kwargs):
             last_error = None
-            for attempt in range(max_retries):
+            
+            for attempt in range(retries):
                 try:
                     return await func(*args, **kwargs)
                 except Exception as e:
                     last_error = e
-                    if attempt < max_retries - 1:
+                    if attempt < retries - 1:
                         wait_time = delay * (2 ** attempt)  # Exponential backoff
                         logger.warning(
-                            f"Attempt {attempt + 1} failed, retrying in {wait_time}s: {str(e)}"
+                            f"Attempt {attempt + 1} failed, "
+                            f"retrying in {wait_time}s: {str(e)}"
                         )
                         await asyncio.sleep(wait_time)
                     else:
-                        logger.error(f"All {max_retries} attempts failed: {str(e)}")
-            raise last_error
+                        logger.error(
+                            f"All {retries} attempts failed: {str(e)}"
+                        )
+                        raise last_error
+                        
         return wrapper
     return decorator
 
 
-class BaseDataProvider(DataProvider, ABC):
+class CacheMixin:
+    """Mixin providing caching functionality."""
+    
+    def __init__(self, cache_ttl: int = 300):
+        """
+        Initialize cache.
+
+        Args:
+            cache_ttl: Cache time-to-live in seconds
+        """
+        self._cache = {}
+        self._cache_ttl = cache_ttl
+        self._cache_timestamps = {}
+
+    def _get_from_cache(self, key: str) -> Optional[Any]:
+        """Get value from cache if not expired."""
+        if key in self._cache:
+            timestamp = self._cache_timestamps.get(key)
+            if timestamp:
+                age = (datetime.now() - timestamp).total_seconds()
+                if age < self._cache_ttl:
+                    logger.debug(f"Cache hit for {key}")
+                    return self._cache[key]
+                else:
+                    logger.debug(f"Cache expired for {key}")
+                    del self._cache[key]
+                    del self._cache_timestamps[key]
+        return None
+
+    def _set_in_cache(self, key: str, value: Any):
+        """Set value in cache with current timestamp."""
+        self._cache[key] = value
+        self._cache_timestamps[key] = datetime.now()
+        logger.debug(f"Cached value for {key}")
+
+
+class BaseDataProvider:
     """Base class for all data providers."""
 
     def __init__(
         self,
-        name: str,
+        provider_name: str,
         provider_type: str,
-        api_key: Optional[str] = None,
-        rate_limit: Optional[int] = None
+        base_url: Optional[str],
+        default_headers: Optional[Dict[str, str]] = None
     ):
-        """Initialize base provider."""
-        self._name = name
-        self._type = provider_type
-        self._api_key = api_key
-        self._rate_limit = rate_limit
-        self._last_request_time: Dict[str, datetime] = {}
-        self._request_semaphore = asyncio.Semaphore(rate_limit if rate_limit else 10)
+        """
+        Initialize base provider.
 
-    @property
-    def provider_name(self) -> str:
-        """Get provider name."""
-        return self._name
+        Args:
+            provider_name: Name of the provider
+            provider_type: Type of data provided
+            base_url: Base URL for API requests
+            default_headers: Default headers to include in requests
+        """
+        self.provider_name = provider_name
+        self.provider_type = provider_type
+        self.base_url = base_url
+        self._default_headers = default_headers or {}
+        self._session = None
+        self._session_lock = asyncio.Lock()
 
-    @property
-    def provider_type(self) -> str:
-        """Get provider type."""
-        return self._type
+    async def _get_session(self) -> aiohttp.ClientSession:
+        """Get or create aiohttp session."""
+        if self._session is None or self._session.closed:
+            async with self._session_lock:
+                if self._session is None or self._session.closed:
+                    logger.debug(f"Creating new session for {self.provider_name}")
+                    self._session = aiohttp.ClientSession(
+                        headers=self._default_headers
+                    )
+        return self._session
 
-    async def _handle_rate_limit(self, endpoint: str):
-        """Handle rate limiting for API calls."""
-        if self._rate_limit:
-            last_time = self._last_request_time.get(endpoint)
-            if last_time:
-                elapsed = datetime.now() - last_time
-                min_interval = timedelta(seconds=1 / self._rate_limit)
-                if elapsed < min_interval:
-                    await asyncio.sleep((min_interval - elapsed).total_seconds())
-        
-        self._last_request_time[endpoint] = datetime.now()
+    def _build_url(self, endpoint: str) -> str:
+        """Build full URL from endpoint."""
+        if self.base_url:
+            return f"{self.base_url.rstrip('/')}/{endpoint.lstrip('/')}"
+        return endpoint
 
-    async def _make_request(
+    async def _execute_request(
         self,
         endpoint: str,
         method: str = "GET",
         params: Optional[Dict[str, Any]] = None,
         headers: Optional[Dict[str, str]] = None,
-        data: Optional[Dict[str, Any]] = None
-    ) -> Any:
-        """Make API request with rate limiting and retries."""
-        async with self._request_semaphore:
-            await self._handle_rate_limit(endpoint)
-            try:
-                response = await self._execute_request(
-                    endpoint=endpoint,
-                    method=method,
-                    params=params,
-                    headers=headers,
-                    data=data
-                )
-                return await self._process_response(response)
-            except Exception as e:
-                logger.error(
-                    f"Request failed for {endpoint}: {str(e)}",
-                    exc_info=True
-                )
-                raise DataFetchError(f"Failed to fetch data: {str(e)}")
+        data: Optional[Dict[str, Any]] = None,
+        timeout: int = 30
+    ) -> aiohttp.ClientResponse:
+        """
+        Execute HTTP request.
 
-    @abstractmethod
-    async def _execute_request(
-        self,
-        endpoint: str,
-        method: str,
-        params: Optional[Dict[str, Any]],
-        headers: Optional[Dict[str, str]],
-        data: Optional[Dict[str, Any]]
-    ) -> Any:
-        """Execute the actual API request."""
-        pass
+        Args:
+            endpoint: API endpoint
+            method: HTTP method
+            params: Query parameters
+            headers: Request headers
+            data: Request body
+            timeout: Request timeout in seconds
 
-    @abstractmethod
-    async def _process_response(self, response: Any) -> Any:
-        """Process API response."""
-        pass
-
-    def _validate_data(self, data: T) -> bool:
-        """Validate data before returning."""
-        if not data:
-            return False
+        Returns:
+            aiohttp.ClientResponse
+        """
+        url = self._build_url(endpoint)
+        request_headers = {**self._default_headers, **(headers or {})}
         
         try:
-            if isinstance(data, MarketData):
-                return self._validate_market_data(data)
-            elif isinstance(data, FundamentalData):
-                return self._validate_fundamental_data(data)
-            elif isinstance(data, SentimentData):
-                return self._validate_sentiment_data(data)
-            return True
+            session = await self._get_session()
+            logger.debug(f"Executing {method} request to {url}")
+            
+            async with session.request(
+                method=method,
+                url=url,
+                params=params,
+                headers=request_headers,
+                json=data,
+                timeout=aiohttp.ClientTimeout(total=timeout)
+            ) as response:
+                # Log API errors
+                if response.status >= 400:
+                    logger.error(
+                        f"API Error: Status {response.status} "
+                        f"URL: {url} "
+                        f"Headers: {request_headers} "
+                        f"Params: {params}"
+                    )
+                    response_text = await response.text()
+                    logger.error(f"Response: {response_text}")
+                
+                response.raise_for_status()
+                return response
+                
+        except aiohttp.ClientError as e:
+            logger.error(f"Request failed: {str(e)}")
+            raise DataFetchError(f"Failed to fetch data: {str(e)}")
+        except asyncio.TimeoutError:
+            logger.error(f"Request timed out after {timeout}s: {url}")
+            raise DataFetchError(f"Request timed out: {url}")
         except Exception as e:
-            logger.error(f"Data validation failed: {str(e)}", exc_info=True)
-            return False
+            logger.exception(f"Unexpected error during request: {str(e)}")
+            raise
 
-    def _validate_market_data(self, data: MarketData) -> bool:
-        """Validate market data."""
-        return all([
-            data.symbol,
-            data.timestamp,
-            data.open >= 0,
-            data.high >= data.low,
-            data.close >= 0,
-            data.volume >= 0
-        ])
+    async def _process_response(self, response: aiohttp.ClientResponse) -> Any:
+        """
+        Process API response.
 
-    def _validate_fundamental_data(self, data: FundamentalData) -> bool:
-        """Validate fundamental data."""
-        return all([
-            data.symbol,
-            data.timestamp,
-            data.financial_ratios is not None,
-            data.balance_sheet is not None,
-            data.income_statement is not None,
-            data.cash_flow is not None
-        ])
+        Args:
+            response: aiohttp response object
 
-    def _validate_sentiment_data(self, data: SentimentData) -> bool:
-        """Validate sentiment data."""
-        return all([
-            data.symbol,
-            data.timestamp,
-            -1 <= data.news_sentiment <= 1,
-            -1 <= data.social_sentiment <= 1,
-            -1 <= data.analyst_sentiment <= 1,
-            data.source_data is not None
-        ])
-
-    async def validate_and_clean_data(self, data: Union[T, List[T]]) -> Union[T, List[T]]:
-        """Validate and clean data before returning."""
-        if isinstance(data, list):
-            valid_data = []
-            for item in data:
-                try:
-                    if self._validate_data(item):
-                        valid_data.append(item)
-                    else:
-                        logger.warning(f"Invalid data found for {item.symbol}")
-                except Exception as e:
-                    logger.error(f"Error validating data: {str(e)}", exc_info=True)
-            return valid_data
-        else:
-            if not self._validate_data(data):
-                raise DataValidationError(f"Invalid data for {data.symbol}")
-            return data
-
-    def _format_log_message(self, message: str, **kwargs) -> str:
-        """Format log message with provider info."""
-        return f"[{self.provider_name}] {message} " + \
-               " ".join(f"{k}={v}" for k, v in kwargs.items())
+        Returns:
+            Processed response data
+        """
+        try:
+            return await response.json()
+        except Exception as e:
+            logger.exception(f"Error processing response: {str(e)}")
+            raise DataFetchError(f"Failed to process response: {str(e)}")
 
     async def __aenter__(self):
         """Async context manager entry."""
@@ -210,63 +207,12 @@ class BaseDataProvider(DataProvider, ABC):
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Async context manager exit."""
-        pass
-
-
-class CacheMixin:
-    """Mixin for adding caching functionality to data providers."""
-
-    def __init__(self, cache_ttl: int = 300):
-        """Initialize cache."""
-        self._cache: Dict[str, Dict[str, Any]] = {}
-        self._cache_ttl = cache_ttl
-        self._cache_timestamps: Dict[str, datetime] = {}
-
-    def _get_cache_key(self, *args, **kwargs) -> str:
-        """Generate cache key from arguments."""
-        return f"{args}:{kwargs}"
-
-    def _get_from_cache(self, key: str) -> Optional[Any]:
-        """Get data from cache if not expired."""
-        if key in self._cache:
-            timestamp = self._cache_timestamps.get(key)
-            if timestamp and (datetime.now() - timestamp).seconds < self._cache_ttl:
-                return self._cache[key]
-        return None
-
-    def _store_in_cache(self, key: str, data: Any):
-        """Store data in cache."""
-        self._cache[key] = data
-        self._cache_timestamps[key] = datetime.now()
-
-    def _clear_cache(self):
-        """Clear expired cache entries."""
-        now = datetime.now()
-        expired_keys = [
-            key for key, timestamp in self._cache_timestamps.items()
-            if (now - timestamp).seconds >= self._cache_ttl
-        ]
-        for key in expired_keys:
-            del self._cache[key]
-            del self._cache_timestamps[key]
-
-
-class RateLimitMixin:
-    """Mixin for rate limiting functionality."""
-
-    def __init__(self, requests_per_second: float = 1.0):
-        """Initialize rate limiter."""
-        self._requests_per_second = requests_per_second
-        self._last_request_time: Dict[str, datetime] = {}
-        self._rate_limit_lock = asyncio.Lock()
-
-    async def _wait_for_rate_limit(self, endpoint: str):
-        """Wait for rate limit if needed."""
-        async with self._rate_limit_lock:
-            last_time = self._last_request_time.get(endpoint)
-            if last_time:
-                elapsed = datetime.now() - last_time
-                min_interval = timedelta(seconds=1 / self._requests_per_second)
-                if elapsed < min_interval:
-                    await asyncio.sleep((min_interval - elapsed).total_seconds())
-            self._last_request_time[endpoint] = datetime.now()
+        if self._session:
+            try:
+                if not self._session.closed:
+                    logger.debug(f"Closing session for {self.provider_name}")
+                    await self._session.close()
+            except Exception as e:
+                logger.exception(f"Error closing session: {str(e)}")
+            finally:
+                self._session = None

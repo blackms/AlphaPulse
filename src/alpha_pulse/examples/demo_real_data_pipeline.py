@@ -4,19 +4,32 @@ Example script demonstrating the complete real data pipeline.
 import asyncio
 import os
 from datetime import datetime, timedelta
-import logging
 from dotenv import load_dotenv
 import yaml
 import pandas as pd
+from loguru import logger
+import sys
 
 from alpha_pulse.data_pipeline.manager import DataManager
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+# Configure loguru logger
+logger.remove()  # Remove default handler
+logger.add(
+    sys.stderr,
+    format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
+           "<level>{level: <8}</level> | "
+           "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> | "
+           "<level>{message}</level>",
+    level="INFO"
 )
-logger = logging.getLogger(__name__)
+logger.add(
+    "logs/real_data_pipeline_{time}.log",
+    format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | "
+           "{name}:{function}:{line} | "
+           "{message}",
+    level="DEBUG",
+    rotation="500 MB"
+)
 
 
 async def main():
@@ -38,12 +51,12 @@ async def main():
         stock_symbols = ["AAPL", "MSFT", "GOOGL"]  # For fundamental and sentiment data
         crypto_symbols = ["BTCUSDT", "ETHUSDT"]  # For market data
 
-        # Time range for historical data (30 days for better technical analysis)
+        # Time range for historical data (90 days for better technical analysis)
         end_time = datetime.now()
-        start_time = end_time - timedelta(days=30)
+        start_time = end_time - timedelta(days=90)
 
         # 1. Get Market Data (Crypto)
-        logger.info("\nFetching Market Data (Crypto):")
+        logger.info("Fetching Market Data (Crypto)")
         market_data = await manager.get_market_data(
             symbols=crypto_symbols,
             start_time=start_time,
@@ -52,7 +65,7 @@ async def main():
         )
         
         for symbol, data in market_data.items():
-            logger.info(f"\n{symbol} Market Data:")
+            logger.info(f"{symbol} Market Data:")
             for entry in data[-5:]:  # Show last 5 days
                 logger.info(
                     f"Date: {entry.timestamp.date()} | "
@@ -62,11 +75,11 @@ async def main():
                 )
 
         # 2. Get Fundamental Data (Stocks)
-        logger.info("\nFetching Fundamental Data:")
+        logger.info("Fetching Fundamental Data")
         fundamental_data = await manager.get_fundamental_data(symbols=stock_symbols)
         
         for symbol, data in fundamental_data.items():
-            logger.info(f"\n{symbol} Fundamental Data:")
+            logger.info(f"{symbol} Fundamental Data:")
             logger.info(f"Market Cap: ${data.metadata.get('market_cap', 0):,.2f}")
             logger.info(f"P/E Ratio: {data.financial_ratios.get('pe_ratio', 0):.2f}")
             logger.info(f"Revenue: ${data.income_statement.get('revenue', 0):,.2f}")
@@ -74,35 +87,35 @@ async def main():
             logger.info(f"Free Cash Flow: ${data.cash_flow.get('free_cash_flow', 0):,.2f}")
 
         # 3. Get Sentiment Data (Stocks)
-        logger.info("\nFetching Sentiment Data:")
+        logger.info("Fetching Sentiment Data")
         sentiment_data = await manager.get_sentiment_data(symbols=stock_symbols)
         
         for symbol, data in sentiment_data.items():
-            logger.info(f"\n{symbol} Sentiment Analysis:")
+            logger.info(f"{symbol} Sentiment Analysis:")
             logger.info(f"News Sentiment: {data.news_sentiment:.1%}")
             logger.info(f"Social Sentiment: {data.social_sentiment:.1%}")
             
             # Show recent news
             if data.source_data.get("news"):
-                logger.info("\nRecent News Headlines:")
+                logger.info("Recent News Headlines:")
                 for article in sorted(
                     data.source_data["news"],
                     key=lambda x: x["datetime"],
                     reverse=True
                 )[:3]:  # Show 3 most recent
                     logger.info(
-                        f"\nHeadline: {article['headline']}"
-                        f"\nSource: {article['source']}"
-                        f"\nTime: {article['datetime']}"
-                        f"\nSentiment: {article['sentiment_score']:.1%}"
+                        f"Headline: {article['headline']}\n"
+                        f"Source: {article['source']}\n"
+                        f"Time: {article['datetime']}\n"
+                        f"Sentiment: {article['sentiment_score']:.1%}"
                     )
 
         # 4. Get Technical Indicators
-        logger.info("\nCalculating Technical Indicators:")
+        logger.info("Calculating Technical Indicators")
         technical_data = manager.get_technical_indicators(market_data)
         
         for symbol, indicators in technical_data.items():
-            logger.info(f"\n{symbol} Technical Analysis:")
+            logger.info(f"{symbol} Technical Analysis:")
             # Get the latest values (last non-NaN value)
             rsi = next((x for x in reversed(indicators.momentum['rsi']) if not pd.isna(x)), float('nan'))
             macd = next((x for x in reversed(indicators.trend['macd']) if not pd.isna(x)), float('nan'))
@@ -117,13 +130,21 @@ async def main():
             logger.info(f"BB Lower: {bb_lower:.2f}")
 
     except Exception as e:
-        logger.error(f"Error in main execution: {str(e)}", exc_info=True)
+        logger.exception(f"Error in main execution: {str(e)}")
         raise
     finally:
         # Clean up
         if manager:
-            await manager.__aexit__(None, None, None)
+            try:
+                await manager.__aexit__(None, None, None)
+            except Exception as e:
+                logger.exception(f"Error during cleanup: {str(e)}")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.warning("Process interrupted by user")
+    except Exception as e:
+        logger.exception(f"Process terminated with error: {str(e)}")
