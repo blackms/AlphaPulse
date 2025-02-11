@@ -1,8 +1,20 @@
 # AlphaPulse 🚀
 
-A comprehensive cryptocurrency trading and portfolio management system.
+A comprehensive cryptocurrency and stock trading system with AI-powered portfolio management.
 
 ## Features ✨
+
+### AI Hedge Fund System 🧠
+- 🤖 Multi-agent trading system with specialized strategies:
+  - Activist investing (Bill Ackman strategy)
+  - Value investing (Warren Buffett strategy)
+  - Fundamental analysis
+  - Sentiment analysis
+  - Technical analysis
+  - Valuation analysis
+- 📊 Intelligent signal aggregation
+- ⚖️ Risk-aware position sizing
+- 📈 Performance tracking and adaptation
 
 ### Portfolio Management 💼
 - 💹 Black-Litterman portfolio optimization
@@ -52,6 +64,27 @@ pip install -e .
 ```
 
 ## Quick Start
+
+### AI Hedge Fund
+
+```python
+from alpha_pulse.agents.manager import AgentManager
+from alpha_pulse.data_pipeline.managers.mock_data import MockDataManager
+
+# Initialize agent manager
+manager = AgentManager()
+await manager.initialize()
+
+# Load market data
+data_manager = MockDataManager()
+market_data = await data_manager.get_market_data(symbols=["AAPL", "MSFT", "GOOGL"])
+
+# Generate trading signals
+signals = await manager.generate_signals(market_data)
+
+# Get agent performance
+performance = manager.get_agent_performance()
+```
 
 ### Portfolio Management
 
@@ -104,6 +137,33 @@ features = engineer.calculate_features(data)
 
 ## Configuration
 
+### AI Hedge Fund
+
+Create a configuration file at `config/ai_hedge_fund_config.yaml`:
+
+```yaml
+agents:
+  agent_weights:
+    activist: 0.15
+    value: 0.20
+    fundamental: 0.20
+    sentiment: 0.15
+    technical: 0.15
+    valuation: 0.15
+
+risk:
+  max_position_size: 0.20
+  max_portfolio_leverage: 1.5
+  max_drawdown: 0.25
+  stop_loss: 0.10
+
+execution:
+  mode: paper
+  initial_balance: 1000000
+  slippage: 0.001
+  fee_rate: 0.001
+```
+
 ### Exchange Credentials
 
 Create a credentials file at `src/alpha_pulse/exchanges/credentials/config.yaml`:
@@ -140,6 +200,7 @@ risk:
 
 The `src/alpha_pulse/examples/` directory contains example scripts:
 
+- `demo_ai_hedge_fund.py`: Multi-agent trading system
 - `demo_portfolio_rebalancing.py`: Portfolio optimization
 - `demo_grid_hedge_integration.py`: Grid hedging strategy
 - `demo_feature_engineering.py`: Feature calculation
@@ -151,6 +212,7 @@ The `src/alpha_pulse/examples/` directory contains example scripts:
 
 Detailed documentation for each module:
 
+- [AI Hedge Fund Agents](src/alpha_pulse/agents/README.md)
 - [Portfolio Management](src/alpha_pulse/portfolio/README.md)
 - [Risk Management](src/alpha_pulse/risk_management/README.md)
 - [Hedging Strategies](src/alpha_pulse/hedging/README.md)
