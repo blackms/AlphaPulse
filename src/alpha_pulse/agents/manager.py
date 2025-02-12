@@ -6,6 +6,7 @@ from datetime import datetime
 import pandas as pd
 import numpy as np
 from collections import defaultdict
+from loguru import logger
 
 from .interfaces import (
     BaseTradeAgent,
@@ -53,37 +54,99 @@ class AgentManager:
                 for k, v in self.agent_weights.items()
             }
             
-    async def generate_signals(self, market_data: MarketData) -> List[TradeSignal]:
+    async def generate_signals(self, market_data_dict: Dict[str, List[Any]]) -> List[TradeSignal]:
         """
         Generate and aggregate signals from all agents.
         
         Args:
-            market_data: Market data for signal generation
+            market_data_dict: Dictionary of market data by symbol
             
         Returns:
             List of aggregated trading signals
         """
         all_signals = []
-        
-        # Collect signals from each agent
-        for agent_type, agent in self.agents.items():
-            try:
-                signals = await agent.generate_signals(market_data)
-                for signal in signals:
-                    signal.metadata["agent_type"] = agent_type
-                    signal.metadata["agent_weight"] = self.agent_weights.get(agent_type, 0)
-                all_signals.extend(signals)
+
+        try:
+            # Convert market data to DataFrame format
+            data_by_symbol = defaultdict(list)
+            timestamps = set()
+
+            # First pass: collect all timestamps and data
+            for symbol, data_list in market_data_dict.items():
+                if not data_list:  # Skip empty data
+                    continue
+                for data in data_list:
+                    timestamps.add(data.timestamp)
+                    data_by_symbol[symbol].append({
+                        'timestamp': data.timestamp,
+                        'price': float(data.close),
+                        'volume': float(data.volume)
+                    })
+
+            if not timestamps:  # No data available
+                logger.warning("No market data available")
+                return []
+
+            # Sort timestamps
+            sorted_timestamps = sorted(timestamps)
+
+            # Create price and volume DataFrames
+            prices_data = {}
+            volumes_data = {}
+
+            for symbol, data_list in data_by_symbol.items():
+                # Create temporary DataFrame for this symbol
+                symbol_df = pd.DataFrame(data_list)
+                symbol_df.set_index('timestamp', inplace=True)
+                symbol_df.sort_index(inplace=True)
+
+                # Reindex to include all timestamps
+                symbol_df = symbol_df.reindex(sorted_timestamps)
                 
-                # Update signal history
-                for signal in signals:
-                    self.signal_history[signal.symbol].append(signal)
+                # Forward fill missing values
+                symbol_df = symbol_df.ffill()  # Use ffill() instead of fillna(method='ffill')
+                
+                # Extract price and volume series
+                prices_data[symbol] = symbol_df['price']
+                volumes_data[symbol] = symbol_df['volume']
+
+            # Create final DataFrames
+            prices_df = pd.DataFrame(prices_data, index=sorted_timestamps)
+            volumes_df = pd.DataFrame(volumes_data, index=sorted_timestamps)
+
+            # Create MarketData object
+            market_data = MarketData(
+                prices=prices_df,
+                volumes=volumes_df,
+                fundamentals={},  # Add if available
+                sentiment={},     # Add if available
+                technical_indicators={},  # Add if available
+                timestamp=datetime.now()
+            )
+
+            # Collect signals from each agent
+            for agent_type, agent in self.agents.items():
+                try:
+                    signals = await agent.generate_signals(market_data)
+                    for signal in signals:
+                        signal.metadata["agent_type"] = agent_type
+                        signal.metadata["agent_weight"] = self.agent_weights.get(agent_type, 0)
+                    all_signals.extend(signals)
                     
-            except Exception as e:
-                logger.error(f"Error generating signals for {agent_type}: {str(e)}")
-                continue
-                
-        # Aggregate signals
-        return await self._aggregate_signals(all_signals)
+                    # Update signal history
+                    for signal in signals:
+                        self.signal_history[signal.symbol].append(signal)
+                        
+                except Exception as e:
+                    logger.error(f"Error generating signals for {agent_type}: {str(e)}")
+                    continue
+                    
+            # Aggregate signals
+            return await self._aggregate_signals(all_signals)
+
+        except Exception as e:
+            logger.error(f"Error processing market data: {str(e)}")
+            return []
         
     async def update_agent_weights(self, performance_data: Dict[str, pd.DataFrame]) -> None:
         """

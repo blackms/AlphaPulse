@@ -170,7 +170,7 @@ async def execute_portfolio_decisions(components, valid_signals, market_data):
     # Check if rebalancing is needed
     needs_rebalance = await components["portfolio_manager"].needs_rebalancing(
         components["broker"],
-        portfolio_data.current_weights
+        portfolio_data.asset_allocation  # Use asset_allocation instead of current_weights
     )
     
     if needs_rebalance:

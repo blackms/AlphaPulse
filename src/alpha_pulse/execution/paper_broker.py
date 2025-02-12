@@ -2,7 +2,9 @@
 Paper trading broker implementation.
 """
 from decimal import Decimal
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
+from datetime import datetime, timezone
+import asyncio
 from loguru import logger
 
 from .broker_interface import (
@@ -13,6 +15,7 @@ from .broker_interface import (
     OrderStatus,
     Position
 )
+from ..exchanges.base import Balance, OHLCV
 
 
 class PaperBroker(BrokerInterface):
@@ -29,234 +32,194 @@ class PaperBroker(BrokerInterface):
         self.positions: Dict[str, Position] = {}
         self.orders: Dict[str, Order] = {}
         self.market_prices: Dict[str, Decimal] = {}
+        self.base_currency = "USDT"  # Default base currency
         
         logger.info(f"Initialized paper broker with {initial_balance} balance")
+
+    async def get_balances(self) -> Dict[str, Balance]:
+        """Get account balances."""
+        balances = {}
+        # Add base currency balance
+        balances[self.base_currency] = Balance(
+            total=self.balance,
+            available=self.balance,
+            locked=Decimal('0')
+        )
         
-    def get_portfolio_value(self) -> Decimal:
+        # Add position balances
+        for symbol, position in self.positions.items():
+            asset = symbol.replace(f"/{self.base_currency}", "")
+            balances[asset] = Balance(
+                total=Decimal(str(position.quantity)),
+                available=Decimal(str(position.quantity)),
+                locked=Decimal('0')
+            )
+            
+        return balances
+
+    async def get_ticker_price(self, symbol: str) -> Optional[Decimal]:
+        """Get current price for symbol."""
+        # Handle base currency pairs
+        if symbol == f"{self.base_currency}/{self.base_currency}":
+            return Decimal('1.0')
+            
+        # Handle non-standard symbol format
+        if '/' not in symbol:
+            symbol = f"{symbol}/{self.base_currency}"
+            
+        return self.market_prices.get(symbol)
+
+    async def get_portfolio_value(self) -> Decimal:
         """Get total portfolio value."""
         total = self.balance
         
         for symbol, position in self.positions.items():
-            if symbol in self.market_prices:
-                price = self.market_prices[symbol]
+            price = await self.get_ticker_price(symbol)
+            if price:
                 total += Decimal(str(position.quantity)) * price
                 
         return total
         
-    def get_available_margin(self) -> Decimal:
-        """Get available margin for trading."""
-        # Use 80% of portfolio value as available margin
-        return self.get_portfolio_value() * Decimal('0.8')
-        
-    def get_position(self, symbol: str) -> Optional[Position]:
-        """Get position for symbol."""
-        return self.positions.get(symbol)
-        
-    def get_positions(self) -> Dict[str, Position]:
-        """Get all positions."""
-        return self.positions.copy()
-        
-    def get_order(self, order_id: str) -> Optional[Order]:
-        """Get order by ID."""
-        return self.orders.get(order_id)
-        
-    async def place_order(self, order: Order) -> OrderResult:
-        """Place a new order."""
-        try:
-            # Validate order
-            if not self._validate_order(order):
-                return OrderResult(
-                    success=False,
-                    error="Invalid order parameters"
-                )
-                
-            # Check available margin
-            required_margin = (
-                Decimal(str(order.quantity)) *
-                Decimal(str(order.price or self.market_prices.get(order.symbol, 0)))
-            )
-            if required_margin > self.get_available_margin():
-                return OrderResult(
-                    success=False,
-                    error="Insufficient margin"
-                )
-                
-            # Store order
-            self.orders[order.order_id] = order
-            
-            # Execute market orders immediately
-            if order.order_type == OrderType.MARKET:
-                return await self._execute_market_order(order)
-                
-            return OrderResult(
-                success=True,
-                order_id=order.order_id
-            )
-            
-        except Exception as e:
-            logger.error(f"Error placing order: {str(e)}")
-            return OrderResult(
-                success=False,
-                error=str(e)
-            )
-            
-    async def cancel_order(self, order_id: str) -> bool:
-        """Cancel an order."""
-        if order_id in self.orders:
-            del self.orders[order_id]
-            return True
-        return False
-        
-    def update_market_data(self, symbol: str, price: float) -> None:
-        """Update market data."""
-        self.market_prices[symbol] = Decimal(str(price))
-        
-        # Check for triggered orders
-        self._check_triggered_orders(symbol)
-        
-    async def initialize_spot_position(
+    async def fetch_ohlcv(
         self,
         symbol: str,
-        quantity: float,
-        price: float
-    ) -> None:
-        """Initialize spot position."""
-        # Create market buy order
-        order = Order(
-            symbol=symbol,
-            side=OrderSide.BUY,
-            quantity=quantity,
-            order_type=OrderType.MARKET,
-            price=price
-        )
-        
-        # Execute order
-        result = await self._execute_market_order(order)
-        if result.success:
-            logger.info(
-                f"Initialized paper spot position: {quantity} {symbol} @ {price}"
-            )
-        else:
-            logger.error(f"Failed to initialize position: {result.error}")
-            
-    def _validate_order(self, order: Order) -> bool:
-        """Validate order parameters."""
+        timeframe: str = "1d",
+        since: Optional[int] = None,
+        limit: Optional[int] = None
+    ) -> List[OHLCV]:
+        """Fetch OHLCV candles."""
+        # For paper trading, we'll return a simple candle with current price
+        price = await self.get_ticker_price(symbol)
+        if price:
+            return [OHLCV(
+                timestamp=datetime.now(timezone.utc),
+                open=price,
+                high=price,
+                low=price,
+                close=price,
+                volume=Decimal('0')
+            )]
+        return []
+
+    async def execute_trade(
+        self,
+        symbol: str,
+        side: str,
+        amount: float,
+        price: Optional[float] = None
+    ) -> Dict[str, Any]:
+        """Execute trade."""
         try:
-            if not order.symbol or not order.quantity or order.quantity <= 0:
-                return False
+            # Handle base currency pairs
+            if symbol == f"{self.base_currency}/{self.base_currency}":
+                return {
+                    "success": True,
+                    "order_id": f"paper_{datetime.now().timestamp()}",
+                    "symbol": symbol,
+                    "side": side,
+                    "amount": amount,
+                    "price": 1.0,
+                    "status": "filled"
+                }
                 
-            if order.order_type != OrderType.MARKET and not order.price:
-                return False
-                
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error validating order: {str(e)}")
-            return False
-            
-    async def _execute_market_order(self, order: Order) -> OrderResult:
-        """Execute a market order."""
-        try:
             # Get execution price
-            price = (
-                Decimal(str(order.price))
-                if order.price
-                else self.market_prices.get(order.symbol)
-            )
-            if not price:
-                return OrderResult(
-                    success=False,
-                    error="No price available"
-                )
-                
+            exec_price = Decimal(str(price)) if price else await self.get_ticker_price(symbol)
+            if not exec_price:
+                return {
+                    "success": False,
+                    "error": "No price available"
+                }
+
+            # Calculate value
+            value = Decimal(str(amount)) * exec_price
+
             # Update position
-            position = self.positions.get(order.symbol)
-            quantity = Decimal(str(order.quantity))
-            
-            if order.side == OrderSide.BUY:
+            if side == "buy":
                 # Deduct balance
-                required_funds = quantity * price
-                if required_funds > self.balance:
-                    return OrderResult(
-                        success=False,
-                        error="Insufficient funds"
-                    )
-                self.balance -= required_funds
-                
+                if value > self.balance:
+                    return {
+                        "success": False,
+                        "error": "Insufficient funds"
+                    }
+                self.balance -= value
+
                 # Update position
-                if position:
-                    new_quantity = position.quantity + quantity
-                    new_avg_price = (
-                        (position.quantity * position.avg_entry_price +
-                         quantity * price) / new_quantity
-                    )
-                    position.quantity = float(new_quantity)
-                    position.avg_entry_price = float(new_avg_price)
+                if symbol in self.positions:
+                    self.positions[symbol].quantity += float(amount)
                 else:
-                    self.positions[order.symbol] = Position(
-                        symbol=order.symbol,
-                        quantity=float(quantity),
-                        avg_entry_price=float(price)
+                    self.positions[symbol] = Position(
+                        symbol=symbol,
+                        quantity=float(amount),
+                        avg_entry_price=float(exec_price)
                     )
-                    
-            else:  # SELL
-                if not position or position.quantity < quantity:
-                    return OrderResult(
-                        success=False,
-                        error="Insufficient position"
-                    )
-                    
+
+            else:  # sell
+                if symbol not in self.positions or self.positions[symbol].quantity < float(amount):
+                    return {
+                        "success": False,
+                        "error": "Insufficient position"
+                    }
+
                 # Add to balance
-                self.balance += quantity * price
-                
+                self.balance += value
+
                 # Update position
-                position.quantity = float(position.quantity - quantity)
-                if position.quantity == 0:
-                    del self.positions[order.symbol]
-                    
-            # Update order status
-            order.status = OrderStatus.FILLED
-            order.filled_quantity = float(quantity)
-            order.filled_price = float(price)
-            
-            logger.info(f"Order executed: {order}")
-            
-            return OrderResult(
-                success=True,
-                order_id=order.order_id,
-                filled_quantity=float(quantity),
-                filled_price=float(price)
-            )
-            
+                self.positions[symbol].quantity -= float(amount)
+                if self.positions[symbol].quantity == 0:
+                    del self.positions[symbol]
+
+            return {
+                "success": True,
+                "order_id": f"paper_{datetime.now().timestamp()}",
+                "symbol": symbol,
+                "side": side,
+                "amount": float(amount),
+                "price": float(exec_price),
+                "status": "filled"
+            }
+
         except Exception as e:
-            logger.error(f"Error executing market order: {str(e)}")
-            return OrderResult(
-                success=False,
-                error=str(e)
-            )
+            logger.error(f"Error executing trade: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def get_positions(self) -> Dict[str, Dict[str, Any]]:
+        """Get current positions."""
+        return {
+            symbol: {
+                "symbol": position.symbol,
+                "quantity": position.quantity,
+                "avg_entry_price": position.avg_entry_price,
+                "current_price": float(await self.get_ticker_price(symbol) or 0),
+                "unrealized_pnl": float(
+                    ((await self.get_ticker_price(symbol) or Decimal('0')) - Decimal(str(position.avg_entry_price))) *
+                    Decimal(str(position.quantity))
+                )
+            }
+            for symbol, position in self.positions.items()
+        }
+
+    async def get_order_history(
+        self,
+        symbol: Optional[str] = None,
+        since: Optional[int] = None,
+        limit: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """Get order history."""
+        return []  # Paper broker doesn't maintain order history
+
+    async def get_average_entry_price(self, symbol: str) -> Optional[Decimal]:
+        """Get average entry price for symbol."""
+        if symbol in self.positions:
+            return Decimal(str(self.positions[symbol].avg_entry_price))
+        return None
+
+    def update_market_data(self, symbol: str, price: float) -> None:
+        """Update market data."""
+        # Handle non-standard symbol format
+        if '/' not in symbol:
+            symbol = f"{symbol}/{self.base_currency}"
             
-    def _check_triggered_orders(self, symbol: str) -> None:
-        """Check for triggered orders."""
-        if symbol not in self.market_prices:
-            return
-            
-        current_price = self.market_prices[symbol]
-        
-        for order_id, order in list(self.orders.items()):
-            if order.symbol != symbol:
-                continue
-                
-            # Check stop orders
-            if (order.order_type == OrderType.STOP and
-                order.stop_price and
-                current_price <= Decimal(str(order.stop_price))):
-                asyncio.create_task(self._execute_market_order(order))
-                continue
-                
-            # Check limit orders
-            if order.order_type == OrderType.LIMIT and order.price:
-                price = Decimal(str(order.price))
-                if ((order.side == OrderSide.BUY and current_price <= price) or
-                    (order.side == OrderSide.SELL and current_price >= price)):
-                    asyncio.create_task(self._execute_market_order(order))
-                    continue
+        self.market_prices[symbol] = Decimal(str(price))

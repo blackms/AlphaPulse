@@ -608,13 +608,22 @@ class PortfolioManager:
                 if trade['type'] not in ('buy', 'sell'):
                     raise ValueError(f"Invalid trade type: {trade['type']}")
                 
+                # Get current price for the asset
+                symbol = f"{trade['asset']}/{self.base_currency}"
+                current_price = await exchange.get_ticker_price(symbol)
+                if not current_price:
+                    raise ValueError(f"Could not get price for {symbol}")
+                
+                # Calculate quantity from value and price
+                quantity = abs(trade['value']) / current_price
+                
                 # Execute trade with retry and timeout
                 result = await self._retry_with_timeout(
                     exchange.execute_trade(
-                        asset=trade['asset'],
-                        amount=abs(trade['value']),
+                        symbol=symbol,  # Use symbol instead of asset
                         side=trade['type'],
-                        order_type=self.trading_config.get('execution_style', 'market')
+                        amount=float(quantity),  # Convert to float for exchange API
+                        price=float(current_price)  # Include current price
                     ),
                     max_retries=2,  # Fewer retries for trades to avoid duplicates
                     timeout=20.0
@@ -658,10 +667,22 @@ class PortfolioManager:
         for trade in executed_trades:
             if trade['status'] == 'success':
                 try:
+                    # Get current price for the asset
+                    symbol = f"{trade['asset']}/{self.base_currency}"
+                    current_price = await exchange.get_ticker_price(symbol)
+                    if not current_price:
+                        logger.error(f"Could not get price for {symbol} during rollback")
+                        continue
+                        
+                    # Calculate quantity from value and price
+                    quantity = abs(trade['value']) / current_price
+                    
+                    # Execute reverse trade
                     await exchange.execute_trade(
-                        asset=trade['asset'],
-                        amount=abs(trade['value']),
-                        side='sell' if trade['type'] == 'buy' else 'buy'
+                        symbol=symbol,  # Use symbol instead of asset
+                        side='sell' if trade['type'] == 'buy' else 'buy',
+                        amount=float(quantity),  # Convert to float for exchange API
+                        price=float(current_price)  # Include current price
                     )
                 except Exception as e:
                     logger.error(f"Rollback failed for {trade['asset']}: {str(e)}")

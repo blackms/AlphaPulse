@@ -1,219 +1,279 @@
 """
-Black-Litterman implementation of portfolio rebalancing strategy.
-Combines market equilibrium returns with investor views to generate optimal portfolios.
+Black-Litterman portfolio optimization strategy.
 """
-
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Any
 import numpy as np
 import pandas as pd
-from scipy.optimize import minimize
+from loguru import logger
+
 from .base_strategy import BaseStrategy
 
 
 class BlackLittermanStrategy(BaseStrategy):
-    """Black-Litterman based portfolio optimization strategy."""
-
-    def __init__(self, config: Dict):
-        """
-        Initialize Black-Litterman strategy with configuration.
-
-        Args:
-            config: Strategy configuration dictionary
-        """
+    """Black-Litterman portfolio optimization strategy."""
+    
+    def __init__(self, config: Dict[str, Any]):
+        """Initialize Black-Litterman strategy."""
         super().__init__(config)
-        self.market_cap_weights = config.get('market_cap_weights', {})
-        self.risk_aversion = config.get('risk_aversion', 2.5)
-        self.tau = config.get('tau', 0.05)  # Uncertainty in prior
-        self.views: List[Dict] = config.get('views', [])
-        self.view_confidences: List[float] = config.get('view_confidences', [])
-
-    def compute_target_allocation(
+        self.risk_aversion = config.get("risk_aversion", 2.5)
+        self.tau = config.get("tau", 0.05)  # Uncertainty in prior
+        self.market_risk_premium = config.get("market_risk_premium", 0.06)
+        
+    def compute_covariance(self, returns: pd.DataFrame) -> pd.DataFrame:
+        """
+        Compute covariance matrix from returns.
+        
+        Args:
+            returns: Asset returns DataFrame
+            
+        Returns:
+            Covariance matrix
+        """
+        if returns.empty:
+            # Return empty DataFrame with same structure
+            return pd.DataFrame(
+                0, 
+                index=returns.columns,
+                columns=returns.columns
+            )
+            
+        return returns.cov()
+        
+    def compute_equilibrium_returns(
         self,
-        current_allocation: Dict[str, float],
-        historical_data: pd.DataFrame,
+        returns: pd.DataFrame,
+        market_weights: Dict[str, float]
+    ) -> pd.Series:
+        """
+        Compute equilibrium returns using CAPM.
+        
+        Args:
+            returns: Asset returns DataFrame
+            market_weights: Market capitalization weights
+            
+        Returns:
+            Series of equilibrium returns
+        """
+        if returns.empty:
+            return pd.Series(0, index=returns.columns)
+            
+        try:
+            # Convert market weights to array
+            w = pd.Series(market_weights)
+            # Use infer_objects() to avoid downcasting warning
+            w = w.reindex(returns.columns).fillna(0).infer_objects()
+            
+            # Compute covariance matrix
+            sigma = self.compute_covariance(returns)
+            
+            # Compute equilibrium returns
+            pi = self.risk_aversion * sigma.dot(w)
+            
+            return pi
+            
+        except Exception as e:
+            logger.error(f"Error computing equilibrium returns: {str(e)}")
+            return pd.Series(0, index=returns.columns)
+        
+    def incorporate_views(
+        self,
+        equilibrium_returns: pd.Series,
+        sigma: pd.DataFrame,
+        views: Dict[str, Dict[str, float]],
+        view_confidences: Dict[str, float]
+    ) -> pd.Series:
+        """
+        Incorporate investor views using Black-Litterman model.
+        
+        Args:
+            equilibrium_returns: Prior equilibrium returns
+            sigma: Covariance matrix
+            views: Dictionary of views on relative performance
+            view_confidences: Confidence in each view
+            
+        Returns:
+            Updated expected returns
+        """
+        n_assets = len(equilibrium_returns)
+        
+        if not views:
+            return equilibrium_returns
+            
+        try:
+            # Construct view matrix P and view vector q
+            P = np.zeros((len(views), n_assets))
+            q = np.zeros(len(views))
+            omega = np.zeros((len(views), len(views)))
+            
+            for i, (view_name, view_dict) in enumerate(views.items()):
+                confidence = view_confidences.get(view_name, 1.0)
+                for asset, weight in view_dict.items():
+                    if asset in equilibrium_returns.index:
+                        j = equilibrium_returns.index.get_loc(asset)
+                        P[i, j] = weight
+                q[i] = 0  # Relative views sum to zero
+                omega[i, i] = (1 - confidence) * 0.1  # Scale by confidence
+                
+            # Convert to matrices
+            P = pd.DataFrame(P, columns=equilibrium_returns.index)
+            q = pd.Series(q)
+            omega = pd.DataFrame(omega)
+            
+            # Compute posterior
+            tau = self.tau
+            sigma_inv = np.linalg.inv(sigma.values)
+            omega_inv = np.linalg.inv(omega.values)
+            
+            # Black-Litterman formula
+            post_cov = np.linalg.inv(tau * sigma_inv + P.T.dot(omega_inv).dot(P))
+            post_ret = post_cov.dot(tau * sigma_inv.dot(equilibrium_returns) + 
+                                  P.T.dot(omega_inv).dot(q))
+                                  
+            return pd.Series(post_ret, index=equilibrium_returns.index)
+            
+        except Exception as e:
+            logger.error(f"Error incorporating views: {str(e)}")
+            return equilibrium_returns
+        
+    def optimize_weights(
+        self,
+        returns: pd.Series,
+        sigma: pd.DataFrame,
         risk_constraints: Dict[str, float]
     ) -> Dict[str, float]:
         """
-        Compute optimal portfolio allocation using Black-Litterman model.
-
-        Args:
-            current_allocation: Current portfolio weights
-            historical_data: Historical price data
-            risk_constraints: Dictionary of risk limits
-
-        Returns:
-            Target portfolio weights
-        """
-        returns = self.compute_returns(historical_data)
-        assets = returns.columns.tolist()
-        
-        # Compute covariance matrix
-        sigma = self.compute_covariance(returns) * 252  # Annualized
-        
-        # Get market equilibrium returns
-        pi = self._get_market_implied_returns(sigma)
-        
-        # Prepare views matrix P and views vector Q
-        P, Q, omega = self._prepare_views(assets, sigma)
-        
-        if P is not None and Q is not None:
-            # Compute posterior expected returns
-            posterior_returns = self._compute_posterior(pi, P, Q, omega, sigma)
-        else:
-            posterior_returns = pi
-            
-        # Optimize portfolio using posterior returns
-        weights = self._optimize_portfolio(posterior_returns, sigma)
-        
-        # Convert to dictionary and filter small positions
-        allocation = {
-            asset: weight for asset, weight in zip(assets, weights)
-            if weight >= self.min_position
-        }
-        
-        # Normalize weights
-        total = sum(allocation.values())
-        allocation = {k: v/total for k, v in allocation.items()}
-        
-        return allocation
-
-    def _get_market_implied_returns(self, sigma: np.ndarray) -> np.ndarray:
-        """
-        Calculate market implied returns using reverse optimization.
-
-        Args:
-            sigma: Covariance matrix
-
-        Returns:
-            Array of implied returns
-        """
-        # If market cap weights not provided, use equal weights
-        if not self.market_cap_weights:
-            n = sigma.shape[0]
-            weights = np.ones(n) / n
-        else:
-            weights = np.array(list(self.market_cap_weights.values()))
-            
-        # Implied returns = λΣw where λ is risk aversion
-        return self.risk_aversion * sigma @ weights
-
-    def _prepare_views(
-        self,
-        assets: List[str],
-        sigma: np.ndarray
-    ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray]]:
-        """
-        Prepare views matrix P, views vector Q, and uncertainty matrix omega.
-
-        Args:
-            assets: List of asset names
-            sigma: Covariance matrix
-
-        Returns:
-            Tuple of (P, Q, omega) matrices
-        """
-        if not self.views:
-            return None, None, None
-            
-        n_assets = len(assets)
-        n_views = len(self.views)
-        
-        P = np.zeros((n_views, n_assets))
-        Q = np.zeros(n_views)
-        
-        for i, view in enumerate(self.views):
-            for asset, weight in view['weights'].items():
-                asset_idx = assets.index(asset)
-                P[i, asset_idx] = weight
-            Q[i] = view['return']
-            
-        # Construct diagonal uncertainty matrix
-        if self.view_confidences:
-            confidence_scales = np.array(self.view_confidences)
-        else:
-            confidence_scales = np.ones(n_views)
-            
-        omega = np.diag(confidence_scales * np.diag(P @ sigma @ P.T))
-        
-        return P, Q, omega
-
-    def _compute_posterior(
-        self,
-        pi: np.ndarray,
-        P: np.ndarray,
-        Q: np.ndarray,
-        omega: np.ndarray,
-        sigma: np.ndarray
-    ) -> np.ndarray:
-        """
-        Compute posterior expected returns using Black-Litterman formula.
-
-        Args:
-            pi: Prior (market implied) returns
-            P: Views matrix
-            Q: Views vector
-            omega: Views uncertainty matrix
-            sigma: Market covariance matrix
-
-        Returns:
-            Posterior expected returns
-        """
-        # Compute posterior parameters
-        tau_sigma = self.tau * sigma
-        inv_omega = np.linalg.inv(omega)
-        inv_sigma = np.linalg.inv(tau_sigma)
-        
-        # Black-Litterman formula
-        A = np.linalg.inv(inv_sigma + P.T @ inv_omega @ P)
-        B = inv_sigma @ pi + P.T @ inv_omega @ Q
-        
-        return A @ B
-
-    def _optimize_portfolio(
-        self,
-        returns: np.ndarray,
-        sigma: np.ndarray
-    ) -> np.ndarray:
-        """
         Optimize portfolio weights using mean-variance optimization.
-
+        
         Args:
             returns: Expected returns
             sigma: Covariance matrix
-
+            risk_constraints: Risk constraints
+            
         Returns:
-            Array of optimal weights
+            Optimal portfolio weights
         """
-        n = len(returns)
+        n_assets = len(returns)
         
-        # Define objective function (maximize utility)
-        def objective(w):
-            portfolio_return = np.dot(w, returns)
-            portfolio_var = np.dot(w.T, np.dot(sigma, w))
-            utility = portfolio_return - 0.5 * self.risk_aversion * portfolio_var
-            return -utility  # Minimize negative utility
+        if n_assets == 0:
+            return {}
             
-        # Constraints
-        constraints = [
-            {'type': 'eq', 'fun': lambda x: np.sum(x) - 1.0}  # Weights sum to 1
-        ]
-        
-        # Position size bounds
-        bounds = [(self.min_position, self.max_position) for _ in range(n)]
-        
-        # Initial guess: equal weights
-        x0 = np.ones(n) / n
-        
-        # Optimize
-        result = minimize(
-            objective,
-            x0,
-            method='SLSQP',
-            bounds=bounds,
-            constraints=constraints
-        )
-        
-        if not result.success:
-            raise ValueError(f"Portfolio optimization failed: {result.message}")
+        try:
+            # Handle zero or near-zero variance
+            min_variance = 1e-8
+            sigma_diag = np.diag(sigma)
+            if np.any(sigma_diag < min_variance):
+                logger.warning("Near-zero variance detected, adjusting covariance matrix")
+                sigma = sigma + np.eye(n_assets) * min_variance
             
-        return result.x
+            # Solve mean-variance optimization
+            sigma_inv = np.linalg.inv(sigma.values)
+            ones = np.ones(n_assets)
+            
+            # Compute optimal weights
+            A = ones.T.dot(sigma_inv).dot(ones)
+            B = ones.T.dot(sigma_inv).dot(returns)
+            C = returns.T.dot(sigma_inv).dot(returns)
+            
+            # Global minimum variance portfolio
+            w_min = sigma_inv.dot(ones) / A
+            
+            # Tangency portfolio
+            w_tan = sigma_inv.dot(returns)
+            w_sum = w_tan.sum()
+            if abs(w_sum) > 1e-8:  # Check for non-zero sum
+                w_tan = w_tan / w_sum
+            else:
+                logger.warning("Invalid tangency portfolio weights, using minimum variance")
+                w_tan = w_min
+            
+            # Combine based on risk aversion
+            w = (1 - self.risk_aversion) * w_min + self.risk_aversion * w_tan
+            
+            # Convert to dictionary
+            weights = dict(zip(returns.index, w))
+            
+            # Apply position limits
+            weights = {
+                k: max(min(v, self.max_position), 0)
+                for k, v in weights.items()
+            }
+            
+            # Normalize
+            total = sum(weights.values())
+            if total > 0:
+                weights = {
+                    k: v / total
+                    for k, v in weights.items()
+                }
+                
+            return weights
+            
+        except Exception as e:
+            logger.error(f"Error optimizing weights: {str(e)}")
+            return {}
+            
+    def compute_target_allocation(
+        self,
+        current_allocation: Dict[str, float],
+        historical_data: Dict[str, Any],
+        risk_constraints: Dict[str, float]
+    ) -> Dict[str, float]:
+        """
+        Compute target allocation using Black-Litterman model.
+        
+        Args:
+            current_allocation: Current portfolio allocation
+            historical_data: Historical market data
+            risk_constraints: Risk constraints
+            
+        Returns:
+            Target allocation
+        """
+        try:
+            # Compute returns
+            returns = self.compute_returns(historical_data)
+            if returns.empty:
+                logger.warning("No return data available")
+                return current_allocation
+                
+            # Compute covariance matrix
+            sigma = self.compute_covariance(returns) * 252  # Annualized
+            
+            # Use current allocation as market weights
+            market_weights = current_allocation or {
+                col: 1.0 / len(returns.columns)
+                for col in returns.columns
+            }
+            
+            # Compute equilibrium returns
+            eq_returns = self.compute_equilibrium_returns(returns, market_weights)
+            
+            # Generate views based on technical signals
+            views = {}  # Would be populated by signal analysis
+            view_confidences = {}
+            
+            # Incorporate views
+            expected_returns = self.incorporate_views(
+                eq_returns,
+                sigma,
+                views,
+                view_confidences
+            )
+            
+            # Optimize portfolio
+            weights = self.optimize_weights(
+                expected_returns,
+                sigma,
+                risk_constraints
+            )
+            
+            # Validate allocation
+            if not self.validate_constraints(weights):
+                logger.warning("Target allocation violates constraints")
+                return current_allocation
+                
+            return weights
+            
+        except Exception as e:
+            logger.error(f"Error computing target allocation: {str(e)}")
+            return current_allocation
