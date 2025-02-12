@@ -2,12 +2,10 @@
 Bybit exchange implementation.
 """
 from decimal import Decimal
-from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
-
 from loguru import logger
 
-from .base import CCXTExchange, Balance, OHLCV
+from .ccxt_base import CCXTExchange, Balance, OHLCV
 from .credentials.manager import credentials_manager
 
 
@@ -46,114 +44,19 @@ class BybitExchange(CCXTExchange):
         if self.exchange:
             self.exchange.options.update({
                 'defaultType': 'spot',
-                'recvWindow': 60000,  # Extend receive window for high latency
-                'defaultVersion': 'v5'  # Use V5 API
+                'adjustForTimeDifference': True,
+                'recvWindow': 60000,
+                'createMarketBuyOrderRequiresPrice': True
             })
             
             if self.testnet:
                 # Set testnet-specific endpoints
                 self.exchange.urls.update({
-                    'api': {
+                    'test': {
                         'public': 'https://api-testnet.bybit.com',
                         'private': 'https://api-testnet.bybit.com',
                     }
                 })
-    
-    async def get_spot_positions(self) -> List[Dict]:
-        """Get spot positions."""
-        try:
-            balances = await self.get_balances()
-            positions = []
-            
-            for asset, balance in balances.items():
-                if balance.total > 0:
-                    # Get current price
-                    current_price = None
-                    if asset != 'USDT':
-                        current_price = await self.get_ticker_price(f"{asset}/USDT")
-                    
-                    # Get average entry price
-                    avg_price = await self.get_average_entry_price(f"{asset}/USDT")
-                    if not avg_price and current_price:
-                        avg_price = current_price
-                    
-                    positions.append({
-                        'symbol': asset,
-                        'quantity': float(balance.total),
-                        'avgPrice': float(avg_price) if avg_price else None,
-                        'currentPrice': float(current_price) if current_price else None
-                    })
-            
-            return positions
-            
-        except Exception as e:
-            logger.error(f"Error fetching spot positions: {e}")
-            return []
-    
-    async def get_futures_positions(self) -> List[Dict]:
-        """Get futures positions."""
-        try:
-            positions = []
-            
-            # Fetch positions using V5 API
-            params = {
-                'category': 'linear',
-                'settleCoin': 'USDT'
-            }
-            
-            response = await self.exchange.private_get_v5_position_list(params)
-            
-            if response and 'result' in response and 'list' in response['result']:
-                for pos in response['result']['list']:
-                    try:
-                        size = float(pos.get('size', '0'))
-                        if size > 0:  # Only include non-zero positions
-                            positions.append({
-                                'symbol': pos.get('symbol', ''),
-                                'quantity': size,
-                                'side': 'LONG' if pos.get('side', 'Buy') == 'Buy' else 'SHORT',
-                                'entryPrice': float(pos.get('avgPrice', '0')),
-                                'leverage': float(pos.get('leverage', '1')),
-                                'marginUsed': float(pos.get('positionIM', '0')),  # Initial margin
-                                'currentPrice': float(pos.get('markPrice', '0'))
-                            })
-                    except (KeyError, ValueError) as e:
-                        logger.warning(f"Error parsing position data: {e}")
-                        continue
-            
-            return positions
-            
-        except Exception as e:
-            logger.error(f"Error fetching futures positions: {e}")
-            return []
-    
-    async def place_futures_order(
-        self,
-        symbol: str,
-        side: str,
-        quantity: float,
-        order_type: str = "MARKET"
-    ) -> str:
-        """Place a futures order."""
-        try:
-            params = {
-                'category': 'linear',
-                'timeInForce': 'GTC'
-            }
-            
-            order = await self.exchange.create_order(
-                symbol=symbol,
-                type=order_type.lower(),
-                side=side.lower(),
-                amount=quantity,
-                params=params
-            )
-            
-            return order['id']
-            
-        except Exception as e:
-            logger.error(f"Error placing futures order: {e}")
-            raise
     
     async def get_balances(self) -> Dict[str, Balance]:
         """Get balances for all assets."""
@@ -161,19 +64,17 @@ class BybitExchange(CCXTExchange):
             # Get base implementation
             balances = await super().get_balances()
             
-            # Add Bybit-specific processing if needed
-            # For example, handle wallet types (SPOT, DERIVATIVES, etc.)
+            # Add Bybit-specific processing
+            # For example, handle wallet types
             account = await self.exchange.fetch_balance()
             if 'info' in account:
-                for wallet_type in ['SPOT', 'DERIVATIVES']:
-                    wallet_info = account['info'].get(wallet_type, {})
-                    for coin in wallet_info.get('coins', []):
-                        asset = coin['coin']
-                        if asset in balances:
-                            # Add any additional locked/staked balances
-                            locked = Decimal(str(coin.get('locked', '0')))
-                            balances[asset].locked += locked
-                            balances[asset].total += locked
+                for wallet in account['info'].get('result', []):
+                    asset = wallet.get('coin')
+                    if asset in balances:
+                        # Add wallet-specific balances
+                        locked = Decimal(str(wallet.get('locked', '0')))
+                        balances[asset].locked += locked
+                        balances[asset].total += locked
             
             return balances
             
@@ -189,19 +90,11 @@ class BybitExchange(CCXTExchange):
             
             # Extract commission rates
             fees = {}
-            markets = await self.exchange.load_markets()
-            
-            # Bybit has tiered fees based on trading volume
-            # We'll use the base tier fees to be conservative
-            base_maker_fee = Decimal('0.001')  # 0.1%
-            base_taker_fee = Decimal('0.001')  # 0.1%
-            
-            for symbol in markets:
-                # Check if symbol has specific fees in the response
-                symbol_info = response.get('result', {}).get('symbols', {}).get(symbol, {})
-                maker_fee = Decimal(str(symbol_info.get('makerFee', base_maker_fee)))
-                taker_fee = Decimal(str(symbol_info.get('takerFee', base_taker_fee)))
-                fees[symbol] = max(maker_fee, taker_fee)  # Use higher fee to be conservative
+            for symbol in await self.exchange.load_markets():
+                # Bybit uses tiered fees, we'll use the base tier
+                maker_fee = Decimal('0.001')  # 0.1% base maker fee
+                taker_fee = Decimal('0.001')  # 0.1% base taker fee
+                fees[symbol] = max(maker_fee, taker_fee)  # Use higher fee
             
             return fees
             
@@ -226,146 +119,9 @@ class BybitExchange(CCXTExchange):
                     f"Invalid timeframe '{timeframe}'. Must be one of: {valid_timeframes}"
                 )
             
-            # Bybit has a max limit of 1000 candles per request
-            if limit and limit > 1000:
-                logger.warning("Bybit has a maximum limit of 1000 candles per request")
-                limit = 1000
-            
             # Get OHLCV data
             return await super().fetch_ohlcv(symbol, timeframe, since, limit)
             
         except Exception as e:
             logger.error(f"Error fetching Bybit OHLCV data: {e}")
-            raise
-
-    async def validate_api_keys(self) -> bool:
-        """Validate API keys by attempting to access private endpoints."""
-        try:
-            # Bybit validates keys by attempting to fetch wallet balance
-            await self.exchange.fetch_balance()
-            return True
-        except Exception as e:
-            logger.error(f"Bybit API key validation failed: {e}")
-            return False
-
-    async def close(self) -> None:
-        """Close exchange connection."""
-        if self.exchange:
-            await self.exchange.close()
-
-    async def get_portfolio_value(self) -> Decimal:
-        """Get total portfolio value in base currency."""
-        try:
-            balances = await self.get_balances()
-            total_value = Decimal('0')
-            
-            for asset, balance in balances.items():
-                if balance.total > 0:
-                    if asset == 'USDT':
-                        total_value += balance.total
-                    else:
-                        price = await self.get_ticker_price(f"{asset}/USDT")
-                        if price:
-                            total_value += balance.total * price
-            
-            logger.debug(f"Total portfolio value: {total_value} USDT")
-            return total_value
-            
-        except Exception as e:
-            logger.error(f"Error calculating portfolio value: {e}")
-            raise
-
-    async def get_order_history(self, symbol: str) -> List[Dict]:
-        """Get order history for a symbol."""
-        try:
-            # Try to fetch orders from different categories
-            all_orders = []
-            categories = ['spot', 'linear']
-            
-            for category in categories:
-                try:
-                    # Calculate timestamp for 30 days ago
-                    since = int((datetime.now(timezone.utc) - timedelta(days=30)).timestamp() * 1000)
-                    
-                    params = {
-                        'category': category,
-                        'limit': 500,  # Maximum limit for Bybit
-                        'since': since
-                    }
-                    
-                    orders = await self.exchange.fetch_closed_orders(
-                        symbol=symbol,
-                        params=params
-                    )
-                    
-                    if orders:
-                        all_orders.extend(orders)
-                        logger.debug(f"Fetched {len(orders)} {category} orders for {symbol}")
-                except Exception as e:
-                    logger.warning(f"Error fetching {category} orders for {symbol}: {e}")
-                    continue
-            
-            return all_orders
-            
-        except Exception as e:
-            logger.error(f"Error fetching order history for {symbol}: {e}")
-            return []
-
-    async def get_average_entry_price(self, symbol: str) -> Optional[Decimal]:
-        """Calculate average entry price from order history."""
-        try:
-            orders = await self.get_order_history(symbol)
-            
-            total_cost = Decimal('0')
-            total_quantity = Decimal('0')
-            
-            for order in orders:
-                if order['side'] == 'buy' and order['status'] == 'closed':
-                    cost = Decimal(str(order['cost']))
-                    amount = Decimal(str(order['amount']))
-                    total_cost += cost
-                    total_quantity += amount
-            
-            if total_quantity > 0:
-                avg_price = total_cost / total_quantity
-                logger.debug(f"Average entry price for {symbol}: {avg_price}")
-                return avg_price
-            return None
-            
-        except Exception as e:
-            logger.error(f"Error calculating average entry price for {symbol}: {e}")
-            return None
-
-    async def execute_trade(
-        self,
-        asset: str,
-        amount: Decimal,
-        side: str,
-        order_type: str = "market"
-    ) -> Dict:
-        """Execute a trade on Bybit."""
-        try:
-            symbol = f"{asset}/USDT"
-            
-            # Convert amount to asset quantity using current price
-            price = await self.get_ticker_price(symbol)
-            if not price:
-                raise ValueError(f"Could not get price for {symbol}")
-                
-            quantity = amount / price
-            
-            # Place order
-            order = await self.exchange.create_order(
-                symbol=symbol,
-                type=order_type,
-                side=side.lower(),
-                amount=float(quantity),
-                params={}
-            )
-            
-            logger.info(f"Executed {side} order for {quantity} {asset} at {price} USDT")
-            return order
-            
-        except Exception as e:
-            logger.error(f"Error executing trade: {e}")
             raise

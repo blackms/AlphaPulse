@@ -1,134 +1,140 @@
 """
-Exchange credentials management system.
+Exchange credentials management.
 """
-import json
+from typing import Dict, Optional, Any
 import os
+import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Optional
-
 from loguru import logger
 
 
 @dataclass
-class ExchangeCredentials:
+class Credentials:
     """Exchange API credentials."""
     api_key: str
     api_secret: str
     testnet: bool = False
+    passphrase: Optional[str] = None  # For exchanges that require it
 
 
 class CredentialsManager:
     """Manages exchange API credentials."""
-    
-    def __init__(self, config_path: Optional[str] = None):
-        """Initialize credentials manager.
-        
-        Args:
-            config_path: Path to credentials config file
+
+    def __init__(self):
+        """Initialize credentials manager."""
+        self._credentials: Dict[str, Credentials] = {}
+        self._config_path = os.path.expanduser("~/.alpha_pulse/credentials.json")
+        self._load_credentials()
+
+    def _load_credentials(self) -> None:
+        """Load credentials from config file."""
+        try:
+            config_path = Path(self._config_path)
+            if not config_path.exists():
+                logger.info(f"No credentials file found at {self._config_path}")
+                return
+
+            with open(config_path, "r") as f:
+                data = json.load(f)
+
+            for exchange, creds in data.items():
+                self._credentials[exchange] = Credentials(
+                    api_key=creds.get("api_key", ""),
+                    api_secret=creds.get("api_secret", ""),
+                    testnet=creds.get("testnet", False),
+                    passphrase=creds.get("passphrase")
+                )
+
+            logger.info(f"Loaded credentials for {len(self._credentials)} exchanges")
+
+        except Exception as e:
+            logger.error(f"Error loading credentials: {str(e)}")
+
+    def _save_credentials(self) -> None:
+        """Save credentials to config file."""
+        try:
+            # Create directory if it doesn't exist
+            config_path = Path(self._config_path)
+            config_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Convert credentials to dictionary
+            data = {
+                exchange: {
+                    "api_key": creds.api_key,
+                    "api_secret": creds.api_secret,
+                    "testnet": creds.testnet,
+                    "passphrase": creds.passphrase
+                }
+                for exchange, creds in self._credentials.items()
+            }
+
+            # Save with pretty formatting
+            with open(config_path, "w") as f:
+                json.dump(data, f, indent=4)
+
+            logger.info(f"Saved credentials to {self._config_path}")
+
+        except Exception as e:
+            logger.error(f"Error saving credentials: {str(e)}")
+
+    def get_credentials(self, exchange: str) -> Optional[Credentials]:
         """
-        if config_path:
-            self.config_path = Path(config_path)
-        else:
-            # Default to user's home directory
-            self.config_path = Path.home() / '.alpha_pulse' / 'exchange_credentials.json'
-        
-        # Ensure directory exists
-        self.config_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        # Initialize empty config if file doesn't exist
-        if not self.config_path.exists():
-            self._save_config({})
-    
-    def _load_config(self) -> Dict:
-        """Load credentials configuration."""
-        try:
-            with open(self.config_path) as f:
-                return json.load(f)
-        except Exception as e:
-            logger.error(f"Error loading credentials config: {e}")
-            return {}
-    
-    def _save_config(self, config: Dict) -> None:
-        """Save credentials configuration."""
-        try:
-            with open(self.config_path, 'w') as f:
-                json.dump(config, f, indent=2)
-        except Exception as e:
-            logger.error(f"Error saving credentials config: {e}")
-    
-    def get_credentials(self, exchange_id: str) -> Optional[ExchangeCredentials]:
-        """Get credentials for an exchange.
-        
-        First checks environment variables, then falls back to config file.
-        Environment variables take precedence over config file.
-        
-        Environment variable format:
-        - ALPHA_PULSE_{EXCHANGE}_API_KEY
-        - ALPHA_PULSE_{EXCHANGE}_API_SECRET
-        - ALPHA_PULSE_{EXCHANGE}_TESTNET (optional)
-        
+        Get credentials for exchange.
+
         Args:
-            exchange_id: Exchange identifier (e.g., 'binance', 'bybit')
-            
+            exchange: Exchange name
+
         Returns:
-            Exchange credentials if found, None otherwise
+            Credentials if found, None otherwise
         """
-        # Try environment variables first
-        env_prefix = f"ALPHA_PULSE_{exchange_id.upper()}"
-        api_key = os.getenv(f"{env_prefix}_API_KEY")
-        api_secret = os.getenv(f"{env_prefix}_API_SECRET")
-        testnet = os.getenv(f"{env_prefix}_TESTNET", "").lower() == "true"
-        
-        if api_key and api_secret:
-            return ExchangeCredentials(
-                api_key=api_key,
-                api_secret=api_secret,
-                testnet=testnet
-            )
-        
-        # Fall back to config file
-        config = self._load_config()
-        if exchange_id in config:
-            return ExchangeCredentials(**config[exchange_id])
-        
-        return None
-    
-    def save_credentials(
+        return self._credentials.get(exchange.lower())
+
+    def set_credentials(
         self,
-        exchange_id: str,
+        exchange: str,
         api_key: str,
         api_secret: str,
-        testnet: bool = False
+        testnet: bool = False,
+        passphrase: Optional[str] = None
     ) -> None:
-        """Save credentials for an exchange.
-        
+        """
+        Set credentials for exchange.
+
         Args:
-            exchange_id: Exchange identifier
+            exchange: Exchange name
             api_key: API key
             api_secret: API secret
             testnet: Whether to use testnet
+            passphrase: Optional passphrase
         """
-        config = self._load_config()
-        config[exchange_id] = {
-            'api_key': api_key,
-            'api_secret': api_secret,
-            'testnet': testnet
-        }
-        self._save_config(config)
-        logger.info(f"Saved credentials for {exchange_id}")
-    
-    def remove_credentials(self, exchange_id: str) -> None:
-        """Remove credentials for an exchange.
-        
+        self._credentials[exchange.lower()] = Credentials(
+            api_key=api_key,
+            api_secret=api_secret,
+            testnet=testnet,
+            passphrase=passphrase
+        )
+        self._save_credentials()
+
+    def remove_credentials(self, exchange: str) -> None:
+        """
+        Remove credentials for exchange.
+
         Args:
-            exchange_id: Exchange identifier
+            exchange: Exchange name
         """
-        config = self._load_config()
-        if exchange_id in config:
-            del config[exchange_id]
-            self._save_config(config)
-            logger.info(f"Removed credentials for {exchange_id}")
+        if exchange.lower() in self._credentials:
+            del self._credentials[exchange.lower()]
+            self._save_credentials()
+
+    def list_exchanges(self) -> list[str]:
+        """
+        Get list of exchanges with credentials.
+
+        Returns:
+            List of exchange names
+        """
+        return list(self._credentials.keys())
 
 
 # Global credentials manager instance

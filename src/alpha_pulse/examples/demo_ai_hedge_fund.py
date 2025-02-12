@@ -1,250 +1,262 @@
 """
-Example script demonstrating the AI Hedge Fund system with paper trading.
+Demo script showcasing the complete AI Hedge Fund flow.
+Demonstrates the interaction between agents, risk management, and portfolio management.
 """
 import asyncio
+import os
 from datetime import datetime, timedelta
+from decimal import Decimal
 import pandas as pd
-import numpy as np
-from typing import Dict, Any
 import yaml
-import logging
+from loguru import logger
+import sys
 from pathlib import Path
 
 from alpha_pulse.agents.manager import AgentManager
-from alpha_pulse.agents.interfaces import MarketData
 from alpha_pulse.risk_management.manager import RiskManager, RiskConfig
 from alpha_pulse.portfolio.portfolio_manager import PortfolioManager
-from alpha_pulse.data_pipeline.managers.mock_data import MockDataManager
-from alpha_pulse.execution.paper_actuator import PaperActuator
+from alpha_pulse.execution.paper_broker import PaperBroker
+from alpha_pulse.data_pipeline.manager import DataManager
+from alpha_pulse.monitoring.metrics import MetricsCollector
+from alpha_pulse.portfolio.html_report import generate_portfolio_report
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+logger.remove()  # Remove default handler
+logger.add(
+    sys.stderr,
+    format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
+           "<level>{level: <8}</level> | "
+           "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> | "
+           "<level>{message}</level>",
+    level="INFO"
 )
-logger = logging.getLogger(__name__)
+logger.add(
+    "logs/ai_hedge_fund_demo_{time}.log",
+    format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | "
+           "{name}:{function}:{line} | {message}",
+    level="DEBUG",
+    rotation="500 MB"
+)
 
+async def initialize_components():
+    """Initialize all system components."""
+    logger.info("Initializing AI Hedge Fund components...")
 
-async def load_market_data(symbols: list, lookback_days: int = 365) -> MarketData:
-    """Load market data for demonstration."""
-    data_manager = MockDataManager()  # Using mock data for demo
+    # Load configurations
+    with open("config/ai_hedge_fund_config.yaml", "r") as f:
+        config = yaml.safe_load(f)
     
-    # Calculate date range
-    end_date = datetime.now()
-    start_date = end_date - timedelta(days=lookback_days)
-    
-    # Fetch historical data
-    prices = await data_manager.get_historical_prices(symbols, start_date, end_date)
-    volumes = await data_manager.get_historical_volumes(symbols, start_date, end_date)
-    
-    # Fetch fundamental data
-    fundamentals = {}
-    for symbol in symbols:
-        fundamental_data = await data_manager.get_fundamental_data(symbol)
-        if fundamental_data:
-            fundamentals[symbol] = fundamental_data
-            
-    # Fetch sentiment data
-    sentiment = {}
-    for symbol in symbols:
-        sentiment_data = await data_manager.get_sentiment_data(symbol)
-        if sentiment_data:
-            sentiment[symbol] = sentiment_data
-            
-    return MarketData(
-        prices=prices,
-        volumes=volumes,
-        fundamentals=fundamentals,
-        sentiment=sentiment,
-        timestamp=datetime.now()
-    )
+    with open("config/data_pipeline_config.yaml", "r") as f:
+        data_config = yaml.safe_load(f)
 
-
-def ensure_config_exists():
-    """Ensure the configuration file exists."""
-    config_path = Path("config/ai_hedge_fund_config.yaml")
-    if not config_path.exists():
-        config = {
-            "agents": {
-                "agent_weights": {
-                    "activist": 0.15,
-                    "value": 0.20,
-                    "fundamental": 0.20,
-                    "sentiment": 0.15,
-                    "technical": 0.15,
-                    "valuation": 0.15
-                }
-            },
-            "risk": {
-                "max_position_size": 0.20,
-                "max_portfolio_leverage": 1.5,
-                "max_drawdown": 0.25,
-                "stop_loss": 0.10,
-                "var_confidence": 0.95,
-                "risk_free_rate": 0.00,
-                "target_volatility": 0.15,
-                "rebalance_threshold": 0.10
-            },
-            "execution": {
-                "mode": "paper",
-                "initial_balance": 1000000,
-                "slippage": 0.001,
-                "fee_rate": 0.001
-            }
-        }
-        
-        config_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(config_path, 'w') as f:
-            yaml.dump(config, f, default_flow_style=False)
-
-
-async def run_paper_trading_demo(config: Dict[str, Any], symbols: list):
-    """Run paper trading demonstration."""
-    logger.info("Initializing paper trading demo...")
-    
-    # Initialize paper actuator
-    paper_actuator = PaperActuator(config.get("execution", {}))
-    
     # Initialize components
-    agent_manager = AgentManager(config.get("agents"))
+    agent_manager = AgentManager(config.get("agents", {}))
     await agent_manager.initialize()
-    
+    logger.info("Agent Manager initialized")
+
+    # Extract top-level risk management parameters
+    risk_config = {
+        k: v for k, v in config.get("risk_management", {}).items()
+        if k in [
+            "max_position_size",
+            "max_portfolio_leverage",
+            "max_drawdown",
+            "stop_loss",
+            "var_confidence",
+            "risk_free_rate",
+            "target_volatility",
+            "rebalance_threshold",
+            "initial_portfolio_value"
+        ]
+    }
+
     risk_manager = RiskManager(
-        exchange=paper_actuator,  # Use paper actuator as exchange
-        config=RiskConfig(**config.get("risk", {}))
+        exchange=None,  # Will be set later
+        config=RiskConfig(**risk_config)
     )
-    
+    logger.info("Risk Manager initialized")
+
     portfolio_manager = PortfolioManager(
         config_path="config/portfolio_config.yaml"
     )
-    
-    logger.info(f"Analyzing {len(symbols)} symbols...")
-    
-    try:
-        # Load market data
-        market_data = await load_market_data(symbols)
-        
-        logger.info("Generating trading signals...")
-        # Generate signals from all agents
-        signals = await agent_manager.generate_signals(market_data)
-        
-        logger.info(f"Received {len(signals)} signals from agents:")
-        for signal in signals:
-            logger.info(f"\nSymbol: {signal.symbol}")
-            logger.info(f"Direction: {signal.direction}")
-            logger.info(f"Confidence: {signal.confidence:.2f}")
-            if signal.target_price:
-                logger.info(f"Target Price: {signal.target_price:.2f}")
-            logger.info(f"Contributing Agents: {len(signal.metadata.get('agent_signals', []))}")
-            
-        logger.info("\nValidating signals with risk management...")
-        # Get current portfolio value
-        portfolio_value = await paper_actuator.get_portfolio_value()
-        current_positions = await paper_actuator.get_positions()
-        
-        # Process signals
-        executed_trades = []
-        for signal in signals:
-            # Calculate position size (non-async)
-            position_size = risk_manager.calculate_position_size(
-                symbol=signal.symbol,
-                current_price=market_data.prices[signal.symbol].iloc[-1],
-                signal_strength=signal.confidence
-            )
-            
-            # Calculate trade size in units
-            current_price = market_data.prices[signal.symbol].iloc[-1]
-            trade_size = position_size.size / current_price if current_price > 0 else 0
-            
-            # Validate trade with risk management
-            if risk_manager.evaluate_trade(
-                symbol=signal.symbol,
-                side=signal.direction.value,
-                quantity=trade_size,
-                current_price=current_price,
-                portfolio_value=portfolio_value,
-                current_positions=current_positions
-            ):
-                # Execute paper trade
-                trade_result = await paper_actuator.execute_trade(
-                    symbol=signal.symbol,
-                    side=signal.direction.value,
-                    quantity=trade_size,
-                    price=current_price
-                )
-                executed_trades.append(trade_result)
-                
-        logger.info(f"\nExecuted {len(executed_trades)} paper trades:")
-        for trade in executed_trades:
-            logger.info(f"\nSymbol: {trade['symbol']}")
-            logger.info(f"Side: {trade['side']}")
-            logger.info(f"Quantity: {trade['quantity']:.2f}")
-            logger.info(f"Price: ${trade['price']:.2f}")
-            logger.info(f"Value: ${trade['value']:.2f}")
-            
-        # Get updated portfolio status
-        final_portfolio_value = await paper_actuator.get_portfolio_value()
-        final_positions = await paper_actuator.get_positions()
-        
-        logger.info("\nFinal Portfolio Status:")
-        logger.info(f"Portfolio Value: ${final_portfolio_value:,.2f}")
-        logger.info("\nCurrent Positions:")
-        for symbol, position in final_positions.items():
-            logger.info(f"\n{symbol}:")
-            logger.info(f"Quantity: {position['quantity']:.2f}")
-            logger.info(f"Average Entry: ${position['avg_entry']:.2f}")
-            logger.info(f"Current Value: ${position['current_value']:.2f}")
-            logger.info(f"Unrealized P&L: ${position['unrealized_pnl']:.2f} ({position['unrealized_pnl_pct']:.2%})")
-            
-        # Get agent performance metrics
-        logger.info("\nAgent Performance Metrics:")
-        performance = agent_manager.get_agent_performance()
-        for agent_type, metrics in performance.items():
-            logger.info(f"\n{agent_type.capitalize()} Agent:")
-            if metrics:
-                logger.info(f"Signal Accuracy: {metrics.signal_accuracy:.2%}")
-                logger.info(f"Profit Factor: {metrics.profit_factor:.2f}")
-                logger.info(f"Sharpe Ratio: {metrics.sharpe_ratio:.2f}")
-                logger.info(f"Max Drawdown: {metrics.max_drawdown:.2%}")
-            
-        # Get risk report
-        logger.info("\nRisk Management Report:")
-        risk_report = risk_manager.get_risk_report()
-        logger.info(f"Portfolio Value: ${risk_report.get('portfolio_value', 0):,.2f}")
-        logger.info(f"Current Leverage: {risk_report.get('current_leverage', 0):.2f}x")
-        
-        if 'risk_metrics' in risk_report:
-            rm = risk_report['risk_metrics']
-            logger.info(f"Portfolio Volatility: {rm.get('volatility', 0):.2%}")
-            logger.info(f"Value at Risk (95%): ${rm.get('var_95', 0):,.2f}")
-            logger.info(f"Expected Shortfall: ${rm.get('cvar_95', 0):,.2f}")
-            logger.info(f"Sharpe Ratio: {rm.get('sharpe_ratio', 0):.2f}")
-            
-    except Exception as e:
-        logger.error(f"Error during paper trading demo: {str(e)}")
-        raise
-        
-    logger.info("\nPaper trading demonstration completed.")
+    logger.info("Portfolio Manager initialized")
 
+    data_manager = DataManager(config=data_config)
+    await data_manager.initialize()
+    logger.info("Data Manager initialized")
+
+    # Initialize paper broker with initial balance
+    paper_broker = PaperBroker(
+        initial_balance=float(config["risk_management"]["initial_portfolio_value"])
+    )
+    logger.info("Paper Broker initialized")
+
+    # Initialize market prices for trading pairs
+    symbols = config["trading"]["symbols"]
+    for symbol in symbols:
+        # Initialize with a default price of 1.0
+        # Real prices will be updated when we fetch market data
+        paper_broker.update_market_data(symbol, 1.0)
+
+    metrics_collector = MetricsCollector()
+    logger.info("Metrics Collector initialized")
+
+    return {
+        "agent_manager": agent_manager,
+        "risk_manager": risk_manager,
+        "portfolio_manager": portfolio_manager,
+        "data_manager": data_manager,
+        "broker": paper_broker,
+        "metrics": metrics_collector,
+        "config": config
+    }
+
+async def fetch_market_data(data_manager, symbols, lookback_days=180):
+    """Fetch market data for analysis."""
+    logger.info(f"Fetching market data for {len(symbols)} symbols...")
+    
+    end_time = datetime.now()
+    start_time = end_time - timedelta(days=lookback_days)
+    
+    market_data = await data_manager.get_market_data(
+        symbols=symbols,
+        start_time=start_time,
+        end_time=end_time,
+        interval="1d"
+    )
+    
+    logger.info(f"Fetched {sum(len(data) for data in market_data.values())} data points")
+    return market_data
+
+async def generate_and_process_signals(components, market_data):
+    """Generate and process trading signals."""
+    logger.info("Generating trading signals...")
+    
+    # Update broker with latest market prices
+    for symbol, data in market_data.items():
+        if data:  # If we have data for this symbol
+            latest_price = float(data[-1].close)
+            components["broker"].update_market_data(symbol, latest_price)
+    
+    # Generate signals from all agents
+    signals = await components["agent_manager"].generate_signals(market_data)
+    logger.info(f"Generated {len(signals)} initial signals")
+    
+    # Filter signals through risk management
+    valid_signals = []
+    for signal in signals:
+        if await components["risk_manager"].evaluate_trade(
+            symbol=signal.symbol,
+            side=signal.direction.value,
+            quantity=0,  # Will be determined by position sizer
+            current_price=market_data[signal.symbol][-1].close,
+            portfolio_value=await components["broker"].get_portfolio_value(),
+            current_positions=await components["broker"].get_positions()
+        ):
+            valid_signals.append(signal)
+    
+    logger.info(f"{len(valid_signals)} signals passed risk evaluation")
+    return valid_signals
+
+async def execute_portfolio_decisions(components, valid_signals, market_data):
+    """Execute portfolio decisions based on signals."""
+    logger.info("Executing portfolio decisions...")
+    
+    # Get current portfolio state
+    portfolio_data = await components["portfolio_manager"].get_portfolio_data(
+        components["broker"]
+    )
+    
+    # Check if rebalancing is needed
+    needs_rebalance = await components["portfolio_manager"].needs_rebalancing(
+        components["broker"],
+        portfolio_data.current_weights
+    )
+    
+    if needs_rebalance:
+        logger.info("Portfolio rebalancing required")
+        # Execute rebalancing
+        rebalance_result = await components["portfolio_manager"].rebalance_portfolio(
+            components["broker"],
+            market_data
+        )
+        logger.info(f"Rebalancing completed: {rebalance_result['status']}")
+    
+    return portfolio_data
+
+async def monitor_and_report(components, portfolio_data):
+    """Monitor system performance and generate reports."""
+    logger.info("Generating performance reports...")
+    
+    # Collect metrics
+    metrics = components["metrics"].collect_metrics(portfolio_data)
+    
+    # Generate HTML report
+    report_path = Path("reports") / f"portfolio_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+    report_path.parent.mkdir(exist_ok=True)
+    
+    generate_portfolio_report(
+        portfolio_data=portfolio_data,
+        metrics=metrics,
+        output_path=str(report_path)
+    )
+    
+    logger.info(f"Report generated: {report_path}")
+    return metrics
 
 async def main():
-    """Main entry point."""
-    # Ensure configuration exists
-    ensure_config_exists()
-    
-    # Load configuration
-    with open("config/ai_hedge_fund_config.yaml", "r") as f:
-        config = yaml.safe_load(f)
+    """Main execution flow."""
+    components = {}
+    try:
+        # Initialize all components
+        components = await initialize_components()
         
-    # Define universe of symbols
-    symbols = [
-        "AAPL", "MSFT", "GOOGL", "AMZN", "META",
-        "NVDA", "TSLA", "JPM", "V", "JNJ"
-    ]
-    
-    # Run paper trading demo
-    await run_paper_trading_demo(config, symbols)
-
+        # Get configuration
+        symbols = components["config"]["trading"]["symbols"]
+        
+        # Fetch market data
+        market_data = await fetch_market_data(
+            components["data_manager"],
+            symbols
+        )
+        
+        # Generate and process signals
+        valid_signals = await generate_and_process_signals(
+            components,
+            market_data
+        )
+        
+        # Execute portfolio decisions
+        portfolio_data = await execute_portfolio_decisions(
+            components,
+            valid_signals,
+            market_data
+        )
+        
+        # Monitor and report
+        metrics = await monitor_and_report(
+            components,
+            portfolio_data
+        )
+        
+        logger.info("Demo completed successfully")
+        logger.info(f"Portfolio Value: ${portfolio_data.total_value:,.2f}")
+        logger.info(f"Sharpe Ratio: {metrics.get('sharpe_ratio', 0):.2f}")
+        logger.info(f"Max Drawdown: {metrics.get('max_drawdown', 0):.2%}")
+        
+    except Exception as e:
+        logger.exception(f"Error in main execution: {str(e)}")
+        raise
+    finally:
+        # Cleanup
+        if "data_manager" in components:
+            await components["data_manager"].__aexit__(None, None, None)
+        logger.info("Cleanup completed")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.warning("Process interrupted by user")
+    except Exception as e:
+        logger.exception(f"Process terminated with error: {str(e)}")

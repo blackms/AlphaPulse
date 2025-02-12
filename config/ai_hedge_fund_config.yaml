@@ -1,138 +1,151 @@
 # AI Hedge Fund Configuration
 
+# Trading Configuration
+trading:
+  symbols:
+    - "BTCUSDT"
+    - "ETHUSDT"
+    - "BNBUSDT"
+    - "ADAUSDT"
+    - "SOLUSDT"
+  base_currency: "USDT"
+  min_trade_value: 100.0
+  execution_style: "market"
+  max_slippage: 0.002  # 0.2%
+
 # Agent Configuration
 agents:
-  # Agent weights in signal aggregation
   agent_weights:
-    activist: 0.15
-    value: 0.20
-    fundamental: 0.20
-    sentiment: 0.15
-    technical: 0.15
-    valuation: 0.15
-
-  # Individual agent configurations
+    activist: 0.15    # Bill Ackman style
+    value: 0.20       # Warren Buffett style
+    fundamental: 0.20 # Company analysis
+    sentiment: 0.15   # Market sentiment
+    technical: 0.15   # Technical analysis
+    valuation: 0.15   # Price evaluation
+  
   agent_configs:
     activist:
-      min_market_cap: 1000000000  # $1B minimum
-      max_market_cap: 50000000000  # $50B maximum
-      min_ownership_target: 0.05   # 5% minimum ownership
-      holding_period: 360          # Days
-      target_sectors:
-        - Technology
-        - Consumer
-        - Industrial
-        - Healthcare
-
+      min_confidence: 0.7
+      lookback_period: 90
+      
     value:
-      min_roe: 0.15               # 15% minimum ROE
-      min_roic: 0.12              # 12% minimum ROIC
-      max_debt_to_equity: 0.5     # 0.5x maximum leverage
-      min_interest_coverage: 5     # 5x minimum coverage
-      min_operating_margin: 0.15   # 15% minimum margin
-      holding_period: 720          # Days
-      preferred_sectors:
-        - Consumer Staples
-        - Financials
-        - Healthcare
-        - Industrials
-
+      min_confidence: 0.7
+      lookback_period: 180
+      
     fundamental:
-      min_revenue_growth: 0.10     # 10% minimum growth
-      min_gross_margin: 0.30       # 30% minimum margin
-      min_ebitda_margin: 0.15      # 15% minimum EBITDA margin
-      min_net_margin: 0.10         # 10% minimum net margin
-      min_current_ratio: 1.5       # 1.5x minimum liquidity
-      analysis_timeframes:
-        short_term: 90             # 3 months
-        medium_term: 180           # 6 months
-        long_term: 360             # 1 year
-
+      min_confidence: 0.6
+      lookback_period: 90
+      metrics:
+        - "market_cap"
+        - "pe_ratio"
+        - "revenue_growth"
+        - "profit_margin"
+        
     sentiment:
-      news_weight: 0.30            # News sentiment weight
-      social_media_weight: 0.25    # Social media sentiment weight
-      market_data_weight: 0.25     # Market data sentiment weight
-      analyst_weight: 0.20         # Analyst sentiment weight
-      momentum_window: 14          # Momentum calculation window
-      volume_window: 5             # Volume analysis window
-
+      min_confidence: 0.6
+      lookback_period: 30
+      sources:
+        - "news"
+        - "social_media"
+        - "market_sentiment"
+        
     technical:
-      trend_weight: 0.30           # Trend analysis weight
-      momentum_weight: 0.20        # Momentum indicator weight
-      volatility_weight: 0.20      # Volatility analysis weight
-      volume_weight: 0.15          # Volume analysis weight
-      pattern_weight: 0.15         # Pattern recognition weight
-      timeframes:
-        short: 14                  # Short-term MA
-        medium: 50                 # Medium-term MA
-        long: 200                  # Long-term MA
-
+      min_confidence: 0.6
+      lookback_period: 90
+      indicators:
+        - "rsi"
+        - "macd"
+        - "bollinger_bands"
+        - "moving_averages"
+        
     valuation:
-      dcf_weight: 0.30             # DCF valuation weight
-      multiples_weight: 0.30       # Multiples valuation weight
-      asset_weight: 0.20           # Asset-based valuation weight
-      dividend_weight: 0.20        # Dividend-based valuation weight
-      discount_rate: 0.10          # 10% discount rate
-      growth_rates:
-        high_growth: 0.15          # 15% high growth rate
-        moderate_growth: 0.08      # 8% moderate growth rate
-        stable_growth: 0.03        # 3% stable growth rate
+      min_confidence: 0.7
+      lookback_period: 90
+      metrics:
+        - "price_to_book"
+        - "enterprise_value"
+        - "dcf_valuation"
 
 # Risk Management Configuration
-risk:
-  max_position_size: 0.20          # Maximum 20% position size
-  max_portfolio_leverage: 1.5      # Maximum 1.5x leverage
-  max_drawdown: 0.25              # Maximum 25% drawdown
-  stop_loss: 0.10                 # 10% stop loss
-  var_confidence: 0.95            # 95% VaR confidence
-  risk_free_rate: 0.00            # Risk-free rate
-  target_volatility: 0.15         # Target 15% volatility
-  rebalance_threshold: 0.10       # 10% rebalance threshold
+risk_management:
+  max_position_size: 0.2      # Maximum 20% in single position
+  max_portfolio_leverage: 1.5  # Maximum 150% exposure
+  max_drawdown: 0.25          # Maximum 25% drawdown
+  stop_loss: 0.1              # 10% stop loss
+  var_confidence: 0.95        # 95% VaR confidence
+  risk_free_rate: 0.0         # Risk-free rate
+  target_volatility: 0.15     # Target annual volatility
+  rebalance_threshold: 0.1    # 10% threshold for rebalancing
+  initial_portfolio_value: 1000000.0  # $1M initial capital
+
+  position_sizing:
+    method: "adaptive"
+    volatility_scaling: true
+    min_position_value: 1000.0
+    max_position_value: 200000.0
+
+  risk_limits:
+    sector_exposure: 0.4      # Max 40% per sector
+    asset_correlation: 0.7    # Max 70% correlation
+    beta_exposure: 1.5        # Max 150% beta exposure
+    var_limit: 0.02          # 2% daily VaR limit
 
 # Portfolio Management Configuration
-portfolio:
-  rebalancing_frequency: daily     # Daily rebalancing
-  min_trade_value: 10000          # $10,000 minimum trade
-  base_currency: USDT             # Base currency
-  strategy:
-    name: black_litterman         # Portfolio strategy
-    lookback_period: 252          # Lookback period
-    rebalancing_threshold: 0.05   # 5% threshold
+portfolio_management:
+  strategy: "hierarchical_risk_parity"  # Default strategy
+  rebalancing_frequency: "daily"
+  min_trade_spacing: 3600  # Minimum 1 hour between trades
+  
+  optimization:
+    target_return: 0.20       # 20% annual target
+    risk_aversion: 0.5        # Risk aversion parameter
+    min_weight: 0.05         # Minimum position weight
+    max_weight: 0.4          # Maximum position weight
 
-# Data Pipeline Configuration
-data:
-  update_frequency: 300           # 5 minutes update frequency
-  cache_duration: 3600           # 1 hour cache duration
-  providers:
-    - binance                    # Data providers
-    - yahoo_finance
-    - alpha_vantage
-  features:
-    - price
-    - volume
-    - fundamentals
-    - sentiment
-    - technical_indicators
-
-# Execution Configuration
-execution:
-  mode: paper                    # Paper trading mode
-  order_type: market            # Market order type
-  max_slippage: 0.001          # 0.1% maximum slippage
-  retry_attempts: 3             # Maximum retry attempts
-  timeout: 30                   # 30 seconds timeout
+  constraints:
+    min_assets: 3            # Minimum number of assets
+    max_assets: 10           # Maximum number of assets
+    turnover_limit: 0.1      # Maximum 10% daily turnover
 
 # Monitoring Configuration
 monitoring:
-  metrics_interval: 300         # 5 minutes metrics interval
-  log_level: INFO              # Logging level
-  alert_channels:
-    - email
-    - telegram
-  performance_report:
-    frequency: daily           # Daily performance reports
-    metrics:
-      - returns
-      - sharpe_ratio
-      - drawdown
-      - win_rate
+  metrics:
+    - "sharpe_ratio"
+    - "sortino_ratio"
+    - "max_drawdown"
+    - "var_95"
+    - "expected_shortfall"
+    - "tracking_error"
+    - "information_ratio"
+    - "calmar_ratio"
+    
+  alerts:
+    drawdown_warning: 0.15    # Alert at 15% drawdown
+    var_breach: 0.03         # Alert at 3% VaR
+    exposure_warning: 1.3     # Alert at 130% exposure
+    
+  reporting:
+    frequency: "daily"
+    include_trades: true
+    include_metrics: true
+    include_positions: true
+    save_reports: true
+
+# LLM Integration Configuration
+llm:
+  enabled: true
+  model: "gpt-4"
+  temperature: 0.7
+  max_tokens: 1000
+  
+  analysis:
+    frequency: "daily"
+    include_news: true
+    include_sentiment: true
+    include_fundamentals: true
+    
+  tasks:
+    - "portfolio_analysis"
+    - "risk_assessment"
+    - "market_analysis"
+    - "strategy_recommendation"

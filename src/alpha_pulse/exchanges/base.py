@@ -1,300 +1,205 @@
 """
-Base exchange interfaces and common functionality.
+Base exchange interface and common functionality.
 """
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from datetime import datetime, timezone
-from decimal import Decimal
 from typing import Dict, List, Optional, Any
-
-import ccxt.async_support as ccxt
+from decimal import Decimal
+import asyncio
+from datetime import datetime, timezone
+from dataclasses import dataclass
 from loguru import logger
 
-from alpha_pulse.monitoring.metrics import track_latency, API_LATENCY
+from ..monitoring.metrics import track_latency, API_LATENCY
 
 
 @dataclass
 class Balance:
-    """Represents an asset balance in the exchange."""
-    free: Decimal  # Available balance
-    locked: Decimal  # Balance in orders
-    total: Decimal  # Total balance (free + locked)
-    in_base_currency: Decimal  # Value in base currency (e.g., USDT)
+    """Exchange balance information."""
+    total: Decimal
+    available: Decimal
+    locked: Decimal = Decimal('0')
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'Balance':
+        """Create Balance from dictionary."""
+        return cls(
+            total=Decimal(str(data.get('total', '0'))),
+            available=Decimal(str(data.get('available', '0'))),
+            locked=Decimal(str(data.get('locked', '0')))
+        )
 
 
 @dataclass
 class OHLCV:
-    """Represents OHLCV data."""
+    """OHLCV candle data."""
     timestamp: datetime
     open: Decimal
     high: Decimal
     low: Decimal
     close: Decimal
     volume: Decimal
-    exchange: Optional[str] = None
-    symbol: Optional[str] = None
-    timeframe: Optional[str] = None
+
+    @classmethod
+    def from_list(cls, data: List[Any]) -> 'OHLCV':
+        """Create OHLCV from list."""
+        return cls(
+            timestamp=datetime.fromtimestamp(data[0] / 1000, tz=timezone.utc),
+            open=Decimal(str(data[1])),
+            high=Decimal(str(data[2])),
+            low=Decimal(str(data[3])),
+            close=Decimal(str(data[4])),
+            volume=Decimal(str(data[5]))
+        )
 
 
 class BaseExchange(ABC):
-    """Base class for all exchange implementations."""
-    
-    def __init__(self, api_key: str = "", api_secret: str = "", testnet: bool = False):
-        """Initialize exchange.
-        
+    """Base class for exchange implementations."""
+
+    def __init__(self, api_key: str, api_secret: str):
+        """
+        Initialize exchange.
+
         Args:
-            api_key: Exchange API key
-            api_secret: Exchange API secret
-            testnet: Whether to use testnet
+            api_key: API key
+            api_secret: API secret
         """
         self.api_key = api_key
         self.api_secret = api_secret
-        self.testnet = testnet
-        self.exchange: Optional[ccxt.Exchange] = None
-    
+        self._session = None
+
+    @track_latency("get_balances")
+    @abstractmethod
+    async def get_balances(self) -> Dict[str, Balance]:
+        """Get account balances."""
+        pass
+
+    @track_latency("get_ticker_price")
+    @abstractmethod
+    async def get_ticker_price(self, symbol: str) -> Optional[Decimal]:
+        """Get current price for symbol."""
+        pass
+
+    @track_latency("get_portfolio_value")
+    @abstractmethod
+    async def get_portfolio_value(self) -> Decimal:
+        """Get total portfolio value in base currency."""
+        pass
+
+    @track_latency("fetch_ohlcv")
+    @abstractmethod
+    async def fetch_ohlcv(
+        self,
+        symbol: str,
+        timeframe: str = "1d",
+        since: Optional[int] = None,
+        limit: Optional[int] = None
+    ) -> List[OHLCV]:
+        """
+        Fetch OHLCV candles.
+
+        Args:
+            symbol: Trading symbol
+            timeframe: Candle timeframe
+            since: Start time in milliseconds
+            limit: Maximum number of candles
+
+        Returns:
+            List of OHLCV candles
+        """
+        pass
+
+    @track_latency("execute_trade")
+    @abstractmethod
+    async def execute_trade(
+        self,
+        symbol: str,
+        side: str,
+        amount: Decimal,
+        price: Optional[Decimal] = None,
+        order_type: str = "market"
+    ) -> Dict[str, Any]:
+        """
+        Execute trade.
+
+        Args:
+            symbol: Trading symbol
+            side: Trade side (buy/sell)
+            amount: Trade amount
+            price: Limit price (optional)
+            order_type: Order type (market/limit)
+
+        Returns:
+            Order execution details
+        """
+        pass
+
+    @track_latency("get_positions")
+    @abstractmethod
+    async def get_positions(self) -> Dict[str, Dict[str, Any]]:
+        """Get current positions."""
+        pass
+
+    @track_latency("get_order_history")
+    @abstractmethod
+    async def get_order_history(
+        self,
+        symbol: Optional[str] = None,
+        since: Optional[int] = None,
+        limit: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Get order history.
+
+        Args:
+            symbol: Trading symbol (optional)
+            since: Start time in milliseconds (optional)
+            limit: Maximum number of orders (optional)
+
+        Returns:
+            List of historical orders
+        """
+        pass
+
+    @track_latency("get_average_entry_price")
+    async def get_average_entry_price(self, symbol: str) -> Optional[Decimal]:
+        """
+        Calculate average entry price for symbol.
+
+        Args:
+            symbol: Trading symbol
+
+        Returns:
+            Average entry price or None if no trades found
+        """
+        try:
+            orders = await self.get_order_history(symbol=symbol)
+            if not orders:
+                return None
+
+            total_quantity = Decimal('0')
+            total_value = Decimal('0')
+
+            for order in orders:
+                if order['side'] == 'buy' and order['status'] == 'filled':
+                    quantity = Decimal(str(order['amount']))
+                    price = Decimal(str(order['price']))
+                    total_quantity += quantity
+                    total_value += quantity * price
+
+            if total_quantity == 0:
+                return None
+
+            return total_value / total_quantity
+
+        except Exception as e:
+            logger.error(f"Error calculating average entry price for {symbol}: {str(e)}")
+            return None
+
     async def __aenter__(self):
         """Async context manager entry."""
         return self
-    
+
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Async context manager exit."""
-        if self.exchange:
-            await self.exchange.close()
-    
-    @abstractmethod
-    async def initialize(self) -> None:
-        """Initialize exchange connection."""
-        pass
-    
-    @track_latency(API_LATENCY.labels(endpoint='get_balances'))
-    @abstractmethod
-    async def get_balances(self) -> Dict[str, Balance]:
-        """Get balances for all assets.
-        
-        Returns:
-            Dict mapping asset symbols to their balances
-        """
-        pass
-    
-    @track_latency(API_LATENCY.labels(endpoint='get_ticker_price'))
-    @abstractmethod
-    async def get_ticker_price(self, symbol: str) -> Optional[Decimal]:
-        """Get current price for a symbol.
-        
-        Args:
-            symbol: Trading pair symbol (e.g., 'BTC/USDT')
-            
-        Returns:
-            Current price or None if not available
-        """
-        pass
-    
-    @track_latency(API_LATENCY.labels(endpoint='get_exchange_info'))
-    @abstractmethod
-    async def get_exchange_info(self) -> Dict:
-        """Get exchange information including trading rules.
-        
-        Returns:
-            Dict containing exchange information
-        """
-        pass
-    
-    @track_latency(API_LATENCY.labels(endpoint='get_trading_fees'))
-    @abstractmethod
-    async def get_trading_fees(self) -> Dict[str, Decimal]:
-        """Get trading fees for all symbols.
-        
-        Returns:
-            Dict mapping symbols to their trading fees
-        """
-        pass
-    
-    @track_latency(API_LATENCY.labels(endpoint='validate_api_keys'))
-    @abstractmethod
-    async def validate_api_keys(self) -> bool:
-        """Validate API keys by attempting to access private endpoints.
-        
-        Returns:
-            True if keys are valid, False otherwise
-        """
-        pass
-    
-    @track_latency(API_LATENCY.labels(endpoint='fetch_ohlcv'))
-    @abstractmethod
-    async def fetch_ohlcv(
-        self,
-        symbol: str,
-        timeframe: str = "1d",
-        since: Optional[int] = None,
-        limit: Optional[int] = None
-    ) -> List[OHLCV]:
-        """Fetch OHLCV data from exchange.
-        
-        Args:
-            symbol: Trading pair symbol
-            timeframe: Candle timeframe
-            since: Start timestamp in milliseconds
-            limit: Number of candles to fetch
-            
-        Returns:
-            List of OHLCV objects
-        """
-        pass
-
-
-class CCXTExchange(BaseExchange):
-    """Base class for CCXT-based exchange implementations."""
-    
-    def __init__(
-        self,
-        exchange_id: str,
-        api_key: str = "",
-        api_secret: str = "",
-        testnet: bool = False
-    ):
-        """Initialize CCXT exchange.
-        
-        Args:
-            exchange_id: CCXT exchange ID
-            api_key: Exchange API key
-            api_secret: Exchange API secret
-            testnet: Whether to use testnet
-        """
-        super().__init__(api_key, api_secret, testnet)
-        self.exchange_id = exchange_id
-    
-    async def initialize(self) -> None:
-        """Initialize CCXT exchange connection."""
-        try:
-            exchange_class = getattr(ccxt, self.exchange_id)
-            self.exchange = exchange_class({
-                'apiKey': self.api_key,
-                'secret': self.api_secret,
-                'enableRateLimit': True,
-                'options': {
-                    'defaultType': 'spot',
-                    'adjustForTimeDifference': True,
-                    'testnet': self.testnet,
-                }
-            })
-            
-            if self.testnet:
-                self.exchange.set_sandbox_mode(True)
-                
-            logger.info(f"Initialized {self.exchange_id} exchange connection")
-            
-        except Exception as e:
-            logger.error(f"Error initializing {self.exchange_id} exchange: {e}")
-            raise
-    
-    async def get_balances(self) -> Dict[str, Balance]:
-        """Get balances for all assets."""
-        try:
-            account = await self.exchange.fetch_balance()
-            balances = {}
-            
-            # Get all non-zero balances
-            for currency, balance in account['total'].items():
-                if balance > 0:
-                    # Get price in USDT for value calculation
-                    in_base = Decimal('0')
-                    if currency != 'USDT':
-                        try:
-                            ticker = await self.get_ticker_price(f"{currency}/USDT")
-                            if ticker:
-                                in_base = Decimal(str(balance)) * ticker
-                        except Exception as e:
-                            logger.warning(f"Could not get price for {currency}/USDT: {e}")
-                    else:
-                        in_base = Decimal(str(balance))
-                    
-                    balances[currency] = Balance(
-                        free=Decimal(str(account['free'].get(currency, 0))),
-                        locked=Decimal(str(account['used'].get(currency, 0))),
-                        total=Decimal(str(balance)),
-                        in_base_currency=in_base
-                    )
-            
-            return balances
-            
-        except Exception as e:
-            logger.error(f"Error fetching balances: {e}")
-            raise
-    
-    async def get_ticker_price(self, symbol: str) -> Optional[Decimal]:
-        """Get current price for a symbol."""
-        try:
-            ticker = await self.exchange.fetch_ticker(symbol)
-            return Decimal(str(ticker['last'])) if ticker['last'] else None
-        except Exception as e:
-            logger.error(f"Error fetching ticker for {symbol}: {e}")
-            return None
-    
-    async def get_exchange_info(self) -> Dict:
-        """Get exchange information including trading rules."""
-        try:
-            return await self.exchange.load_markets()
-        except Exception as e:
-            logger.error(f"Error fetching exchange info: {e}")
-            raise
-    
-    async def get_trading_fees(self) -> Dict[str, Decimal]:
-        """Get trading fees for all symbols."""
-        try:
-            fees = await self.exchange.fetch_trading_fees()
-            return {
-                symbol: Decimal(str(fee.get('taker', 0)))
-                for symbol, fee in fees.items()
-            }
-        except Exception as e:
-            logger.error(f"Error fetching trading fees: {e}")
-            raise
-    
-    async def validate_api_keys(self) -> bool:
-        """Validate API keys by attempting to access private endpoints."""
-        try:
-            await self.exchange.fetch_balance()
-            return True
-        except Exception as e:
-            logger.error(f"API key validation failed: {e}")
-            return False
-    
-    async def fetch_ohlcv(
-        self,
-        symbol: str,
-        timeframe: str = "1d",
-        since: Optional[int] = None,
-        limit: Optional[int] = None
-    ) -> List[OHLCV]:
-        """Fetch OHLCV data from exchange."""
-        try:
-            if not self.exchange.has['fetchOHLCV']:
-                raise NotImplementedError(
-                    f"{self.exchange_id} does not support OHLCV data"
-                )
-            
-            raw_data = await self.exchange.fetch_ohlcv(
-                symbol,
-                timeframe,
-                since=since,
-                limit=limit
-            )
-            
-            return [
-                OHLCV(
-                    timestamp=datetime.fromtimestamp(candle[0] / 1000, tz=timezone.utc),
-                    open=Decimal(str(candle[1])),
-                    high=Decimal(str(candle[2])),
-                    low=Decimal(str(candle[3])),
-                    close=Decimal(str(candle[4])),
-                    volume=Decimal(str(candle[5])),
-                    exchange=self.exchange_id,
-                    symbol=symbol,
-                    timeframe=timeframe
-                )
-                for candle in raw_data
-            ]
-            
-        except Exception as e:
-            logger.error(f"Error fetching OHLCV data: {e}")
-            raise
+        if self._session and not self._session.closed:
+            await self._session.close()

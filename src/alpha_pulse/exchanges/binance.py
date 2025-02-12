@@ -3,10 +3,11 @@ Binance exchange implementation.
 """
 from decimal import Decimal
 from typing import Dict, List, Optional
-
+import asyncio
 from loguru import logger
 
-from .base import CCXTExchange, Balance, OHLCV
+from .ccxt_base import CCXTExchange
+from .base import Balance, OHLCV
 from .credentials.manager import credentials_manager
 
 
@@ -170,7 +171,6 @@ class BinanceExchange(CCXTExchange):
     def __del__(self):
         """Ensure resources are released."""
         if self.exchange:
-            import asyncio
             try:
                 loop = asyncio.get_event_loop()
                 if loop.is_running():
