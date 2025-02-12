@@ -223,18 +223,32 @@ async def generate_and_process_signals(components, market_data):
         current_price = market_data[signal.symbol][-1].close
         logger.debug(f"Evaluating {signal.symbol} {signal.direction.value} signal (price: ${float(current_price):,.2f})")
         
+        # Calculate position size
+        position_result = components["risk_manager"].calculate_position_size(
+            symbol=signal.symbol,
+            current_price=current_price,
+            signal_strength=signal.confidence,
+            historical_returns=prices_df[signal.symbol].pct_change().dropna()
+        )
+        
+        position_value = float(position_result.size) * float(portfolio_value)
+        quantity = position_value / float(current_price)
+        logger.debug(f"Calculated position size: {quantity:.4f} {signal.symbol} (${position_value:,.2f})")
+        
         if await components["risk_manager"].evaluate_trade(
             symbol=signal.symbol,
             side=signal.direction.value,
-            quantity=0,  # Will be determined by position sizer
+            quantity=quantity,
             current_price=current_price,
             portfolio_value=portfolio_value,
             current_positions=current_positions
         ):
-            logger.debug(f"Signal passed risk evaluation: {signal.symbol} {signal.direction.value}")
+            signal.metadata["quantity"] = quantity
+            signal.metadata["position_value"] = float(position_size.position_value)
+            logger.debug(f"Signal passed risk evaluation: {signal.symbol} {signal.direction.value} ({quantity:.4f} units)")
             valid_signals.append(signal)
         else:
-            logger.debug(f"Signal failed risk evaluation: {signal.symbol} {signal.direction.value}")
+            logger.debug(f"Signal failed risk evaluation: {signal.symbol} {signal.direction.value} ({quantity:.4f} units)")
     
     logger.info(f"{len(valid_signals)} signals passed risk evaluation")
     return valid_signals

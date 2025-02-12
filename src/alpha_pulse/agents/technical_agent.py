@@ -309,8 +309,8 @@ class TechnicalAgent(BaseTradeAgent):
         logger.debug(f"Generating signal for {symbol} with technical score: {technical_score:.2f}")
         
         logger.debug(f"Evaluating signal for {symbol} with technical score: {technical_score:.2f}")
-        if abs(technical_score) < 0.2:  # Minimum conviction threshold
-            logger.debug(f"Technical score {technical_score:.2f} below minimum threshold 0.2 (need |score| >= 0.2)")
+        if abs(technical_score) <= 0.15:  # Lower minimum conviction threshold
+            logger.debug(f"Technical score {technical_score:.2f} below minimum threshold 0.15 (need |score| > 0.15)")
             return None
         logger.debug(f"Technical score {technical_score:.2f} passed minimum threshold")
             

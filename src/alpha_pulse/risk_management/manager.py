@@ -130,7 +130,7 @@ class RiskManager(IRiskManager):
             logger.error(f"Error calculating risk exposure: {str(e)}")
             raise
 
-    def evaluate_trade(
+    async def evaluate_trade(
         self,
         symbol: str,
         side: str,
@@ -148,8 +148,8 @@ class RiskManager(IRiskManager):
         self.state.positions = current_positions
 
         # Calculate position value
-        position_value = quantity * current_price
-        position_size = position_value / portfolio_value if portfolio_value > 0 else 0
+        position_value = float(quantity) * float(current_price)
+        position_size = position_value / float(portfolio_value) if float(portfolio_value) > 0 else 0
         logger.debug(f"Position value: {position_value}, Position size: {position_size:.2%}")
 
         # Check position size limits

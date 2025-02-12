@@ -72,9 +72,11 @@ class AgentManager:
             for agent_type, agent in self.agents.items():
                 try:
                     signals = await agent.generate_signals(market_data)
+                    logger.debug(f"Agent {agent_type} generated {len(signals)} signals")
                     for signal in signals:
                         signal.metadata["agent_type"] = agent_type
                         signal.metadata["agent_weight"] = self.agent_weights.get(agent_type, 0)
+                        logger.debug(f"Signal: {signal.symbol} {signal.direction.value} (confidence: {signal.confidence:.2f})")
                     all_signals.extend(signals)
                     
                     # Update signal history
@@ -84,9 +86,12 @@ class AgentManager:
                 except Exception as e:
                     logger.error(f"Error generating signals for {agent_type}: {str(e)}")
                     continue
-                    
+            
+            logger.debug(f"Total signals collected: {len(all_signals)}")
             # Aggregate signals
-            return await self._aggregate_signals(all_signals)
+            aggregated = await self._aggregate_signals(all_signals)
+            logger.debug(f"Aggregated signals: {len(aggregated)}")
+            return aggregated
 
         except Exception as e:
             logger.error(f"Error processing market data: {str(e)}")
@@ -140,16 +145,20 @@ class AgentManager:
             List of aggregated signals
         """
         if not signals:
+            logger.debug("No signals to aggregate")
             return []
             
         # Group signals by symbol
         signals_by_symbol = defaultdict(list)
         for signal in signals:
             signals_by_symbol[signal.symbol].append(signal)
-            
+        
+        logger.debug(f"Aggregating signals for {len(signals_by_symbol)} symbols")
         aggregated_signals = []
         
         for symbol, symbol_signals in signals_by_symbol.items():
+            logger.debug(f"Processing {len(symbol_signals)} signals for {symbol}")
+            
             # Calculate weighted signal strength for each direction
             direction_strength = defaultdict(float)
             total_weight = 0
@@ -162,6 +171,7 @@ class AgentManager:
                 weighted_strength = signal.confidence * agent_weight
                 direction_strength[signal.direction] += weighted_strength
                 total_weight += agent_weight
+                logger.debug(f"Agent {agent_type} signal: direction={signal.direction.value}, confidence={signal.confidence:.2f}, weight={agent_weight:.2f}")
                 
             if total_weight > 0:
                 # Normalize strengths
@@ -169,14 +179,17 @@ class AgentManager:
                     k: v / total_weight
                     for k, v in direction_strength.items()
                 }
+                logger.debug(f"Normalized direction strengths: {direction_strength}")
                 
                 # Find dominant direction
                 dominant_direction = max(
                     direction_strength.items(),
                     key=lambda x: x[1]
                 )
+                logger.debug(f"Dominant direction: {dominant_direction[0].value} with strength {dominant_direction[1]:.2f}")
                 
-                if dominant_direction[1] >= 0.2:  # Lower consensus threshold since we only have one agent
+                if dominant_direction[1] >= 0.05:  # Very low threshold since we only have one agent with 0.15 weight
+                    logger.debug(f"Signal passed consensus threshold")
                     # Calculate aggregate target price and stop loss
                     prices = [(s.target_price, s.stop_loss) for s in symbol_signals
                              if s.direction == dominant_direction[0]]
