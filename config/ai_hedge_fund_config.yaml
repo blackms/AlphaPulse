@@ -57,6 +57,17 @@ agents:
         - "macd"
         - "bollinger_bands"
         - "moving_averages"
+      trend_weight: 0.3
+      momentum_weight: 0.2
+      volatility_weight: 0.2
+      volume_weight: 0.15
+      pattern_weight: 0.15
+      timeframes:
+        short: 14
+        medium: 50
+        long: 180
+      pattern_recognition: true
+      min_pattern_confidence: 0.6
         
     valuation:
       min_confidence: 0.7

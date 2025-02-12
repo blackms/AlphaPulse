@@ -54,12 +54,12 @@ class AgentManager:
                 for k, v in self.agent_weights.items()
             }
             
-    async def generate_signals(self, market_data_dict: Dict[str, List[Any]]) -> List[TradeSignal]:
+    async def generate_signals(self, market_data: MarketData) -> List[TradeSignal]:
         """
         Generate and aggregate signals from all agents.
         
         Args:
-            market_data_dict: Dictionary of market data by symbol
+            market_data: Market data object with prices and volumes
             
         Returns:
             List of aggregated trading signals
@@ -67,62 +67,6 @@ class AgentManager:
         all_signals = []
 
         try:
-            # Convert market data to DataFrame format
-            data_by_symbol = defaultdict(list)
-            timestamps = set()
-
-            # First pass: collect all timestamps and data
-            for symbol, data_list in market_data_dict.items():
-                if not data_list:  # Skip empty data
-                    continue
-                for data in data_list:
-                    timestamps.add(data.timestamp)
-                    data_by_symbol[symbol].append({
-                        'timestamp': data.timestamp,
-                        'price': float(data.close),
-                        'volume': float(data.volume)
-                    })
-
-            if not timestamps:  # No data available
-                logger.warning("No market data available")
-                return []
-
-            # Sort timestamps
-            sorted_timestamps = sorted(timestamps)
-
-            # Create price and volume DataFrames
-            prices_data = {}
-            volumes_data = {}
-
-            for symbol, data_list in data_by_symbol.items():
-                # Create temporary DataFrame for this symbol
-                symbol_df = pd.DataFrame(data_list)
-                symbol_df.set_index('timestamp', inplace=True)
-                symbol_df.sort_index(inplace=True)
-
-                # Reindex to include all timestamps
-                symbol_df = symbol_df.reindex(sorted_timestamps)
-                
-                # Forward fill missing values
-                symbol_df = symbol_df.ffill()  # Use ffill() instead of fillna(method='ffill')
-                
-                # Extract price and volume series
-                prices_data[symbol] = symbol_df['price']
-                volumes_data[symbol] = symbol_df['volume']
-
-            # Create final DataFrames
-            prices_df = pd.DataFrame(prices_data, index=sorted_timestamps)
-            volumes_df = pd.DataFrame(volumes_data, index=sorted_timestamps)
-
-            # Create MarketData object
-            market_data = MarketData(
-                prices=prices_df,
-                volumes=volumes_df,
-                fundamentals={},  # Add if available
-                sentiment={},     # Add if available
-                technical_indicators={},  # Add if available
-                timestamp=datetime.now()
-            )
 
             # Collect signals from each agent
             for agent_type, agent in self.agents.items():
@@ -232,7 +176,7 @@ class AgentManager:
                     key=lambda x: x[1]
                 )
                 
-                if dominant_direction[1] >= 0.6:  # Minimum consensus threshold
+                if dominant_direction[1] >= 0.2:  # Lower consensus threshold since we only have one agent
                     # Calculate aggregate target price and stop loss
                     prices = [(s.target_price, s.stop_loss) for s in symbol_signals
                              if s.direction == dominant_direction[0]]

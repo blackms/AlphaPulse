@@ -140,13 +140,17 @@ class RiskManager(IRiskManager):
         current_positions: Dict[str, float],
     ) -> bool:
         """Evaluate if a trade meets risk management criteria."""
+        logger.debug(f"Evaluating trade: {symbol} {side} {quantity} @ {current_price}")
+        logger.debug(f"Portfolio value: {portfolio_value}, Current positions: {current_positions}")
+        
         # Update portfolio state
         self.state.portfolio_value = portfolio_value
         self.state.positions = current_positions
 
         # Calculate position value
         position_value = quantity * current_price
-        position_size = position_value / portfolio_value
+        position_size = position_value / portfolio_value if portfolio_value > 0 else 0
+        logger.debug(f"Position value: {position_value}, Position size: {position_size:.2%}")
 
         # Check position size limits
         if position_size > self.config.max_position_size:
@@ -156,29 +160,39 @@ class RiskManager(IRiskManager):
             )
             return False
 
-        # Check portfolio leverage
-        total_exposure = sum(
-            abs(pos['quantity'] * pos['current_price'])
-            for pos in current_positions.values()
-        ) + position_value
-        
-        if total_exposure / portfolio_value > self.config.max_portfolio_leverage:
-            logger.warning(
-                f"Trade rejected: Portfolio leverage "
-                f"({total_exposure/portfolio_value:.2f}) exceeds limit "
-                f"({self.config.max_portfolio_leverage:.2f})"
-            )
+        # Calculate total exposure
+        try:
+            total_exposure = sum(
+                abs(pos['quantity'] * pos['current_price'])
+                for pos in current_positions.values()
+            ) + position_value
+            leverage = total_exposure / portfolio_value if portfolio_value > 0 else 0
+            logger.debug(f"Total exposure: {total_exposure}, Leverage: {leverage:.2f}")
+            
+            if leverage > self.config.max_portfolio_leverage:
+                logger.warning(
+                    f"Trade rejected: Portfolio leverage "
+                    f"({leverage:.2f}) exceeds limit "
+                    f"({self.config.max_portfolio_leverage:.2f})"
+                )
+                return False
+        except Exception as e:
+            logger.error(f"Error calculating exposure: {str(e)}")
             return False
 
         # Check drawdown limit if we have risk metrics
-        if self.state.risk_metrics and \
-           abs(self.state.risk_metrics.max_drawdown) > self.config.max_drawdown:
-            logger.warning(
-                f"Trade rejected: Maximum drawdown "
-                f"({self.state.risk_metrics.max_drawdown:.2%}) exceeded"
-            )
-            return False
+        if self.state.risk_metrics:
+            drawdown = abs(self.state.risk_metrics.max_drawdown)
+            logger.debug(f"Current drawdown: {drawdown:.2%}")
+            if drawdown > self.config.max_drawdown:
+                logger.warning(
+                    f"Trade rejected: Maximum drawdown "
+                    f"({drawdown:.2%}) exceeded limit "
+                    f"({self.config.max_drawdown:.2%})"
+                )
+                return False
 
+        logger.debug("Trade passed all risk checks")
         return True
 
     def calculate_position_size(

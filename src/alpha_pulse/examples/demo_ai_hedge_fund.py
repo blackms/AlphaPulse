@@ -11,6 +11,9 @@ import yaml
 from loguru import logger
 import sys
 from pathlib import Path
+from collections import defaultdict
+
+from alpha_pulse.agents.interfaces import MarketData
 
 from alpha_pulse.agents.manager import AgentManager
 from alpha_pulse.risk_management.manager import RiskManager, RiskConfig
@@ -28,7 +31,7 @@ logger.add(
            "<level>{level: <8}</level> | "
            "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> | "
            "<level>{message}</level>",
-    level="INFO"
+    level="DEBUG"
 )
 logger.add(
     "logs/ai_hedge_fund_demo_{time}.log",
@@ -138,22 +141,100 @@ async def generate_and_process_signals(components, market_data):
             latest_price = float(data[-1].close)
             components["broker"].update_market_data(symbol, latest_price)
     
+    # Convert market data to DataFrames for agents
+    data_by_symbol = defaultdict(list)
+    timestamps = set()
+
+    # First pass: collect all timestamps and data
+    for symbol, data_list in market_data.items():
+        if not data_list:  # Skip empty data
+            continue
+        for data in data_list:
+            timestamps.add(data.timestamp)
+            data_by_symbol[symbol].append({
+                'timestamp': data.timestamp,
+                'price': float(data.close),
+                'volume': float(data.volume)
+            })
+
+    if not timestamps:  # No data available
+        logger.warning("No market data available")
+        return []
+
+    # Sort timestamps
+    sorted_timestamps = sorted(timestamps)
+
+    # Create price and volume DataFrames
+    prices_data = {}
+    volumes_data = {}
+
+    for symbol, data_list in data_by_symbol.items():
+        # Create temporary DataFrame for this symbol
+        symbol_df = pd.DataFrame(data_list)
+        symbol_df.set_index('timestamp', inplace=True)
+        symbol_df.sort_index(inplace=True)
+
+        # Reindex to include all timestamps
+        symbol_df = symbol_df.reindex(sorted_timestamps)
+        
+        # Forward fill missing values
+        symbol_df = symbol_df.ffill()
+        
+        # Extract price and volume series
+        prices_data[symbol] = symbol_df['price']
+        volumes_data[symbol] = symbol_df['volume']
+
+    # Create final DataFrames
+    prices_df = pd.DataFrame(prices_data, index=sorted_timestamps)
+    volumes_df = pd.DataFrame(volumes_data, index=sorted_timestamps)
+
+    # Create MarketData object with DataFrames
+    market_data_obj = MarketData(
+        prices=prices_df,
+        volumes=volumes_df,
+        fundamentals={},  # Add if available
+        sentiment={},     # Add if available
+        technical_indicators={},  # Add if available
+        timestamp=datetime.now(),
+        data_by_symbol=market_data  # Store raw data
+    )
+
     # Generate signals from all agents
-    signals = await components["agent_manager"].generate_signals(market_data)
-    logger.info(f"Generated {len(signals)} initial signals")
+    signals = await components["agent_manager"].generate_signals(market_data_obj)
+    logger.info(f"Generated {len(signals)} initial signals from agent manager")
+    for signal in signals:
+        logger.debug(f"Signal: {signal.symbol} {signal.direction.value} (confidence: {signal.confidence:.2f})")
     
     # Filter signals through risk management
     valid_signals = []
+    portfolio_value = await components["broker"].get_portfolio_value()
+    current_positions = {
+        symbol: {
+            'quantity': pos['quantity'],
+            'current_price': pos['current_price']
+        }
+        for symbol, pos in (await components["broker"].get_positions()).items()
+    }
+    
+    logger.debug(f"Portfolio value: ${float(portfolio_value):,.2f}")
+    logger.debug(f"Current positions: {current_positions}")
+    
     for signal in signals:
+        current_price = market_data[signal.symbol][-1].close
+        logger.debug(f"Evaluating {signal.symbol} {signal.direction.value} signal (price: ${float(current_price):,.2f})")
+        
         if await components["risk_manager"].evaluate_trade(
             symbol=signal.symbol,
             side=signal.direction.value,
             quantity=0,  # Will be determined by position sizer
-            current_price=market_data[signal.symbol][-1].close,
-            portfolio_value=await components["broker"].get_portfolio_value(),
-            current_positions=await components["broker"].get_positions()
+            current_price=current_price,
+            portfolio_value=portfolio_value,
+            current_positions=current_positions
         ):
+            logger.debug(f"Signal passed risk evaluation: {signal.symbol} {signal.direction.value}")
             valid_signals.append(signal)
+        else:
+            logger.debug(f"Signal failed risk evaluation: {signal.symbol} {signal.direction.value}")
     
     logger.info(f"{len(valid_signals)} signals passed risk evaluation")
     return valid_signals

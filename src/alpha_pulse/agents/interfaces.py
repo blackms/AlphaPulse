@@ -2,7 +2,7 @@
 Base interfaces for AI Hedge Fund trading agents.
 """
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Dict, List, Any, Optional
@@ -27,7 +27,8 @@ class MarketData:
     fundamentals: Optional[Dict[str, Any]] = None  # Fundamental data if available
     sentiment: Optional[Dict[str, float]] = None  # Sentiment scores if available
     technical_indicators: Optional[Dict[str, pd.DataFrame]] = None  # Technical indicators
-    timestamp: datetime = datetime.now()
+    timestamp: datetime = field(default_factory=datetime.now)
+    data_by_symbol: Optional[Dict[str, List[Any]]] = None  # Raw data by symbol
 
 
 @dataclass
@@ -40,7 +41,7 @@ class TradeSignal:
     timestamp: datetime  # Signal generation time
     target_price: Optional[float] = None  # Target price if applicable
     stop_loss: Optional[float] = None  # Stop loss level if applicable
-    metadata: Dict[str, Any] = None  # Additional signal metadata
+    metadata: Dict[str, Any] = field(default_factory=dict)  # Additional signal metadata
 
 
 @dataclass

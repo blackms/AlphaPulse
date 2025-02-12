@@ -18,9 +18,7 @@ from .interfaces import (
     SentimentData,
     TechnicalIndicators
 )
-from .providers.market.binance_provider import BinanceMarketDataProvider
-from .providers.fundamental.alpha_vantage_provider import AlphaVantageProvider
-from .providers.sentiment.finnhub_provider import FinnhubProvider
+from .providers.mock_provider import MockMarketDataProvider
 from .providers.technical.talib_provider import TALibProvider
 
 
@@ -119,42 +117,10 @@ class DataManager(IDataManager):
                     "tcp_connector_limit": conn_config.get("tcp_connector_limit", 100)
                 }
 
-                # Initialize market data provider (Binance for crypto)
-                if self._config.get("market_data", {}).get("binance"):
-                    logger.debug("Initializing Binance market data provider")
-                    binance_params = {
-                        "api_key": self._config["market_data"]["binance"].get("api_key"),
-                        "api_secret": self._config["market_data"]["binance"].get("api_secret"),
-                        "testnet": self._config["market_data"]["binance"].get("testnet", True),
-                        **common_params
-                    }
-                    filtered_params = _filter_init_params(BinanceMarketDataProvider, binance_params)
-                    self._market_provider = BinanceMarketDataProvider(**filtered_params)
-                    self._providers.append(self._market_provider)
-
-                # Initialize fundamental data provider (Alpha Vantage)
-                if self._config.get("fundamental_data", {}).get("alpha_vantage"):
-                    logger.debug("Initializing Alpha Vantage fundamental data provider")
-                    av_params = {
-                        "api_key": self._config["fundamental_data"]["alpha_vantage"].get("api_key"),
-                        **common_params
-                    }
-                    filtered_params = _filter_init_params(AlphaVantageProvider, av_params)
-                    self._fundamental_provider = AlphaVantageProvider(**filtered_params)
-                    self._providers.append(self._fundamental_provider)
-
-                # Initialize sentiment data provider (Finnhub)
-                if self._config.get("sentiment_data", {}).get("finnhub"):
-                    logger.debug("Initializing Finnhub sentiment data provider")
-                    finnhub_config = self._config["sentiment_data"]["finnhub"]
-                    finnhub_params = {
-                        "api_key": finnhub_config.get("api_key"),
-                        "cache_ttl": finnhub_config.get("cache_ttl", 300),
-                        **common_params
-                    }
-                    filtered_params = _filter_init_params(FinnhubProvider, finnhub_params)
-                    self._sentiment_provider = FinnhubProvider(**filtered_params)
-                    self._providers.append(self._sentiment_provider)
+                # Initialize mock market data provider for demo
+                logger.debug("Initializing Mock market data provider")
+                self._market_provider = MockMarketDataProvider(**common_params)
+                self._providers.append(self._market_provider)
 
                 # Initialize technical analysis provider
                 logger.debug("Initializing TA-Lib technical analysis provider")
@@ -228,34 +194,10 @@ class DataManager(IDataManager):
     ) -> Dict[str, FundamentalData]:
         """
         Get fundamental data for multiple symbols.
-
-        Args:
-            symbols: List of trading symbols
-
-        Returns:
-            Dictionary mapping symbols to their fundamental data
+        For demo purposes, returns empty data.
         """
-        await self._ensure_initialized()
-        if not self._fundamental_provider:
-            raise RuntimeError("Fundamental data provider not initialized")
-
-        async def fetch_symbol_fundamentals(symbol: str) -> tuple[str, Optional[FundamentalData]]:
-            try:
-                logger.debug(f"Fetching fundamental data for {symbol}")
-                data = await self._fundamental_provider.get_financial_statements(symbol)
-                return symbol, data
-            except Exception as e:
-                logger.exception(f"Error fetching fundamental data for {symbol}: {str(e)}")
-                return symbol, None
-
-        # Fetch data concurrently
-        tasks = [fetch_symbol_fundamentals(symbol) for symbol in symbols]
-        results = await asyncio.gather(*tasks)
-        
-        return {
-            symbol: data for symbol, data in results
-            if data is not None
-        }
+        # Return empty data for demo
+        return {}
 
     async def get_sentiment_data(
         self,
@@ -263,43 +205,10 @@ class DataManager(IDataManager):
     ) -> Dict[str, SentimentData]:
         """
         Get sentiment data for multiple symbols.
-
-        Args:
-            symbols: List of trading symbols
-
-        Returns:
-            Dictionary mapping symbols to their sentiment data
+        For demo purposes, returns empty data.
         """
-        await self._ensure_initialized()
-        if not self._sentiment_provider:
-            raise RuntimeError("Sentiment data provider not initialized")
-
-        # Get configuration
-        finnhub_config = self._config["sentiment_data"]["finnhub"]
-        lookback_days = finnhub_config.get("news_lookback_days", 7)
-        lookback_hours = finnhub_config.get("social_lookback_hours", 24)
-
-        async def fetch_symbol_sentiment(symbol: str) -> tuple[str, Optional[SentimentData]]:
-            try:
-                logger.debug(f"Fetching sentiment data for {symbol}")
-                data = await self._sentiment_provider.get_sentiment_data(
-                    symbol=symbol,
-                    lookback_days=lookback_days,
-                    lookback_hours=lookback_hours
-                )
-                return symbol, data
-            except Exception as e:
-                logger.exception(f"Error fetching sentiment data for {symbol}: {str(e)}")
-                return symbol, None
-
-        # Fetch data concurrently
-        tasks = [fetch_symbol_sentiment(symbol) for symbol in symbols]
-        results = await asyncio.gather(*tasks)
-        
-        return {
-            symbol: data for symbol, data in results
-            if data is not None
-        }
+        # Return empty data for demo
+        return {}
 
     def get_technical_indicators(
         self,
@@ -366,7 +275,7 @@ class DataManager(IDataManager):
             try:
                 if hasattr(provider, '__aexit__'):
                     await provider.__aexit__(exc_type, exc_val, exc_tb)
-                    logger.debug(f"Cleaned up provider: {provider.provider_name}")
+                    logger.debug(f"Cleaned up provider: {provider.__class__.__name__}")
             except Exception as e:
                 logger.exception(f"Error cleaning up provider: {str(e)}")
         self._providers.clear()
