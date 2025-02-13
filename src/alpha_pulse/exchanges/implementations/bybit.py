@@ -2,18 +2,25 @@
 Bybit exchange implementation.
 """
 from decimal import Decimal
-from typing import Dict, List, Optional
+from typing import Dict
 from loguru import logger
 
-from .ccxt_base import CCXTExchange, Balance, OHLCV
-from .credentials.manager import credentials_manager
+from ..adapters.ccxt_adapter import CCXTAdapter
+from ..interfaces import Balance, ExchangeConfiguration
+from ..credentials.manager import credentials_manager
 
 
-class BybitExchange(CCXTExchange):
-    """Bybit exchange implementation."""
+class BybitExchange(CCXTAdapter):
+    """
+    Bybit exchange implementation.
+    
+    This class extends the CCXT adapter with Bybit-specific functionality
+    and configuration.
+    """
     
     def __init__(self, testnet: bool = False):
-        """Initialize Bybit exchange.
+        """
+        Initialize Bybit exchange.
         
         Args:
             testnet: Whether to use testnet
@@ -29,34 +36,33 @@ class BybitExchange(CCXTExchange):
             api_key = ""
             api_secret = ""
         
-        super().__init__(
-            exchange_id='bybit',
+        # Create configuration with Bybit-specific options
+        config = ExchangeConfiguration(
             api_key=api_key,
             api_secret=api_secret,
-            testnet=testnet
+            testnet=testnet,
+            options={
+                'defaultType': 'spot',
+                'adjustForTimeDifference': True,
+                'recvWindow': 60000,
+                'createMarketBuyOrderRequiresPrice': True
+            }
         )
+        
+        super().__init__(exchange_id='bybit', config=config)
     
     async def initialize(self) -> None:
         """Initialize Bybit exchange connection."""
         await super().initialize()
         
-        # Set additional Bybit-specific options
-        if self.exchange:
-            self.exchange.options.update({
-                'defaultType': 'spot',
-                'adjustForTimeDifference': True,
-                'recvWindow': 60000,
-                'createMarketBuyOrderRequiresPrice': True
+        if self.exchange and self.config.testnet:
+            # Set testnet-specific endpoints
+            self.exchange.urls.update({
+                'test': {
+                    'public': 'https://api-testnet.bybit.com',
+                    'private': 'https://api-testnet.bybit.com',
+                }
             })
-            
-            if self.testnet:
-                # Set testnet-specific endpoints
-                self.exchange.urls.update({
-                    'test': {
-                        'public': 'https://api-testnet.bybit.com',
-                        'private': 'https://api-testnet.bybit.com',
-                    }
-                })
     
     async def get_balances(self) -> Dict[str, Balance]:
         """Get balances for all assets."""
@@ -102,26 +108,3 @@ class BybitExchange(CCXTExchange):
             logger.error(f"Error fetching Bybit trading fees: {e}")
             # Fall back to default implementation
             return await super().get_trading_fees()
-    
-    async def fetch_ohlcv(
-        self,
-        symbol: str,
-        timeframe: str = "1d",
-        since: Optional[int] = None,
-        limit: Optional[int] = None
-    ) -> List[OHLCV]:
-        """Fetch OHLCV data from Bybit."""
-        try:
-            # Validate timeframe
-            valid_timeframes = ['1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '12h', '1d', '1w', '1M']
-            if timeframe not in valid_timeframes:
-                raise ValueError(
-                    f"Invalid timeframe '{timeframe}'. Must be one of: {valid_timeframes}"
-                )
-            
-            # Get OHLCV data
-            return await super().fetch_ohlcv(symbol, timeframe, since, limit)
-            
-        except Exception as e:
-            logger.error(f"Error fetching Bybit OHLCV data: {e}")
-            raise
