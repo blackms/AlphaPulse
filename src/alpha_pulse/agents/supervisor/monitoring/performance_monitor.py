@@ -11,6 +11,42 @@ from collections import defaultdict
 from loguru import logger
 
 
+def robust_polyfit(x: np.ndarray, y: np.ndarray, deg: int = 1) -> float:
+    """Robust polynomial fitting that handles edge cases."""
+    try:
+        if len(x) < 2 or len(y) < 2:
+            return 0.0
+            
+        # Remove any NaN or infinite values
+        mask = np.isfinite(x) & np.isfinite(y)
+        if not np.any(mask):
+            return 0.0
+            
+        x_clean = x[mask]
+        y_clean = y[mask]
+        
+        if len(x_clean) < 2:
+            return 0.0
+            
+        # Scale the data to avoid numerical issues
+        x_mean = np.mean(x_clean)
+        x_std = np.std(x_clean) or 1.0
+        y_mean = np.mean(y_clean)
+        y_std = np.std(y_clean) or 1.0
+        
+        x_scaled = (x_clean - x_mean) / x_std
+        y_scaled = (y_clean - y_mean) / y_std
+        
+        # Fit polynomial
+        coeffs = np.polyfit(x_scaled, y_scaled, deg)
+        
+        # Return the slope (scaled back)
+        return float(coeffs[0] * y_std / x_std)
+        
+    except Exception:
+        return 0.0
+
+
 class PerformanceMonitor:
     """
     Real-time performance monitoring system with ML-based anomaly detection
@@ -49,7 +85,7 @@ class PerformanceMonitor:
             timestamp: Timestamp of the metrics (default: now)
             
         Returns:
-            Dictionary containing monitoring results
+            Dictionary containing monitoring results including alert level
         """
         try:
             timestamp = timestamp or datetime.now()
@@ -63,7 +99,10 @@ class PerformanceMonitor:
             # Prepare data for anomaly detection
             X = await self._prepare_monitoring_data(agent_id)
             if len(X) < self._prediction_window:
-                return {'status': 'insufficient_data'}
+                return {
+                    'status': 'insufficient_data',
+                    'alert_level': 'normal'
+                }
                 
             # Detect anomalies
             X_scaled = self.scaler.fit_transform(X)
@@ -105,7 +144,11 @@ class PerformanceMonitor:
             
         except Exception as e:
             logger.error(f"Error monitoring performance for {agent_id}: {str(e)}")
-            return {'status': 'error', 'error': str(e)}
+            return {
+                'status': 'error',
+                'alert_level': 'normal',
+                'error': str(e)
+            }
             
     async def get_performance_analytics(
         self,
@@ -157,9 +200,10 @@ class PerformanceMonitor:
             stability = {}
             for column in df.columns:
                 if column != 'timestamp':
-                    stability[column] = 1 - df[column].std() / df[column].mean() \
-                        if df[column].mean() != 0 else 0
-                        
+                    mean_val = df[column].mean()
+                    std_val = df[column].std()
+                    stability[column] = 1 - (std_val / mean_val if mean_val != 0 else 0)
+                    
             # Get anomaly statistics
             anomalies = self._anomaly_history[agent_id]
             if window:
@@ -230,10 +274,11 @@ class PerformanceMonitor:
     async def _calculate_metric_trend(self, series: pd.Series) -> float:
         """Calculate trend score for a metric."""
         try:
-            # Use linear regression to calculate trend
             x = np.arange(len(series))
-            coeffs = np.polyfit(x, series, deg=1)
-            slope = coeffs[0]
+            y = series.values
+            
+            # Use robust polynomial fitting
+            slope = robust_polyfit(x, y)
             
             # Normalize trend score to [-1, 1]
             trend_score = np.tanh(slope * 10)  # Scale slope for better normalization
