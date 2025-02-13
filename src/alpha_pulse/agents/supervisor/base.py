@@ -52,7 +52,7 @@ class BaseSelfSupervisedAgent(BaseTradeAgent, ISelfSupervisedAgent):
         await super().initialize(config)
         self._state = AgentState.ACTIVE
         self._last_active = datetime.now()
-        logger.info(f"Initialized self-supervised agent {self.agent_id}")
+        logger.info(f"Initialized self-supervised agent '{self.agent_id}'")
         
     async def generate_signals(self, market_data: MarketData) -> List[TradeSignal]:
         """Generate trading signals with self-supervision."""
@@ -181,7 +181,7 @@ class BaseSelfSupervisedAgent(BaseTradeAgent, ISelfSupervisedAgent):
         """Pause agent operations."""
         if self._state == AgentState.ACTIVE:
             self._state = AgentState.INACTIVE
-            logger.info(f"Agent {self.agent_id} paused")
+            logger.info(f"Agent '{self.agent_id}' paused")
             
     async def resume(self) -> None:
         """Resume agent operations."""
