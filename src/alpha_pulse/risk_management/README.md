@@ -13,11 +13,43 @@ The module consists of several key components:
 
 Each component is designed to be modular and can be used independently or as part of the complete risk management system.
 
+### System Architecture
+```mermaid
+graph TD
+    A[Risk Manager] --> B[Position Sizing]
+    A --> C[Risk Analysis]
+    A --> D[Portfolio Optimization]
+    B --> E[Kelly Criterion]
+    B --> F[Volatility-Based]
+    B --> G[Adaptive Sizer]
+    C --> H[VaR Calculation]
+    C --> I[Drawdown Analysis]
+    C --> J[Performance Metrics]
+    D --> K[Mean-Variance]
+    D --> L[Risk Parity]
+    D --> M[Adaptive Portfolio]
+```
+
 ## 🔧 Components
 
 ### 1. 📊 Position Sizing
 
 Three sophisticated position sizing strategies are available:
+
+#### Position Sizing Workflow
+```mermaid
+flowchart LR
+    A[Market Data] --> B[Signal Generation]
+    B --> C{Position Sizer}
+    C --> D[Kelly Criterion]
+    C --> E[Volatility-Based]
+    C --> F[Adaptive]
+    D --> G[Position Size]
+    E --> G
+    F --> G
+    G --> H[Risk Checks]
+    H --> I[Final Order Size]
+```
 
 #### 🎯 Kelly Criterion Sizer
 ```python
@@ -102,6 +134,23 @@ Implementation details:
 ### 3. 💼 Portfolio Optimization
 
 Multiple sophisticated portfolio optimization strategies:
+
+#### Portfolio Optimization Process
+```mermaid
+flowchart TB
+    A[Historical Data] --> B[Return Estimation]
+    A --> C[Risk Estimation]
+    B --> D[Optimization]
+    C --> D
+    D --> E{Strategy Selection}
+    E --> F[Mean-Variance]
+    E --> G[Risk Parity]
+    E --> H[Adaptive]
+    F --> I[Final Weights]
+    G --> I
+    H --> I
+    I --> J[Rebalancing]
+```
 
 #### 📊 Mean-Variance Optimizer
 ```python
