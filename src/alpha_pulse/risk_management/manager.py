@@ -152,8 +152,9 @@ class RiskManager(IRiskManager):
         position_size = position_value / float(portfolio_value) if float(portfolio_value) > 0 else 0
         logger.debug(f"Position value: {position_value}, Position size: {position_size:.2%}")
 
-        # Check position size limits
-        if position_size > self.config.max_position_size:
+        # Check position size limits with tolerance for floating-point rounding
+        TOLERANCE = 1e-10  # Small tolerance for floating-point comparison
+        if position_size > (self.config.max_position_size + TOLERANCE):
             logger.warning(
                 f"Trade rejected: Position size ({position_size:.2%}) "
                 f"exceeds limit ({self.config.max_position_size:.2%})"

@@ -93,7 +93,7 @@ class ExchangeConnection(ABC):
         pass
 
 
-class ExchangeAdapter(MarketDataProvider, TradingOperations, AccountOperations, ExchangeConnection):
+class BaseExchange(MarketDataProvider, TradingOperations, AccountOperations, ExchangeConnection):
     """
     Base adapter interface combining all exchange operations.
     

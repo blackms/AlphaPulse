@@ -18,6 +18,34 @@ class BlackLittermanStrategy(BaseStrategy):
         self.risk_aversion = config.get("risk_aversion", 2.5)
         self.tau = config.get("tau", 0.05)  # Uncertainty in prior
         self.market_risk_premium = config.get("market_risk_premium", 0.06)
+        self.stablecoin_weight = config.get("stablecoin_weight", 0.3)  # Target stablecoin allocation
+        
+    def _adjust_allocation(self, weights: np.ndarray, assets: pd.Index) -> np.ndarray:
+        """Adjust allocation to maintain stablecoin balance."""
+        # Find stablecoin indices
+        stablecoin_idx = [i for i, asset in enumerate(assets) if asset.endswith('USDT')]
+        if not stablecoin_idx:
+            return weights
+            
+        # Ensure minimum stablecoin allocation
+        adjusted = weights.copy()
+        current_stable = sum(adjusted[i] for i in stablecoin_idx)
+        
+        if current_stable < self.stablecoin_weight:
+            # Increase stablecoin allocation
+            for i in stablecoin_idx:
+                adjusted[i] = self.stablecoin_weight / len(stablecoin_idx)
+                
+            # Reduce other positions proportionally
+            other_idx = [i for i in range(len(weights)) if i not in stablecoin_idx]
+            if other_idx:
+                remaining = 1 - self.stablecoin_weight
+                other_sum = sum(adjusted[i] for i in other_idx)
+                if other_sum > 0:
+                    for i in other_idx:
+                        adjusted[i] *= remaining / other_sum
+                        
+        return adjusted
         
     def compute_covariance(self, returns: pd.DataFrame) -> pd.DataFrame:
         """
@@ -58,10 +86,9 @@ class BlackLittermanStrategy(BaseStrategy):
             return pd.Series(0, index=returns.columns)
             
         try:
-            # Convert market weights to array
-            w = pd.Series(market_weights)
-            # Use infer_objects() to avoid downcasting warning
-            w = w.reindex(returns.columns).fillna(0).infer_objects()
+            # Convert market weights to array with explicit type
+            w = pd.Series(market_weights, dtype=float)
+            w = w.reindex(returns.columns).fillna(0.0)
             
             # Compute covariance matrix
             sigma = self.compute_covariance(returns)
@@ -174,20 +201,29 @@ class BlackLittermanStrategy(BaseStrategy):
             B = ones.T.dot(sigma_inv).dot(returns)
             C = returns.T.dot(sigma_inv).dot(returns)
             
-            # Global minimum variance portfolio
+            # Global minimum variance portfolio with stablecoin adjustment
             w_min = sigma_inv.dot(ones) / A
+            w_min = self._adjust_allocation(w_min, returns.index)
             
-            # Tangency portfolio
+            # Tangency portfolio with improved numerical stability
             w_tan = sigma_inv.dot(returns)
             w_sum = w_tan.sum()
-            if abs(w_sum) > 1e-8:  # Check for non-zero sum
-                w_tan = w_tan / w_sum
-            else:
-                logger.warning("Invalid tangency portfolio weights, using minimum variance")
-                w_tan = w_min
             
-            # Combine based on risk aversion
-            w = (1 - self.risk_aversion) * w_min + self.risk_aversion * w_tan
+            # Check if tangency portfolio is valid
+            if abs(w_sum) > 1e-8 and not np.any(np.isnan(w_tan)):
+                w_tan = w_tan / w_sum
+                w_tan = self._adjust_allocation(w_tan, returns.index)
+                
+                # Verify the weights are reasonable
+                if np.all(np.abs(w_tan) < 10):  # Sanity check for extreme weights
+                    w = (1 - self.risk_aversion) * w_min + self.risk_aversion * w_tan
+                    w = self._adjust_allocation(w, returns.index)  # Final adjustment
+                else:
+                    logger.info("Using adjusted minimum variance portfolio")
+                    w = w_min
+            else:
+                logger.info("Using adjusted minimum variance portfolio")
+                w = w_min
             
             # Convert to dictionary
             weights = dict(zip(returns.index, w))

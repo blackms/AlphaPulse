@@ -213,7 +213,7 @@ class PortfolioManager:
         
         # Get account balances with retry and timeout
         balances = await self._retry_with_timeout(
-            exchange.get_balances(),
+            lambda: exchange.get_balances(),
             max_retries=3,
             timeout=15.0
         )
@@ -226,7 +226,7 @@ class PortfolioManager:
             else:
                 try:
                     price = await self._retry_with_timeout(
-                        exchange.get_ticker_price(f"{asset}/{self.base_currency}"),
+                        lambda: exchange.get_ticker_price(f"{asset}/{self.base_currency}"),
                         max_retries=3,
                         timeout=10.0
                     )
@@ -416,12 +416,12 @@ class PortfolioManager:
             logger.error(f"Operation timed out after {timeout} seconds")
             raise
 
-    async def _retry_with_timeout(self, coro, max_retries: int = 3, timeout: float = 30.0):
+    async def _retry_with_timeout(self, coro_func, max_retries: int = 3, timeout: float = 30.0):
         """Execute coroutine with retry and timeout."""
         for attempt in range(max_retries):
             try:
                 async with self._timeout_context(timeout):
-                    return await asyncio.wait_for(coro, timeout=timeout)
+                    return await asyncio.wait_for(coro_func(), timeout=timeout)
             except (TimeoutError, Exception) as e:
                 if attempt == max_retries - 1:
                     logger.error(f"Operation failed after {max_retries} attempts: {str(e)}")
@@ -619,7 +619,7 @@ class PortfolioManager:
                 
                 # Execute trade with retry and timeout
                 result = await self._retry_with_timeout(
-                    exchange.execute_trade(
+                    lambda: exchange.execute_trade(
                         symbol=symbol,  # Use symbol instead of asset
                         side=trade['type'],
                         amount=float(quantity),  # Convert to float for exchange API

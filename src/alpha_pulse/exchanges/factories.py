@@ -4,7 +4,7 @@ Exchange factory implementations.
 from typing import Dict, Type, Optional
 from loguru import logger
 
-from .interfaces import ExchangeAdapter, ExchangeConfiguration, ConfigurationError
+from .interfaces import BaseExchange, ExchangeConfiguration, ConfigurationError
 from .types import ExchangeType
 from .adapters.ccxt_adapter import CCXTAdapter
 
@@ -23,7 +23,7 @@ class ExchangeRegistry:
     def register(
         cls,
         exchange_type: ExchangeType,
-        adapter_class: Type[ExchangeAdapter],
+        adapter_class: Type[BaseExchange],
         exchange_id: str,
         **defaults
     ) -> None:
@@ -67,7 +67,7 @@ class ExchangeFactory:
         api_key: str,
         api_secret: str,
         **kwargs
-    ) -> ExchangeAdapter:
+    ) -> BaseExchange:
         """
         Create exchange instance.
         
@@ -110,7 +110,7 @@ class ExchangeFactory:
         return adapter_class(exchange_id=exchange_id, config=config)
     
     @classmethod
-    def create_from_config(cls, config: Dict[str, any]) -> Optional[ExchangeAdapter]:
+    def create_from_config(cls, config: Dict[str, any]) -> Optional[BaseExchange]:
         """
         Create exchange instance from configuration dictionary.
         

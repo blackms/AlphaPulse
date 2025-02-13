@@ -34,7 +34,7 @@ from typing import Dict, Any
 
 # Core interfaces and types
 from .interfaces import (
-    ExchangeAdapter,
+    BaseExchange,
     MarketDataProvider,
     TradingOperations,
     AccountOperations,
@@ -79,7 +79,7 @@ ExchangeRegistry.register(
 # Expose public API
 __all__ = [
     # Core interfaces
-    "ExchangeAdapter",
+    "BaseExchange",
     "MarketDataProvider",
     "TradingOperations",
     "AccountOperations",

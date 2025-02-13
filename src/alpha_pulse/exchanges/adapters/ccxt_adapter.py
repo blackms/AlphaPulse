@@ -7,7 +7,7 @@ import ccxt.async_support as ccxt
 from loguru import logger
 
 from ..interfaces import (
-    ExchangeAdapter,
+    BaseExchange,
     ExchangeConfiguration,
     ExchangeError,
     ConnectionError,
@@ -17,7 +17,7 @@ from ..interfaces import (
 from ..base import Balance, OHLCV
 
 
-class CCXTAdapter(ExchangeAdapter):
+class CCXTAdapter(BaseExchange):
     """
     Adapter for CCXT library integration.
     

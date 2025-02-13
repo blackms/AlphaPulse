@@ -5,9 +5,9 @@ from datetime import datetime
 from typing import Dict, List, Optional
 from loguru import logger
 
-from ..exchanges.base import BaseExchange
-from ..exchanges.binance import BinanceExchange
-from ..exchanges.bybit import BybitExchange
+from ..exchanges.interfaces import BaseExchange
+from ..exchanges.implementations.binance import BinanceExchange
+from ..exchanges.implementations.bybit import BybitExchange
 from .broker_interface import (
     BrokerInterface,
     Order,
