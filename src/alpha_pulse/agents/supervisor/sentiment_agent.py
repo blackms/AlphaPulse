@@ -43,13 +43,20 @@ class SelfSupervisedSentimentAgent(BaseSelfSupervisedAgent):
             source: [] for source in self.sentiment_sources.keys()
         }
         self._sentiment_predictions = []
-        self._market_mood = "neutral"  # bullish, neutral, bearish
+        self._market_mood = "unknown"
         self._source_correlations = defaultdict(float)
-        self._optimization_history = []  # Initialize optimization history
+        self._optimization_history = []
         
     async def generate_signals(self, market_data: MarketData) -> List[TradeSignal]:
         """Generate trading signals with self-supervision capabilities."""
         try:
+            # Check for sentiment data
+            if not hasattr(market_data, 'sentiment') or not market_data.sentiment:
+                logger.warning("No sentiment data available - agent will remain inactive")
+                self._market_mood = "unknown (no sentiment data)"
+                logger.info(f"Current market mood: {self._market_mood}")
+                return []
+                
             # Update market mood
             self._market_mood = await self._detect_market_mood(market_data)
             logger.info(f"Current market mood: {self._market_mood}")
@@ -60,14 +67,27 @@ class SelfSupervisedSentimentAgent(BaseSelfSupervisedAgent):
             for symbol in market_data.prices.columns:
                 try:
                     # Get sentiment data
-                    sentiment_data = market_data.sentiment.get(symbol, {}) if market_data.sentiment else {}
-                    
+                    sentiment_data = market_data.sentiment.get(symbol, {})
+                    if not sentiment_data:
+                        logger.debug(f"No sentiment data for {symbol}")
+                        continue
+                        
                     # Calculate sentiment scores
                     news_score = await self._analyze_source_sentiment('news', sentiment_data)
                     social_score = await self._analyze_source_sentiment('social_media', sentiment_data)
                     market_score = await self._analyze_source_sentiment('market_data', sentiment_data)
                     analyst_score = await self._analyze_source_sentiment('analyst_ratings', sentiment_data)
                     
+                    # Check if we have enough sentiment signals
+                    valid_scores = [
+                        score for score in [news_score, social_score, market_score, analyst_score]
+                        if score['score'] != 0 or score['confidence'] > 0
+                    ]
+                    
+                    if not valid_scores:
+                        logger.debug(f"Insufficient sentiment signals for {symbol}")
+                        continue
+                        
                     # Calculate weighted sentiment score
                     sentiment_score = (
                         news_score['score'] * self.sentiment_sources['news'] +
@@ -79,8 +99,7 @@ class SelfSupervisedSentimentAgent(BaseSelfSupervisedAgent):
                     # Calculate confidence
                     confidence = np.mean([
                         score['confidence']
-                        for score in [news_score, social_score, market_score, analyst_score]
-                        if score['confidence'] is not None
+                        for score in valid_scores
                     ])
                     
                     # Generate signal if sentiment is strong enough
@@ -135,7 +154,7 @@ class SelfSupervisedSentimentAgent(BaseSelfSupervisedAgent):
         """Analyze sentiment from a specific source."""
         try:
             score = None
-            confidence = 0.5
+            confidence = 0.0  # Start with zero confidence
             
             if source == 'news':
                 news_items = sentiment_data.get("news", [])
@@ -202,7 +221,7 @@ class SelfSupervisedSentimentAgent(BaseSelfSupervisedAgent):
         """Detect the current market mood."""
         try:
             if not market_data.sentiment:
-                return self._market_mood
+                return "unknown (no sentiment data)"
                 
             # Aggregate sentiment scores
             total_sentiment = 0
@@ -211,13 +230,13 @@ class SelfSupervisedSentimentAgent(BaseSelfSupervisedAgent):
             for sentiment_data in market_data.sentiment.values():
                 # News sentiment
                 news_score = await self._analyze_source_sentiment('news', sentiment_data)
-                if news_score['score'] is not None:
+                if news_score['score'] != 0:
                     total_sentiment += news_score['score']
                     count += 1
                     
                 # Social media sentiment
                 social_score = await self._analyze_source_sentiment('social_media', sentiment_data)
-                if social_score['score'] is not None:
+                if social_score['score'] != 0:
                     total_sentiment += social_score['score']
                     count += 1
                     
@@ -228,8 +247,8 @@ class SelfSupervisedSentimentAgent(BaseSelfSupervisedAgent):
                 elif avg_sentiment < -0.3:
                     return "bearish"
                     
-            return "neutral"
+            return "neutral (insufficient signals)"
             
         except Exception as e:
             logger.error(f"Error detecting market mood: {str(e)}")
-            return "neutral"
+            return "unknown (error)"

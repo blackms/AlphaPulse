@@ -14,6 +14,11 @@ This directory contains example scripts demonstrating various features and capab
   - Paper trading
   - Backtesting strategies
   - Reinforcement Learning trading
+  - [Multi-Agent Trading System](../docs/MULTI_AGENT_SYSTEM.md) - Supervised multi-agent system with self-adaptation
+    - Technical analysis agents
+    - Sentiment analysis agents
+    - Market regime detection
+    - Confidence-based trading
 
 - **portfolio/** - Portfolio management examples
   - Portfolio rebalancing
@@ -37,9 +42,20 @@ pip install -e .
 Then you can run any example:
 
 ```bash
+# Run AI Hedge Fund demo
 python examples/trading/demo_ai_hedge_fund.py
+
+# Run Multi-Agent System demo
+python examples/trading/demo_supervised_agents.py
 ```
 
 ## Configuration
 
 Most examples require configuration files located in the `config/` directory. Make sure to review and adjust the configuration files before running the examples.
+
+## Documentation
+
+For detailed documentation on specific systems:
+
+- [Multi-Agent Trading System](../docs/MULTI_AGENT_SYSTEM.md) - Comprehensive guide to the supervised multi-agent system
+- [AI Hedge Fund](../AI_HEDGE_FUND_DOCUMENTATION.md) - Documentation for the AI Hedge Fund implementation
