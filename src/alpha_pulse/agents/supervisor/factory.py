@@ -7,36 +7,9 @@ from loguru import logger
 from ..interfaces import BaseTradeAgent
 from .base import BaseSelfSupervisedAgent
 from .interfaces import ISelfSupervisedAgent
-
-
-class SelfSupervisedTechnicalAgent(BaseSelfSupervisedAgent):
-    """Self-supervised technical analysis agent."""
-    
-    async def optimize(self) -> None:
-        """Optimize technical indicators and parameters."""
-        await super().optimize()
-        # Add technical-specific optimization logic
-        logger.info(f"Optimizing technical parameters for agent {self.agent_id}")
-
-
-class SelfSupervisedFundamentalAgent(BaseSelfSupervisedAgent):
-    """Self-supervised fundamental analysis agent."""
-    
-    async def optimize(self) -> None:
-        """Optimize fundamental analysis parameters."""
-        await super().optimize()
-        # Add fundamental-specific optimization logic
-        logger.info(f"Optimizing fundamental parameters for agent {self.agent_id}")
-
-
-class SelfSupervisedSentimentAgent(BaseSelfSupervisedAgent):
-    """Self-supervised sentiment analysis agent."""
-    
-    async def optimize(self) -> None:
-        """Optimize sentiment analysis parameters."""
-        await super().optimize()
-        # Add sentiment-specific optimization logic
-        logger.info(f"Optimizing sentiment parameters for agent {self.agent_id}")
+from .technical_agent import SelfSupervisedTechnicalAgent
+from .fundamental_agent import SelfSupervisedFundamentalAgent
+from .sentiment_agent import SelfSupervisedSentimentAgent
 
 
 class AgentFactory:
@@ -63,7 +36,10 @@ class AgentFactory:
         
         Args:
             agent_type: Type identifier for the agent
-            agent_class: Agent class implementation
+            agent_class: Agent class implementation that extends ISelfSupervisedAgent
+            
+        Raises:
+            ValueError: If agent_class doesn't implement ISelfSupervisedAgent
         """
         if not issubclass(agent_class, ISelfSupervisedAgent):
             raise ValueError(
@@ -74,15 +50,22 @@ class AgentFactory:
 
     @classmethod
     def enable_test_mode(cls, test_agent_class: Type[ISelfSupervisedAgent]) -> None:
-        """Enable test mode to use test agent class."""
+        """
+        Enable test mode to use test agent class.
+        
+        Args:
+            test_agent_class: Test agent class to use during testing
+        """
         cls._test_mode = True
         cls._test_agent_class = test_agent_class
+        logger.info("Enabled test mode with test agent class")
 
     @classmethod
     def disable_test_mode(cls) -> None:
         """Disable test mode."""
         cls._test_mode = False
         cls._test_agent_class = None
+        logger.info("Disabled test mode")
         
     @classmethod
     async def create_self_supervised_agent(
