@@ -96,7 +96,12 @@ class CCXTAdapter(BaseExchange):
                 since=since,
                 limit=limit
             )
-            return [OHLCV.from_list(candle) for candle in candles]
+            result = []
+            for candle in candles:
+                ohlcv = OHLCV.from_list(candle)
+                ohlcv.symbol = symbol
+                result.append(ohlcv)
+            return result
         except Exception as e:
             raise MarketDataError(f"Failed to fetch OHLCV data: {str(e)}")
     
