@@ -62,7 +62,7 @@ class BaseSelfSupervisedAgent(BaseTradeAgent, ISelfSupervisedAgent):
             # Check if optimization is needed
             metrics = await self.self_evaluate()
             if metrics.get("performance_score", 1.0) < self._optimization_threshold:
-                logger.info(f"Agent {self.agent_id} triggering self-optimization")
+                logger.info(f"Agent '{self.agent_id}' triggering self-optimization")
                 self._state = AgentState.OPTIMIZING
                 await self.optimize()
                 self._state = AgentState.ACTIVE
@@ -76,7 +76,7 @@ class BaseSelfSupervisedAgent(BaseTradeAgent, ISelfSupervisedAgent):
             self._error_count += 1
             self._last_error = str(e)
             self._state = AgentState.ERROR
-            logger.error(f"Error in agent {self.agent_id}: {str(e)}")
+            logger.error(f"Error in agent '{self.agent_id}': {str(e)}")
             raise
             
     async def self_evaluate(self) -> Dict[str, float]:
