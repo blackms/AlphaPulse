@@ -33,7 +33,7 @@ class LifecycleManager(ILifecycleManager):
     ) -> ISelfSupervisedAgent:
         """Initialize a new agent with configuration."""
         if agent_id in self._agents:
-            raise ValueError(f"Agent {agent_id} already exists")
+            raise ValueError(f"Agent '{agent_id}' already exists")
             
         # Agent creation should be handled by a factory
         from .factory import AgentFactory
@@ -45,18 +45,18 @@ class LifecycleManager(ILifecycleManager):
         self._agent_configs[agent_id] = config
         
         await agent.initialize(config)
-        logger.info(f"Initialized agent {agent_id}")
+        logger.info(f"Initialized agent '{agent_id}'")
         
         return agent
         
     async def start_agent(self, agent_id: str) -> None:
         """Start an initialized agent."""
         if agent_id not in self._agents:
-            raise ValueError(f"Agent {agent_id} not found")
+            raise ValueError(f"Agent '{agent_id}' not found")
             
         agent = self._agents[agent_id]
         await agent.resume()
-        logger.info(f"Started agent {agent_id}")
+        logger.info(f"Started agent '{agent_id}'")
         
     async def stop_agent(self, agent_id: str) -> None:
         """Stop a running agent."""
@@ -65,12 +65,12 @@ class LifecycleManager(ILifecycleManager):
             
         agent = self._agents[agent_id]
         await agent.pause()
-        logger.info(f"Stopped agent {agent_id}")
+        logger.info(f"Stopped agent '{agent_id}'")
         
     async def restart_agent(self, agent_id: str) -> None:
         """Restart an agent."""
         if agent_id not in self._agents:
-            raise ValueError(f"Agent {agent_id} not found")
+            raise ValueError(f"Agent '{agent_id}' not found")
             
         await self.stop_agent(agent_id)
         
@@ -80,12 +80,12 @@ class LifecycleManager(ILifecycleManager):
         await agent.initialize(config)
         
         await self.start_agent(agent_id)
-        logger.info(f"Restarted agent {agent_id}")
+        logger.info(f"Restarted agent '{agent_id}'")
         
     async def get_agent_status(self, agent_id: str) -> AgentState:
         """Get current state of an agent."""
         if agent_id not in self._agents:
-            raise ValueError(f"Agent {agent_id} not found")
+            raise ValueError(f"Agent '{agent_id}' not found")
             
         agent = self._agents[agent_id]
         health = await agent.get_health_status()
@@ -125,38 +125,38 @@ class TaskManager(ITaskManager):
         self._task_queue.append(task)
         self._task_queue.sort(key=lambda x: x.priority, reverse=True)
         
-        logger.info(f"Created task {task_id} for agent {agent_id}")
+        logger.info(f"Created task '{task_id}' for agent '{agent_id}'")
         return task
         
     async def assign_task(self, task: Task) -> None:
         """Assign task to an agent."""
         if task.task_id not in self._tasks:
-            raise ValueError(f"Task {task.task_id} not found")
+            raise ValueError(f"Task '{task.task_id}' not found")
             
         # Get agent from lifecycle manager
         from .supervisor import SupervisorAgent
         agent = SupervisorAgent.instance().lifecycle_manager._agents.get(task.agent_id)
         
         if not agent:
-            raise ValueError(f"Agent {task.agent_id} not found")
+            raise ValueError(f"Agent '{task.agent_id}' not found")
             
         task.status = "running"
         await agent.execute_task(task)
         
         # Update task status based on execution
         self._tasks[task.task_id] = task
-        logger.info(f"Completed task {task.task_id} for agent {task.agent_id}")
+        logger.info(f"Completed task '{task.task_id}' for agent '{task.agent_id}'")
         
     async def get_task_status(self, task_id: str) -> str:
         """Get current status of a task."""
         if task_id not in self._tasks:
-            raise ValueError(f"Task {task_id} not found")
+            raise ValueError(f"Task '{task_id}' not found")
         return self._tasks[task_id].status
         
     async def cancel_task(self, task_id: str) -> None:
         """Cancel a pending or running task."""
         if task_id not in self._tasks:
-            raise ValueError(f"Task {task_id} not found")
+            raise ValueError(f"Task '{task_id}' not found")
             
         task = self._tasks[task_id]
         if task.status in ["pending", "running"]:
@@ -166,7 +166,7 @@ class TaskManager(ITaskManager):
             # Remove from queue if pending
             self._task_queue = [t for t in self._task_queue if t.task_id != task_id]
             
-            logger.info(f"Cancelled task {task_id}")
+            logger.info(f"Cancelled task '{task_id}'")
 
 
 class MetricsMonitor(IMetricsMonitor):
@@ -189,7 +189,7 @@ class MetricsMonitor(IMetricsMonitor):
         agent = SupervisorAgent.instance().lifecycle_manager._agents.get(agent_id)
         
         if not agent:
-            raise ValueError(f"Agent {agent_id} not found")
+            raise ValueError(f"Agent '{agent_id}' not found")
             
         health = await agent.get_health_status()
         metrics = health.metrics

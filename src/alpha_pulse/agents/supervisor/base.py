@@ -141,7 +141,7 @@ class BaseSelfSupervisedAgent(BaseTradeAgent, ISelfSupervisedAgent):
             )
             
         except Exception as e:
-            logger.error(f"Error getting health status for agent {self.agent_id}: {str(e)}")
+            logger.error(f"Error getting health status for agent '{self.agent_id}': {str(e)}")
             return AgentHealth(
                 state=AgentState.ERROR,
                 last_active=self._last_active,
@@ -174,7 +174,7 @@ class BaseSelfSupervisedAgent(BaseTradeAgent, ISelfSupervisedAgent):
             self._last_error = str(e)
             task.error = str(e)
             task.status = "failed"
-            logger.error(f"Error executing task {task.task_id} for agent {self.agent_id}: {str(e)}")
+            logger.error(f"Error executing task {task.task_id} for agent '{self.agent_id}': {str(e)}")
             raise  # Re-raise the exception to propagate it
             
     async def pause(self) -> None:
@@ -188,10 +188,10 @@ class BaseSelfSupervisedAgent(BaseTradeAgent, ISelfSupervisedAgent):
         if self._state == AgentState.INACTIVE:
             self._state = AgentState.ACTIVE
             self._last_active = datetime.now()
-            logger.info(f"Agent {self.agent_id} resumed")
+            logger.info(f"Agent '{self.agent_id}' resumed")
             
     async def stop(self) -> None:
         """Stop agent operations completely."""
         await self.pause()  # First pause the agent
         self._state = AgentState.STOPPED
-        logger.info(f"Agent {self.agent_id} stopped")
+        logger.info(f"Agent '{self.agent_id}' stopped")
