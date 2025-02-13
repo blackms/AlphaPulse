@@ -21,8 +21,23 @@ logger.add(
     format="<green>{time:HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> | <level>{message}</level>",
     filter=lambda record: (
         "detailed" not in record["extra"] and
-        not str(record["message"]).startswith("Agent <") and  # Filter object representations
-        "object at 0x" not in str(record["message"])  # Filter memory addresses
+        not str(record["message"]).startswith("Agent <") and  # Filter raw object representations
+        "object at 0x" not in str(record["message"]) and  # Filter memory addresses
+        (
+            # Always show these important messages
+            "initialized successfully" in str(record["message"]) or
+            "Starting replay" in str(record["message"]) or
+            "Simulation progress" in str(record["message"]) or
+            "Analysis complete" in str(record["message"]) or
+            "Registered" in str(record["message"]) or
+            "Created" in str(record["message"]) or
+            "Initialized" in str(record["message"]) or
+            "Started" in str(record["message"]) or
+            "Stopped" in str(record["message"]) or
+            "Loaded" in str(record["message"]) or
+            "Fetching" in str(record["message"]) or
+            "paused" in str(record["message"])
+        )
     )
 )
 
@@ -256,6 +271,9 @@ async def run_replay(
     # Run simulation
     logger.info("Starting replay simulation...")
     timestamps = market_data.prices.index
+    total_steps = len(timestamps) * len(agents)
+    current_step = 0
+    
     for i in range(len(timestamps)):
         current_data = MarketData(
             prices=market_data.prices.iloc[:i+1],
@@ -268,16 +286,20 @@ async def run_replay(
             signals = await agent.generate_signals(current_data)
             for signal in signals:
                 analyzer.add_signal(signal, current_data)
-                
-        # Log progress less frequently (every 1000 timestamps)
-        if i % 1000 == 0:
-            progress = (i/len(timestamps)*100)
-            logger.info(f"Simulation progress: {progress:.1f}%")
             
+            # Update progress after each agent processes data
+            current_step += 1
+            if current_step % max(1, total_steps // 20) == 0:  # Update roughly every 5%
+                progress = (current_step / total_steps) * 100
+                logger.info(f"Simulation progress: {progress:.1f}%")
+                
     # Stop agents
     for agent in agents:
         await agent.stop()
     await supervisor.stop()
+    
+    # Log final progress
+    logger.info("Simulation progress: 100.0%")
     
     # Save and return results
     return analyzer.save_results()
