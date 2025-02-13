@@ -34,6 +34,43 @@ class TestTradeAgent(BaseSelfSupervisedAgent):
             )
         ]
 
+    async def self_evaluate(self) -> Dict[str, float]:
+        """Test self-evaluation."""
+        return {"performance_score": 1.0}
+
+    async def optimize(self) -> None:
+        """Test optimization."""
+        pass
+
+    async def get_health_status(self) -> AgentHealth:
+        """Test health status."""
+        return AgentHealth(
+            state=AgentState.ACTIVE,
+            last_active=datetime.now(),
+            error_count=0,
+            last_error=None,
+            memory_usage=0.0,
+            cpu_usage=0.0,
+            metrics={"performance_score": 1.0}
+        )
+
+    async def execute_task(self, task: Task) -> None:
+        """Test task execution."""
+        task.status = "completed"
+        task.completed_at = datetime.now()
+
+    async def pause(self) -> None:
+        """Test pause."""
+        pass
+
+    async def resume(self) -> None:
+        """Test resume."""
+        pass
+
+    async def stop(self) -> None:
+        """Test stop."""
+        pass
+
 
 @pytest_asyncio.fixture(scope="function")
 async def market_data():

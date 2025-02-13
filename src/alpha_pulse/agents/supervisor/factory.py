@@ -12,8 +12,24 @@ from .base import BaseSelfSupervisedAgent
 class AgentFactory:
     """Factory class for creating self-supervised agents."""
     
-    @staticmethod
+    _test_mode = False
+    _test_agent_class = None
+    
+    @classmethod
+    def enable_test_mode(cls, test_agent_class):
+        """Enable test mode with a specific test agent class."""
+        cls._test_mode = True
+        cls._test_agent_class = test_agent_class
+        
+    @classmethod
+    def disable_test_mode(cls):
+        """Disable test mode."""
+        cls._test_mode = False
+        cls._test_agent_class = None
+    
+    @classmethod
     async def create_agent(
+        cls,
         agent_type: str,
         agent_id: str,
         config: Optional[Dict[str, Any]] = None
@@ -33,6 +49,13 @@ class AgentFactory:
             ValueError: If agent_type is not recognized
         """
         try:
+            # Use test agent if in test mode
+            if cls._test_mode and cls._test_agent_class:
+                agent = cls._test_agent_class(agent_id, config)
+                logger.info(f"Created test agent with ID: {agent_id}")
+                return agent
+            
+            # Normal production mode
             if agent_type == "technical":
                 agent = SelfSupervisedTechnicalAgent(agent_id, config)
                 logger.info(f"Created technical agent with ID: {agent_id}")

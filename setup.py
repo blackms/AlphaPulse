@@ -26,6 +26,7 @@ setup(
         "python-dotenv>=1.0.0",
         "plotly>=5.18.0",
         "optuna>=3.4.0",  # Hyperparameter optimization
+        "psutil>=5.9.0",  # System and process utilities
         
         # Data Pipeline Dependencies
         "python-binance>=1.0.19",  # Binance API
@@ -59,6 +60,8 @@ setup(
         "aioresponses>=0.7.4",
         "responses>=0.24.1",
         "freezegun>=1.2.2",
+        "pytest-mock>=3.12.0",  # For mocking in tests
+        "pytest-timeout>=2.2.0",  # For test timeouts
     ],
     extras_require={
         "dev": [
