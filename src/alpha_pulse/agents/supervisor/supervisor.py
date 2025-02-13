@@ -1,9 +1,9 @@
 """
-Main supervisor agent implementation.
+Main supervisor agent implementation with ML optimization and monitoring.
 """
-from typing import Dict, Any, List, Optional
-from datetime import datetime, timedelta
+from typing import Dict, List, Any, Optional
 import asyncio
+from datetime import datetime
 from loguru import logger
 
 from .interfaces import (
@@ -17,6 +17,9 @@ from .managers import (
     TaskManager,
     MetricsMonitor
 )
+from .optimization.ml_optimizer import MLOptimizer
+from .monitoring.performance_monitor import PerformanceMonitor
+from .distributed.coordinator import DistributedCoordinator
 
 
 class SupervisorAgent:
@@ -43,11 +46,17 @@ class SupervisorAgent:
         self.task_manager = TaskManager()
         self.metrics_monitor = MetricsMonitor()
         
+        # Advanced components
+        self.ml_optimizer = MLOptimizer()
+        self.performance_monitor = PerformanceMonitor()
+        self.distributed_coordinator = DistributedCoordinator()
+        
         self._monitoring_interval = 60  # seconds
         self._optimization_interval = 3600  # seconds
         self._last_optimization = datetime.now()
         self._monitoring_task = None
         self._is_running = False
+        self._cluster_id = None
         
     async def start(self) -> None:
         """Start the supervisor agent."""
@@ -57,6 +66,11 @@ class SupervisorAgent:
             
         self._is_running = True
         self._monitoring_task = asyncio.create_task(self._monitoring_loop())
+        
+        # Initialize cluster
+        self._cluster_id = f"cluster_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        await self.distributed_coordinator.register_cluster(self._cluster_id)
+        
         logger.info("Supervisor agent started")
         
     async def stop(self) -> None:
@@ -93,8 +107,17 @@ class SupervisorAgent:
         Returns:
             Initialized agent instance
         """
+        # Initialize agent
         agent = await self.lifecycle_manager.initialize_agent(agent_id, config)
         await self.lifecycle_manager.start_agent(agent_id)
+        
+        # Assign to cluster
+        if self._cluster_id:
+            await self.distributed_coordinator.assign_agent(
+                agent_id,
+                preferred_cluster=self._cluster_id
+            )
+        
         logger.info(f"Registered agent {agent_id}")
         return agent
         
@@ -158,15 +181,35 @@ class SupervisorAgent:
         
     async def get_system_status(self) -> Dict[str, Any]:
         """
-        Get overall system status.
+        Get overall system status including ML-based analytics.
         
         Returns:
-            System health metrics and statistics
+            System health metrics and analytics
         """
-        return await self.metrics_monitor.get_system_health()
+        base_status = await self.metrics_monitor.get_system_health()
+        
+        # Get cluster analytics
+        cluster_analytics = {}
+        if self._cluster_id:
+            cluster_analytics = await self.distributed_coordinator.get_cluster_analytics(
+                self._cluster_id
+            )
+            
+        # Get performance analytics for all agents
+        performance_analytics = {}
+        for agent_id in self.lifecycle_manager._agents:
+            analytics = await self.performance_monitor.get_performance_analytics(agent_id)
+            if analytics:
+                performance_analytics[agent_id] = analytics
+                
+        return {
+            **base_status,
+            'cluster_analytics': cluster_analytics,
+            'performance_analytics': performance_analytics
+        }
         
     async def _monitoring_loop(self) -> None:
-        """Background monitoring loop."""
+        """Background monitoring loop with ML-based analysis."""
         while self._is_running:
             try:
                 await self._check_agent_health()
@@ -176,56 +219,71 @@ class SupervisorAgent:
                 logger.error(f"Error in monitoring loop: {str(e)}")
                 
     async def _check_agent_health(self) -> None:
-        """Check health of all agents and handle issues."""
+        """Check health of all agents using ML-based monitoring."""
         for agent_id, agent in self.lifecycle_manager._agents.items():
             try:
-                # Collect metrics
-                await self.metrics_monitor.collect_metrics(agent_id)
+                # Get agent health status
+                health = await agent.get_health_status()
                 
-                # Check for anomalies
-                anomalies = await self.metrics_monitor.detect_anomalies(agent_id)
+                # Monitor performance
+                monitoring_result = await self.performance_monitor.monitor_performance(
+                    agent_id,
+                    health.metrics
+                )
                 
-                if anomalies:
-                    logger.warning(f"Detected anomalies for agent {agent_id}: {anomalies}")
+                # Update distributed coordinator
+                if self._cluster_id:
+                    await self.distributed_coordinator.update_metrics(
+                        agent_id,
+                        health.metrics
+                    )
+                
+                # Handle alerts
+                if monitoring_result['alert_level'] != 'normal':
+                    logger.warning(
+                        f"Detected anomalies for agent {agent_id}: "
+                        f"{monitoring_result}"
+                    )
                     
-                    # Handle different types of anomalies
-                    for anomaly in anomalies:
-                        if anomaly["type"] == "high_error_rate":
-                            await self.lifecycle_manager.restart_agent(agent_id)
-                        elif anomaly["type"] in ["high_memory_usage", "high_cpu_usage"]:
-                            # Pause agent temporarily
-                            await self.lifecycle_manager.stop_agent(agent_id)
-                            await asyncio.sleep(30)  # Cool-down period
-                            await self.lifecycle_manager.start_agent(agent_id)
-                        elif anomaly["type"] == "performance_drop":
-                            # Trigger optimization
-                            await self.delegate_task(
-                                agent_id,
-                                "optimize",
-                                {},
-                                priority=1
-                            )
-                            
+                    # Handle different alert levels
+                    if monitoring_result['alert_level'] == 'critical':
+                        await self.lifecycle_manager.restart_agent(agent_id)
+                    elif monitoring_result['alert_level'] == 'warning':
+                        # Pause agent temporarily
+                        await self.lifecycle_manager.stop_agent(agent_id)
+                        await asyncio.sleep(30)  # Cool-down period
+                        await self.lifecycle_manager.start_agent(agent_id)
+                        
             except Exception as e:
                 logger.error(f"Error checking health for agent {agent_id}: {str(e)}")
                 
     async def _optimize_if_needed(self) -> None:
-        """Check if optimization is needed and trigger it."""
+        """Check if optimization is needed using ML-based analysis."""
         if (datetime.now() - self._last_optimization).total_seconds() < self._optimization_interval:
             return
             
         try:
-            for agent_id, agent in self.lifecycle_manager._agents.items():
-                # Analyze performance
-                performance = await self.metrics_monitor.analyze_performance(agent_id)
+            # Optimize cluster if available
+            if self._cluster_id:
+                optimization_result = await self.distributed_coordinator.optimize_cluster(
+                    self._cluster_id
+                )
+                logger.info(f"Cluster optimization result: {optimization_result}")
                 
-                if performance.get("score_trend") == "declining":
+            # Optimize individual agents
+            for agent_id, agent in self.lifecycle_manager._agents.items():
+                # Get performance history
+                analytics = await self.performance_monitor.get_performance_analytics(
+                    agent_id
+                )
+                
+                if analytics.get('trends', {}).get('performance_score', 0) < 0:
                     logger.info(f"Triggering optimization for agent {agent_id}")
                     await self.delegate_task(
                         agent_id,
                         "optimize",
                         {},
-                        priority=0
+                        priority=1
                     )
                     
             self._last_optimization = datetime.now()
