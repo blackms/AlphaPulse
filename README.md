@@ -210,15 +210,22 @@ The `src/alpha_pulse/examples/` directory contains example scripts:
 
 ## Documentation
 
-Detailed documentation for each module:
+### Technical Documentation
+- [AI Hedge Fund Technical Documentation](AI_HEDGE_FUND_DOCUMENTATION.md) - Comprehensive system architecture and implementation details
+- [API Documentation](API_DOCUMENTATION.md) - REST API endpoints and usage
 
-- [AI Hedge Fund Agents](src/alpha_pulse/agents/README.md)
-- [Portfolio Management](src/alpha_pulse/portfolio/README.md)
-- [Risk Management](src/alpha_pulse/risk_management/README.md)
-- [Hedging Strategies](src/alpha_pulse/hedging/README.md)
-- [Data Pipeline](src/alpha_pulse/data_pipeline/README.md)
-- [Feature Engineering](src/alpha_pulse/features/README.md)
-- [Reinforcement Learning](src/alpha_pulse/rl/README.md)
+### Module Documentation
+- [AI Hedge Fund Agents](src/alpha_pulse/agents/README.md) - Trading agents and signal generation
+- [Portfolio Management](src/alpha_pulse/portfolio/README.md) - Portfolio optimization strategies
+- [Risk Management](src/alpha_pulse/risk_management/README.md) - Risk controls and position sizing
+- [Hedging Strategies](src/alpha_pulse/hedging/README.md) - Grid hedging and futures hedging
+- [Data Pipeline](src/alpha_pulse/data_pipeline/README.md) - Data ingestion and processing
+- [Feature Engineering](src/alpha_pulse/features/README.md) - Technical indicators and ML features
+- [Reinforcement Learning](src/alpha_pulse/rl/README.md) - RL models and training
+
+### Additional Resources
+- [Deployment Guide](DEPLOYMENT.md) - Production deployment instructions
+- [Release Notes](RELEASE.md) - Version history and changes
 
 ## Testing
 
