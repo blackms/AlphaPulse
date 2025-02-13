@@ -17,7 +17,12 @@ from ..agents.supervisor import (
     ISelfSupervisedAgent,
     BaseSelfSupervisedAgent
 )
-from ..agents.interfaces import MarketData, TradeSignal, SignalDirection
+from ..agents.interfaces import (
+    MarketData,
+    TradeSignal,
+    SignalDirection,
+    AgentMetrics
+)
 
 
 class TestTradeAgent(BaseSelfSupervisedAgent):
@@ -47,8 +52,8 @@ class TestTradeAgent(BaseSelfSupervisedAgent):
         return AgentHealth(
             state=AgentState.ACTIVE,
             last_active=datetime.now(),
-            error_count=0,
-            last_error=None,
+            error_count=self._error_count,
+            last_error=self._last_error,
             memory_usage=0.0,
             cpu_usage=0.0,
             metrics={"performance_score": 1.0}
@@ -71,6 +76,31 @@ class TestTradeAgent(BaseSelfSupervisedAgent):
         """Test stop."""
         pass
 
+    async def get_confidence_level(self) -> float:
+        """Test confidence level."""
+        return 0.8
+
+    async def validate_signal(self, signal: TradeSignal) -> bool:
+        """Test signal validation."""
+        return True
+
+    async def update_metrics(self, performance_data: pd.DataFrame) -> AgentMetrics:
+        """Test metrics update."""
+        return AgentMetrics(
+            signal_accuracy=0.8,
+            profit_factor=1.5,
+            sharpe_ratio=2.0,
+            max_drawdown=0.1,
+            win_rate=0.7,
+            avg_profit_per_signal=0.05,
+            total_signals=10,
+            timestamp=datetime.now()
+        )
+
+    async def adapt_parameters(self, metrics: AgentMetrics) -> None:
+        """Test parameter adaptation."""
+        pass
+
 
 @pytest_asyncio.fixture(scope="function")
 async def market_data():
@@ -84,7 +114,12 @@ async def market_data():
         }),
         volumes=pd.DataFrame({
             'volume': [1000, 1100, 1200, 1300, 1400]
-        })
+        }),
+        sentiment={
+            "BTC/USD": {},
+            "ETH/USD": {},
+            "BNB/USD": {}
+        }
     )
 
 

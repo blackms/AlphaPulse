@@ -100,6 +100,9 @@ class TaskManager(ITaskManager):
         self._agent_tasks: Dict[str, List[str]] = defaultdict(list)
         self._task_queue: List[Task] = []
         
+    # Valid task types
+    VALID_TASK_TYPES = {"optimize", "evaluate"}
+
     async def create_task(
         self,
         agent_id: str,
@@ -108,6 +111,10 @@ class TaskManager(ITaskManager):
         priority: int = 0
     ) -> Task:
         """Create a new task."""
+        # Validate task type
+        if task_type not in self.VALID_TASK_TYPES:
+            raise ValueError(f"Unknown task type: {task_type}")
+
         task_id = str(uuid.uuid4())
         
         task = Task(

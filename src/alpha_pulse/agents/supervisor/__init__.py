@@ -7,6 +7,15 @@ from .technical_agent import SelfSupervisedTechnicalAgent
 from .sentiment_agent import SelfSupervisedSentimentAgent
 from .supervisor import SupervisorAgent
 from .distributed.coordinator import ClusterCoordinator
+from .interfaces import (
+    AgentState,
+    AgentHealth,
+    Task,
+    ISelfSupervisedAgent,
+    ILifecycleManager,
+    ITaskManager,
+    IMetricsMonitor
+)
 
 __all__ = [
     'BaseSelfSupervisedAgent',
@@ -15,5 +24,12 @@ __all__ = [
     'SelfSupervisedTechnicalAgent',
     'SelfSupervisedSentimentAgent',
     'SupervisorAgent',
-    'ClusterCoordinator'
+    'ClusterCoordinator',
+    'AgentState',
+    'AgentHealth',
+    'Task',
+    'ISelfSupervisedAgent',
+    'ILifecycleManager',
+    'ITaskManager',
+    'IMetricsMonitor'
 ]

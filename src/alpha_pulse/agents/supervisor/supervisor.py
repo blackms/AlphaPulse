@@ -154,15 +154,26 @@ class SupervisorAgent:
             
         Returns:
             Created task
+            
+        Raises:
+            ValueError: If task_type is invalid or agent is not found
         """
-        task = await self.task_manager.create_task(
-            agent_id,
-            task_type,
-            parameters,
-            priority
-        )
-        await self.task_manager.assign_task(task)
-        return task
+        try:
+            task = await self.task_manager.create_task(
+                agent_id,
+                task_type,
+                parameters,
+                priority
+            )
+            await self.task_manager.assign_task(task)
+            return task
+        except ValueError as e:
+            # Get agent and increment error count
+            agent = self.lifecycle_manager._agents.get(agent_id)
+            if agent:
+                agent._error_count += 1
+                agent._last_error = str(e)
+            raise
         
     async def get_agent_status(self, agent_id: str) -> AgentHealth:
         """

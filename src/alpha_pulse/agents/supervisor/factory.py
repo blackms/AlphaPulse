@@ -74,5 +74,29 @@ class AgentFactory:
             raise
 
 
+    @classmethod
+    async def upgrade_to_self_supervised(
+        cls,
+        agent: BaseSelfSupervisedAgent,
+        config: Optional[Dict[str, Any]] = None
+    ) -> BaseSelfSupervisedAgent:
+        """
+        Upgrade an existing agent to a self-supervised agent.
+        
+        Args:
+            agent: Existing agent to upgrade
+            config: Optional configuration parameters
+            
+        Returns:
+            Upgraded self-supervised agent
+        """
+        if cls._test_mode and cls._test_agent_class:
+            return agent  # In test mode, return the agent as-is
+            
+        # For production, create a new agent of the appropriate type
+        agent_type = config.get("type", "technical") if config else "technical"
+        return await cls.create_agent(agent_type, agent.agent_id, config)
+
+
 # For backward compatibility
 create_self_supervised_agent = AgentFactory.create_agent
