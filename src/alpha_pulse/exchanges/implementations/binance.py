@@ -6,7 +6,7 @@ from typing import Dict, Optional
 from loguru import logger
 
 from ..adapters.ccxt_adapter import CCXTAdapter
-from ..interfaces import Balance, ExchangeConfiguration
+from ..interfaces import Balance, ExchangeConfiguration, MarketDataError
 from ..credentials.manager import credentials_manager
 
 
@@ -90,14 +90,14 @@ class BinanceExchange(CCXTAdapter):
                 response = await self.exchange.publicGetTickerPrice({'symbol': symbol})
                 if 'price' in response:
                     return Decimal(str(response['price']))
-                return None
+                raise MarketDataError(f"No price data for {symbol}")
             
             # Use standard implementation for mainnet
             return await super().get_ticker_price(symbol)
             
         except Exception as e:
             logger.error(f"Error fetching ticker for {symbol}: {e}")
-            return None
+            raise MarketDataError(f"Failed to fetch ticker for {symbol}: {str(e)}")
     
     async def get_balances(self) -> Dict[str, Balance]:
         """Get balances for all assets."""

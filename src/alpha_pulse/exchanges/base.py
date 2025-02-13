@@ -29,3 +29,15 @@ class OHLCV:
     low: Decimal
     close: Decimal
     volume: Decimal
+
+    @classmethod
+    def from_list(cls, data: list) -> 'OHLCV':
+        """Create OHLCV from CCXT list format."""
+        return cls(
+            timestamp=datetime.fromtimestamp(data[0] / 1000),  # Convert from milliseconds
+            open=Decimal(str(data[1])),
+            high=Decimal(str(data[2])),
+            low=Decimal(str(data[3])),
+            close=Decimal(str(data[4])),
+            volume=Decimal(str(data[5]))
+        )
