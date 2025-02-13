@@ -15,11 +15,11 @@ class MockMarketDataProvider:
     def __init__(self, **kwargs):
         """Initialize mock provider."""
         self.base_prices = {
-            "BTCUSDT": 45000.0,
-            "ETHUSDT": 2500.0,
-            "BNBUSDT": 300.0,
-            "ADAUSDT": 0.5,
-            "SOLUSDT": 100.0
+            "BTC/USDT": 45000.0,
+            "ETH/USDT": 2500.0,
+            "BNB/USDT": 300.0,
+            "XRP/USDT": 0.5,
+            "SOL/USDT": 100.0
         }
         
     async def get_historical_data(

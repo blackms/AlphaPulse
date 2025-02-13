@@ -189,3 +189,9 @@ class BaseSelfSupervisedAgent(BaseTradeAgent, ISelfSupervisedAgent):
             self._state = AgentState.ACTIVE
             self._last_active = datetime.now()
             logger.info(f"Agent {self.agent_id} resumed")
+            
+    async def stop(self) -> None:
+        """Stop agent operations completely."""
+        await self.pause()  # First pause the agent
+        self._state = AgentState.STOPPED
+        logger.info(f"Agent {self.agent_id} stopped")

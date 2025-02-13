@@ -686,3 +686,4 @@ class PortfolioManager:
                     )
                 except Exception as e:
                     logger.error(f"Rollback failed for {trade['asset']}: {str(e)}")
+

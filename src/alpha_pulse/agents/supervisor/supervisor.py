@@ -19,7 +19,7 @@ from .managers import (
 )
 from .optimization.ml_optimizer import MLOptimizer
 from .monitoring.performance_monitor import PerformanceMonitor
-from .distributed.coordinator import DistributedCoordinator
+from .distributed.coordinator import ClusterCoordinator
 
 
 class SupervisorAgent:
@@ -49,7 +49,7 @@ class SupervisorAgent:
         # Advanced components
         self.ml_optimizer = MLOptimizer()
         self.performance_monitor = PerformanceMonitor()
-        self.distributed_coordinator = DistributedCoordinator()
+        self.distributed_coordinator = ClusterCoordinator()
         
         self._monitoring_interval = 60  # seconds
         self._optimization_interval = 3600  # seconds
@@ -69,7 +69,7 @@ class SupervisorAgent:
         
         # Initialize cluster
         self._cluster_id = f"cluster_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        await self.distributed_coordinator.register_cluster(self._cluster_id)
+        self.distributed_coordinator.register_cluster(self._cluster_id)
         
         logger.info("Supervisor agent started")
         

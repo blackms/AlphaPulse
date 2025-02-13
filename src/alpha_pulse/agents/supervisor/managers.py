@@ -37,7 +37,9 @@ class LifecycleManager(ILifecycleManager):
             
         # Agent creation should be handled by a factory
         from .factory import AgentFactory
-        agent = await AgentFactory.create_self_supervised_agent(agent_id, config)
+        # Extract agent type from config
+        agent_type = config.get("type", "technical")  # Default to technical if not specified
+        agent = await AgentFactory.create_agent(agent_type, agent_id, config)
         
         self._agents[agent_id] = agent
         self._agent_configs[agent_id] = config

@@ -17,6 +17,7 @@ class AgentState(Enum):
     OPTIMIZING = "optimizing"
     INACTIVE = "inactive"
     ERROR = "error"
+    STOPPED = "stopped"
 
 
 @dataclass
@@ -99,6 +100,11 @@ class ISelfSupervisedAgent(ITradeAgent):
     @abstractmethod
     async def resume(self) -> None:
         """Resume agent operations."""
+        pass
+        
+    @abstractmethod
+    async def stop(self) -> None:
+        """Stop agent operations completely."""
         pass
 
 
