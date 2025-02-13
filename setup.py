@@ -25,6 +25,7 @@ setup(
         "prometheus-client>=0.19.0",
         "python-dotenv>=1.0.0",
         "plotly>=5.18.0",
+        "optuna>=3.4.0",  # Hyperparameter optimization
         
         # Data Pipeline Dependencies
         "python-binance>=1.0.19",  # Binance API
