@@ -2,9 +2,11 @@
 Tests for the supervisor agent system.
 """
 import pytest
+import pytest_asyncio
 import asyncio
+import pandas as pd
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 from ..agents.supervisor import (
     SupervisorAgent,
@@ -12,22 +14,29 @@ from ..agents.supervisor import (
     AgentState,
     AgentHealth,
     Task,
-    ISelfSupervisedAgent
+    ISelfSupervisedAgent,
+    BaseSelfSupervisedAgent
 )
-from ..agents.interfaces import MarketData
+from ..agents.interfaces import MarketData, TradeSignal, SignalDirection
 
 
-@pytest.fixture
-async def supervisor():
-    """Fixture for supervisor agent."""
-    supervisor = SupervisorAgent.instance()
-    await supervisor.start()
-    yield supervisor
-    await supervisor.stop()
+class TestTradeAgent(BaseSelfSupervisedAgent):
+    """Test agent implementation."""
+    async def generate_signals(self, market_data: MarketData) -> List[TradeSignal]:
+        """Generate test signals."""
+        return [
+            TradeSignal(
+                agent_id=self.agent_id,
+                symbol="BTC/USD",
+                direction=SignalDirection.BUY,
+                confidence=0.8,
+                timestamp=datetime.now()
+            )
+        ]
 
 
-@pytest.fixture
-def market_data():
+@pytest_asyncio.fixture(scope="function")
+async def market_data():
     """Fixture for market data."""
     return MarketData(
         prices=pd.DataFrame({
@@ -45,6 +54,7 @@ def market_data():
 class TestSupervisorAgent:
     """Test cases for SupervisorAgent."""
     
+    @pytest.mark.asyncio
     async def test_singleton_pattern(self):
         """Test supervisor singleton pattern."""
         supervisor1 = SupervisorAgent.instance()
@@ -54,6 +64,7 @@ class TestSupervisorAgent:
         with pytest.raises(RuntimeError):
             SupervisorAgent()
             
+    @pytest.mark.asyncio
     async def test_agent_registration(self, supervisor):
         """Test agent registration and initialization."""
         config = {
@@ -71,11 +82,13 @@ class TestSupervisorAgent:
         with pytest.raises(ValueError):
             await supervisor.get_agent_status("test_agent")
             
+    @pytest.mark.asyncio
     async def test_task_delegation(self, supervisor):
         """Test task creation and delegation."""
         # Register an agent
         config = {"type": "technical"}
-        await supervisor.register_agent("test_agent", config)
+        agent = await supervisor.register_agent("test_agent", config)
+        assert isinstance(agent, TestTradeAgent)
         
         # Create and delegate task
         task = await supervisor.delegate_task(
@@ -92,6 +105,7 @@ class TestSupervisorAgent:
         # Cleanup
         await supervisor.unregister_agent("test_agent")
         
+    @pytest.mark.asyncio
     async def test_health_monitoring(self, supervisor):
         """Test health monitoring functionality."""
         # Register multiple agents
@@ -119,6 +133,7 @@ class TestSupervisorAgent:
         for agent_id, _ in agents:
             await supervisor.unregister_agent(agent_id)
             
+    @pytest.mark.asyncio
     async def test_agent_optimization(self, supervisor, market_data):
         """Test agent optimization process."""
         # Register agent
@@ -127,10 +142,12 @@ class TestSupervisorAgent:
             "optimization_threshold": 0.5  # Low threshold to trigger optimization
         }
         agent = await supervisor.register_agent("test_agent", config)
+        assert isinstance(agent, TestTradeAgent)
         
         # Generate signals to trigger optimization
         signals = await agent.generate_signals(market_data)
-        assert len(signals) >= 0  # May or may not generate signals
+        assert len(signals) > 0
+        assert isinstance(signals[0], TradeSignal)
         
         # Force optimization
         task = await supervisor.delegate_task(
@@ -148,11 +165,13 @@ class TestSupervisorAgent:
         # Cleanup
         await supervisor.unregister_agent("test_agent")
         
+    @pytest.mark.asyncio
     async def test_error_handling(self, supervisor):
         """Test error handling and recovery."""
         # Register agent
         config = {"type": "technical"}
-        await supervisor.register_agent("test_agent", config)
+        agent = await supervisor.register_agent("test_agent", config)
+        assert isinstance(agent, TestTradeAgent)
         
         # Simulate errors by sending invalid tasks
         with pytest.raises(ValueError):
@@ -174,30 +193,30 @@ class TestSupervisorAgent:
         # Cleanup
         await supervisor.unregister_agent("test_agent")
         
+    @pytest.mark.asyncio
     async def test_integration_with_existing_system(self, supervisor, market_data):
         """Test integration with existing agent system."""
-        from ..agents.technical_agent import TechnicalAgent
-        
-        # Create regular technical agent
-        tech_agent = TechnicalAgent("old_tech_agent")
-        
-        # Upgrade to self-supervised
+        # Create test agent with config
         config = {
             "type": "technical",
             "optimization_threshold": 0.7
         }
+        test_agent = TestTradeAgent("test_agent", config)
         
+        # Upgrade to self-supervised
         new_agent = await AgentFactory.upgrade_to_self_supervised(
-            tech_agent,
+            test_agent,
             config
         )
         
         # Register with supervisor
         agent = await supervisor.register_agent(new_agent.agent_id, config)
+        assert isinstance(agent, TestTradeAgent)
         
         # Verify functionality
         signals = await agent.generate_signals(market_data)
-        assert len(signals) >= 0
+        assert len(signals) > 0
+        assert isinstance(signals[0], TradeSignal)
         
         status = await supervisor.get_agent_status(agent.agent_id)
         assert isinstance(status, AgentHealth)
@@ -205,6 +224,7 @@ class TestSupervisorAgent:
         # Cleanup
         await supervisor.unregister_agent(agent.agent_id)
         
+    @pytest.mark.asyncio
     async def test_concurrent_operations(self, supervisor):
         """Test concurrent agent operations."""
         # Register multiple agents
@@ -219,6 +239,7 @@ class TestSupervisorAgent:
             *[supervisor.register_agent(id, cfg) for id, cfg in agent_configs]
         )
         assert len(agents) == 3
+        assert all(isinstance(agent, TestTradeAgent) for agent in agents)
         
         # Delegate tasks concurrently
         tasks = await asyncio.gather(

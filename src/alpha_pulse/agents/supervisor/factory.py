@@ -48,6 +48,9 @@ class AgentFactory:
         "fundamental": SelfSupervisedFundamentalAgent,
         "sentiment": SelfSupervisedSentimentAgent
     }
+
+    _test_mode = False
+    _test_agent_class = None
     
     @classmethod
     def register_agent_type(
@@ -68,6 +71,18 @@ class AgentFactory:
             )
         cls._agent_types[agent_type] = agent_class
         logger.info(f"Registered agent type: {agent_type}")
+
+    @classmethod
+    def enable_test_mode(cls, test_agent_class: Type[ISelfSupervisedAgent]) -> None:
+        """Enable test mode to use test agent class."""
+        cls._test_mode = True
+        cls._test_agent_class = test_agent_class
+
+    @classmethod
+    def disable_test_mode(cls) -> None:
+        """Disable test mode."""
+        cls._test_mode = False
+        cls._test_agent_class = None
         
     @classmethod
     async def create_self_supervised_agent(
@@ -88,6 +103,11 @@ class AgentFactory:
         Raises:
             ValueError: If agent type is not supported
         """
+        if cls._test_mode and cls._test_agent_class:
+            agent = cls._test_agent_class(agent_id, config)
+            logger.info(f"Created test agent with ID: {agent_id}")
+            return agent
+
         agent_type = config.get("type", "technical")  # Default to technical
         
         if agent_type not in cls._agent_types:

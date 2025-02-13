@@ -23,8 +23,9 @@ class BaseSelfSupervisedAgent(BaseTradeAgent, ISelfSupervisedAgent):
     Extends BaseTradeAgent with self-supervision capabilities.
     """
     
-    def __init__(self, agent_id: str, config: Dict[str, Any] = None):
+    def __init__(self, agent_id: str, config: Optional[Dict[str, Any]] = None):
         """Initialize base self-supervised agent."""
+        config = config or {}
         super().__init__(agent_id, config)
         self._state = AgentState.INITIALIZING
         self._last_active = datetime.now()
@@ -33,6 +34,18 @@ class BaseSelfSupervisedAgent(BaseTradeAgent, ISelfSupervisedAgent):
         self._process = psutil.Process()
         self._optimization_threshold = config.get("optimization_threshold", 0.7)
         self._performance_history: List[Dict[str, float]] = []
+        self._default_config = {
+            "optimization_threshold": 0.7,
+            "monitoring_interval": 60,
+            "max_errors": 10,
+            "recovery_timeout": 300,
+            "memory_limit_mb": 1000,
+            "cpu_limit_percent": 80
+        }
+        self.config.update({
+            k: config.get(k, v)
+            for k, v in self._default_config.items()
+        })
         
     async def initialize(self, config: Dict[str, Any]) -> None:
         """Initialize the agent with configuration."""
@@ -150,6 +163,7 @@ class BaseSelfSupervisedAgent(BaseTradeAgent, ISelfSupervisedAgent):
                 metrics = await self.self_evaluate()
                 task.result = metrics
             else:
+                # Propagate error instead of handling it
                 raise ValueError(f"Unknown task type: {task.task_type}")
                 
             task.completed_at = datetime.now()
@@ -161,6 +175,7 @@ class BaseSelfSupervisedAgent(BaseTradeAgent, ISelfSupervisedAgent):
             task.error = str(e)
             task.status = "failed"
             logger.error(f"Error executing task {task.task_id} for agent {self.agent_id}: {str(e)}")
+            raise  # Re-raise the exception to propagate it
             
     async def pause(self) -> None:
         """Pause agent operations."""
