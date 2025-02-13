@@ -1,6 +1,7 @@
 """
 CCXT library adapter implementation.
 """
+import asyncio
 from decimal import Decimal
 from typing import Dict, List, Optional, Any
 import ccxt.async_support as ccxt

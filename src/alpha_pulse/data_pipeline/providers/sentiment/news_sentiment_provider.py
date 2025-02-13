@@ -2,12 +2,16 @@
 News and social media sentiment provider implementation.
 """
 import asyncio
+import logging
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 import aiohttp
 from textblob import TextBlob
 import tweepy
 from collections import defaultdict
+from urllib.parse import urljoin
+
+logger = logging.getLogger(__name__)
 
 from ...interfaces import SentimentData
 from ..base import BaseDataProvider, retry_on_error, CacheMixin
