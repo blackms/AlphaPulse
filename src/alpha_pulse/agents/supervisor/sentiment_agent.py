@@ -52,14 +52,13 @@ class SelfSupervisedSentimentAgent(BaseSelfSupervisedAgent):
         try:
             # Check for sentiment data
             if not hasattr(market_data, 'sentiment') or not market_data.sentiment:
-                logger.warning("No sentiment data available - agent will remain inactive")
                 self._market_mood = "unknown (no sentiment data)"
-                logger.info(f"Current market mood: {self._market_mood}")
                 return []
                 
             # Update market mood
             self._market_mood = await self._detect_market_mood(market_data)
-            logger.info(f"Current market mood: {self._market_mood}")
+            if self._market_mood not in ["neutral", "unknown"]:
+                logger.debug(f"Market mood: {self._market_mood}")
             
             signals = []
             
@@ -69,7 +68,6 @@ class SelfSupervisedSentimentAgent(BaseSelfSupervisedAgent):
                     # Get sentiment data
                     sentiment_data = market_data.sentiment.get(symbol, {})
                     if not sentiment_data:
-                        logger.debug(f"No sentiment data for {symbol}")
                         continue
                         
                     # Calculate sentiment scores
@@ -85,7 +83,6 @@ class SelfSupervisedSentimentAgent(BaseSelfSupervisedAgent):
                     ]
                     
                     if not valid_scores:
-                        logger.debug(f"Insufficient sentiment signals for {symbol}")
                         continue
                         
                     # Calculate weighted sentiment score

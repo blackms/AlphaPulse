@@ -126,11 +126,12 @@ class SelfSupervisedTechnicalAgent(BaseSelfSupervisedAgent):
         try:
             # Update market regime using all symbols
             self._market_regime, self._regime_confidence = await self._detect_market_regime(market_data)
-            logger.info(f"Current market regime: {self._market_regime} (confidence: {self._regime_confidence:.2f})")
+            # Only log regime changes or high confidence
+            if self._regime_confidence >= 0.6:
+                logger.debug(f"Market regime: {self._market_regime} (confidence: {self._regime_confidence:.2f})")
             
             # Don't generate signals if regime is unknown or low confidence
             if self._market_regime == "unknown" or self._regime_confidence < self.min_regime_confidence:
-                logger.info(f"Insufficient market regime confidence ({self._regime_confidence:.2f} < {self.min_regime_confidence}) - no signals generated")
                 return []
                 
             signals = []

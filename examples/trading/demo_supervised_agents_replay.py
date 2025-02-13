@@ -11,9 +11,32 @@ from typing import Dict, List, Any
 from loguru import logger
 import sys
 
-# Configure loguru to only show INFO level
-logger.remove()
-logger.add(sys.stderr, level="INFO")
+# Configure loguru logging
+logger.remove()  # Remove default handler
+
+# Add console handler with original format but filtered messages
+logger.add(
+    sys.stderr,
+    level="INFO",
+    format="<green>{time:HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> | <level>{message}</level>",
+    filter=lambda record: (
+        "detailed" not in record["extra"] and
+        not str(record["message"]).startswith("Agent <") and  # Filter object representations
+        "object at 0x" not in str(record["message"])  # Filter memory addresses
+    )
+)
+
+# Add detailed file handler
+log_path = Path("logs")
+log_path.mkdir(exist_ok=True)
+logger.add(
+    log_path / "supervised_agents_{time}.log",
+    level="DEBUG",
+    format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name}:{function}:{line} | {message}",
+    rotation="1 day",
+    retention="30 days",
+    compression="zip"
+)
 
 from alpha_pulse.data_pipeline.manager import DataManager
 from alpha_pulse.agents.supervisor.supervisor import SupervisorAgent
@@ -61,6 +84,9 @@ class SignalAnalyzer:
         self.metrics["signal_confidence"].append(signal.confidence)
         self.metrics["performance_score"].append(signal.metadata.get("performance_score", 1.0))
         
+        # Log detailed signal info to file only
+        logger.bind(detailed=True).debug(f"New signal: {json.dumps(signal_data, indent=2)}")
+        
     def save_results(self):
         """Save signals and analysis results."""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -98,8 +124,12 @@ class SignalAnalyzer:
         with open(metrics_file, "w") as f:
             json.dump(metrics, f, indent=2)
             
-        logger.info(f"Saved {len(self.signals)} signals to {signals_file}")
-        logger.info(f"Saved analysis metrics to {metrics_file}")
+        # Log summary to console
+        logger.info(f"Analysis complete - {len(self.signals)} signals generated")
+        
+        # Log detailed metrics to file
+        logger.bind(detailed=True).debug(f"Final metrics: {json.dumps(metrics, indent=2)}")
+        
         return metrics
 
 
@@ -135,7 +165,7 @@ async def run_replay(
     await data_manager.initialize()
     
     # Download historical data
-    logger.info(f"Fetching historical data for {len(symbols)} symbols...")
+    logger.info("Fetching market data...")
     raw_data = await data_manager.get_market_data(
         symbols=symbols,
         start_time=start_date,
@@ -172,7 +202,7 @@ async def run_replay(
         sentiment={}  # No sentiment data in replay mode
     )
     
-    logger.info(f"Fetched data with {len(prices)} timestamps")
+    logger.bind(detailed=True).debug(f"Market data loaded: {len(prices)} timestamps per symbol")
     
     # Initialize agents
     coordinator = ClusterCoordinator()
@@ -218,6 +248,7 @@ async def run_replay(
     for agent in agents:
         await agent.initialize(agent_configs[agent.agent_id])
         await supervisor.register_agent(agent, agent_configs[agent.agent_id])
+        logger.bind(detailed=True).debug(f"Initialized agent: {agent.agent_id}")
         
     # Initialize signal analyzer
     analyzer = SignalAnalyzer()
@@ -241,7 +272,7 @@ async def run_replay(
         # Log progress less frequently (every 1000 timestamps)
         if i % 1000 == 0:
             progress = (i/len(timestamps)*100)
-            logger.info(f"Progress: {progress:.1f}%")
+            logger.info(f"Simulation progress: {progress:.1f}%")
             
     # Stop agents
     for agent in agents:
@@ -258,6 +289,10 @@ if __name__ == "__main__":
     end_date = datetime.now()
     start_date = end_date - timedelta(days=365)  # Last year
     
+    logger.info(f"Starting replay analysis for {len(symbols)} symbols")
+    logger.bind(detailed=True).debug(f"Symbols: {symbols}")
+    logger.bind(detailed=True).debug(f"Period: {start_date} to {end_date}")
+    
     # Run replay
     metrics = asyncio.run(run_replay(
         symbols=symbols,
@@ -266,18 +301,17 @@ if __name__ == "__main__":
         interval="1h"
     ))
     
-    # Print summary
-    print("\nReplay Analysis Summary:")
+    # Print concise summary
+    print("\n=== Replay Analysis ===")
     print(f"Total Signals: {metrics['total_signals']}")
-    print("\nSignals by Agent:")
-    for agent, count in metrics['signals_by_agent'].items():
-        print(f"  {agent}: {count}")
-    print("\nSignals by Market Regime:")
-    for regime, count in metrics['signals_by_regime'].items():
-        print(f"  {regime}: {count}")
-    print("\nConfidence Distribution:")
-    for level, count in metrics['confidence_distribution'].items():
-        print(f"  {level}: {count}")
-    print("\nAverage Metrics:")
+    
+    # Only show key metrics
+    print("\nPerformance:")
     for name, value in metrics['average_metrics'].items():
-        print(f"  {name}: {value:.3f}")
+        if name in ['performance_score', 'signal_confidence']:
+            print(f"  {name}: {value:.3f}")
+            
+    print("\nDistribution:")
+    for level, count in metrics['confidence_distribution'].items():
+        pct = (count / metrics['total_signals']) * 100
+        print(f"  {level}: {count} ({pct:.1f}%)")
