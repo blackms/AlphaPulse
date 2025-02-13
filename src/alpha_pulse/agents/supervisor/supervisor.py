@@ -118,7 +118,7 @@ class SupervisorAgent:
                 preferred_cluster=self._cluster_id
             )
         
-        logger.info(f"Registered agent {agent_id}")
+        logger.info(f"Registered agent '{agent_id}'")
         return agent
         
     async def unregister_agent(self, agent_id: str) -> None:
@@ -134,7 +134,7 @@ class SupervisorAgent:
             del self.lifecycle_manager._agents[agent_id]
         if agent_id in self.lifecycle_manager._agent_configs:
             del self.lifecycle_manager._agent_configs[agent_id]
-        logger.info(f"Unregistered agent {agent_id}")
+        logger.info(f"Unregistered agent '{agent_id}'")
         
     async def delegate_task(
         self,
@@ -176,7 +176,7 @@ class SupervisorAgent:
         """
         agent = self.lifecycle_manager._agents.get(agent_id)
         if not agent:
-            raise ValueError(f"Agent {agent_id} not found")
+            raise ValueError(f"Agent '{agent_id}' not found")
         return await agent.get_health_status()
         
     async def get_system_status(self) -> Dict[str, Any]:
@@ -241,7 +241,7 @@ class SupervisorAgent:
                 # Handle alerts
                 if monitoring_result['alert_level'] != 'normal':
                     logger.warning(
-                        f"Detected anomalies for agent {agent_id}: "
+                        f"Detected anomalies for agent '{agent_id}': "
                         f"{monitoring_result}"
                     )
                     
@@ -255,7 +255,7 @@ class SupervisorAgent:
                         await self.lifecycle_manager.start_agent(agent_id)
                         
             except Exception as e:
-                logger.error(f"Error checking health for agent {agent_id}: {str(e)}")
+                logger.error(f"Error checking health for agent '{agent_id}': {str(e)}")
                 
     async def _optimize_if_needed(self) -> None:
         """Check if optimization is needed using ML-based analysis."""
@@ -278,7 +278,7 @@ class SupervisorAgent:
                 )
                 
                 if analytics.get('trends', {}).get('performance_score', 0) < 0:
-                    logger.info(f"Triggering optimization for agent {agent_id}")
+                    logger.info(f"Triggering optimization for agent '{agent_id}'")
                     await self.delegate_task(
                         agent_id,
                         "optimize",

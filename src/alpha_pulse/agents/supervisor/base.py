@@ -52,7 +52,7 @@ class BaseSelfSupervisedAgent(BaseTradeAgent, ISelfSupervisedAgent):
         await super().initialize(config)
         self._state = AgentState.ACTIVE
         self._last_active = datetime.now()
-        logger.info(f"Initialized self-supervised agent {self.agent_id}")
+        logger.info(f"Initialized self-supervised agent '{self.agent_id}'")
         
     async def generate_signals(self, market_data: MarketData) -> List[TradeSignal]:
         """Generate trading signals with self-supervision."""
@@ -62,7 +62,7 @@ class BaseSelfSupervisedAgent(BaseTradeAgent, ISelfSupervisedAgent):
             # Check if optimization is needed
             metrics = await self.self_evaluate()
             if metrics.get("performance_score", 1.0) < self._optimization_threshold:
-                logger.info(f"Agent {self.agent_id} triggering self-optimization")
+                logger.info(f"Agent '{self.agent_id}' triggering self-optimization")
                 self._state = AgentState.OPTIMIZING
                 await self.optimize()
                 self._state = AgentState.ACTIVE
@@ -76,7 +76,7 @@ class BaseSelfSupervisedAgent(BaseTradeAgent, ISelfSupervisedAgent):
             self._error_count += 1
             self._last_error = str(e)
             self._state = AgentState.ERROR
-            logger.error(f"Error in agent {self.agent_id}: {str(e)}")
+            logger.error(f"Error in agent '{self.agent_id}': {str(e)}")
             raise
             
     async def self_evaluate(self) -> Dict[str, float]:
@@ -119,7 +119,7 @@ class BaseSelfSupervisedAgent(BaseTradeAgent, ISelfSupervisedAgent):
             
         # Check for declining performance
         if all(recent_scores[i] < recent_scores[i-1] for i in range(1, len(recent_scores))):
-            logger.warning(f"Agent {self.agent_id} detected declining performance")
+            logger.warning(f"Agent '{self.agent_id}' detected declining performance")
             # Implement optimization logic in derived classes
             
     async def get_health_status(self) -> AgentHealth:
@@ -141,7 +141,7 @@ class BaseSelfSupervisedAgent(BaseTradeAgent, ISelfSupervisedAgent):
             )
             
         except Exception as e:
-            logger.error(f"Error getting health status for agent {self.agent_id}: {str(e)}")
+            logger.error(f"Error getting health status for agent '{self.agent_id}': {str(e)}")
             return AgentHealth(
                 state=AgentState.ERROR,
                 last_active=self._last_active,
@@ -174,24 +174,24 @@ class BaseSelfSupervisedAgent(BaseTradeAgent, ISelfSupervisedAgent):
             self._last_error = str(e)
             task.error = str(e)
             task.status = "failed"
-            logger.error(f"Error executing task {task.task_id} for agent {self.agent_id}: {str(e)}")
+            logger.error(f"Error executing task {task.task_id} for agent '{self.agent_id}': {str(e)}")
             raise  # Re-raise the exception to propagate it
             
     async def pause(self) -> None:
         """Pause agent operations."""
         if self._state == AgentState.ACTIVE:
             self._state = AgentState.INACTIVE
-            logger.info(f"Agent {self.agent_id} paused")
+            logger.info(f"Agent '{self.agent_id}' paused")
             
     async def resume(self) -> None:
         """Resume agent operations."""
         if self._state == AgentState.INACTIVE:
             self._state = AgentState.ACTIVE
             self._last_active = datetime.now()
-            logger.info(f"Agent {self.agent_id} resumed")
+            logger.info(f"Agent '{self.agent_id}' resumed")
             
     async def stop(self) -> None:
         """Stop agent operations completely."""
         await self.pause()  # First pause the agent
         self._state = AgentState.STOPPED
-        logger.info(f"Agent {self.agent_id} stopped")
+        logger.info(f"Agent '{self.agent_id}' stopped")

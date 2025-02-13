@@ -274,11 +274,28 @@ async def run_replay(
     total_steps = len(timestamps) * len(agents)
     current_step = 0
     
+    # Log simulation parameters
+    logger.bind(detailed=True).debug(
+        f"Simulation parameters:\n"
+        f"Total timestamps: {len(timestamps)}\n"
+        f"Time range: {timestamps[0]} to {timestamps[-1]}\n"
+        f"Total agents: {len(agents)}\n"
+        f"Total steps: {total_steps}"
+    )
+    
     for i in range(len(timestamps)):
+        current_timestamp = timestamps[i]
         current_data = MarketData(
             prices=market_data.prices.iloc[:i+1],
             volumes=market_data.volumes.iloc[:i+1] if market_data.volumes is not None else None,
             sentiment=market_data.sentiment
+        )
+        
+        # Log current period details to debug
+        logger.bind(detailed=True).debug(
+            f"Processing period {i+1}/{len(timestamps)}\n"
+            f"Timestamp: {current_timestamp}\n"
+            f"Data points: {len(current_data.prices)}"
         )
         
         # Generate signals from each agent
@@ -291,15 +308,25 @@ async def run_replay(
             current_step += 1
             if current_step % max(1, total_steps // 20) == 0:  # Update roughly every 5%
                 progress = (current_step / total_steps) * 100
-                logger.info(f"Simulation progress: {progress:.1f}%")
+                time_elapsed = current_timestamp - timestamps[0]
+                time_remaining = timestamps[-1] - current_timestamp
+                logger.info(
+                    f"Simulation progress: {progress:.1f}% "
+                    f"(Processing: {current_timestamp}, "
+                    f"Elapsed: {time_elapsed}, "
+                    f"Remaining: {time_remaining})"
+                )
                 
     # Stop agents
     for agent in agents:
         await agent.stop()
     await supervisor.stop()
     
-    # Log final progress
-    logger.info("Simulation progress: 100.0%")
+    # Log final progress with summary
+    logger.info(
+        f"Simulation completed - Processed {len(timestamps)} periods "
+        f"from {timestamps[0]} to {timestamps[-1]}"
+    )
     
     # Save and return results
     return analyzer.save_results()
