@@ -119,7 +119,7 @@ class BaseSelfSupervisedAgent(BaseTradeAgent, ISelfSupervisedAgent):
             
         # Check for declining performance
         if all(recent_scores[i] < recent_scores[i-1] for i in range(1, len(recent_scores))):
-            logger.warning(f"Agent {self.agent_id} detected declining performance")
+            logger.warning(f"Agent '{self.agent_id}' detected declining performance")
             # Implement optimization logic in derived classes
             
     async def get_health_status(self) -> AgentHealth:
