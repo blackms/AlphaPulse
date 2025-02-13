@@ -29,6 +29,9 @@ class OHLCV:
     low: Decimal
     close: Decimal
     volume: Decimal
+    exchange: str = ""
+    symbol: str = ""
+    timeframe: str = ""
 
     @classmethod
     def from_list(cls, data: list) -> 'OHLCV':

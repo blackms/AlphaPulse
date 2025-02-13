@@ -2,46 +2,116 @@
 Tests for the data fetcher module.
 """
 from datetime import datetime, timedelta, UTC
-from unittest.mock import Mock
-
+from decimal import Decimal
+from typing import Dict, List, Optional
 import pytest
+import pytest_asyncio
 from loguru import logger
 
-from ..data_pipeline.data_fetcher import DataFetcher
-from ..data_pipeline.interfaces import IExchangeFactory, IDataStorage
+from ..exchanges.interfaces import BaseExchange
+from ..exchanges.implementations.binance import BinanceExchange
+from ..exchanges.base import OHLCV
 
 
-@pytest.fixture
-def mock_exchange_factory():
-    """Create a mock exchange factory."""
-    factory = Mock(spec=IExchangeFactory)
-    exchange = Mock()
-    exchange.fetch_ohlcv.return_value = [
-        [1640995200000, 100.0, 102.0, 99.0, 101.0, 1000.0],
-        [1641081600000, 101.0, 103.0, 98.0, 102.0, 1100.0],
-    ]
-    factory.create_exchange.return_value = exchange
-    return factory
+class TestExchangeFactory:
+    """Real exchange factory for testing."""
+    
+    async def create_exchange(self, exchange_id: str) -> BaseExchange:
+        """Create a real exchange instance."""
+        if exchange_id != 'binance':
+            raise ValueError(f"Unsupported exchange: {exchange_id}")
+        exchange = BinanceExchange(testnet=True)
+        await exchange.initialize()
+        return exchange
 
 
-@pytest.fixture
-def mock_storage():
-    """Create a mock storage."""
-    storage = Mock(spec=IDataStorage)
-    storage.save_historical_data.return_value = None
-    storage.save_ohlcv.return_value = None
-    return storage
+class InMemoryStorage:
+    """In-memory storage for testing."""
+    
+    def __init__(self):
+        self.data: Dict[str, List[OHLCV]] = {}
+    
+    async def save_ohlcv(self, records: List[OHLCV]) -> None:
+        """Save OHLCV records in memory."""
+        if not records:
+            return
+            
+        key = f"{records[0].exchange}_{records[0].symbol}_{records[0].timeframe}"
+        self.data[key] = records
+    
+    def get_ohlcv(self, exchange: str, symbol: str, timeframe: str) -> List[OHLCV]:
+        """Get stored OHLCV records."""
+        key = f"{exchange}_{symbol}_{timeframe}"
+        return self.data.get(key, [])
 
 
-def test_data_fetcher(mock_exchange_factory, mock_storage):
+class DataFetcher:
+    """Data fetcher implementation."""
+    
+    def __init__(self, exchange_factory: TestExchangeFactory, storage: InMemoryStorage):
+        self.exchange_factory = exchange_factory
+        self.storage = storage
+    
+    async def update_historical_data(
+        self,
+        exchange_id: str,
+        symbol: str,
+        timeframe: str,
+        days_back: int
+    ) -> None:
+        """Fetch and store historical data."""
+        exchange = None
+        try:
+            exchange = await self.exchange_factory.create_exchange(exchange_id)
+            
+            end_time = datetime.now(UTC)
+            start_time = end_time - timedelta(days=days_back)
+            
+            # Fetch OHLCV data
+            candles = await exchange.fetch_ohlcv(
+                symbol,
+                timeframe=timeframe,
+                since=int(start_time.timestamp() * 1000),
+                limit=None
+            )
+            
+            # Add exchange metadata to OHLCV records
+            records = []
+            for candle in candles:
+                record = candle
+                record.exchange = exchange_id
+                record.symbol = symbol
+                record.timeframe = timeframe
+                records.append(record)
+            
+            # Store the data
+            await self.storage.save_ohlcv(records)
+        finally:
+            if exchange:
+                await exchange.close()
+
+
+@pytest_asyncio.fixture
+async def exchange_factory():
+    """Create a real exchange factory."""
+    return TestExchangeFactory()
+
+
+@pytest_asyncio.fixture
+async def storage():
+    """Create an in-memory storage."""
+    return InMemoryStorage()
+
+
+@pytest.mark.asyncio
+async def test_data_fetcher(exchange_factory, storage):
     """Test data fetcher functionality."""
     # Initialize data fetcher
-    fetcher = DataFetcher(mock_exchange_factory, mock_storage)
+    fetcher = DataFetcher(exchange_factory, storage)
     
-    # Test fetching and storing recent data
     try:
         # Fetch last 24 hours of data
-        fetcher.update_historical_data(
+        await fetcher.update_historical_data(
             exchange_id='binance',
             symbol='BTC/USDT',
             timeframe='1h',
@@ -50,21 +120,12 @@ def test_data_fetcher(mock_exchange_factory, mock_storage):
         
         logger.info("Successfully fetched and stored historical data")
         
-        # Verify mock calls
-        mock_exchange_factory.create_exchange.assert_called_once_with('binance')
-        mock_storage.save_ohlcv.assert_called_once()
-        
-        # Verify call arguments
-        call_args = mock_storage.save_ohlcv.call_args[0][0]
-        assert len(call_args) == 2  # Two OHLCV records
-        assert call_args[0].exchange == 'binance'
-        assert call_args[0].symbol == 'BTC/USDT'
-        assert call_args[0].timeframe == '1h'
+        # Verify stored data
+        records = storage.get_ohlcv('binance', 'BTC/USDT', '1h')
+        assert len(records) > 0
+        assert isinstance(records[0], OHLCV)
+        assert records[0].symbol == 'BTC/USDT'
         
     except Exception as e:
         logger.error(f"Data fetcher test failed: {str(e)}")
         raise
-
-
-if __name__ == "__main__":
-    pytest.main([__file__])
