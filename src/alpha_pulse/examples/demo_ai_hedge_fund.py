@@ -231,7 +231,7 @@ async def generate_and_process_signals(components, market_data):
             historical_returns=prices_df[signal.symbol].pct_change().dropna()
         )
         
-        position_value = float(position_result.size) * float(portfolio_value)
+        position_value = float(position_result.size) * float(current_price)
         quantity = position_value / float(current_price)
         logger.debug(f"Calculated position size: {quantity:.4f} {signal.symbol} (${position_value:,.2f})")
         
@@ -244,7 +244,9 @@ async def generate_and_process_signals(components, market_data):
             current_positions=current_positions
         ):
             signal.metadata["quantity"] = quantity
-            signal.metadata["position_value"] = float(position_size.position_value)
+            signal.metadata["position_value"] = position_value
+            signal.metadata["position_size"] = quantity
+            signal.metadata["position_confidence"] = float(position_result.confidence)
             logger.debug(f"Signal passed risk evaluation: {signal.symbol} {signal.direction.value} ({quantity:.4f} units)")
             valid_signals.append(signal)
         else:

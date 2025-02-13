@@ -175,7 +175,7 @@ class KellyCriterionSizer(IPositionSizer):
             confidence = 0.5
 
         # Calculate final position size
-        position_size = portfolio_value * max(0, kelly_fraction)
+        position_size = float(portfolio_value) * max(0, float(kelly_fraction))
         
         return PositionSizeResult(
             size=position_size,
@@ -305,7 +305,7 @@ class VolatilityBasedSizer(IPositionSizer):
         position_pct *= signal_strength
         
         # Calculate final position size
-        position_size = portfolio_value * position_pct
+        position_size = float(portfolio_value) * float(position_pct)
         
         return PositionSizeResult(
             size=position_size,
@@ -380,15 +380,23 @@ class AdaptivePositionSizer(IPositionSizer):
             kelly_weight = vol_weight = 0.5
 
         # Calculate weighted position size
-        position_size = (
-            kelly_result.size * kelly_weight +
-            vol_result.size * vol_weight
+        # Calculate weighted position size as percentage of portfolio
+        position_pct = min(
+            (kelly_result.size * kelly_weight +
+            vol_result.size * vol_weight) * 0.01,  # Convert to percentage (0-1)
+            float(self.max_size_pct)  # Cap at max size
         )
+        
+        # Convert percentage to position value
+        position_value = float(portfolio_value) * position_pct
+        
+        # Convert to number of units based on current price
+        position_size = position_value / float(current_price)
         
         # Apply maximum size limit
         position_size = min(
             position_size,
-            portfolio_value * self.max_size_pct
+            float(portfolio_value) * float(self.max_size_pct)
         )
         
         return PositionSizeResult(

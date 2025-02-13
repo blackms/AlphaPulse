@@ -163,10 +163,10 @@ class RiskManager(IRiskManager):
         # Calculate total exposure
         try:
             total_exposure = sum(
-                abs(pos['quantity'] * pos['current_price'])
+                abs(float(pos['quantity']) * float(pos['current_price']))
                 for pos in current_positions.values()
             ) + position_value
-            leverage = total_exposure / portfolio_value if portfolio_value > 0 else 0
+            leverage = total_exposure / float(portfolio_value) if float(portfolio_value) > 0 else 0
             logger.debug(f"Total exposure: {total_exposure}, Leverage: {leverage:.2f}")
             
             if leverage > self.config.max_portfolio_leverage:
