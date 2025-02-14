@@ -1,72 +1,124 @@
 """
-Pytest configuration for AlphaPulse tests.
+Pytest configuration and fixtures.
 """
+import asyncio
+import os
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
 import pytest_asyncio
-import asyncio
-
-from ..agents.supervisor import SupervisorAgent, AgentFactory
-from .test_supervisor import TestTradeAgent
 
 
-@pytest_asyncio.fixture(autouse=True)
-async def setup_test_environment():
-    """Set up test environment before each test."""
-    # Enable test mode with TestTradeAgent
-    AgentFactory.enable_test_mode(TestTradeAgent)
+@pytest.fixture(scope="session", autouse=True)
+def mock_openai_env():
+    """Mock OpenAI environment variables."""
+    with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        yield
+
+
+@pytest.fixture(scope="session", autouse=True)
+def mock_langchain():
+    """Mock langchain components."""
+    mock_response = MagicMock()
+    mock_response.content = '{"recommendations": [], "risk_assessment": "test", "confidence_score": 0.9, "reasoning": "test"}'
     
-    # Clear supervisor state
-    supervisor = SupervisorAgent.instance()
-    supervisor._instance = None
+    mock_chat = AsyncMock()
+    mock_chat.ainvoke.return_value = mock_response
     
-    yield
-    
-    # Cleanup after test
-    AgentFactory.disable_test_mode()
-    SupervisorAgent._instance = None
+    with patch('langchain_openai.ChatOpenAI', return_value=mock_chat):
+        yield
 
 
 @pytest_asyncio.fixture
-async def supervisor():
-    """Fixture for supervisor agent."""
-    supervisor = SupervisorAgent.instance()
-    await supervisor.start()
-    yield supervisor
-    await supervisor.stop()
-    # Clear instance after test
-    SupervisorAgent._instance = None
-
-
-@pytest_asyncio.fixture(scope="function")
-async def market_data():
-    """Fixture for market data."""
-    from ..agents.interfaces import MarketData
-    import pandas as pd
-    
-    return MarketData(
-        prices=pd.DataFrame({
-            'close': [100, 101, 102, 103, 104],
-            'open': [99, 100, 101, 102, 103],
-            'high': [102, 103, 104, 105, 106],
-            'low': [98, 99, 100, 101, 102]
-        }),
-        volumes=pd.DataFrame({
-            'volume': [1000, 1100, 1200, 1300, 1400]
-        })
-    )
-
-
-@pytest_asyncio.fixture
-def event_loop():
-    """Create an instance of the default event loop for each test case."""
+async def event_loop():
+    """Create event loop for tests."""
     loop = asyncio.new_event_loop()
     yield loop
     loop.close()
 
 
-def pytest_configure(config):
-    """Configure pytest for async testing."""
-    config.addinivalue_line(
-        "markers",
-        "asyncio: mark test as async"
+@pytest.fixture(scope="session", autouse=True)
+def mock_exchange_credentials():
+    """Mock exchange credentials."""
+    with patch.dict(os.environ, {
+        "BINANCE_API_KEY": "test-key",
+        "BINANCE_API_SECRET": "test-secret",
+        "BYBIT_API_KEY": "test-key",
+        "BYBIT_API_SECRET": "test-secret"
+    }):
+        yield
+
+
+@pytest_asyncio.fixture
+async def mock_exchange():
+    """Create mock exchange."""
+    exchange = AsyncMock()
+    exchange.fetch_balance = AsyncMock(return_value={
+        "total": {"USDT": 10000},
+        "free": {"USDT": 9000},
+        "used": {"USDT": 1000}
+    })
+    exchange.fetch_ticker = AsyncMock(return_value={
+        "last": 50000,
+        "bid": 49900,
+        "ask": 50100,
+        "volume": 1000
+    })
+    return exchange
+
+
+@pytest.fixture
+def mock_portfolio_data():
+    """Create mock portfolio data."""
+    from alpha_pulse.portfolio.data_models import PortfolioData, PortfolioPosition
+    from decimal import Decimal
+    
+    return PortfolioData(
+        total_value=Decimal("100000.00"),
+        cash_balance=Decimal("20000.00"),
+        positions=[
+            PortfolioPosition(
+                asset_id="BTC",
+                quantity=Decimal("1.5"),
+                current_price=Decimal("50000.00"),
+                market_value=Decimal("75000.00"),
+                profit_loss=Decimal("5000.00")
+            )
+        ],
+        risk_metrics={
+            "volatility": "0.25",
+            "sharpe_ratio": "1.5",
+            "max_drawdown": "-0.15"
+        }
     )
+
+
+@pytest.fixture
+def mock_market_data():
+    """Create mock market data."""
+    return {
+        "BTC/USDT": {
+            "price": 50000.0,
+            "volume": 1000.0,
+            "change_24h": 0.05,
+            "high_24h": 51000.0,
+            "low_24h": 49000.0
+        },
+        "ETH/USDT": {
+            "price": 2000.0,
+            "volume": 5000.0,
+            "change_24h": 0.03,
+            "high_24h": 2100.0,
+            "low_24h": 1900.0
+        }
+    }
+
+
+@pytest.fixture(autouse=True)
+def mock_logger():
+    """Mock logger to prevent actual logging during tests."""
+    with patch('loguru.logger.info'), \
+         patch('loguru.logger.debug'), \
+         patch('loguru.logger.warning'), \
+         patch('loguru.logger.error'):
+        yield

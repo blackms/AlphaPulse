@@ -1,0 +1,37 @@
+# Core dependencies
+numpy
+pandas
+scikit-learn
+tensorflow
+torch
+ccxt
+aiohttp
+fastapi
+uvicorn
+pydantic
+python-dotenv
+loguru
+
+# LLM dependencies
+langchain
+langchain-openai
+openai
+
+# Testing dependencies
+pytest
+pytest-asyncio
+pytest-cov
+pytest-mock
+pytest-timeout
+pytest-anyio
+
+# Development dependencies
+black
+flake8
+isort
+mypy
+
+# Additional dependencies
+python-dateutil
+requests
+typing-extensions
