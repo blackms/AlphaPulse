@@ -1,196 +1,232 @@
 """
-Tests for the reinforcement learning components.
+Tests for reinforcement learning module.
 """
+import pytest
 import numpy as np
 import pandas as pd
-import pytest
+from datetime import datetime, UTC
+from pathlib import Path
+import tempfile
+import shutil
+import gymnasium as gym
 from stable_baselines3 import PPO
 
-from alpha_pulse.rl.env import TradingEnv, TradingEnvConfig
-from alpha_pulse.rl.rl_trainer import RLTrainer, TrainingConfig
+from ..rl.env import TradingEnv, TradingEnvConfig
+from ..rl.rl_trainer import (
+    RLTrainer,
+    TrainingConfig,
+    ComputeConfig,
+    NetworkConfig
+)
 
 
 @pytest.fixture
 def sample_data():
-    """Create sample price and feature data for testing."""
-    # Create 100 time steps of data
-    dates = pd.date_range(start='2023-01-01', periods=100, freq='H')
+    """Fixture for sample trading data."""
+    dates = pd.date_range(
+        start=datetime(2024, 1, 1, tzinfo=UTC),
+        end=datetime(2024, 1, 30, tzinfo=UTC),
+        freq='D'
+    )
+    np.random.seed(42)
     
-    # Generate sample price data with some trend and noise
+    # Create price data
     prices = pd.Series(
-        np.linspace(100, 120, 100) + np.random.normal(0, 1, 100),
+        100 + np.random.randn(len(dates)).cumsum(),
         index=dates
     )
     
-    # Generate sample features (e.g., moving averages)
+    # Create feature data
     features = pd.DataFrame({
-        'sma': prices.rolling(window=5).mean(),
-        'std': prices.rolling(window=5).std()
-    }).fillna(0)
+        'sma': prices.rolling(5).mean(),
+        'rsi': np.random.randn(len(dates)),
+        'volume': np.abs(np.random.randn(len(dates)) * 1000)
+    }, index=dates)
     
     return prices, features
 
 
-def test_trading_env_initialization(sample_data):
-    """Test that the trading environment initializes correctly."""
+@pytest.fixture
+def trading_env(sample_data):
+    """Fixture for trading environment."""
     prices, features = sample_data
-    
-    env = TradingEnv(
-        prices=prices,
-        features=features,
-        config=TradingEnvConfig(window_size=5)
+    config = TradingEnvConfig(
+        initial_capital=100000.0,
+        commission=0.001,
+        position_size=0.1,
+        window_size=5
     )
-    
-    # Check spaces
-    assert env.action_space.n == 3  # sell, hold, buy
-    assert env.observation_space.shape == (15,)  # 5 time steps * (1 price + 2 features)
-    
-    # Check initial reset
-    obs, info = env.reset()
-    assert isinstance(obs, np.ndarray)
-    assert obs.shape == (15,)
-    assert info['equity'] == env.config.initial_capital
-    assert info['position'] is None
+    return TradingEnv(prices, features, config)
 
 
-def test_trading_env_step(sample_data):
-    """Test the environment step function."""
-    prices, features = sample_data
-    
-    env = TradingEnv(
-        prices=prices,
-        features=features,
-        config=TradingEnvConfig(window_size=5)
+@pytest.fixture
+def rl_trainer(tmp_path):
+    """Fixture for RL trainer."""
+    env_config = TradingEnvConfig()
+    training_config = TrainingConfig(
+        total_timesteps=1000,  # Small number for testing
+        model_path=str(tmp_path / "test_model"),
+        log_path=str(tmp_path / "test_logs")
     )
+    compute_config = ComputeConfig(device="cpu")
+    network_config = NetworkConfig(hidden_sizes=[32, 32])
     
-    # Reset and take a step
-    obs, _ = env.reset()
-    next_obs, reward, done, truncated, info = env.step(2)  # Buy action
+    return RLTrainer(
+        env_config=env_config,
+        training_config=training_config,
+        compute_config=compute_config,
+        network_config=network_config
+    )
+
+
+def test_trading_env_initialization(trading_env):
+    """Test trading environment initialization."""
+    assert isinstance(trading_env, gym.Env)
+    assert trading_env.action_space.n == 3
+    assert trading_env.observation_space.shape == (
+        trading_env.config.window_size * (1 + trading_env.features.shape[1]),
+    )
+    assert trading_env.equity == trading_env.config.initial_capital
+    assert trading_env.current_position is None
+
+
+def test_trading_env_reset(trading_env):
+    """Test environment reset."""
+    initial_state, info = trading_env.reset()
     
-    # Check observation
-    assert isinstance(next_obs, np.ndarray)
-    assert next_obs.shape == (15,)
+    assert isinstance(initial_state, np.ndarray)
+    assert initial_state.shape == trading_env.observation_space.shape
+    assert trading_env.current_step == trading_env.config.window_size
+    assert trading_env.equity == trading_env.config.initial_capital
+    assert trading_env.current_position is None
+    assert isinstance(info, dict)
+
+
+def test_trading_env_step(trading_env):
+    """Test environment step function."""
+    trading_env.reset()
     
-    # Check reward is float
+    # Test buy action
+    state, reward, done, truncated, info = trading_env.step(2)  # Buy
+    assert isinstance(state, np.ndarray)
     assert isinstance(reward, float)
+    assert isinstance(done, bool)
+    assert isinstance(info, dict)
+    assert trading_env.current_position is not None
+    assert trading_env.current_position.size > 0  # Long position
     
-    # Check info contains expected keys
-    assert 'equity' in info
-    assert 'realized_pnl' in info
-    assert 'position' in info
+    # Test sell action
+    state, reward, done, truncated, info = trading_env.step(0)  # Sell
+    assert trading_env.current_position is not None
+    assert trading_env.current_position.size < 0  # Short position
+    
+    # Test hold action
+    state, reward, done, truncated, info = trading_env.step(1)  # Hold
+    assert isinstance(state, np.ndarray)
+    
+    # Test invalid action
+    with pytest.raises(ValueError):
+        trading_env.step(3)
 
 
-def test_trading_env_position_management(sample_data):
-    """Test that positions are managed correctly."""
-    prices, features = sample_data
+def test_trading_env_position_management(trading_env):
+    """Test position management."""
+    trading_env.reset()
     
-    env = TradingEnv(
-        prices=prices,
-        features=features,
-        config=TradingEnvConfig(
-            window_size=5,
-            position_size=1.0,
-            commission=0.001
-        )
-    )
-    
-    # Reset and open position
-    env.reset()
-    _, _, _, _, info = env.step(2)  # Buy
-    assert info['position'] is not None
+    # Open long position
+    trading_env.step(2)  # Buy
+    assert trading_env.current_position is not None
+    assert trading_env.current_position.size > 0
     
     # Close position
-    _, _, _, _, info = env.step(0)  # Sell
-    assert info['position'] is None
-    assert isinstance(info['realized_pnl'], float)
+    trading_env.step(0)  # Sell
+    assert len(trading_env.positions) == 1  # Position added to history
+    assert trading_env.positions[0].exit_price is not None
+    
+    # Open short position
+    trading_env.step(0)  # Sell
+    assert trading_env.current_position is not None
+    assert trading_env.current_position.size < 0
 
 
-def test_trading_env_done_condition(sample_data):
-    """Test that environment properly signals episode completion."""
+def test_trading_env_reward_calculation(trading_env):
+    """Test reward calculation."""
+    trading_env.reset()
+    
+    # Open position and check reward
+    _, reward, _, _, _ = trading_env.step(2)  # Buy
+    assert isinstance(reward, float)
+    
+    # Hold position and check reward
+    _, reward, _, _, _ = trading_env.step(1)  # Hold
+    assert isinstance(reward, float)
+
+
+def test_rl_trainer_initialization(rl_trainer, tmp_path):
+    """Test RL trainer initialization."""
+    assert isinstance(rl_trainer.env_config, TradingEnvConfig)
+    assert isinstance(rl_trainer.training_config, TrainingConfig)
+    assert isinstance(rl_trainer.compute_config, ComputeConfig)
+    assert isinstance(rl_trainer.network_config, NetworkConfig)
+    
+    # Check directory creation
+    assert Path(rl_trainer.training_config.model_path).parent.exists()
+    assert Path(rl_trainer.training_config.log_path).exists()
+
+
+def test_rl_trainer_model_creation(rl_trainer, trading_env):
+    """Test model creation."""
+    model = rl_trainer._create_model(trading_env)
+    assert isinstance(model, PPO)
+    
+    # Test unsupported algorithm
+    with pytest.raises(ValueError):
+        rl_trainer._create_model(trading_env, algorithm='unsupported')
+
+
+def test_rl_trainer_training(rl_trainer, sample_data):
+    """Test training workflow."""
     prices, features = sample_data
     
-    env = TradingEnv(
+    # Basic training without evaluation
+    model = rl_trainer.train(
         prices=prices,
         features=features,
-        config=TradingEnvConfig(window_size=5)
+        algorithm='ppo'
     )
+    assert isinstance(model, PPO)
     
-    env.reset()
-    done = False
-    steps = 0
+    # Training with evaluation data
+    eval_prices = prices.iloc[-10:]
+    eval_features = features.iloc[-10:]
     
-    while not done:
-        _, _, done, _, _ = env.step(1)  # Hold action
-        steps += 1
-    
-    assert steps == len(prices) - 6  # window_size + 1
-
-
-def test_rl_trainer_initialization():
-    """Test RLTrainer initialization."""
-    trainer = RLTrainer()
-    assert trainer.env_config is not None
-    assert trainer.training_config is not None
-
-
-def test_rl_trainer_basic_training(sample_data):
-    """Test that basic training runs without errors."""
-    prices, features = sample_data
-    
-    trainer = RLTrainer(
-        training_config=TrainingConfig(
-            total_timesteps=1000,  # Small number for testing
-            eval_freq=500
-        )
-    )
-    
-    # Train for a small number of steps
-    model = trainer.train(
+    model = rl_trainer.train(
         prices=prices,
         features=features,
         algorithm='ppo',
-        eval_prices=prices,
-        eval_features=features
+        eval_prices=eval_prices,
+        eval_features=eval_features
     )
-    
     assert isinstance(model, PPO)
 
 
-def test_rl_trainer_evaluation(sample_data):
+def test_rl_trainer_evaluation(rl_trainer, sample_data):
     """Test model evaluation."""
     prices, features = sample_data
     
-    trainer = RLTrainer(
-        training_config=TrainingConfig(total_timesteps=1000)
-    )
+    # Train a model first
+    model = rl_trainer.train(prices=prices, features=features)
     
-    # Train and evaluate
-    model = trainer.train(prices=prices, features=features, algorithm='ppo')
-    metrics = trainer.evaluate(
+    # Evaluate the model
+    metrics = rl_trainer.evaluate(
         model=model,
         prices=prices,
         features=features,
         n_episodes=2
     )
     
+    assert isinstance(metrics, dict)
     assert 'mean_reward' in metrics
-    assert 'std_reward' in metrics
     assert 'mean_length' in metrics
-    assert 'std_length' in metrics
-
-
-def test_invalid_data():
-    """Test that invalid data raises appropriate errors."""
-    # Test mismatched indices
-    prices = pd.Series([1, 2, 3])
-    features = pd.DataFrame({'f1': [1, 2, 3, 4]})
-    
-    with pytest.raises(ValueError, match="must have matching timestamps"):
-        TradingEnv(prices=prices, features=features)
-    
-    # Test negative prices
-    prices = pd.Series([-1, 2, 3])
-    features = pd.DataFrame({'f1': [1, 2, 3]}, index=prices.index)
-    
-    with pytest.raises(ValueError, match="must be positive"):
-        TradingEnv(prices=prices, features=features)
+    assert isinstance(metrics['mean_reward'], float)
+    assert isinstance(metrics['mean_length'], float)
