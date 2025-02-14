@@ -39,3 +39,4 @@ mypy
 python-dateutil
 requests
 typing-extensions
+TA-Lib

@@ -22,6 +22,11 @@ jobs:
         python-version: ${{ matrix.python-version }}
         cache: 'pip'
     
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ta-lib
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
