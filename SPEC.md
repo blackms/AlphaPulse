@@ -1,159 +1,242 @@
-# AlphaPulse Agent Instructions
+# SPEC: AlphaPulse Trading System
 
-## Core Guidelines
+> **Purpose:**  
+> This document serves as the single source of truth for the roocode agent. Every time a task is requested, the agent will read this file to understand the project context, including all modules, business logic, domain details, and architectural decisions.
 
-### File Operations
-- Check large file size: `grep -c '\n' filename > line_count.txt`
-- Break files >500 lines into chunks
-- Pipe command output: `command > output.txt`
-- Use read_file for content, search_files for patterns
+---
 
-### Module Changes
-- Search for dependencies before changes:
+## 1. Project Overview
+
+- **Project Name:** AlphaPulse
+- **Description:**  
+  A sophisticated algorithmic trading system that combines reinforcement learning, technical analysis, and risk management to execute automated trading strategies across multiple asset classes.
+- **Objectives:**  
+  - Develop a robust trading system using state-of-the-art machine learning techniques
+  - Implement comprehensive risk management and portfolio optimization
+  - Provide real-time market analysis and trade execution capabilities
+  - Support both paper trading and live trading environments
+- **Target Audience:**  
+  - Quantitative traders and researchers
+  - Financial institutions
+  - Individual algorithmic traders
+
+---
+
+## 2. Domain & Business Context
+
+- **Domain Description:**  
+  The system operates in the financial markets domain, focusing on algorithmic trading using machine learning. It incorporates technical analysis, market data processing, and automated decision-making.
+
+- **Business Objectives & Value:**  
+  - Automate trading decisions using AI/ML techniques
+  - Minimize human emotion in trading decisions
+  - Optimize portfolio performance through systematic strategies
+  - Reduce operational risks through automated processes
+
+- **Key Business Rules:**  
+  - Rule 1: Risk Management - Strict position sizing and stop-loss implementation
+  - Rule 2: Data Integrity - Real-time market data validation and cleaning
+  - Rule 3: Trade Execution - Systematic entry and exit based on ML model predictions
+
+---
+
+## 3. Architectural Overview
+
+- **System Architecture:**  
+  The system follows a modular architecture with clear separation of concerns:
   ```
-  <search_files>
-  <path>src</path>
-  <regex>function_name</regex>
-  </search_files>
-  ```
-- Update all affected modules
-- Update SPEC.md for significant changes
-
-### External Tools
-- Use ask_perplexity for research
-- Use chat_perplexity for discussions
-- Maintain local context
-
-## Module Operations
-
-### Agents (`src/alpha_pulse/agents/`)
-- **Data Safety:**
-  ```python
-  # Check file size before processing
-  grep -c '\n' market_data.csv > line_count.txt
-  count = int(read_file('line_count.txt'))
-  if count > 500:
-      # Process in chunks
-  ```
-- **Code Changes:**
-  ```python
-  # Search for dependencies
-  <search_files>
-  <path>src/alpha_pulse/agents</path>
-  <regex>function_name</regex>
-  </search_files>
-  ```
-
-### Risk Management (`src/alpha_pulse/risk_management/`)
-- **Config:**
-  ```python
-  # Load and validate
-  config = yaml.safe_load('config/risk_config.yaml')
-  ```
-- **Calculations:**
-  ```python
-  # Use tolerance
-  TOLERANCE = 1e-10
-  if abs(a - b) > TOLERANCE:
-      # Handle difference
+  AlphaPulse
+  ├── Data Pipeline (Market Data Processing)
+  ├── Feature Engineering
+  ├── ML Models (RL/Supervised)
+  ├── Risk Management
+  ├── Portfolio Management
+  └── Trade Execution
   ```
 
-### Portfolio (`src/alpha_pulse/portfolio/`)
-- **Caching:**
-  ```python
-  @lru_cache(maxsize=100)
-  def create_price_matrix(data_str: str)
+- **Technology Stack:**  
+  - Core: Python 3.12+
+  - ML Framework: PyTorch, Stable-Baselines3
+  - Data Processing: Pandas, NumPy
+  - Technical Analysis: TA-Lib
+  - API Integration: REST/WebSocket clients
+  - Database: SQL/NoSQL for data persistence
+
+---
+
+## 4. Modules & Components
+
+### Data Pipeline Module
+- **Description:** Handles market data acquisition and preprocessing
+- **Responsibilities:**  
+  - Real-time data fetching
+  - Historical data management
+  - Data cleaning and validation
+- **Key Business Logic:**  
+  - Data normalization and feature calculation
+  - Market data caching and storage
+- **Dependencies:**  
+  - Exchange APIs
+  - Data providers
+  - Storage systems
+
+### ML Models Module
+- **Description:** Implements trading algorithms and models
+- **Responsibilities:**  
+  - Model training and evaluation
+  - Trading signal generation
+  - Performance monitoring
+- **Key Business Logic:**  
+  - RL-based trading strategy
+  - Technical indicator processing
+  - Market state representation
+- **Dependencies:**  
+  - Data Pipeline
+  - Feature Engineering
+  - Risk Management
+
+### Risk Management Module
+- **Description:** Handles risk assessment and position sizing
+- **Responsibilities:**  
+  - Position size calculation
+  - Stop-loss management
+  - Portfolio risk monitoring
+- **Key Business Logic:**  
+  - Risk-adjusted position sizing
+  - Dynamic stop-loss calculation
+  - Portfolio exposure limits
+- **Dependencies:**  
+  - Portfolio Management
+  - Trade Execution
+
+### Trade Execution Module
+- **Description:** Manages order execution and tracking
+- **Responsibilities:**  
+  - Order placement and management
+  - Position tracking
+  - Trade logging
+- **Key Business Logic:**  
+  - Smart order routing
+  - Trade execution optimization
+  - Position reconciliation
+- **Dependencies:**  
+  - Exchange APIs
+  - Risk Management
+  - Portfolio Management
+
+---
+
+## 5. Business Logic & Domain Rules
+
+- **Core Business Processes:**  
+  1. Market Data Processing
+     - Real-time data ingestion
+     - Feature calculation
+     - State representation
+  2. Trading Decision Making
+     - Model inference
+     - Risk assessment
+     - Order generation
+  3. Trade Execution
+     - Order placement
+     - Position management
+     - Performance tracking
+
+- **Validation & Invariants:**  
+  - Market data must be clean and normalized
+  - Risk limits must be enforced at all times
+  - Portfolio constraints must be maintained
+  - Trade execution must be atomic
+
+---
+
+## 6. Data & Domain Models
+
+- **Entity Descriptions:**  
   ```
-- **Data Handling:**
-  - Forward-fill limit: 5 periods
-  - Use Decimal for money
-  - Validate weights sum to 1.0
-
-### Execution (`src/alpha_pulse/execution/`)
-- **Safe Trading:**
-  ```python
-  # Always use timeout and retry
-  result = await self._retry_with_timeout(
-      exchange.execute_trade,
-      max_retries=2,
-      timeout=20.0
-  )
+  MarketData:
+    - timestamp: DateTime
+    - prices: DataFrame
+    - volumes: DataFrame
+    
+  Position:
+    - asset_id: str
+    - quantity: Decimal
+    - entry_price: Decimal
+    - entry_time: int
+    - exit_price: Optional[Decimal]
+    - exit_time: Optional[int]
+    - pnl: Optional[Decimal]
+    
+  PortfolioData:
+    - timestamp: DateTime
+    - positions: List[Position]
+    - equity: Decimal
+    - exposure: Decimal
   ```
-- **Error Prevention:**
-  - Implement rollbacks
-  - Track order states
-  - Monitor rate limits
 
-## Critical Parameters
+---
 
-### Risk Limits
-- Max position size: 20% of portfolio
-- Max leverage: 1.5x
-- Stop loss: 2% per trade
-- Max drawdown: 25%
-- Min technical score: 0.15
+## 7. Interfaces & Integration
 
-### Data Handling
-- Cache size: 100 entries
-- Forward-fill: 5 periods max
-- Retry attempts: 2
-- Timeout: 20 seconds
-- Floating tolerance: 1e-10
+- **Internal APIs:**  
+  - Data Pipeline Interface
+  - Model Interface
+  - Trade Execution Interface
+  - Risk Management Interface
 
-### RL Parameters
-- **Environment:**
-  - Initial capital: 100,000
-  - Commission: 0.1%
-  - Position size: 20% max
-  - Window size: 10 periods
-  - Stop loss: 2%
-  - Take profit: 5%
-- **Training:**
-  - Batch size: 256
-  - Learning rate: 3e-4
-  - Discount (gamma): 0.99
-  - GAE lambda: 0.95
-  - Clip range: 0.2
-  - Value coef: 0.5
-  - Max grad norm: 0.5
+- **External Services:**  
+  - Exchange APIs: For market data and trading
+  - Data Providers: For additional market data
+  - Storage Services: For data persistence
 
-### Required Validations
-- Config parameters
-- Exchange responses
-- Balance checks
-- Weight sums (1.0)
-- Rate limits
+---
 
-### RL (`src/alpha_pulse/rl/`)
-- **Environment Setup:**
-  ```python
-  # Configure environment safely
-  env_config = TradingEnvConfig(
-      initial_capital=100000.0,
-      commission=0.001,
-      position_size=0.2,  # Max 20% per trade
-      window_size=10
-  )
-  ```
-- **Training Safety:**
-  ```python
-  # Use safe training defaults
-  training_config = TrainingConfig(
-      total_timesteps=1_000_000,
-      batch_size=256,
-      n_steps=2048,
-      eval_freq=10_000,  # Regular evaluation
-      checkpoint_freq=10_000  # Regular saves
-  )
-  ```
-- **State Management:**
-  - Normalize all features
-  - Handle missing data with forward-fill
-  - Replace NaN/inf values
-  - Validate action space bounds
-- **Error Prevention:**
-  - Verify price data is positive
-  - Check timestamp alignment
-  - Monitor reward stability
-  - Implement position limits
-  - Use stop-loss consistently
+## 8. Non-Functional Requirements
+
+- **Performance:**  
+  - Sub-second latency for trading decisions
+  - Real-time data processing capability
+  - Efficient model inference
+
+- **Scalability & Reliability:**  
+  - Horizontal scaling for data processing
+  - Fault tolerance in trade execution
+  - Automated recovery mechanisms
+
+- **Security:**  
+  - Secure API key management
+  - Encrypted communications
+  - Access control and authentication
+
+- **Maintainability:**  
+  - Comprehensive logging
+  - Performance monitoring
+  - Error tracking and reporting
+
+---
+
+## 9. Revision History
+
+| Version | Date       | Author | Changes                                    |
+|---------|------------|--------|-------------------------------------------|
+| 1.0     | 2025-02-14 | Roo    | Initial specification                     |
+
+---
+
+## 10. Glossary & References
+
+- **Glossary:**  
+  - **RL:** Reinforcement Learning
+  - **OHLCV:** Open, High, Low, Close, Volume
+  - **PnL:** Profit and Loss
+  - **Technical Indicators:** Mathematical calculations based on price and volume data
+
+- **References:**  
+  - [Stable-Baselines3 Documentation](https://stable-baselines3.readthedocs.io/)
+  - [TA-Lib Documentation](https://mrjbq7.github.io/ta-lib/)
+  - [PyTorch Documentation](https://pytorch.org/docs/)
+
+---
+
+*Note: Update this document as the project evolves to ensure that the roocode agent always has the most up-to-date context.*

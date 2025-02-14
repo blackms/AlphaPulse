@@ -35,19 +35,23 @@ def generate_mock_data(days: int = 365) -> MarketData:
     dates = [end_date - timedelta(days=x) for x in range(days)]
     dates.reverse()
     
-    # Generate synthetic price data
+    # Generate synthetic price data with more realistic trends
     np.random.seed(42)
-    returns = np.random.normal(0.0001, 0.02, days)
+    # Add a slight upward bias and more volatility
+    returns = np.random.normal(0.0002, 0.025, days)
+    # Add some trending behavior
+    trend = np.sin(np.linspace(0, 4*np.pi, days)) * 0.001
+    returns += trend
     price = 100 * np.exp(np.cumsum(returns))
     
-    # Create OHLCV data
+    # Create OHLCV data with more realistic patterns
     df = pd.DataFrame({
         'timestamp': dates,
-        'open': price * (1 + np.random.normal(0, 0.002, days)),
-        'high': price * (1 + np.abs(np.random.normal(0, 0.004, days))),
-        'low': price * (1 - np.abs(np.random.normal(0, 0.004, days))),
+        'open': price * (1 + np.random.normal(0, 0.003, days)),
+        'high': price * (1 + np.abs(np.random.normal(0, 0.005, days))),
+        'low': price * (1 - np.abs(np.random.normal(0, 0.005, days))),
         'close': price,
-        'volume': np.random.lognormal(10, 1, days)
+        'volume': np.random.lognormal(10, 1.2, days)  # More variable volume
     }).set_index('timestamp')
     
     # Calculate features
@@ -91,30 +95,30 @@ def main():
         # Prepare data
         train_data, eval_data = prepare_data(market_data)
         
-        # Configure environment
+        # Configure environment with more aggressive trading parameters
         env_config = TradingEnvConfig(
             initial_capital=100000.0,
             commission=0.001,
-            position_size=0.2,
+            position_size=0.3,  # Increased position size
             window_size=10,
-            reward_scaling=1.0,
-            risk_aversion=0.1,
+            reward_scaling=2.0,  # Increased reward scaling
+            risk_aversion=0.05,  # Reduced risk aversion
             max_position=5.0,
-            stop_loss_pct=0.02,
-            take_profit_pct=0.05
+            stop_loss_pct=0.03,  # Increased stop loss
+            take_profit_pct=0.06  # Increased take profit
         )
         
-        # Configure neural network
+        # Configure neural network with deeper architecture
         network_config = NetworkConfig(
-            hidden_sizes=[128, 64, 32],
+            hidden_sizes=[256, 128, 64],  # Larger network
             activation_fn="relu",
             use_lstm=True,
-            lstm_units=64,
+            lstm_units=128,  # Increased LSTM capacity
             attention_heads=4,
             dropout_rate=0.1
         )
         
-        # Configure training
+        # Configure training with emphasis on exploration
         training_config = TrainingConfig(
             total_timesteps=1_000_000,
             learning_rate=3e-4,
@@ -123,7 +127,7 @@ def main():
             gamma=0.99,
             gae_lambda=0.95,
             clip_range=0.2,
-            ent_coef=0.01,
+            ent_coef=0.02,  # Increased entropy coefficient for more exploration
             vf_coef=0.5,
             max_grad_norm=0.5,
             eval_freq=10_000,
