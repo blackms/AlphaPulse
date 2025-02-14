@@ -6,7 +6,6 @@
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![Last Commit](https://img.shields.io/github/last-commit/blackms/AlphaPulse)](https://github.com/blackms/AlphaPulse/commits/main)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-[![CodeQL](https://github.com/blackms/AlphaPulse/actions/workflows/codeql-analysis.yml/badge.svg)](https://github.com/blackms/AlphaPuls/actions/workflows/codeql-analysis.yml)
 
 
 A comprehensive cryptocurrency and stock trading system with AI-powered portfolio management. 🤖💹
