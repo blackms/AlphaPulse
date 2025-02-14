@@ -1,3 +1,6 @@
+"""
+Portfolio analysis using LLM.
+"""
 from abc import ABC, abstractmethod
 from datetime import datetime, UTC
 from typing import Dict, Optional
@@ -12,10 +15,12 @@ from loguru import logger
 
 from alpha_pulse.portfolio.data_models import PortfolioData, LLMAnalysisResult
 
+
 class RebalancingSuggestion(BaseModel):
     """Schema for rebalancing suggestion."""
     asset: str = Field(description="Asset identifier")
     target_allocation: float = Field(description="Target allocation for the asset")
+
 
 class PortfolioAnalysisOutput(BaseModel):
     """Schema for LLM output."""
@@ -27,6 +32,7 @@ class PortfolioAnalysisOutput(BaseModel):
     confidence_score: float = Field(description="Confidence score between 0 and 1")
     reasoning: str = Field(description="Detailed reasoning behind recommendations")
 
+
 class IPortfolioLLMAnalyzer(ABC):
     """Interface for portfolio analysis using LLM."""
     
@@ -34,6 +40,7 @@ class IPortfolioLLMAnalyzer(ABC):
     async def analyze_portfolio(self, portfolio_data: PortfolioData) -> LLMAnalysisResult:
         """Analyze the portfolio and provide recommendations."""
         pass
+
 
 class OpenAILLMAnalyzer(IPortfolioLLMAnalyzer):
     """OpenAI-based implementation of portfolio analyzer using langchain."""
@@ -45,14 +52,7 @@ class OpenAILLMAnalyzer(IPortfolioLLMAnalyzer):
         prompt_template: Optional[str] = None,
         temperature: float = 0.7
     ):
-        """Initialize the analyzer with OpenAI credentials and configuration.
-        
-        Args:
-            api_key: OpenAI API key
-            model_name: Name of the model to use (default: gpt-4)
-            prompt_template: Custom prompt template (optional)
-            temperature: Model temperature (default: 0.7)
-        """
+        """Initialize the analyzer with OpenAI credentials and configuration."""
         os.environ["OPENAI_API_KEY"] = api_key
         model_kwargs = {"model_name": model_name}
         if "o3-" not in model_name:  # Only add temperature for non-o3 models
@@ -61,6 +61,18 @@ class OpenAILLMAnalyzer(IPortfolioLLMAnalyzer):
         self.prompt_template = prompt_template or self._default_prompt_template
         self.output_parser = PydanticOutputParser(pydantic_object=PortfolioAnalysisOutput)
         logger.info(f"Initialized OpenAILLMAnalyzer with model: {model_name}")
+
+    def _validate_portfolio_data(self, portfolio_data: PortfolioData) -> None:
+        """Validate portfolio data before analysis."""
+        if portfolio_data.total_value <= 0:
+            raise ValueError("Portfolio total value must be positive")
+        if portfolio_data.cash_balance < 0:
+            raise ValueError("Cash balance cannot be negative")
+        for position in portfolio_data.positions:
+            if position.quantity <= 0:
+                raise ValueError(f"Position quantity must be positive for {position.asset_id}")
+            if position.current_price <= 0:
+                raise ValueError(f"Current price must be positive for {position.asset_id}")
 
     @property
     def _default_prompt_template(self) -> str:
@@ -122,6 +134,8 @@ Please provide a detailed analysis including:
 
     def _format_portfolio_data(self, portfolio_data: PortfolioData) -> str:
         """Format portfolio data into a prompt string."""
+        self._validate_portfolio_data(portfolio_data)
+        
         # Add headers
         positions_str = (
             "Asset      Quantity      Price ($)        Value ($)    P/L ($)\n"
