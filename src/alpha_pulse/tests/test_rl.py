@@ -30,9 +30,9 @@ def sample_data():
     )
     np.random.seed(42)
     
-    # Create price data
+    # Create price data with less volatility
     prices = pd.Series(
-        100 + np.random.randn(len(dates)).cumsum(),
+        100 + np.random.randn(len(dates)).cumsum() * 0.1,  # Reduced volatility
         index=dates
     )
     
@@ -47,27 +47,36 @@ def sample_data():
 
 
 @pytest.fixture
-def trading_env(sample_data):
-    """Fixture for trading environment."""
-    prices, features = sample_data
-    config = TradingEnvConfig(
+def env_config():
+    """Fixture for environment configuration."""
+    return TradingEnvConfig(
         initial_capital=100000.0,
         commission=0.001,
         position_size=0.1,
         window_size=5
     )
-    return TradingEnv(prices, features, config)
 
 
 @pytest.fixture
-def rl_trainer(tmp_path):
-    """Fixture for RL trainer."""
-    env_config = TradingEnvConfig()
-    training_config = TrainingConfig(
+def training_config(tmp_path):
+    """Fixture for training configuration."""
+    return TrainingConfig(
         total_timesteps=1000,  # Small number for testing
         model_path=str(tmp_path / "test_model"),
         log_path=str(tmp_path / "test_logs")
     )
+
+
+@pytest.fixture
+def trading_env(sample_data, env_config):
+    """Fixture for trading environment."""
+    prices, features = sample_data
+    return TradingEnv(prices, features, env_config)
+
+
+@pytest.fixture
+def rl_trainer(env_config, training_config):
+    """Fixture for RL trainer."""
     compute_config = ComputeConfig(device="cpu")
     network_config = NetworkConfig(hidden_sizes=[32, 32])
     
@@ -79,25 +88,25 @@ def rl_trainer(tmp_path):
     )
 
 
-def test_trading_env_initialization(trading_env):
+def test_trading_env_initialization(trading_env, env_config):
     """Test trading environment initialization."""
     assert isinstance(trading_env, gym.Env)
     assert trading_env.action_space.n == 3
     assert trading_env.observation_space.shape == (
-        trading_env.config.window_size * (1 + trading_env.features.shape[1]),
+        env_config.window_size * (1 + trading_env.features.shape[1]),
     )
-    assert trading_env.equity == trading_env.config.initial_capital
+    assert trading_env.equity == env_config.initial_capital
     assert trading_env.current_position is None
 
 
-def test_trading_env_reset(trading_env):
+def test_trading_env_reset(trading_env, env_config):
     """Test environment reset."""
     initial_state, info = trading_env.reset()
     
     assert isinstance(initial_state, np.ndarray)
     assert initial_state.shape == trading_env.observation_space.shape
-    assert trading_env.current_step == trading_env.config.window_size
-    assert trading_env.equity == trading_env.config.initial_capital
+    assert trading_env.current_step == env_config.window_size
+    assert trading_env.equity == env_config.initial_capital
     assert trading_env.current_position is None
     assert isinstance(info, dict)
 
@@ -115,14 +124,10 @@ def test_trading_env_step(trading_env):
     assert trading_env.current_position is not None
     assert trading_env.current_position.size > 0  # Long position
     
-    # Test sell action
-    state, reward, done, truncated, info = trading_env.step(0)  # Sell
-    assert trading_env.current_position is not None
-    assert trading_env.current_position.size < 0  # Short position
-    
     # Test hold action
     state, reward, done, truncated, info = trading_env.step(1)  # Hold
     assert isinstance(state, np.ndarray)
+    assert trading_env.current_position is not None  # Position maintained
     
     # Test invalid action
     with pytest.raises(ValueError):
@@ -137,16 +142,19 @@ def test_trading_env_position_management(trading_env):
     trading_env.step(2)  # Buy
     assert trading_env.current_position is not None
     assert trading_env.current_position.size > 0
+    initial_position = trading_env.current_position
     
-    # Close position
+    # Hold position
+    trading_env.step(1)  # Hold
+    assert trading_env.current_position is initial_position  # Same position maintained
+    
+    # Switch to short position
     trading_env.step(0)  # Sell
-    assert len(trading_env.positions) == 1  # Position added to history
+    assert len(trading_env.positions) == 1  # Previous position added to history
     assert trading_env.positions[0].exit_price is not None
-    
-    # Open short position
-    trading_env.step(0)  # Sell
     assert trading_env.current_position is not None
-    assert trading_env.current_position.size < 0
+    assert trading_env.current_position.size < 0  # New short position
+    assert trading_env.current_position is not initial_position  # Different position object
 
 
 def test_trading_env_reward_calculation(trading_env):
@@ -162,16 +170,21 @@ def test_trading_env_reward_calculation(trading_env):
     assert isinstance(reward, float)
 
 
-def test_rl_trainer_initialization(rl_trainer, tmp_path):
+def test_rl_trainer_initialization(env_config, training_config, tmp_path):
     """Test RL trainer initialization."""
-    assert isinstance(rl_trainer.env_config, TradingEnvConfig)
-    assert isinstance(rl_trainer.training_config, TrainingConfig)
-    assert isinstance(rl_trainer.compute_config, ComputeConfig)
-    assert isinstance(rl_trainer.network_config, NetworkConfig)
+    trainer = RLTrainer(
+        env_config=env_config,
+        training_config=training_config
+    )
+    
+    assert isinstance(trainer.env_config, TradingEnvConfig)
+    assert isinstance(trainer.training_config, TrainingConfig)
+    assert isinstance(trainer.compute_config, ComputeConfig)
+    assert isinstance(trainer.network_config, NetworkConfig)
     
     # Check directory creation
-    assert Path(rl_trainer.training_config.model_path).parent.exists()
-    assert Path(rl_trainer.training_config.log_path).exists()
+    assert Path(trainer.training_config.model_path).parent.exists()
+    assert Path(trainer.training_config.log_path).exists()
 
 
 def test_rl_trainer_model_creation(rl_trainer, trading_env):
