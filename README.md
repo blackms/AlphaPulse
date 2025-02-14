@@ -1,5 +1,12 @@
 # AlphaPulse 🚀🌟
 
+[![Tests](https://github.com/yourusername/AlphaPulse/actions/workflows/python-app.yml/badge.svg)](https://github.com/yourusername/AlphaPulse/actions/workflows/python-app.yml)
+[![codecov](https://codecov.io/gh/yourusername/AlphaPulse/branch/main/graph/badge.svg)](https://codecov.io/gh/yourusername/AlphaPulse)
+[![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/release/python-3110/)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+[![Last Commit](https://img.shields.io/github/last-commit/yourusername/AlphaPulse)](https://github.com/yourusername/AlphaPulse/commits/main)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+
 A comprehensive cryptocurrency and stock trading system with AI-powered portfolio management. 🤖💹
 
 ## Features ✨
@@ -260,4 +267,4 @@ python -m pytest src/alpha_pulse/tests/test_hedging.py
 
 ## License 📄
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the GNU Affero General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
