@@ -17,6 +17,10 @@ langchain
 langchain-openai
 openai
 
+# NLP dependencies
+textblob
+nltk
+
 # Testing dependencies
 pytest
 pytest-asyncio

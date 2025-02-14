@@ -25,8 +25,9 @@ setup(
         "pytest-asyncio",
         "pytest-cov",
         "langchain",
-        "langchain-openai",  # Added for LLM analysis
+        "langchain-openai",
         "openai",
+        "textblob",  # Added for sentiment analysis
     ],
     extras_require={
         "dev": [
