@@ -7,45 +7,74 @@ This script shows how to:
 3. Train an RL agent
 4. Evaluate its performance
 """
-import pandas as pd
 import numpy as np
+import pandas as pd
+from datetime import datetime, timedelta
 from pathlib import Path
 from loguru import logger
 
+from alpha_pulse.data_pipeline.models import MarketData
 from alpha_pulse.rl.trading_env import TradingEnv, TradingEnvConfig
 from alpha_pulse.rl.trainer import RLTrainer, NetworkConfig, TrainingConfig
 from alpha_pulse.rl.features import FeatureEngineer
 from alpha_pulse.rl.utils import RewardParams, calculate_trade_statistics
-from alpha_pulse.data_pipeline.data_fetcher import DataFetcher
 
 
-def prepare_data(data_fetcher: DataFetcher, symbol: str) -> tuple:
+def generate_mock_data(days: int = 365) -> MarketData:
+    """
+    Generate synthetic market data for testing.
+    
+    Args:
+        days: Number of days of data to generate
+        
+    Returns:
+        MarketData object with synthetic data
+    """
+    # Generate timestamps
+    end_date = datetime.now()
+    dates = [end_date - timedelta(days=x) for x in range(days)]
+    dates.reverse()
+    
+    # Generate synthetic price data
+    np.random.seed(42)
+    returns = np.random.normal(0.0001, 0.02, days)
+    price = 100 * np.exp(np.cumsum(returns))
+    
+    # Create OHLCV data
+    df = pd.DataFrame({
+        'timestamp': dates,
+        'open': price * (1 + np.random.normal(0, 0.002, days)),
+        'high': price * (1 + np.abs(np.random.normal(0, 0.004, days))),
+        'low': price * (1 - np.abs(np.random.normal(0, 0.004, days))),
+        'close': price,
+        'volume': np.random.lognormal(10, 1, days)
+    }).set_index('timestamp')
+    
+    # Calculate features
+    feature_engineer = FeatureEngineer(window_size=100)
+    features = feature_engineer.calculate_features(df)
+    
+    return MarketData(
+        prices=features,
+        volumes=df[['volume']],
+        timestamp=end_date
+    )
+
+
+def prepare_data(data: MarketData) -> tuple:
     """
     Prepare data for RL training.
     
     Args:
-        data_fetcher: DataFetcher instance
-        symbol: Trading symbol
+        data: Market data
         
     Returns:
         tuple: (train_data, eval_data)
     """
-    # Fetch historical data
-    historical_data = data_fetcher.fetch_historical_data(
-        symbol=symbol,
-        timeframe="1h",
-        start_time="2023-01-01",
-        end_time="2024-01-01"
-    )
-    
-    # Calculate features
-    feature_engineer = FeatureEngineer(window_size=100)
-    features = feature_engineer.calculate_features(historical_data)
-    
     # Split into train/eval sets (80/20)
-    split_idx = int(len(features) * 0.8)
-    train_data = features[:split_idx]
-    eval_data = features[split_idx:]
+    split_idx = int(len(data.prices) * 0.8)
+    train_data = data.prices[:split_idx]
+    eval_data = data.prices[split_idx:]
     
     logger.info(f"Prepared {len(train_data)} training samples and {len(eval_data)} evaluation samples")
     return train_data, eval_data
@@ -56,11 +85,11 @@ def main():
     logger.add("logs/rl_trading.log", rotation="1 day")
     
     try:
-        # Initialize data fetcher
-        data_fetcher = DataFetcher()
+        # Generate synthetic data
+        market_data = generate_mock_data(days=365)
         
         # Prepare data
-        train_data, eval_data = prepare_data(data_fetcher, "BTC/USDT")
+        train_data, eval_data = prepare_data(market_data)
         
         # Configure environment
         env_config = TradingEnvConfig(

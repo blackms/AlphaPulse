@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 from datetime import datetime
 import torch
+from alpha_pulse.data_pipeline.models import MarketData
 import torch.nn as nn
 from torch.distributions import Categorical
 import gymnasium as gym
@@ -35,6 +36,17 @@ class NetworkConfig:
     def __post_init__(self):
         if self.hidden_sizes is None:
             self.hidden_sizes = [128, 64, 32]
+            
+    @staticmethod
+    def _get_activation(name: str) -> type:
+        """Get activation function from string name."""
+        activation_map = {
+            'tanh': nn.Tanh,
+            'relu': nn.ReLU,
+            'elu': nn.ELU,
+            'leaky_relu': nn.LeakyReLU
+        }
+        return activation_map.get(name.lower(), nn.ReLU)
 
 
 @dataclass
@@ -207,7 +219,13 @@ class RLTrainer:
     def _make_env(self, market_data: pd.DataFrame, rank: int = 0) -> gym.Env:
         """Create a trading environment instance."""
         def _init():
-            env = TradingEnv(market_data, self.env_config)
+            # Create MarketData object from DataFrame
+            data = MarketData(
+                prices=market_data,
+                volumes=market_data[['volume']] if 'volume' in market_data.columns else None,
+                timestamp=market_data.index[-1] if isinstance(market_data.index, pd.DatetimeIndex) else None
+            )
+            env = TradingEnv(data, self.env_config)
             return env
         return _init
         
@@ -251,6 +269,15 @@ class RLTrainer:
         policy_kwargs = {
             "activation_fn": self.network_config._get_activation(self.network_config.activation_fn),
             "net_arch": self.network_config.hidden_sizes
+        }
+        
+        # Configure network architecture
+        policy_kwargs = {
+            "activation_fn": self.network_config._get_activation(self.network_config.activation_fn),
+            "net_arch": dict(
+                pi=self.network_config.hidden_sizes,
+                vf=self.network_config.hidden_sizes
+            )
         }
         
         # Initialize model

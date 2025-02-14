@@ -2,10 +2,24 @@
 Market data models for AlphaPulse data pipeline.
 """
 from datetime import datetime, timezone
+from dataclasses import dataclass
+from typing import Optional, Dict, Any
+import pandas as pd
 from sqlalchemy import Column, Integer, Float, String, DateTime, MetaData
 from sqlalchemy.orm import declarative_base
 
 from alpha_pulse.exchanges import ExchangeType, OHLCV
+
+
+@dataclass
+class MarketData:
+    """Container for market data used by agents and models."""
+    prices: pd.DataFrame  # Historical price data
+    volumes: pd.DataFrame  # Trading volume data
+    fundamentals: Optional[Dict[str, Any]] = None  # Fundamental data
+    sentiment: Optional[Dict[str, float]] = None  # Sentiment scores
+    technical_indicators: Optional[Dict[str, pd.DataFrame]] = None  # Technical indicators
+    timestamp: datetime = None  # Data timestamp
 
 # Create a metadata object with proper naming convention
 convention = {

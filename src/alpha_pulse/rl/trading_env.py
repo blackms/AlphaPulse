@@ -71,18 +71,30 @@ class TradingEnv(gym.Env):
         if not isinstance(market_data.prices, pd.DataFrame):
             raise ValueError("Market data must include price DataFrame")
             
-        if (market_data.prices <= 0).any().any():
-            raise ValueError("Prices must be positive")
+        # Extract OHLCV columns if they exist in the features
+        price_cols = ['open', 'high', 'low', 'close']
+        if all(col in market_data.prices.columns for col in price_cols):
+            prices = market_data.prices[price_cols]
+            if (prices <= 0).any().any():
+                raise ValueError("Prices must be positive")
+        else:
+            # If no OHLCV columns, assume the data is already preprocessed features
+            prices = market_data.prices
             
         # Set up action and observation spaces
         self.action_space = gym.spaces.Discrete(len(Actions))
         
-        # Calculate observation space dimension
-        self.feature_dim = self._calculate_feature_dim()
+        # Calculate feature dimensions
+        sample_features = self._calculate_technical_indicators(
+            self.market_data.prices.iloc[:5]
+        )
+        n_features = len(sample_features.columns)
+        
+        # Set up observation space
         self.observation_space = gym.spaces.Box(
             low=-np.inf,
             high=np.inf,
-            shape=(self.feature_dim,),
+            shape=(n_features,),
             dtype=np.float32
         )
         
@@ -121,10 +133,10 @@ class TradingEnv(gym.Env):
         df['cci'] = ta.CCI(df[['high', 'low', 'close']], timeperiod=14)
         
         # Momentum indicators
-        macd = ta.MACD(df['close'])
-        df['macd'] = macd['macd']
-        df['macdsignal'] = macd['macdsignal']
-        df['macdhist'] = macd['macdhist']
+        macd_line, signal_line, hist_line = ta.MACD(df['close'])
+        df['macd'] = macd_line
+        df['macdsignal'] = signal_line
+        df['macdhist'] = hist_line
         
         # Volatility indicators
         df['atr'] = ta.ATR(df[['high', 'low', 'close']], timeperiod=14)
@@ -145,21 +157,18 @@ class TradingEnv(gym.Env):
         
     def _calculate_state(self) -> np.ndarray:
         """Calculate the current state observation."""
-        end_idx = self.current_step
-        start_idx = end_idx - self.config.window_size
+        # Get current price data
+        current_data = self.market_data.prices.iloc[self.current_step:self.current_step+1]
         
-        # Get price and feature windows
-        price_window = self.market_data.prices.iloc[start_idx:end_idx]
-        
-        # Calculate technical indicators
-        features = self._calculate_technical_indicators(price_window)
+        # Calculate technical indicators for current state
+        features = self._calculate_technical_indicators(current_data)
         
         # Normalize features
         normalized = (features - features.mean()) / features.std()
         normalized = normalized.fillna(0)
         
-        # Flatten and convert to numpy array
-        state = normalized.values.flatten()
+        # Convert to numpy array
+        state = normalized.iloc[0].values
         
         return state.astype(np.float32)
         
@@ -177,9 +186,9 @@ class TradingEnv(gym.Env):
         
         if self.current_position is not None:
             # Calculate unrealized PnL
-            current_price = Decimal(str(self.market_data.prices['close'].iloc[self.current_step]))
-            position_value = self.current_position.quantity * current_price
-            entry_value = self.current_position.quantity * self.current_position.entry_price
+            current_price = float(self.market_data.prices['close'].iloc[self.current_step])
+            position_value = float(self.current_position.quantity) * current_price
+            entry_value = float(self.current_position.quantity) * float(self.current_position.avg_entry_price)
             unrealized_pnl = position_value - entry_value
             
             # Risk-adjusted reward
@@ -187,13 +196,14 @@ class TradingEnv(gym.Env):
             risk_adjustment = 1.0 / (1.0 + self.config.risk_aversion * volatility)
             
             # Scale reward
-            reward = float(unrealized_pnl) / float(self.config.initial_capital)
+            reward = unrealized_pnl / float(self.config.initial_capital)
             reward *= self.config.reward_scaling * risk_adjustment
             
             # Penalize for holding positions too long
-            trade_duration = self.current_step - self.positions[-1].entry_time
-            if trade_duration > self.config.max_trade_duration_candles:
-                reward *= 0.5
+            if len(self.positions) > 0:
+                trade_duration = self.current_step - self.positions[-1].timestamp
+                if trade_duration > self.config.max_trade_duration_candles:
+                    reward *= 0.5
                 
         return reward
         
@@ -220,12 +230,13 @@ class TradingEnv(gym.Env):
                 (action == Actions.Short and self.current_position.quantity > 0)
             ):
                 # Calculate PnL including commission
-                exit_value = abs(self.current_position.quantity) * current_price * \
-                    (Decimal('1') - Decimal(str(self.config.commission)))
-                entry_value = abs(self.current_position.quantity) * self.current_position.entry_price * \
-                    (Decimal('1') + Decimal(str(self.config.commission)))
+                quantity = float(self.current_position.quantity)
+                exit_value = abs(quantity) * float(current_price) * \
+                    (1.0 - float(self.config.commission))
+                entry_value = abs(quantity) * float(self.current_position.avg_entry_price) * \
+                    (1.0 + float(self.config.commission))
                     
-                realized_pnl = exit_value - entry_value if self.current_position.quantity > 0 \
+                realized_pnl = exit_value - entry_value if quantity > 0 \
                     else entry_value - exit_value
                 
                 # Update position
@@ -250,10 +261,12 @@ class TradingEnv(gym.Env):
                     
                 if quantity != 0:
                     self.current_position = Position(
-                        asset_id="TRADING_PAIR",
-                        quantity=quantity,
-                        entry_price=current_price,
-                        entry_time=self.current_step
+                        symbol="TRADING_PAIR",
+                        quantity=float(quantity),
+                        avg_entry_price=float(current_price),
+                        unrealized_pnl=0.0,
+                        realized_pnl=0.0,
+                        timestamp=float(self.current_step)
                     )
                     trade_executed = True
                     

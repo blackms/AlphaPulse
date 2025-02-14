@@ -80,11 +80,11 @@ class FeatureEngineer:
             df[f'sma_{period}'] = ta.SMA(df['close'], timeperiod=period)
             df[f'ema_{period}'] = ta.EMA(df['close'], timeperiod=period)
             
-        # MACD
-        macd = ta.MACD(df['close'])
-        df['macd'] = macd['macd']
-        df['macdsignal'] = macd['macdsignal']
-        df['macdhist'] = macd['macdhist']
+        # MACD (returns macd, signal, hist)
+        macd_line, signal_line, hist_line = ta.MACD(df['close'])
+        df['macd'] = macd_line
+        df['macdsignal'] = signal_line
+        df['macdhist'] = hist_line
         
         # ADX
         df['adx'] = ta.ADX(df[['high', 'low', 'close']], timeperiod=14)
@@ -183,11 +183,10 @@ class FeatureEngineer:
         df['wt1'] = tci
         df['wt2'] = ta.SMA(df['wt1'], timeperiod=4)
         
-        # Money Flow
+        # Additional indicators
         df['mfi'] = ta.MFI(df[['high', 'low', 'close', 'volume']], timeperiod=14)
-        
-        # Relative Vigor Index
-        df['rvi'] = ta.RVI(df[['open', 'high', 'low', 'close']], timeperiod=14)
+        df['rsi'] = ta.RSI(df['close'], timeperiod=14)
+        df['mom'] = ta.MOM(df['close'], timeperiod=14)
         
     def _chaikin_money_flow(self, df: pd.DataFrame, period: int = 20) -> pd.Series:
         """Calculate Chaikin Money Flow."""
