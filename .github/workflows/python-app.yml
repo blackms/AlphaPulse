@@ -113,8 +113,7 @@ jobs:
         echo "Test directory structure:"
         ls -R src/alpha_pulse/tests/
         
-        # Run tests with verbose output
-        pytest -v --showlocals
+        pytest --cov-branch --cov-report=xml
     
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v3
