@@ -40,3 +40,4 @@ python-dateutil
 requests
 typing-extensions
 TA-Lib
+optuna
