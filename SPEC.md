@@ -100,9 +100,60 @@
 - Timeout: 20 seconds
 - Floating tolerance: 1e-10
 
+### RL Parameters
+- **Environment:**
+  - Initial capital: 100,000
+  - Commission: 0.1%
+  - Position size: 20% max
+  - Window size: 10 periods
+  - Stop loss: 2%
+  - Take profit: 5%
+- **Training:**
+  - Batch size: 256
+  - Learning rate: 3e-4
+  - Discount (gamma): 0.99
+  - GAE lambda: 0.95
+  - Clip range: 0.2
+  - Value coef: 0.5
+  - Max grad norm: 0.5
+
 ### Required Validations
 - Config parameters
 - Exchange responses
 - Balance checks
 - Weight sums (1.0)
 - Rate limits
+
+### RL (`src/alpha_pulse/rl/`)
+- **Environment Setup:**
+  ```python
+  # Configure environment safely
+  env_config = TradingEnvConfig(
+      initial_capital=100000.0,
+      commission=0.001,
+      position_size=0.2,  # Max 20% per trade
+      window_size=10
+  )
+  ```
+- **Training Safety:**
+  ```python
+  # Use safe training defaults
+  training_config = TrainingConfig(
+      total_timesteps=1_000_000,
+      batch_size=256,
+      n_steps=2048,
+      eval_freq=10_000,  # Regular evaluation
+      checkpoint_freq=10_000  # Regular saves
+  )
+  ```
+- **State Management:**
+  - Normalize all features
+  - Handle missing data with forward-fill
+  - Replace NaN/inf values
+  - Validate action space bounds
+- **Error Prevention:**
+  - Verify price data is positive
+  - Check timestamp alignment
+  - Monitor reward stability
+  - Implement position limits
+  - Use stop-loss consistently

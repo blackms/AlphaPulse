@@ -1,175 +1,139 @@
 """
-Demo script for training and evaluating an RL trading agent.
+Example script demonstrating the RL trading system.
 
-This script demonstrates how to:
-1. Load historical data and generate features
-2. Create and configure a trading environment
-3. Train an RL agent using Stable-Baselines3
-4. Evaluate the trained agent's performance
+This script shows how to:
+1. Load and preprocess market data
+2. Configure and create the RL environment
+3. Train an RL agent
+4. Evaluate its performance
 """
-import asyncio
-from datetime import datetime, UTC, timedelta
 import pandas as pd
+import numpy as np
+from pathlib import Path
 from loguru import logger
 
-from alpha_pulse.data_pipeline import (
-    SQLAlchemyStorage,
-    ExchangeFetcher,
-    HistoricalDataManager,
-    StorageConfig,
-    DataFetchConfig
-)
-from alpha_pulse.exchanges import ExchangeType
-from alpha_pulse.features.feature_engineering import calculate_technical_indicators
-from alpha_pulse.rl.env import TradingEnv, TradingEnvConfig
-from alpha_pulse.rl.rl_trainer import RLTrainer, TrainingConfig, ComputeConfig, NetworkConfig
+from alpha_pulse.rl.trading_env import TradingEnv, TradingEnvConfig
+from alpha_pulse.rl.trainer import RLTrainer, NetworkConfig, TrainingConfig
+from alpha_pulse.rl.features import FeatureEngineer
+from alpha_pulse.rl.utils import RewardParams, calculate_trade_statistics
+from alpha_pulse.data_pipeline.data_fetcher import DataFetcher
 
 
-async def main():
-    """Run the RL trading demo."""
-    logger.info("Starting RL trading demo...")
+def prepare_data(data_fetcher: DataFetcher, symbol: str) -> tuple:
+    """
+    Prepare data for RL training.
     
-    # 1. Load historical data
-    logger.info("Loading historical data...")
-    storage = SQLAlchemyStorage(config=StorageConfig())
-    fetcher = ExchangeFetcher(config=DataFetchConfig())
-    manager = HistoricalDataManager(storage, fetcher)
+    Args:
+        data_fetcher: DataFetcher instance
+        symbol: Trading symbol
+        
+    Returns:
+        tuple: (train_data, eval_data)
+    """
+    # Fetch historical data
+    historical_data = data_fetcher.fetch_historical_data(
+        symbol=symbol,
+        timeframe="1h",
+        start_time="2023-01-01",
+        end_time="2024-01-01"
+    )
     
-    # Update historical data - use 30 days for faster training
-    end_time = datetime.now(UTC)
-    start_time = end_time - timedelta(days=30)
+    # Calculate features
+    feature_engineer = FeatureEngineer(window_size=100)
+    features = feature_engineer.calculate_features(historical_data)
+    
+    # Split into train/eval sets (80/20)
+    split_idx = int(len(features) * 0.8)
+    train_data = features[:split_idx]
+    eval_data = features[split_idx:]
+    
+    logger.info(f"Prepared {len(train_data)} training samples and {len(eval_data)} evaluation samples")
+    return train_data, eval_data
+
+
+def main():
+    # Set up logging
+    logger.add("logs/rl_trading.log", rotation="1 day")
     
     try:
-        # Ensure data is available
-        await manager.ensure_data_available(
-            exchange_type=ExchangeType.BINANCE,
-            symbol="BTC/USDT",
-            timeframe="1h",
-            start_time=start_time,
-            end_time=end_time
-        )
+        # Initialize data fetcher
+        data_fetcher = DataFetcher()
         
-        # Get historical data
-        ohlcv_data = manager.get_historical_data(
-            exchange_type=ExchangeType.BINANCE,
-            symbol="BTC/USDT",
-            timeframe="1h",
-            start_time=start_time,
-            end_time=end_time
-        )
+        # Prepare data
+        train_data, eval_data = prepare_data(data_fetcher, "BTC/USDT")
         
-        # Convert OHLCV objects to DataFrame
-        df = pd.DataFrame([{
-            'timestamp': candle.timestamp,
-            'open': candle.open,
-            'high': candle.high,
-            'low': candle.low,
-            'close': candle.close,
-            'volume': candle.volume
-        } for candle in ohlcv_data])
-        
-        if len(df) == 0:
-            logger.error("No data retrieved from storage")
-            return
-        
-        # Set timestamp as index
-        df.set_index('timestamp', inplace=True)
-        df.sort_index(inplace=True)
-        
-        # 2. Generate features
-        logger.info("Generating features...")
-        features = calculate_technical_indicators(df)
-        
-        # Split data into train and test sets (80/20)
-        split_idx = int(len(df) * 0.8)
-        
-        train_prices = df['close'][:split_idx]
-        train_features = features[:split_idx]
-        
-        test_prices = df['close'][split_idx:]
-        test_features = features[split_idx:]
-        
-        # 3. Configure environment and training settings
-        logger.info("Creating trading environment...")
-        
-        # Environment configuration
+        # Configure environment
         env_config = TradingEnvConfig(
             initial_capital=100000.0,
-            commission=0.001,     # 0.1% commission
-            position_size=0.2,    # Risk 20% of capital per trade
-            window_size=10,       # Use 10 time steps of history
-            reward_scaling=1.0
+            commission=0.001,
+            position_size=0.2,
+            window_size=10,
+            reward_scaling=1.0,
+            risk_aversion=0.1,
+            max_position=5.0,
+            stop_loss_pct=0.02,
+            take_profit_pct=0.05
         )
         
-        # Network configuration
+        # Configure neural network
         network_config = NetworkConfig(
-            hidden_sizes=[64, 64],  # Simple network architecture
-            activation_fn="tanh"
+            hidden_sizes=[128, 64, 32],
+            activation_fn="relu",
+            use_lstm=True,
+            lstm_units=64,
+            attention_heads=4,
+            dropout_rate=0.1
         )
         
-        # Training configuration
+        # Configure training
         training_config = TrainingConfig(
-            total_timesteps=10000,  # Reduced for faster training
-            learning_rate=0.0003,
-            batch_size=64,
+            total_timesteps=1_000_000,
+            learning_rate=3e-4,
+            batch_size=256,
             n_steps=2048,
             gamma=0.99,
             gae_lambda=0.95,
+            clip_range=0.2,
             ent_coef=0.01,
             vf_coef=0.5,
             max_grad_norm=0.5,
-            eval_freq=1000,
-            n_eval_episodes=2,
-            model_path="trained_models/rl/trading_agent",
+            eval_freq=10_000,
+            n_eval_episodes=10,
+            model_path="trained_models/rl",
             log_path="logs/rl"
         )
         
-        # 4. Create trainer and train the agent
-        logger.info("Training RL agent...")
+        # Initialize trainer
         trainer = RLTrainer(
             env_config=env_config,
-            training_config=training_config,
-            network_config=network_config
+            network_config=network_config,
+            training_config=training_config
         )
         
-        try:
-            model = trainer.train(
-                prices=train_prices,
-                features=train_features,
-                algorithm='ppo',
-                eval_prices=test_prices,
-                eval_features=test_features,
-                model_path=training_config.model_path
-            )
-            
-            # 5. Evaluate the trained agent
-            logger.info("Evaluating trained agent...")
-            eval_metrics = trainer.evaluate(
-                model=model,
-                prices=test_prices,
-                features=test_features,
-                n_episodes=5,  # More evaluation episodes
-                render=True
-            )
-            
-            logger.info("Evaluation metrics:")
-            for metric, value in eval_metrics.items():
-                logger.info(f"{metric}: {value:.4f}")
-                
-        except Exception as e:
-            logger.error(f"Training failed: {str(e)}")
-            raise
-            
-        logger.info("Demo completed successfully!")
+        # Train model
+        logger.info("Starting training...")
+        model = trainer.train(
+            train_data=train_data,
+            eval_data=eval_data,
+            n_envs=4
+        )
         
+        # Evaluate model
+        logger.info("Evaluating model...")
+        metrics = trainer.evaluate(
+            model=model,
+            eval_data=eval_data,
+            n_episodes=10
+        )
+        
+        logger.info("Evaluation metrics:")
+        for metric, value in metrics.items():
+            logger.info(f"{metric}: {value:.4f}")
+            
     except Exception as e:
-        logger.error(f"Error during demo: {str(e)}")
+        logger.error(f"Error in RL trading demo: {str(e)}")
         raise
-    finally:
-        # Clean up
-        if hasattr(fetcher, 'close'):
-            await fetcher.close()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
