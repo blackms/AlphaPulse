@@ -89,6 +89,9 @@ jobs:
         # Install RL dependencies
         pip install stable-baselines3[extra]
         
+        # Install ML optimization dependencies
+        pip install optuna
+        
         # Install the package in editable mode
         pip install -e .
         
