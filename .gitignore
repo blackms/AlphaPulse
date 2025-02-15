@@ -58,3 +58,5 @@ plots/
 
 binance_credentials.json
 .clinerules
+
+.venv
