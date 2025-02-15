@@ -310,8 +310,7 @@ async def main():
         model = trainer.train(
             train_data=train_data,
             eval_data=eval_data,
-            n_envs=4,
-            callback=checkpoint_callback
+            n_envs=4
         )
         
         # Save training metrics history
