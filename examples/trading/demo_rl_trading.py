@@ -1,4 +1,5 @@
 """
+Advanced RL trading system demonstration.
 
 This script implements a comprehensive RL-based trading system with:
 1. Reproducible seeding and configuration management
@@ -6,6 +7,7 @@ This script implements a comprehensive RL-based trading system with:
 3. Advanced model training with checkpointing
 4. Detailed performance analysis and logging
 """
+import argparse
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any, Union
@@ -16,6 +18,7 @@ import numpy as np
 import pandas as pd
 import torch
 import signal
+import os
 from datetime import datetime, timedelta, timezone
 from stable_baselines3.common.callbacks import BaseCallback, CheckpointCallback
 from loguru import logger
@@ -40,6 +43,29 @@ def signal_handler(signum, frame):
     global should_exit
     logger.info(f"Received signal {signum}. Initiating graceful shutdown...")
     should_exit = True
+
+
+def check_cuda_support(force_gpu: bool = False) -> torch.device:
+    """
+    Check CUDA support and return appropriate device.
+    
+    Args:
+        force_gpu: If True, raise error when GPU is not available
+        
+    Returns:
+        torch.device: Device to use for training
+        
+    Raises:
+        RuntimeError: If force_gpu is True but CUDA is not available
+    """
+    # For PPO with MlpPolicy, CPU is recommended
+    logger.info("Using CPU for PPO with MlpPolicy as recommended by stable-baselines3")
+    if force_gpu:
+        logger.warning(
+            "GPU flag is set but using CPU anyway as PPO with MlpPolicy is optimized for CPU. "
+            "See: https://github.com/DLR-RM/stable-baselines3/issues/1245"
+        )
+    return torch.device("cpu")
 
 
 @dataclass
@@ -268,28 +294,6 @@ def evaluate_and_save_trades(
         return pd.DataFrame()
 
 
-def check_cuda_support(force_gpu: bool = False) -> torch.device:
-    """
-    Check CUDA support and return appropriate device.
-    
-    Args:
-        force_gpu: If True, raise error when GPU is not available
-        
-    Returns:
-        torch.device: Device to use for training
-        
-    Raises:
-        RuntimeError: If force_gpu is True but CUDA is not available
-    """
-    # For PPO with MlpPolicy, CPU is recommended
-    logger.info("Using CPU for PPO with MlpPolicy as recommended by stable-baselines3")
-    if force_gpu:
-        logger.warning(
-            "GPU flag is set but using CPU anyway as PPO with MlpPolicy is optimized for CPU. "
-            "See: https://github.com/DLR-RM/stable-baselines3/issues/1245"
-        )
-    return torch.device("cpu")
-
 async def main(use_gpu: bool = False):
     """
     Main execution function.
@@ -381,8 +385,14 @@ async def main(use_gpu: bool = False):
             callbacks=[checkpoint_callback, metrics_callback]
         )
         
+        # Create reports directory if it doesn't exist
+        import os
+        if not os.path.exists("reports"):
+            os.makedirs("reports")
+            
         # Save training metrics history
-        pd.DataFrame(metrics_callback.metrics_history).to_csv(
+        metrics_df = pd.DataFrame(metrics_callback.metrics_history)
+        metrics_df.to_csv(
             "reports/training_metrics.csv",
             index=False
         )
