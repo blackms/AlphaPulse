@@ -386,7 +386,7 @@ class RLTrainer:
             episode_length = 0
         while not done:
             action, _ = model.predict(obs, deterministic=True)
-            obs, reward, done, _, info = eval_env.step(action[0] if isinstance(action, np.ndarray) else action)  # Updated for gymnasium API
+            obs, reward, done, _, info = eval_env.step(action[0])  # Updated for gymnasium API
             episode_reward += reward
             episode_length += 1
                 
