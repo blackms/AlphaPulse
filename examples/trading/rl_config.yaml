@@ -14,29 +14,34 @@ environment:
 
 # Neural Network Configuration
 network:
-  hidden_sizes: [512, 256, 128]
+  hidden_sizes: [256, 128, 64]  # Reduced from [512, 256, 128]
   activation_fn: "relu"
   use_lstm: true
-  lstm_units: 256
-  attention_heads: 8
+  lstm_units: 128  # Reduced from 256
+  attention_heads: 4  # Reduced from 8
   dropout_rate: 0.1
 
 # Training Configuration
 training:
-  total_timesteps: 500000
+  total_timesteps: 100000  # Reduced from 500000
   learning_rate: 0.0001
-  batch_size: 512
-  n_steps: 2048
+  batch_size: 256  # Reduced from 512
+  n_steps: 1024  # Reduced from 2048
   gamma: 0.99
   gae_lambda: 0.95
   clip_range: 0.2
   ent_coef: 0.05
   vf_coef: 0.5
   max_grad_norm: 0.5
-  eval_freq: 10000
-  n_eval_episodes: 10
+  eval_freq: 5000  # More frequent evaluation
+  n_eval_episodes: 5  # Reduced from 10
   model_path: "trained_models/rl"
   log_path: "logs/rl"
+  checkpoint_freq: 5000  # Added checkpoint frequency
+  n_envs: 2  # Added explicit parallel environments setting
+  device: "auto"  # Added device configuration (auto, cuda, or cpu)
+  cuda_deterministic: true  # Added for reproducible results on GPU
+  precision: "float32"  # Added precision configuration
 
 # Data Configuration
 data:

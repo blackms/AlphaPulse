@@ -66,6 +66,11 @@ class TrainingConfig:
     n_eval_episodes: int = 10
     model_path: str = "trained_models/rl"
     log_path: str = "logs/rl"
+    checkpoint_freq: int = 10_000  # Added for checkpointing
+    n_envs: int = 4  # Added for parallel environments
+    device: str = "auto"  # Added for device configuration
+    cuda_deterministic: bool = True  # Added for CUDA settings
+    precision: str = "float32"  # Added for precision settings
 
 
 class CustomNetwork(nn.Module):
@@ -198,7 +203,8 @@ class RLTrainer:
         self,
         env_config: TradingEnvConfig,
         network_config: NetworkConfig,
-        training_config: TrainingConfig
+        training_config: TrainingConfig,
+        device: Optional[torch.device] = None
     ):
         """
         Initialize the trainer.
@@ -207,14 +213,27 @@ class RLTrainer:
             env_config: Trading environment configuration
             network_config: Neural network configuration
             training_config: Training configuration
+            device: Optional torch device for training
         """
         self.env_config = env_config
         self.network_config = network_config
         self.training_config = training_config
+        self.device = device or self._get_device(training_config)
         
         # Create directories
         Path(training_config.model_path).mkdir(parents=True, exist_ok=True)
         Path(training_config.log_path).mkdir(parents=True, exist_ok=True)
+        
+    def _get_device(self, config: TrainingConfig) -> torch.device:
+        """Determine the appropriate device based on configuration."""
+        if config.device == "cpu":
+            return torch.device("cpu")
+        elif config.device == "cuda" and torch.cuda.is_available():
+            return torch.device("cuda")
+        elif config.device == "auto":
+            return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        else:
+            return torch.device("cpu")
         
     def _make_env(self, market_data: pd.DataFrame, rank: int = 0) -> gym.Env:
         """Create a trading environment instance."""
@@ -246,7 +265,8 @@ class RLTrainer:
         self,
         train_data: pd.DataFrame,
         eval_data: Optional[pd.DataFrame] = None,
-        n_envs: int = 4
+        n_envs: Optional[int] = None,
+        callbacks: Optional[List[BaseCallback]] = None
     ) -> PPO:
         """
         Train an RL agent.
@@ -254,22 +274,20 @@ class RLTrainer:
         Args:
             train_data: Training market data
             eval_data: Evaluation market data
-            n_envs: Number of parallel environments
+            n_envs: Number of parallel environments (overrides config)
+            callbacks: Optional list of callbacks
             
         Returns:
             Trained PPO model
         """
         logger.info("Starting RL training...")
         
+        # Use n_envs from config if not specified
+        n_envs = n_envs or self.training_config.n_envs
+        
         # Create environments
         train_env = self._create_envs(train_data, n_envs)
         eval_env = None if eval_data is None else self._create_envs(eval_data, 1)
-        
-        # Create custom network
-        policy_kwargs = {
-            "activation_fn": self.network_config._get_activation(self.network_config.activation_fn),
-            "net_arch": self.network_config.hidden_sizes
-        }
         
         # Configure network architecture
         policy_kwargs = {
@@ -295,12 +313,12 @@ class RLTrainer:
             max_grad_norm=self.training_config.max_grad_norm,
             policy_kwargs=policy_kwargs,
             tensorboard_log=self.training_config.log_path,
+            device=self.device,
             verbose=1
         )
         
-        # Set up evaluation callback
-        eval_callback = None
-        if eval_env is not None:
+        # Set up evaluation callback if not provided in callbacks
+        if eval_env is not None and not any(isinstance(cb, EvalCallback) for cb in (callbacks or [])):
             eval_callback = EvalCallback(
                 eval_env,
                 best_model_save_path=self.training_config.model_path,
@@ -309,17 +327,19 @@ class RLTrainer:
                 n_eval_episodes=self.training_config.n_eval_episodes,
                 deterministic=True
             )
+            callbacks = callbacks or []
+            callbacks.append(eval_callback)
             
         try:
             # Train model
             model.learn(
                 total_timesteps=self.training_config.total_timesteps,
-                callback=eval_callback,
+                callback=callbacks,
                 progress_bar=True
             )
             
             # Save final model if no evaluation
-            if eval_callback is None:
+            if eval_env is None:
                 model.save(f"{self.training_config.model_path}/final_model")
                 
             return model
@@ -327,12 +347,16 @@ class RLTrainer:
         except Exception as e:
             logger.error(f"Training failed: {str(e)}")
             raise
+        finally:
+            # Clean up CUDA memory if using GPU
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
             
     def evaluate(
         self,
         model: PPO,
         eval_data: pd.DataFrame,
-        n_episodes: int = 10
+        n_episodes: Optional[int] = None
     ) -> Dict[str, float]:
         """
         Evaluate a trained model.
@@ -340,11 +364,14 @@ class RLTrainer:
         Args:
             model: Trained PPO model
             eval_data: Evaluation market data
-            n_episodes: Number of evaluation episodes
+            n_episodes: Number of evaluation episodes (overrides config)
             
         Returns:
             Dictionary of evaluation metrics
         """
+        # Use n_episodes from config if not specified
+        n_episodes = n_episodes or self.training_config.n_eval_episodes
+        
         # Create evaluation environment
         eval_env = self._create_envs(eval_data, 1)
         
@@ -353,14 +380,14 @@ class RLTrainer:
         episode_lengths = []
         
         for episode in range(n_episodes):
-            obs = eval_env.reset()
+            obs = eval_env.reset()[0]  # Updated for gymnasium API
             done = False
             episode_reward = 0
             episode_length = 0
             
             while not done:
                 action, _ = model.predict(obs, deterministic=True)
-                obs, reward, done, info = eval_env.step(action)
+                obs, reward, done, _, info = eval_env.step(action)  # Updated for gymnasium API
                 episode_reward += reward
                 episode_length += 1
                 
@@ -369,10 +396,10 @@ class RLTrainer:
             
         # Calculate metrics
         metrics = {
-            'mean_reward': np.mean(episode_rewards),
-            'std_reward': np.std(episode_rewards),
-            'mean_length': np.mean(episode_lengths),
-            'std_length': np.std(episode_lengths)
+            'mean_reward': float(np.mean(episode_rewards)),
+            'std_reward': float(np.std(episode_rewards)),
+            'mean_length': float(np.mean(episode_lengths)),
+            'std_length': float(np.std(episode_lengths))
         }
         
         return metrics

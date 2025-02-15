@@ -1,5 +1,4 @@
 """
-Advanced RL trading system demonstration.
 
 This script implements a comprehensive RL-based trading system with:
 1. Reproducible seeding and configuration management
@@ -16,6 +15,7 @@ import yaml
 import numpy as np
 import pandas as pd
 import torch
+import signal
 from datetime import datetime, timedelta, timezone
 from stable_baselines3.common.callbacks import BaseCallback, CheckpointCallback
 from loguru import logger
@@ -29,6 +29,17 @@ from alpha_pulse.data_pipeline.data_fetcher import DataFetcher
 from alpha_pulse.data_pipeline.storage.sql import SQLAlchemyStorage
 from alpha_pulse.exchanges.factories import ExchangeFactory
 from alpha_pulse.exchanges.types import ExchangeType
+
+
+# Global flag for graceful shutdown
+should_exit = False
+
+
+def signal_handler(signum, frame):
+    """Handle shutdown signals gracefully."""
+    global should_exit
+    logger.info(f"Received signal {signum}. Initiating graceful shutdown...")
+    should_exit = True
 
 
 @dataclass
@@ -63,7 +74,7 @@ class MetricsCallback(BaseCallback):
             'policy_loss': float(self.locals.get('policy_loss', 0))
         }
         self.metrics_history.append(metrics)
-        return True
+        return not should_exit  # Stop training if shutdown requested
 
 
 def set_random_seeds(seed: int = 42) -> None:
@@ -92,58 +103,63 @@ async def fetch_historical_data(symbol: str, days: int = 365) -> MarketData:
     Returns:
         MarketData object with historical data
     """
-    # Load Binance credentials
-    with open("src/alpha_pulse/exchanges/credentials/binance_credentials.json", "r") as f:
-        credentials = json.load(f)
-    api_key = credentials["api_key"]
-    api_secret = credentials["api_secret"]
-    
-    # Initialize data storage and exchange factory
-    storage = SQLAlchemyStorage()
-    exchange_factory = ExchangeFactory()
-    
-    # Create exchange instance
-    exchange = exchange_factory.create_exchange(
-        exchange_type=ExchangeType.BINANCE,
-        api_key=api_key,
-        api_secret=api_secret
-    )
-    await exchange.initialize()
-    
-    # Calculate start date
-    end_date = datetime.now(timezone.utc)
-    start_date = end_date - timedelta(days=days)
-    
-    # Fetch historical data
-    ohlcv_data = await exchange.fetch_ohlcv(
-        symbol=symbol,
-        timeframe="1d",
-        since=int(start_date.timestamp() * 1000),
-        limit=days
-    )
-    
-    # Convert OHLCV data to DataFrame with float values
-    df = pd.DataFrame([
-        {
-            'timestamp': ohlcv.timestamp,
-            'open': float(ohlcv.open),
-            'high': float(ohlcv.high),
-            'low': float(ohlcv.low),
-            'close': float(ohlcv.close),
-            'volume': float(ohlcv.volume)
-        }
-        for ohlcv in ohlcv_data
-    ]).set_index('timestamp')
-    
-    # Calculate features
-    feature_engineer = FeatureEngineer(window_size=100)
-    features = feature_engineer.calculate_features(df)
-    
-    return MarketData(
-        prices=features,
-        volumes=df[['volume']],
-        timestamp=end_date
-    )
+    exchange = None
+    try:
+        # Load Binance credentials
+        with open("src/alpha_pulse/exchanges/credentials/binance_credentials.json", "r") as f:
+            credentials = json.load(f)
+        api_key = credentials["api_key"]
+        api_secret = credentials["api_secret"]
+        
+        # Initialize data storage and exchange factory
+        storage = SQLAlchemyStorage()
+        exchange_factory = ExchangeFactory()
+        
+        # Create exchange instance
+        exchange = exchange_factory.create_exchange(
+            exchange_type=ExchangeType.BINANCE,
+            api_key=api_key,
+            api_secret=api_secret
+        )
+        await exchange.initialize()
+        
+        # Calculate start date
+        end_date = datetime.now(timezone.utc)
+        start_date = end_date - timedelta(days=days)
+        
+        # Fetch historical data
+        ohlcv_data = await exchange.fetch_ohlcv(
+            symbol=symbol,
+            timeframe="1d",
+            since=int(start_date.timestamp() * 1000),
+            limit=days
+        )
+        
+        # Convert OHLCV data to DataFrame with float values
+        df = pd.DataFrame([
+            {
+                'timestamp': ohlcv.timestamp,
+                'open': float(ohlcv.open),
+                'high': float(ohlcv.high),
+                'low': float(ohlcv.low),
+                'close': float(ohlcv.close),
+                'volume': float(ohlcv.volume)
+            }
+            for ohlcv in ohlcv_data
+        ]).set_index('timestamp')
+        
+        # Calculate features
+        feature_engineer = FeatureEngineer(window_size=100)
+        features = feature_engineer.calculate_features(df)
+        
+        return MarketData(
+            prices=features,
+            volumes=df[['volume']],
+            timestamp=end_date
+        )
+    finally:
+        if exchange:
+            await exchange.close()
 
 
 def prepare_data(data: MarketData, eval_split: float = 0.2) -> Tuple[pd.DataFrame, pd.DataFrame]:
@@ -216,7 +232,7 @@ def evaluate_and_save_trades(
     obs = env.reset()[0]
     done = False
     
-    while not done:
+    while not done and not should_exit:
         action, _ = model.predict(obs, deterministic=True)
         obs, reward, done, _, info = env.step(action)
         
@@ -254,6 +270,14 @@ def evaluate_and_save_trades(
 
 async def main():
     """Main execution function."""
+    # Set up signal handlers
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    
+    exchange = None
+    model = None
+    env = None
+    
     try:
         # Set up logging
         log_path = Path("logs")
@@ -290,7 +314,7 @@ async def main():
         
         # Create checkpoint callback
         checkpoint_callback = CheckpointCallback(
-            save_freq=10000,
+            save_freq=training_config.checkpoint_freq,
             save_path=training_config.model_path,
             name_prefix="rl_model"
         )
@@ -310,7 +334,7 @@ async def main():
         model = trainer.train(
             train_data=train_data,
             eval_data=eval_data,
-            n_envs=4
+            callbacks=[checkpoint_callback, metrics_callback]
         )
         
         # Save training metrics history
@@ -319,29 +343,59 @@ async def main():
             index=False
         )
         
-        # Evaluate model and save trades
-        logger.info("Evaluating model and collecting trades...")
-        trades_df = evaluate_and_save_trades(model, eval_data, env_config)
-        
-        # Get standard evaluation metrics
-        metrics = trainer.evaluate(
-            model=model,
-            eval_data=eval_data,
-            n_episodes=10
-        )
-        
-        logger.info("Evaluation metrics:")
-        for metric, value in metrics.items():
-            logger.info(f"{metric}: {value:.4f}")
+        if not should_exit:
+            # Evaluate model and save trades
+            logger.info("Evaluating model and collecting trades...")
+            trades_df = evaluate_and_save_trades(model, eval_data, env_config)
             
+            # Get standard evaluation metrics
+            metrics = trainer.evaluate(
+                model=model,
+                eval_data=eval_data,
+                n_episodes=training_config.n_eval_episodes
+            )
+            
+            logger.info("Evaluation metrics:")
+            for metric, value in metrics.items():
+                logger.info(f"{metric}: {value:.4f}")
+                
     except ValueError as ve:
         logger.error(f"Value error in RL trading demo: {str(ve)}")
         raise
     except Exception as e:
         logger.error(f"Unexpected error in RL trading demo: {str(e)}")
         raise
+    finally:
+        # Clean up resources
+        if model:
+            try:
+                model.env.close()
+            except:
+                pass
+        if env:
+            try:
+                env.close()
+            except:
+                pass
+        # Clean up CUDA memory if using GPU
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
 
 if __name__ == "__main__":
     import asyncio
-    asyncio.run(main())
+    import sys
+    print("Starting RL trading demo...")
+    if sys.platform == 'win32':
+        print("Setting Windows event loop policy...")
+        from asyncio import WindowsSelectorEventLoopPolicy
+        asyncio.set_event_loop_policy(WindowsSelectorEventLoopPolicy())
+    try:
+        print("Running main function...")
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\nReceived keyboard interrupt. Shutting down gracefully...")
+        should_exit = True
+    except Exception as e:
+        print(f"Error occurred: {str(e)}")
+        raise
