@@ -110,16 +110,18 @@ class BaseExchange(MarketDataProvider, TradingOperations, AccountOperations, Exc
 
 class ExchangeConfiguration:
     """Exchange configuration data class."""
-    
+
     def __init__(
         self,
         api_key: str,
         api_secret: str,
+        exchange_id: str,
         testnet: bool = False,
         options: Optional[Dict[str, Any]] = None
     ):
         self.api_key = api_key
         self.api_secret = api_secret
+        self.exchange_id = exchange_id
         self.testnet = testnet
         self.options = options or {}
 

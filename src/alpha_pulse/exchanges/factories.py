@@ -98,6 +98,7 @@ class ExchangeFactory:
         config = ExchangeConfiguration(
             api_key=api_key,
             api_secret=api_secret,
+            exchange_id=exchange_id,
             testnet=options.pop('testnet', False),
             options=options
         )
@@ -107,7 +108,7 @@ class ExchangeFactory:
         exchange_id = implementation['exchange_id']
         
         logger.info(f"Creating {exchange_type} exchange instance")
-        return adapter_class(exchange_id=exchange_id, config=config)
+        return adapter_class(config=config)
     
     @classmethod
     def create_from_config(cls, config: Dict[str, any]) -> Optional[BaseExchange]:

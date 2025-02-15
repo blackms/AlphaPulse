@@ -1,0 +1,44 @@
+# RL Trading Configuration
+
+# Environment Configuration
+environment:
+  initial_capital: 100000.0
+  commission: 0.001
+  position_size: 0.3
+  window_size: 10
+  reward_scaling: 2.0
+  risk_aversion: 0.05
+  max_position: 5.0
+  stop_loss_pct: 0.03
+  take_profit_pct: 0.06
+
+# Neural Network Configuration
+network:
+  hidden_sizes: [256, 128, 64]
+  activation_fn: "relu"
+  use_lstm: true
+  lstm_units: 128
+  attention_heads: 4
+  dropout_rate: 0.1
+
+# Training Configuration
+training:
+  total_timesteps: 200000
+  learning_rate: 0.0003
+  batch_size: 256
+  n_steps: 2048
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.2
+  ent_coef: 0.02
+  vf_coef: 0.5
+  max_grad_norm: 0.5
+  eval_freq: 10000
+  n_eval_episodes: 10
+  model_path: "trained_models/rl"
+  log_path: "logs/rl"
+
+# Data Configuration
+data:
+  symbol: "BTCUSDT"
+  eval_split: 0.2
