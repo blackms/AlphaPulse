@@ -94,21 +94,25 @@ class ExchangeFactory:
             **kwargs
         }
         
-        # Create configuration
-        config = ExchangeConfiguration(
-            api_key=api_key,
-            api_secret=api_secret,
-            exchange_id=exchange_id,
-            testnet=options.pop('testnet', False),
-            options=options
-        )
-        
-        # Create and return adapter instance
+        # Get implementation details
         adapter_class = implementation['adapter_class']
         exchange_id = implementation['exchange_id']
         
         logger.info(f"Creating {exchange_type} exchange instance")
-        return adapter_class(config=config)
+        
+        # Handle different adapter types
+        if adapter_class == CCXTAdapter:
+            config = ExchangeConfiguration(
+                api_key=api_key,
+                api_secret=api_secret,
+                exchange_id=exchange_id,
+                testnet=options.pop('testnet', False),
+                options=options
+            )
+            return adapter_class(config)
+        else:
+            # For BinanceExchange and other specialized adapters
+            return adapter_class(testnet=options.pop('testnet', False))
     
     @classmethod
     def create_from_config(cls, config: Dict[str, any]) -> Optional[BaseExchange]:

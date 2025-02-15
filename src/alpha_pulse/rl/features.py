@@ -58,8 +58,12 @@ class FeatureEngineer:
     def _add_basic_features(self, df: pd.DataFrame) -> None:
         """Add basic price and volume features."""
         # Price changes
+        # Calculate returns
         df['pct_change'] = df['close'].pct_change()
-        df['log_return'] = np.log1p(df['pct_change'])
+        
+        # Convert percentage change to numpy array and handle NaN/Inf values
+        pct_change_array = df['pct_change'].fillna(0).replace([np.inf, -np.inf], 0).astype(float).values
+        df['log_return'] = np.log1p(pct_change_array)
         
         # Price levels
         df['price_level'] = (df['close'] - df['close'].rolling(50).mean()) / \

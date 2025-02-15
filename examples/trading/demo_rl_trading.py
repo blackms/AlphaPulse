@@ -122,15 +122,15 @@ async def fetch_historical_data(symbol: str, days: int = 365) -> MarketData:
         limit=days
     )
     
-    # Convert OHLCV data to DataFrame
+    # Convert OHLCV data to DataFrame with float values
     df = pd.DataFrame([
         {
             'timestamp': ohlcv.timestamp,
-            'open': ohlcv.open,
-            'high': ohlcv.high,
-            'low': ohlcv.low,
-            'close': ohlcv.close,
-            'volume': ohlcv.volume
+            'open': float(ohlcv.open),
+            'high': float(ohlcv.high),
+            'low': float(ohlcv.low),
+            'close': float(ohlcv.close),
+            'volume': float(ohlcv.volume)
         }
         for ohlcv in ohlcv_data
     ]).set_index('timestamp')
@@ -311,7 +311,7 @@ async def main():
             train_data=train_data,
             eval_data=eval_data,
             n_envs=4,
-            callback=[checkpoint_callback, metrics_callback]
+            callback=checkpoint_callback
         )
         
         # Save training metrics history

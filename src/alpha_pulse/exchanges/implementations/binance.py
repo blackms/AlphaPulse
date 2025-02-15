@@ -40,6 +40,7 @@ class BinanceExchange(CCXTAdapter):
         config = ExchangeConfiguration(
             api_key=api_key,
             api_secret=api_secret,
+            exchange_id='binance',
             testnet=testnet,
             options={
                 'defaultType': 'spot',
@@ -49,7 +50,7 @@ class BinanceExchange(CCXTAdapter):
             }
         )
         
-        super().__init__(exchange_id='binance', config=config)
+        super().__init__(config)
     
     async def initialize(self) -> None:
         """Initialize Binance exchange connection."""
