@@ -268,8 +268,36 @@ def evaluate_and_save_trades(
         return pd.DataFrame()
 
 
-async def main():
-    """Main execution function."""
+def check_cuda_support(force_gpu: bool = False) -> torch.device:
+    """
+    Check CUDA support and return appropriate device.
+    
+    Args:
+        force_gpu: If True, raise error when GPU is not available
+        
+    Returns:
+        torch.device: Device to use for training
+        
+    Raises:
+        RuntimeError: If force_gpu is True but CUDA is not available
+    """
+    # For PPO with MlpPolicy, CPU is recommended
+    logger.info("Using CPU for PPO with MlpPolicy as recommended by stable-baselines3")
+    if force_gpu:
+        logger.warning(
+            "GPU flag is set but using CPU anyway as PPO with MlpPolicy is optimized for CPU. "
+            "See: https://github.com/DLR-RM/stable-baselines3/issues/1245"
+        )
+    return torch.device("cpu")
+
+async def main(use_gpu: bool = False):
+    """
+    Main execution function.
+    
+    Args:
+        use_gpu: If True, force GPU usage and raise error if not available
+    """
+    
     # Set up signal handlers
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
@@ -322,11 +350,27 @@ async def main():
         # Create metrics callback
         metrics_callback = MetricsCallback()
         
-        # Initialize trainer
+        # Initialize trainer with device configuration
+        device = check_cuda_support(use_gpu)
+        logger.info(f"Using device: {device}")
+        
+        # Log detailed configuration
+        logger.info("\nTraining Configuration:")
+        logger.info("Environment Config:")
+        for k, v in env_config.__dict__.items():
+            logger.info(f"  {k}: {v}")
+        logger.info("\nNetwork Config:")
+        for k, v in network_config.__dict__.items():
+            logger.info(f"  {k}: {v}")
+        logger.info("\nTraining Config:")
+        for k, v in training_config.__dict__.items():
+            logger.info(f"  {k}: {v}")
+            
         trainer = RLTrainer(
             env_config=env_config,
             network_config=network_config,
-            training_config=training_config
+            training_config=training_config,
+            device=device
         )
         
         # Train model
@@ -383,19 +427,63 @@ async def main():
 
 
 if __name__ == "__main__":
-    import asyncio
-    import sys
-    print("Starting RL trading demo...")
-    if sys.platform == 'win32':
-        print("Setting Windows event loop policy...")
-        from asyncio import WindowsSelectorEventLoopPolicy
-        asyncio.set_event_loop_policy(WindowsSelectorEventLoopPolicy())
     try:
+        import asyncio
+        import sys
+        import argparse
+        import torch
+        from pathlib import Path
+        from loguru import logger
+        print("Successfully imported all required packages")
+    except ImportError as e:
+        print(f"Failed to import required packages: {str(e)}")
+        sys.exit(1)
+    
+    # Set up logging first
+    log_path = Path("logs")
+    log_path.mkdir(parents=True, exist_ok=True)
+    logger.add(
+        "logs/rl_trading.log",
+        rotation="1 day",
+        level="DEBUG",
+        format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}"
+    )
+    
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description="RL Trading Demo")
+    parser.add_argument(
+        "--gpu",
+        action="store_true",
+        help="Force GPU usage. Will raise error if GPU is not available."
+    )
+    args = parser.parse_args()
+    
+    print("\n=== Environment Information ===")
+    print(f"Python version: {sys.version}")
+    print(f"PyTorch version: {torch.__version__}")
+    print(f"CUDA available: {torch.cuda.is_available()}")
+    print(f"GPU requested: {args.gpu}")
+    if torch.cuda.is_available():
+        print(f"GPU: {torch.cuda.get_device_name(0)}")
+        print(f"GPU Memory: {torch.cuda.get_device_properties(0).total_memory / (1024**3):.1f} GB")
+        print(f"cuDNN available: {torch.backends.cudnn.is_available()}")
+    print("===========================\n")
+    logger.info("Initializing RL trading demo")
+    
+    try:
+        if sys.platform == 'win32':
+            print("Setting Windows event loop policy...")
+            from asyncio import WindowsSelectorEventLoopPolicy
+            asyncio.set_event_loop_policy(WindowsSelectorEventLoopPolicy())
+            
         print("Running main function...")
-        asyncio.run(main())
+        asyncio.run(main(use_gpu=args.gpu))
     except KeyboardInterrupt:
         print("\nReceived keyboard interrupt. Shutting down gracefully...")
         should_exit = True
+    except RuntimeError as re:
+        print(f"Runtime error: {str(re)}")
+        sys.exit(1)
     except Exception as e:
         print(f"Error occurred: {str(e)}")
         raise
