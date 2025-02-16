@@ -260,7 +260,7 @@ def evaluate_and_save_trades(
     
     while not done and not should_exit:
         action, _ = model.predict(obs, deterministic=True)
-        obs, reward, done, _, info = env.step(action[0] if isinstance(action, np.ndarray) else action)
+        obs, reward, done, _, info = env.step(action.item() if isinstance(action, np.ndarray) else action)
 
         if info['trade_executed'] and env.positions:
             latest_trade = env.positions[-1]
