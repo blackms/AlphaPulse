@@ -66,8 +66,10 @@ class TradingEnv(gym.Env):
         """
         super().__init__()
         
-        # Store log directory path as string
-        self.log_dir = "logs/rl"
+        # Initialize log buffers
+        self.step_logs = []
+        self.reset_logs = []
+        self.enable_logging = False  # Will be enabled in worker processes
         
         self.config = config or TradingEnvConfig()
         self.market_data = market_data
@@ -544,27 +546,12 @@ class TradingEnv(gym.Env):
         
         return state, info
         
-    def _ensure_log_dirs(self) -> None:
-        """Ensure log directories exist."""
-        try:
-            # Create main log directory
-            log_dir = Path(self.log_dir)
-            log_dir.mkdir(parents=True, exist_ok=True)
-            
-            # Create subdirectories
-            for subdir in ["steps", "resets", "trades"]:
-                (log_dir / subdir).mkdir(exist_ok=True)
-                
-        except Exception as e:
-            logger.error(f"Failed to create log directories: {str(e)}")
-            raise
-
     def _log_step_info(self, step: int, action: int, reward: float, done: bool, info: dict, state: np.ndarray) -> None:
-        """Log step information to file."""
-        try:
-            # Ensure directories exist
-            self._ensure_log_dirs()
+        """Store step information in memory buffer."""
+        if not self.enable_logging:
+            return
             
+        try:
             step_log = {
                 'step': int(step),
                 'action': int(action),
@@ -586,19 +573,21 @@ class TradingEnv(gym.Env):
                 'state_std': float(state.std())
             }
             
-            log_path = Path(self.log_dir) / "steps" / "trading_env_steps.log"
-            with open(log_path, "a") as f:
-                f.write(f"{json.dumps(step_log)}\n")
+            self.step_logs.append(step_log)
+            
+            # If episode is done, write logs to file
+            if done:
+                self._write_logs()
                 
         except Exception as e:
-            logger.error(f"Failed to log step information: {str(e)}")
+            logger.error(f"Failed to store step information: {str(e)}")
             
     def _log_reset_info(self, seed: Optional[int], previous_state: dict, state: np.ndarray, info: dict) -> None:
-        """Log reset information to file."""
-        try:
-            # Ensure directories exist
-            self._ensure_log_dirs()
+        """Store reset information in memory buffer."""
+        if not self.enable_logging:
+            return
             
+        try:
             reset_log = {
                 'timestamp': str(pd.Timestamp.now()),
                 'reset_count': int(self._reset_count),
@@ -629,12 +618,10 @@ class TradingEnv(gym.Env):
                 }
             }
             
-            log_path = Path(self.log_dir) / "resets" / "trading_env_resets.log"
-            with open(log_path, "a") as f:
-                f.write(f"{json.dumps(reset_log)}\n")
+            self.reset_logs.append(reset_log)
                 
         except Exception as e:
-            logger.error(f"Failed to log reset information: {str(e)}")
+            logger.error(f"Failed to store reset information: {str(e)}")
             
     def render(self, mode: str = 'human') -> Optional[np.ndarray]:
         """Render the environment state."""
@@ -647,6 +634,39 @@ class TradingEnv(gym.Env):
             f"Position: {self.current_position}"
         )
         
+    def _write_logs(self) -> None:
+        """Write accumulated logs to files at the end of an episode."""
+        if not self.enable_logging:
+            return
+            
+        try:
+            # Create log directories
+            log_dir = Path("logs/rl")
+            log_dir.mkdir(parents=True, exist_ok=True)
+            for subdir in ["steps", "resets"]:
+                (log_dir / subdir).mkdir(exist_ok=True)
+                
+            # Write step logs
+            if self.step_logs:
+                step_log_path = log_dir / "steps" / "trading_env_steps.log"
+                with open(step_log_path, "a") as f:
+                    for log in self.step_logs:
+                        f.write(f"{json.dumps(log)}\n")
+                self.step_logs = []  # Clear buffer
+                
+            # Write reset logs
+            if self.reset_logs:
+                reset_log_path = log_dir / "resets" / "trading_env_resets.log"
+                with open(reset_log_path, "a") as f:
+                    for log in self.reset_logs:
+                        f.write(f"{json.dumps(log)}\n")
+                self.reset_logs = []  # Clear buffer
+                
+        except Exception as e:
+            logger.error(f"Failed to write logs to file: {str(e)}")
+            
     def close(self) -> None:
         """Clean up environment resources."""
-        pass
+        # Write any remaining logs
+        if self.enable_logging:
+            self._write_logs()

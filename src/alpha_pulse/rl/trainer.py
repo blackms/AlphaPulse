@@ -266,9 +266,10 @@ class RLTrainer:
                     logger.debug(f"      Min: {stats['min']:.2f}")
                     logger.debug(f"      Max: {stats['max']:.2f}")
                 
-                # Create environment
+                # Create environment with logging enabled in worker processes
                 env = TradingEnv(data, self.env_config)
-                logger.debug(f"  Environment {rank} created successfully")
+                env.enable_logging = True  # Enable logging in worker process
+                logger.debug(f"  Environment {rank} created successfully with logging enabled")
                 return env
                 
             except Exception as e:
@@ -283,11 +284,9 @@ class RLTrainer:
     ) -> gym.Env:
         """Create vectorized environments for parallel training."""
         env_fns = [self._make_env(market_data, i) for i in range(n_envs)]
-        
-        if n_envs == 1:
-            return DummyVecEnv(env_fns)
-        else:
-            return SubprocVecEnv(env_fns)
+        # Use DummyVecEnv on Windows to avoid pickling issues
+        logger.info(f"Creating {n_envs} environments using DummyVecEnv")
+        return DummyVecEnv(env_fns)
             
     def train(
         self,
