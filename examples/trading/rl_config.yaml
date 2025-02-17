@@ -1,4 +1,22 @@
 # RL Trading Configuration
+#
+# Model Organization:
+# trained_models/rl/
+# ├── ppo/                    # PPO algorithm models
+# │   ├── crypto/            # Cryptocurrency trading models
+# │   │   └── checkpoints/   # Training checkpoints
+# │   ├── stocks/            # Stock trading models
+# │   │   └── checkpoints/   # Training checkpoints
+# │   └── forex/             # Forex trading models
+# │       └── checkpoints/   # Training checkpoints
+# ├── dqn/                    # DQN algorithm models
+# │   ├── crypto/            # Similar structure as above
+# │   ├── stocks/
+# │   └── forex/
+# └── a2c/                    # A2C algorithm models
+#     ├── crypto/
+#     ├── stocks/
+#     └── forex/
 
 # Environment Configuration
 environment:
@@ -35,8 +53,10 @@ training:
   max_grad_norm: 0.5
   eval_freq: 5000  # More frequent evaluation
   n_eval_episodes: 5  # Reduced from 10
-  model_path: "trained_models/rl"
-  log_path: "logs/rl"
+  # Updated model path to use new structure
+  model_path: "trained_models/rl/ppo/crypto"  # Base path for model saving
+  checkpoint_path: "trained_models/rl/ppo/crypto/checkpoints"  # Path for checkpoints
+  log_path: "logs/rl/ppo/crypto"  # Updated log path to match model structure
   checkpoint_freq: 5000  # Added checkpoint frequency
   n_envs: 2  # Added explicit parallel environments setting
   device: "auto"  # Added device configuration (auto, cuda, or cpu)
@@ -45,5 +65,5 @@ training:
 
 # Data Configuration
 data:
-  symbol: "BTCUSDT"
+  symbol: "BTCUSDT"  # Currently configured for crypto
   eval_split: 0.2

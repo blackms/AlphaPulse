@@ -6,11 +6,29 @@ This script implements a comprehensive RL-based trading system with:
 2. Sophisticated environment creation and data handling
 3. Advanced model training with checkpointing
 4. Detailed performance analysis and logging
+
+Model Organization:
+trained_models/rl/
+├── ppo/                    # PPO algorithm models
+│   ├── crypto/            # Cryptocurrency trading models
+│   │   └── checkpoints/   # Training checkpoints
+│   ├── stocks/            # Stock trading models
+│   │   └── checkpoints/   # Training checkpoints
+│   └── forex/             # Forex trading models
+│       └── checkpoints/   # Training checkpoints
+├── dqn/                    # DQN algorithm models
+│   ├── crypto/            # Similar structure as above
+│   ├── stocks/
+│   └── forex/
+└── a2c/                    # A2C algorithm models
+    ├── crypto/
+    ├── stocks/
+    └── forex/
 """
 import argparse
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any, Union
+from typing import Dict, List, Optional, Tuple, Any, Union, Literal
 import json
 import random
 import yaml
@@ -116,6 +134,39 @@ def set_random_seeds(seed: int = 42) -> None:
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
     logger.info(f"Set random seed to {seed}")
+
+
+def get_model_paths(
+    algorithm: Literal["ppo", "dqn", "a2c"],
+    asset_class: Literal["crypto", "stocks", "forex"],
+    model_name: str
+) -> Dict[str, Path]:
+    """
+    Generate paths for model artifacts based on algorithm and asset class.
+    
+    Args:
+        algorithm: RL algorithm type
+        asset_class: Asset class for trading
+        model_name: Name of the model
+        
+    Returns:
+        Dictionary containing paths for model, checkpoints, and logs
+    """
+    base_path = Path("trained_models/rl") / algorithm / asset_class
+    model_path = base_path / f"{model_name}"
+    checkpoint_path = base_path / "checkpoints" / model_name
+    log_path = Path("logs/rl") / algorithm / asset_class / model_name
+    
+    # Create directories
+    model_path.parent.mkdir(parents=True, exist_ok=True)
+    checkpoint_path.mkdir(parents=True, exist_ok=True)
+    log_path.mkdir(parents=True, exist_ok=True)
+    
+    return {
+        "model": model_path,
+        "checkpoint": checkpoint_path,
+        "log": log_path
+    }
 
 
 async def fetch_historical_data(symbol: str, days: int = 365) -> MarketData:
@@ -236,7 +287,8 @@ def create_trading_env(
 def evaluate_and_save_trades(
     model: Any,
     eval_data: pd.DataFrame,
-    env_config: TradingEnvConfig
+    env_config: TradingEnvConfig,
+    save_path: Path
 ) -> pd.DataFrame:
     """
     Evaluate model and save detailed trade information.
@@ -245,6 +297,7 @@ def evaluate_and_save_trades(
         model: Trained RL model
         eval_data: Evaluation market data
         env_config: Environment configuration
+        save_path: Path to save evaluation results
         
     Returns:
         DataFrame containing trade information
@@ -279,29 +332,36 @@ def evaluate_and_save_trades(
         trades_df = pd.DataFrame(trades)
         
         # Save trades and metrics
-        Path("reports").mkdir(parents=True, exist_ok=True)
-        trades_df.to_csv("reports/rl_trades.csv", index=False)
+        save_path.mkdir(parents=True, exist_ok=True)
+        trades_df.to_csv(save_path / "trades.csv", index=False)
         
         # Calculate and save additional metrics
         metrics = calculate_trade_statistics(trades_df)
-        with open("reports/final_metrics.json", 'w') as f:
+        with open(save_path / "metrics.json", 'w') as f:
             json.dump(metrics, f, indent=4)
             
-        logger.info(f"Saved {len(trades)} trades and metrics to reports/")
+        logger.info(f"Saved {len(trades)} trades and metrics to {save_path}")
         return trades_df
     else:
         logger.warning("No trades were executed during evaluation")
         return pd.DataFrame()
 
 
-async def main(use_gpu: bool = False):
+async def main(
+    algorithm: Literal["ppo", "dqn", "a2c"] = "ppo",
+    asset_class: Literal["crypto", "stocks", "forex"] = "crypto",
+    model_name: str = "default",
+    use_gpu: bool = False
+):
     """
     Main execution function.
     
     Args:
+        algorithm: RL algorithm to use
+        asset_class: Asset class to trade
+        model_name: Name for the model
         use_gpu: If True, force GPU usage and raise error if not available
     """
-    
     # Set up signal handlers
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
@@ -311,11 +371,12 @@ async def main(use_gpu: bool = False):
     env = None
     
     try:
+        # Get model paths
+        paths = get_model_paths(algorithm, asset_class, model_name)
+        
         # Set up logging
-        log_path = Path("logs")
-        log_path.mkdir(parents=True, exist_ok=True)
         logger.add(
-            "logs/rl_trading.log",
+            paths["log"] / "training.log",
             rotation="1 day",
             level="DEBUG",
             format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}"
@@ -323,6 +384,12 @@ async def main(use_gpu: bool = False):
         
         # Load configuration
         config = ExperimentConfig.from_yaml("examples/trading/rl_config.yaml")
+        
+        # Update paths in config
+        config.training["model_path"] = str(paths["model"])
+        config.training["checkpoint_path"] = str(paths["checkpoint"])
+        config.training["log_path"] = str(paths["log"])
+        
         logger.info("Loaded configuration")
         logger.debug(f"Config: {config}")
         
@@ -347,8 +414,8 @@ async def main(use_gpu: bool = False):
         # Create checkpoint callback
         checkpoint_callback = CheckpointCallback(
             save_freq=training_config.checkpoint_freq,
-            save_path=training_config.model_path,
-            name_prefix="rl_model"
+            save_path=paths["checkpoint"],
+            name_prefix=model_name
         )
         
         # Create metrics callback
@@ -360,6 +427,9 @@ async def main(use_gpu: bool = False):
         
         # Log detailed configuration
         logger.info("\nTraining Configuration:")
+        logger.info(f"Algorithm: {algorithm}")
+        logger.info(f"Asset Class: {asset_class}")
+        logger.info(f"Model Name: {model_name}")
         logger.info("Environment Config:")
         for k, v in env_config.__dict__.items():
             logger.info(f"  {k}: {v}")
@@ -385,22 +455,22 @@ async def main(use_gpu: bool = False):
             callbacks=[checkpoint_callback, metrics_callback]
         )
         
-        # Create reports directory if it doesn't exist
-        import os
-        if not os.path.exists("reports"):
-            os.makedirs("reports")
-            
         # Save training metrics history
         metrics_df = pd.DataFrame(metrics_callback.metrics_history)
         metrics_df.to_csv(
-            "reports/training_metrics.csv",
+            paths["log"] / "training_metrics.csv",
             index=False
         )
         
         if not should_exit:
             # Evaluate model and save trades
             logger.info("Evaluating model and collecting trades...")
-            trades_df = evaluate_and_save_trades(model, eval_data, env_config)
+            trades_df = evaluate_and_save_trades(
+                model,
+                eval_data,
+                env_config,
+                paths["log"] / "evaluation"
+            )
             
             # Get standard evaluation metrics
             metrics = trainer.evaluate(
@@ -449,18 +519,25 @@ if __name__ == "__main__":
         print(f"Failed to import required packages: {str(e)}")
         sys.exit(1)
     
-    # Set up logging first
-    log_path = Path("logs")
-    log_path.mkdir(parents=True, exist_ok=True)
-    logger.add(
-        "logs/rl_trading.log",
-        rotation="1 day",
-        level="DEBUG",
-        format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}"
-    )
-    
     # Parse command line arguments
     parser = argparse.ArgumentParser(description="RL Trading Demo")
+    parser.add_argument(
+        "--algorithm",
+        choices=["ppo", "dqn", "a2c"],
+        default="ppo",
+        help="RL algorithm to use"
+    )
+    parser.add_argument(
+        "--asset-class",
+        choices=["crypto", "stocks", "forex"],
+        default="crypto",
+        help="Asset class to trade"
+    )
+    parser.add_argument(
+        "--model-name",
+        default="default",
+        help="Name for the model"
+    )
     parser.add_argument(
         "--gpu",
         action="store_true",
@@ -487,7 +564,12 @@ if __name__ == "__main__":
             asyncio.set_event_loop_policy(WindowsSelectorEventLoopPolicy())
             
         print("Running main function...")
-        asyncio.run(main(use_gpu=args.gpu))
+        asyncio.run(main(
+            algorithm=args.algorithm,
+            asset_class=args.asset_class,
+            model_name=args.model_name,
+            use_gpu=args.gpu
+        ))
     except KeyboardInterrupt:
         print("\nReceived keyboard interrupt. Shutting down gracefully...")
         should_exit = True

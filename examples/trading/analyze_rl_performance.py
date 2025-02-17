@@ -13,7 +13,7 @@ from stable_baselines3.common.evaluation import evaluate_policy
 from alpha_pulse.rl.trading_env import TradingEnv, TradingEnvConfig
 
 # Set up plotting style
-plt.style.use('seaborn')
+plt.style.use('ggplot')
 sns.set_palette("husl")
 
 def calculate_trading_metrics(df):
@@ -160,8 +160,12 @@ def main():
     
     try:
         # Load trade history
-        trades_df = pd.read_csv('reports/rl_trades.csv')
-        print(f"Loaded {len(trades_df)} trades for analysis")
+        try:
+            trades_df = pd.read_csv('reports/rl_trades.csv')
+            print(f"Loaded {len(trades_df)} trades for analysis")
+        except FileNotFoundError:
+            print("No trades CSV found. Please run 'demo_rl_trading.py' again or ensure trades have been generated properly.")
+            return
         
         # Calculate metrics
         metrics = calculate_trading_metrics(trades_df)
