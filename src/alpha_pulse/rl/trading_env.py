@@ -13,6 +13,8 @@ import pandas as pd
 from decimal import Decimal
 import talib.abstract as ta
 from loguru import logger
+import json
+from pathlib import Path
 
 from ..portfolio.data_models import Position, PortfolioData
 from ..data_pipeline.models import MarketData
@@ -63,6 +65,9 @@ class TradingEnv(gym.Env):
             config: Environment configuration
         """
         super().__init__()
+        
+        # Store log directory path as string
+        self.log_dir = "logs/rl"
         
         self.config = config or TradingEnvConfig()
         self.market_data = market_data
@@ -432,19 +437,15 @@ class TradingEnv(gym.Env):
         for key, value in info.items():
             logger.debug(f"  {key}: {value}")
         
-        # Save detailed step information to log file
-        with open("logs/rl/trading_env_steps.log", "a") as f:
-            step_log = {
-                'step': self.current_step,
-                'action': action,
-                'action_name': Actions(action).name,
-                'reward': reward,
-                'done': done,
-                'info': info,
-                'state_mean': float(state.mean()),
-                'state_std': float(state.std())
-            }
-            f.write(f"{json.dumps(step_log)}\n")
+        # Log step information
+        self._log_step_info(
+            step=self.current_step,
+            action=action,
+            reward=reward,
+            done=done,
+            info=info,
+            state=state
+        )
             
         return state, reward, done, False, info
         
@@ -533,26 +534,108 @@ class TradingEnv(gym.Env):
         for key, value in info.items():
             logger.debug(f"    {key}: {value}")
         
-        # Save reset information to log file
-        with open("logs/rl/trading_env_resets.log", "a") as f:
+        # Log reset information
+        self._log_reset_info(
+            seed=seed,
+            previous_state=previous_state,
+            state=state,
+            info=info
+        )
+        
+        return state, info
+        
+    def _ensure_log_dirs(self) -> None:
+        """Ensure log directories exist."""
+        try:
+            # Create main log directory
+            log_dir = Path(self.log_dir)
+            log_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Create subdirectories
+            for subdir in ["steps", "resets", "trades"]:
+                (log_dir / subdir).mkdir(exist_ok=True)
+                
+        except Exception as e:
+            logger.error(f"Failed to create log directories: {str(e)}")
+            raise
+
+    def _log_step_info(self, step: int, action: int, reward: float, done: bool, info: dict, state: np.ndarray) -> None:
+        """Log step information to file."""
+        try:
+            # Ensure directories exist
+            self._ensure_log_dirs()
+            
+            step_log = {
+                'step': int(step),
+                'action': int(action),
+                'action_name': Actions(action).name,
+                'reward': float(reward),
+                'done': bool(done),
+                'info': {
+                    'equity': float(info['equity']),
+                    'equity_change': float(info['equity_change']),
+                    'realized_pnl': float(info['realized_pnl']),
+                    'unrealized_pnl': float(info['unrealized_pnl']),
+                    'position': str(info['position']),
+                    'trade_executed': bool(info['trade_executed']),
+                    'current_price': float(info['current_price']),
+                    'total_trades': int(info['total_trades']),
+                    'step_reward': float(info['step_reward'])
+                },
+                'state_mean': float(state.mean()),
+                'state_std': float(state.std())
+            }
+            
+            log_path = Path(self.log_dir) / "steps" / "trading_env_steps.log"
+            with open(log_path, "a") as f:
+                f.write(f"{json.dumps(step_log)}\n")
+                
+        except Exception as e:
+            logger.error(f"Failed to log step information: {str(e)}")
+            
+    def _log_reset_info(self, seed: Optional[int], previous_state: dict, state: np.ndarray, info: dict) -> None:
+        """Log reset information to file."""
+        try:
+            # Ensure directories exist
+            self._ensure_log_dirs()
+            
             reset_log = {
                 'timestamp': str(pd.Timestamp.now()),
-                'reset_count': self._reset_count,
-                'seed': seed,
-                'previous_state': previous_state,
+                'reset_count': int(self._reset_count),
+                'seed': None if seed is None else int(seed),
+                'previous_state': {
+                    'step': None if previous_state['step'] is None else int(previous_state['step']),
+                    'equity': None if previous_state['equity'] is None else float(previous_state['equity']),
+                    'positions': int(previous_state['positions']),
+                    'current_position': str(previous_state['current_position'])
+                },
                 'initial_state': {
-                    'shape': state.shape,
+                    'shape': tuple(int(x) for x in state.shape),
                     'mean': float(state.mean()),
                     'std': float(state.std()),
                     'min': float(state.min()),
                     'max': float(state.max())
                 },
-                'info': info
+                'info': {
+                    'equity': float(info['equity']),
+                    'realized_pnl': float(info['realized_pnl']),
+                    'position': str(info['position']),
+                    'trade_executed': bool(info['trade_executed']),
+                    'initial_price': float(info['initial_price']),
+                    'initial_volume': float(info['initial_volume']),
+                    'available_steps': int(info['available_steps']),
+                    'window_size': int(info['window_size']),
+                    'reset_count': int(info['reset_count'])
+                }
             }
-            f.write(f"{json.dumps(reset_log)}\n")
-        
-        return state, info
-        
+            
+            log_path = Path(self.log_dir) / "resets" / "trading_env_resets.log"
+            with open(log_path, "a") as f:
+                f.write(f"{json.dumps(reset_log)}\n")
+                
+        except Exception as e:
+            logger.error(f"Failed to log reset information: {str(e)}")
+            
     def render(self, mode: str = 'human') -> Optional[np.ndarray]:
         """Render the environment state."""
         if mode != 'human':

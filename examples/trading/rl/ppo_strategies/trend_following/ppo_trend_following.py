@@ -136,21 +136,47 @@ def get_model_paths(
     Returns:
         Dictionary containing paths for model, checkpoints, and logs
     """
-    base_path = Path("trained_models/rl") / algorithm / asset_class
-    model_path = base_path / f"{model_name}"
-    checkpoint_path = base_path / "checkpoints" / model_name
-    log_path = Path("logs/rl") / algorithm / asset_class / model_name
-    
-    # Create directories
-    model_path.parent.mkdir(parents=True, exist_ok=True)
-    checkpoint_path.mkdir(parents=True, exist_ok=True)
-    log_path.mkdir(parents=True, exist_ok=True)
-    
-    return {
-        "model": model_path,
-        "checkpoint": checkpoint_path,
-        "log": log_path
-    }
+    try:
+        base_path = Path("trained_models/rl") / algorithm / asset_class
+        model_path = base_path / f"{model_name}"
+        checkpoint_path = base_path / "checkpoints" / model_name
+        log_path = Path("logs/rl") / algorithm / asset_class / model_name
+        
+        # Create directories with detailed logging
+        logger.info("Creating required directories...")
+        
+        for path, desc in [
+            (base_path, "base model directory"),
+            (model_path.parent, "model directory"),
+            (checkpoint_path, "checkpoint directory"),
+            (log_path, "log directory")
+        ]:
+            try:
+                path.mkdir(parents=True, exist_ok=True)
+                logger.info(f"Created/verified {desc} at: {path}")
+            except PermissionError as pe:
+                logger.error(f"Permission denied when creating {desc}: {str(pe)}")
+                logger.info("Please ensure you have write permissions for these directories")
+                raise
+            except Exception as e:
+                logger.error(f"Failed to create {desc}: {str(e)}")
+                raise
+        
+        paths = {
+            "model": model_path,
+            "checkpoint": checkpoint_path,
+            "log": log_path
+        }
+        
+        logger.info("Directory setup complete:")
+        for key, path in paths.items():
+            logger.info(f"  {key}: {path}")
+            
+        return paths
+        
+    except Exception as e:
+        logger.error(f"Error setting up model paths: {str(e)}")
+        raise
 
 
 async def fetch_historical_data(symbol: str, days: int = 365) -> MarketData:
@@ -166,15 +192,30 @@ async def fetch_historical_data(symbol: str, days: int = 365) -> MarketData:
     """
     exchange = None
     try:
+        logger.info(f"Fetching historical data for {symbol} over {days} days")
+        
         # Load Binance credentials
-        with open("src/alpha_pulse/exchanges/credentials/binance_credentials.json", "r") as f:
-            credentials = json.load(f)
-        api_key = credentials["api_key"]
-        api_secret = credentials["api_secret"]
+        creds_path = "src/alpha_pulse/exchanges/credentials/binance_credentials.json"
+        try:
+            with open(creds_path, "r") as f:
+                credentials = json.load(f)
+            api_key = credentials["api_key"]
+            api_secret = credentials["api_secret"]
+            logger.info("Loaded API credentials successfully")
+        except FileNotFoundError:
+            logger.error(f"Credentials file not found at: {creds_path}")
+            raise
+        except json.JSONDecodeError:
+            logger.error("Invalid JSON in credentials file")
+            raise
+        except KeyError as e:
+            logger.error(f"Missing required credential: {e}")
+            raise
         
         # Initialize data storage and exchange factory
         storage = SQLAlchemyStorage()
         exchange_factory = ExchangeFactory()
+        logger.debug("Initialized storage and exchange factory")
         
         # Create exchange instance
         exchange = exchange_factory.create_exchange(
@@ -183,12 +224,15 @@ async def fetch_historical_data(symbol: str, days: int = 365) -> MarketData:
             api_secret=api_secret
         )
         await exchange.initialize()
+        logger.info("Exchange initialized successfully")
         
         # Calculate start date
         end_date = datetime.now(timezone.utc)
         start_date = end_date - timedelta(days=days)
+        logger.debug(f"Date range: {start_date} to {end_date}")
         
         # Fetch historical data
+        logger.info("Fetching OHLCV data...")
         ohlcv_data = await exchange.fetch_ohlcv(
             symbol=symbol,
             timeframe="1d",
@@ -196,7 +240,13 @@ async def fetch_historical_data(symbol: str, days: int = 365) -> MarketData:
             limit=days
         )
         
+        if not ohlcv_data:
+            raise ValueError(f"No data returned for {symbol}")
+            
+        logger.info(f"Received {len(ohlcv_data)} data points")
+        
         # Convert OHLCV data to DataFrame with float values
+        logger.debug("Converting data to DataFrame")
         df = pd.DataFrame([
             {
                 'timestamp': ohlcv.timestamp,
@@ -209,18 +259,42 @@ async def fetch_historical_data(symbol: str, days: int = 365) -> MarketData:
             for ohlcv in ohlcv_data
         ]).set_index('timestamp')
         
+        # Log data statistics
+        logger.debug("Data statistics:")
+        for col in ['open', 'high', 'low', 'close', 'volume']:
+            stats = df[col].describe()
+            logger.debug(f"  {col}:")
+            logger.debug(f"    Mean: {stats['mean']:.2f}")
+            logger.debug(f"    Std: {stats['std']:.2f}")
+            logger.debug(f"    Min: {stats['min']:.2f}")
+            logger.debug(f"    Max: {stats['max']:.2f}")
+        
         # Calculate features
+        logger.info("Calculating technical features")
         feature_engineer = FeatureEngineer(window_size=100)
         features = feature_engineer.calculate_features(df)
+        logger.info(f"Generated {len(features.columns)} features")
         
-        return MarketData(
+        # Create MarketData object
+        market_data = MarketData(
             prices=features,
             volumes=df[['volume']],
             timestamp=end_date
         )
+        logger.info("Historical data fetching completed successfully")
+        return market_data
+        
+    except Exception as e:
+        logger.error(f"Error fetching historical data: {str(e)}")
+        raise
+        
     finally:
         if exchange:
-            await exchange.close()
+            try:
+                await exchange.close()
+                logger.debug("Exchange connection closed")
+            except Exception as e:
+                logger.error(f"Error closing exchange connection: {str(e)}")
 
 
 def prepare_data(data: MarketData, eval_split: float = 0.2) -> Tuple[pd.DataFrame, pd.DataFrame]:
@@ -235,19 +309,81 @@ def prepare_data(data: MarketData, eval_split: float = 0.2) -> Tuple[pd.DataFram
         Tuple of (train_data, eval_data)
         
     Raises:
-        ValueError: If eval_split is not between 0 and 1
+        ValueError: If eval_split is not between 0 and 1 or if data validation fails
     """
-    if not 0 < eval_split < 1:
-        raise ValueError("eval_split must be between 0 and 1")
+    logger.info("Preparing data for training...")
+    
+    try:
+        # Validate input data
+        if not isinstance(data, MarketData):
+            raise ValueError("Input must be a MarketData object")
+            
+        if not isinstance(data.prices, pd.DataFrame):
+            raise ValueError("Prices must be a pandas DataFrame")
+            
+        if data.prices.empty:
+            raise ValueError("Price data is empty")
+            
+        # Validate eval_split
+        if not 0 < eval_split < 1:
+            raise ValueError(f"eval_split must be between 0 and 1, got {eval_split}")
+            
+        # Check for required columns
+        required_columns = ['open', 'high', 'low', 'close']
+        missing_columns = [col for col in required_columns if col not in data.prices.columns]
+        if missing_columns:
+            raise ValueError(f"Missing required columns: {missing_columns}")
+            
+        # Check for NaN values
+        nan_counts = data.prices.isna().sum()
+        if nan_counts.any():
+            logger.warning("Found NaN values in data:")
+            for col, count in nan_counts.items():
+                if count > 0:
+                    logger.warning(f"  {col}: {count} NaN values")
+            logger.info("Filling NaN values with forward fill method")
+            data.prices = data.prices.ffill()
+            
+        # Calculate split index
+        total_samples = len(data.prices)
+        split_idx = int(total_samples * (1 - eval_split))
         
-    split_idx = int(len(data.prices) * (1 - eval_split))
-    train_data = data.prices[:split_idx]
-    eval_data = data.prices[split_idx:]
-    
-    logger.info(f"Prepared {len(train_data)} training samples and {len(eval_data)} evaluation samples")
-    logger.debug(f"Train data shape: {train_data.shape}, Eval data shape: {eval_data.shape}")
-    
-    return train_data, eval_data
+        if split_idx <= 0 or split_idx >= total_samples:
+            raise ValueError(f"Invalid split index {split_idx} for {total_samples} samples")
+            
+        # Split data
+        train_data = data.prices[:split_idx]
+        eval_data = data.prices[split_idx:]
+        
+        # Log data statistics
+        logger.info("Data preparation statistics:")
+        logger.info(f"  Total samples: {total_samples}")
+        logger.info(f"  Training samples: {len(train_data)} ({(1-eval_split)*100:.1f}%)")
+        logger.info(f"  Evaluation samples: {len(eval_data)} ({eval_split*100:.1f}%)")
+        logger.info(f"  Features: {len(data.prices.columns)}")
+        
+        # Log data shapes
+        logger.debug("Data shapes:")
+        logger.debug(f"  Train data: {train_data.shape}")
+        logger.debug(f"  Eval data: {eval_data.shape}")
+        
+        # Log basic statistics for both sets
+        for name, df in [("Training", train_data), ("Evaluation", eval_data)]:
+            logger.debug(f"\n{name} set statistics:")
+            for col in df.columns:
+                stats = df[col].describe()
+                logger.debug(f"  {col}:")
+                logger.debug(f"    Mean: {stats['mean']:.2f}")
+                logger.debug(f"    Std: {stats['std']:.2f}")
+                logger.debug(f"    Min: {stats['min']:.2f}")
+                logger.debug(f"    Max: {stats['max']:.2f}")
+        
+        logger.info("Data preparation completed successfully")
+        return train_data, eval_data
+        
+    except Exception as e:
+        logger.error(f"Error preparing data: {str(e)}")
+        raise
 
 
 def create_trading_env(
@@ -263,9 +399,65 @@ def create_trading_env(
         
     Returns:
         Configured TradingEnv instance
+        
+    Raises:
+        ValueError: If configuration validation fails
     """
-    env_config = TradingEnvConfig(**config)
-    return TradingEnv(market_data, config=env_config)
+    logger.info("Creating trading environment...")
+    
+    try:
+        # Validate market data
+        if not isinstance(market_data, MarketData):
+            raise ValueError("market_data must be a MarketData instance")
+            
+        if not isinstance(market_data.prices, pd.DataFrame):
+            raise ValueError("market_data.prices must be a DataFrame")
+            
+        if market_data.prices.empty:
+            raise ValueError("market_data.prices is empty")
+            
+        # Validate configuration
+        required_config = {
+            'initial_capital', 'commission', 'position_size', 'window_size',
+            'reward_scaling', 'risk_aversion', 'max_position',
+            'stop_loss_pct', 'take_profit_pct'
+        }
+        
+        missing_config = required_config - set(config.keys())
+        if missing_config:
+            raise ValueError(f"Missing required configuration parameters: {missing_config}")
+            
+        # Log configuration
+        logger.info("Environment configuration:")
+        for key, value in config.items():
+            logger.info(f"  {key}: {value}")
+            
+        # Create environment config
+        logger.debug("Creating environment configuration...")
+        env_config = TradingEnvConfig(**config)
+        
+        # Log market data statistics
+        logger.info("Market data statistics:")
+        logger.info(f"  Total timesteps: {len(market_data.prices)}")
+        logger.info(f"  Features: {len(market_data.prices.columns)}")
+        if isinstance(market_data.prices.index, pd.DatetimeIndex):
+            logger.info(f"  Time range: {market_data.prices.index[0]} to {market_data.prices.index[-1]}")
+        
+        # Create environment
+        logger.debug("Initializing trading environment...")
+        env = TradingEnv(market_data, config=env_config)
+        
+        # Verify environment spaces
+        logger.debug("Environment spaces:")
+        logger.debug(f"  Action space: {env.action_space}")
+        logger.debug(f"  Observation space: {env.observation_space}")
+        
+        logger.info("Trading environment created successfully")
+        return env
+        
+    except Exception as e:
+        logger.error(f"Error creating trading environment: {str(e)}")
+        raise
 
 
 def evaluate_and_save_trades(

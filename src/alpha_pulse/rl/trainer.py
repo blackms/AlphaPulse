@@ -238,14 +238,42 @@ class RLTrainer:
     def _make_env(self, market_data: pd.DataFrame, rank: int = 0) -> gym.Env:
         """Create a trading environment instance."""
         def _init():
-            # Create MarketData object from DataFrame
-            data = MarketData(
-                prices=market_data,
-                volumes=market_data[['volume']] if 'volume' in market_data.columns else None,
-                timestamp=market_data.index[-1] if isinstance(market_data.index, pd.DatetimeIndex) else None
-            )
-            env = TradingEnv(data, self.env_config)
-            return env
+            try:
+                logger.debug(f"Creating environment {rank}:")
+                logger.debug(f"  Market data shape: {market_data.shape}")
+                logger.debug(f"  Columns: {market_data.columns.tolist()}")
+                
+                # Validate market data
+                required_columns = ['open', 'high', 'low', 'close']
+                missing_columns = [col for col in required_columns if col not in market_data.columns]
+                if missing_columns:
+                    raise ValueError(f"Missing required columns: {missing_columns}")
+                
+                # Create MarketData object from DataFrame
+                data = MarketData(
+                    prices=market_data,
+                    volumes=market_data[['volume']] if 'volume' in market_data.columns else None,
+                    timestamp=market_data.index[-1] if isinstance(market_data.index, pd.DatetimeIndex) else None
+                )
+                
+                # Log data statistics
+                logger.debug("  Market data statistics:")
+                for col in market_data.columns:
+                    stats = market_data[col].describe()
+                    logger.debug(f"    {col}:")
+                    logger.debug(f"      Mean: {stats['mean']:.2f}")
+                    logger.debug(f"      Std: {stats['std']:.2f}")
+                    logger.debug(f"      Min: {stats['min']:.2f}")
+                    logger.debug(f"      Max: {stats['max']:.2f}")
+                
+                # Create environment
+                env = TradingEnv(data, self.env_config)
+                logger.debug(f"  Environment {rank} created successfully")
+                return env
+                
+            except Exception as e:
+                logger.error(f"Failed to create environment {rank}: {str(e)}")
+                raise
         return _init
         
     def _create_envs(
@@ -384,20 +412,21 @@ class RLTrainer:
             done = False
             episode_reward = 0
             episode_length = 0
-        while not done:
-            action, _ = model.predict(obs, deterministic=True)
-            if isinstance(action, np.ndarray):
-                action_val = action[0] if action.ndim > 0 else action.item()
-            else:
-                action_val = action
-            step_out = eval_env.step([action_val])
-            if len(step_out) == 4:
-                obs, reward, done, info = step_out
-            else:
-                obs, reward, done, _, info = step_out
-            episode_reward += reward
-            episode_length += 1
-                
+            
+            while not done:
+                action, _ = model.predict(obs, deterministic=True)
+                if isinstance(action, np.ndarray):
+                    action_val = action[0] if action.ndim > 0 else action.item()
+                else:
+                    action_val = action
+                step_out = eval_env.step([action_val])
+                if len(step_out) == 4:
+                    obs, reward, done, info = step_out
+                else:
+                    obs, reward, done, _, info = step_out
+                episode_reward += reward
+                episode_length += 1
+            
             episode_rewards.append(episode_reward)
             episode_lengths.append(episode_length)
             
