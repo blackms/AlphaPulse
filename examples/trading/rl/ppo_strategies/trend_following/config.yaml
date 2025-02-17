@@ -1,0 +1,53 @@
+# PPO Trend Following Strategy Configuration
+
+# Environment Configuration
+environment:
+  initial_capital: 100000.0
+  commission: 0.001
+  position_size: 0.2  # Conservative position sizing for trend following
+  window_size: 50    # Increased window for better trend detection
+  reward_scaling: 5.0
+  risk_aversion: 0.02
+  max_position: 3.0  # Limited max position for risk management
+  stop_loss_pct: 0.05   # Tighter stop-loss for trend following
+  take_profit_pct: 0.15 # Take profit based on trend strength
+
+# Neural Network Configuration
+network:
+  hidden_sizes: [256, 128, 64]  # Deep network for pattern recognition
+  activation_fn: "relu"
+  use_lstm: true               # LSTM for temporal pattern detection
+  lstm_units: 128
+  attention_heads: 4           # Multi-head attention for trend detection
+  dropout_rate: 0.1
+
+# Training Configuration
+training:
+  total_timesteps: 100000
+  learning_rate: 0.0001
+  batch_size: 256
+  n_steps: 1024
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.2
+  ent_coef: 0.01    # Lower entropy for more focused trend following
+  vf_coef: 0.5
+  max_grad_norm: 0.5
+  eval_freq: 5000
+  n_eval_episodes: 5
+  checkpoint_freq: 5000
+  n_envs: 2
+  device: "auto"
+  cuda_deterministic: true
+  precision: "float32"
+
+# Data Configuration
+data:
+  symbol: "BTCUSDT"  # Default to BTC for crypto trend following
+  eval_split: 0.2
+  feature_engineering:
+    # Technical indicators for trend detection
+    moving_averages: [20, 50, 200]  # Multiple timeframe trend analysis
+    momentum_indicators: ["rsi", "macd", "adx"]  # Trend strength indicators
+    volatility_indicators: ["atr", "bbands"]     # Volatility for position sizing
+    volume_indicators: ["obv", "vwap"]           # Volume confirmation
