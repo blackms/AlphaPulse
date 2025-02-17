@@ -346,9 +346,9 @@ async def main(
         model_name: Name for the model
         use_gpu: If True, force GPU usage and raise error if not available
     """
-    # Set up signal handlers
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
+    # Remove signal handlers to avoid BrokenPipeError
+    # signal.signal(signal.SIGINT, signal_handler)
+    # signal.signal(signal.SIGTERM, signal_handler)
     
     exchange = None
     model = None
@@ -393,7 +393,27 @@ async def main(
         # Initialize trainer components
         env_config = TradingEnvConfig(**config.environment)
         network_config = NetworkConfig(**config.network)
-        training_config = TrainingConfig(**config.training)
+        training_config = TrainingConfig(
+            total_timesteps=config.training['total_timesteps'],
+            learning_rate=config.training['learning_rate'],
+            batch_size=config.training['batch_size'],
+            n_steps=config.training['n_steps'],
+            gamma=config.training['gamma'],
+            gae_lambda=config.training['gae_lambda'],
+            clip_range=config.training['clip_range'],
+            ent_coef=config.training['ent_coef'],
+            vf_coef=config.training['vf_coef'],
+            max_grad_norm=config.training['max_grad_norm'],
+            eval_freq=config.training['eval_freq'],
+            n_eval_episodes=config.training['n_eval_episodes'],
+            checkpoint_freq=config.training['checkpoint_freq'],
+            n_envs=config.training['n_envs'],
+            device=config.training['device'],
+            cuda_deterministic=config.training['cuda_deterministic'],
+            precision=config.training['precision'],
+            model_path=config.training['model_path'],
+            log_path=config.training['log_path']
+        )
         
         # Create checkpoint callback
         checkpoint_callback = CheckpointCallback(

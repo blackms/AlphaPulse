@@ -316,6 +316,7 @@ class TradingEnv(gym.Env):
             'trade_executed': trade_executed
         }
         
+        logger.debug(f"Step: {self.current_step}, Action: {action}, Reward: {reward}, Done: {done}, Info: {info}")
         return state, reward, done, False, info
         
     def reset(
