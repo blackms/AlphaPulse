@@ -316,7 +316,8 @@ class TradingEnv(gym.Env):
             'trade_executed': trade_executed
         }
         
-        logger.debug(f"Step: {self.current_step}, Action: {action}, Reward: {reward}, Done: {done}, Info: {info}")
+        with open("logs/rl/trading_env_steps.log", "a") as f:
+            f.write(f"Step: {self.current_step}, Action: {action}, Reward: {reward}, Done: {done}, Info: {info}\n")
         return state, reward, done, False, info
         
     def reset(

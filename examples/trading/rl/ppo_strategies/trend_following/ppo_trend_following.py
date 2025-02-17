@@ -360,12 +360,13 @@ async def main(
         
         # Set up logging
         logger.add(
-            paths["log"] / "training.log",
+            str(paths["log"] / "training.log"),
             rotation="1 day",
             level="DEBUG",
             format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}"
         )
-        
+
+        # Load configuration
         # Load configuration
         config = ExperimentConfig.from_yaml("examples/trading/rl/ppo_strategies/trend_following/config.yaml")
         
