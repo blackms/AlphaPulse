@@ -66,10 +66,11 @@ class TradingEnv(gym.Env):
         """
         super().__init__()
         
-        # Initialize log buffers
+        # Initialize log buffers and tracking
         self.step_logs = []
         self.reset_logs = []
         self.enable_logging = False  # Will be enabled in worker processes
+        self.episode_count = 0  # Track episode number
         
         self.config = config or TradingEnvConfig()
         self.market_data = market_data
@@ -483,10 +484,12 @@ class TradingEnv(gym.Env):
         for key, value in previous_state.items():
             logger.debug(f"    {key}: {value}")
         
-        # Reset random state
+        # Reset random state and increment episode
         super().reset(seed=seed)
+        self.episode_count += 1
         if seed is not None:
             logger.debug(f"  Random state reset with seed: {seed}")
+        logger.debug(f"  Starting episode {self.episode_count}")
         
         # Reset environment state
         self._reset_state()
@@ -553,6 +556,7 @@ class TradingEnv(gym.Env):
             
         try:
             step_log = {
+                'episode': self.episode_count,
                 'step': int(step),
                 'action': int(action),
                 'action_name': Actions(action).name,

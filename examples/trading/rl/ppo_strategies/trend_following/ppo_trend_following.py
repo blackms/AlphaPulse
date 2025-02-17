@@ -502,6 +502,8 @@ def evaluate_and_save_trades(
         
         # Execute step
         obs, reward, done, _, info = env.step(action_value)
+
+        logger.info(f"Step {step}: Action = {action_value}, Reward = {reward}, Done = {done}, Trade Executed = {info['trade_executed']}, Position = {info['position']}")
         
         # Log step details
         step_info = {
@@ -603,12 +605,28 @@ async def main(
         # Get model paths
         paths = get_model_paths(algorithm, asset_class, model_name)
         
-        # Set up logging
+        # Set up logging with different levels for file and console
+        log_format = "{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}"
+        
+        # Remove default logger and set up new handlers
+        logger.remove()
+        
+        # Console handler - only INFO and above
+        logger.add(
+            sys.stderr,
+            format=log_format,
+            level="INFO",
+            colorize=True
+        )
+        
+        # File handler - DEBUG and above
         logger.add(
             str(paths["log"] / "training.log"),
-            rotation="1 day",
+            format=log_format,
             level="DEBUG",
-            format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}"
+            rotation="1 day",
+            compression="zip",
+            retention="30 days"
         )
 
         # Load configuration
