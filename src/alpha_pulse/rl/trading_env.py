@@ -182,7 +182,11 @@ class TradingEnv(gym.Env):
         Returns:
             float: The calculated reward
         """
+        logger.debug(f"\nCalculating reward for step {self.current_step}:")
+        logger.debug(f"  Action: {Actions(action).name}")
+        
         reward = 0.0
+        reward_components = {}
         
         if self.current_position is not None:
             # Calculate unrealized PnL
@@ -191,20 +195,60 @@ class TradingEnv(gym.Env):
             entry_value = float(self.current_position.quantity) * float(self.current_position.avg_entry_price)
             unrealized_pnl = position_value - entry_value
             
-            # Risk-adjusted reward
-            volatility = float(self.market_data.prices['close'].pct_change().std())
+            logger.debug("  Position metrics:")
+            logger.debug(f"    Current price: {current_price}")
+            logger.debug(f"    Position value: {position_value}")
+            logger.debug(f"    Entry value: {entry_value}")
+            logger.debug(f"    Unrealized PnL: {unrealized_pnl}")
+            
+            # Calculate base reward from PnL
+            base_reward = unrealized_pnl / float(self.config.initial_capital)
+            reward_components['base_reward'] = base_reward
+            logger.debug(f"  Base reward (PnL based): {base_reward}")
+            
+            # Calculate risk adjustment
+            price_series = self.market_data.prices['close'].iloc[max(0, self.current_step-20):self.current_step+1]
+            volatility = float(price_series.pct_change().std())
             risk_adjustment = 1.0 / (1.0 + self.config.risk_aversion * volatility)
+            reward_components['risk_adjustment'] = risk_adjustment
+            logger.debug(f"  Risk metrics:")
+            logger.debug(f"    Volatility: {volatility}")
+            logger.debug(f"    Risk adjustment factor: {risk_adjustment}")
             
-            # Scale reward
-            reward = unrealized_pnl / float(self.config.initial_capital)
-            reward *= self.config.reward_scaling * risk_adjustment
+            # Apply risk adjustment and scaling
+            reward = base_reward * risk_adjustment * self.config.reward_scaling
+            reward_components['scaled_reward'] = reward
+            logger.debug(f"  After risk adjustment and scaling: {reward}")
             
-            # Penalize for holding positions too long
+            # Check trade duration penalty
             if len(self.positions) > 0:
                 trade_duration = self.current_step - self.positions[-1].timestamp
-                if trade_duration > self.config.max_trade_duration_candles:
-                    reward *= 0.5
+                logger.debug(f"  Trade duration: {trade_duration} steps")
                 
+                if trade_duration > self.config.max_trade_duration_candles:
+                    duration_penalty = 0.5
+                    reward *= duration_penalty
+                    reward_components['duration_penalty'] = duration_penalty
+                    logger.debug(f"  Applied duration penalty: {duration_penalty}")
+                    logger.debug(f"  Final reward after penalty: {reward}")
+                else:
+                    logger.debug("  No duration penalty applied")
+                    reward_components['duration_penalty'] = 1.0
+        else:
+            logger.debug("  No active position, reward remains 0")
+            reward_components = {
+                'base_reward': 0.0,
+                'risk_adjustment': 1.0,
+                'scaled_reward': 0.0,
+                'duration_penalty': 1.0
+            }
+        
+        # Log final reward and components
+        logger.debug("  Reward components:")
+        for component, value in reward_components.items():
+            logger.debug(f"    {component}: {value}")
+        logger.debug(f"  Final reward: {reward}")
+        
         return reward
         
     def _update_position(self, action: Actions) -> Tuple[float, bool]:
@@ -221,14 +265,25 @@ class TradingEnv(gym.Env):
         realized_pnl = Decimal('0')
         trade_executed = False
         
+        # Log initial state
+        logger.debug(f"Position update - Step {self.current_step}:")
+        logger.debug(f"  Action: {action}")
+        logger.debug(f"  Current price: {current_price}")
+        logger.debug(f"  Current position: {self.current_position}")
+        logger.debug(f"  Current equity: {self.equity}")
+        
         # Close existing position if we have one and action is exit or opposite
         if self.current_position is not None:
-            if (
-                (action == Actions.ExitLong and self.current_position.quantity > 0) or
-                (action == Actions.ExitShort and self.current_position.quantity < 0) or
-                (action == Actions.Long and self.current_position.quantity < 0) or
-                (action == Actions.Short and self.current_position.quantity > 0)
-            ):
+            close_conditions = {
+                'exit_long': action == Actions.ExitLong and self.current_position.quantity > 0,
+                'exit_short': action == Actions.ExitShort and self.current_position.quantity < 0,
+                'reverse_to_long': action == Actions.Long and self.current_position.quantity < 0,
+                'reverse_to_short': action == Actions.Short and self.current_position.quantity > 0
+            }
+            
+            logger.debug(f"  Close conditions: {close_conditions}")
+            
+            if any(close_conditions.values()):
                 # Calculate PnL including commission
                 quantity = float(self.current_position.quantity)
                 exit_value = abs(quantity) * float(current_price) * \
@@ -239,6 +294,13 @@ class TradingEnv(gym.Env):
                 realized_pnl = exit_value - entry_value if quantity > 0 \
                     else entry_value - exit_value
                 
+                # Log position closing details
+                logger.debug("  Closing position:")
+                logger.debug(f"    Quantity: {quantity}")
+                logger.debug(f"    Exit value: {exit_value}")
+                logger.debug(f"    Entry value: {entry_value}")
+                logger.debug(f"    Realized PnL: {realized_pnl}")
+                
                 # Update position
                 self.current_position.exit_price = current_price
                 self.current_position.exit_time = self.current_step
@@ -246,6 +308,7 @@ class TradingEnv(gym.Env):
                 
                 # Store position history
                 self.positions.append(self.current_position)
+                logger.debug(f"  Added position to history. Total positions: {len(self.positions)}")
                 self.current_position = None
                 trade_executed = True
                 
@@ -258,6 +321,11 @@ class TradingEnv(gym.Env):
                 
                 if action == Actions.Short:
                     quantity = -quantity
+                
+                # Log position sizing calculations
+                logger.debug("  Opening new position:")
+                logger.debug(f"    Position value: {position_value}")
+                logger.debug(f"    Calculated quantity: {quantity}")
                     
                 if quantity != 0:
                     self.current_position = Position(
@@ -269,6 +337,14 @@ class TradingEnv(gym.Env):
                         timestamp=float(self.current_step)
                     )
                     trade_executed = True
+                    logger.debug(f"  Opened new position: {self.current_position}")
+                else:
+                    logger.warning("  Zero quantity calculated, no position opened")
+                    
+        # Log final state
+        logger.debug(f"  Trade executed: {trade_executed}")
+        logger.debug(f"  Final position: {self.current_position}")
+        logger.debug(f"  Realized PnL: {realized_pnl}")
                     
         return float(realized_pnl), trade_executed
         
@@ -287,37 +363,89 @@ class TradingEnv(gym.Env):
             - truncated: Whether the episode was truncated
             - info: Additional information
         """
+        # Log step start
+        logger.debug(f"\nStep {self.current_step} start:")
+        logger.debug(f"  Action received: {action} ({Actions(action).name})")
+        
         if not 0 <= action < len(Actions):
             raise ValueError(f"Invalid action: {action}")
             
+        # Get current market state
+        current_price = float(self.market_data.prices['close'].iloc[self.current_step])
+        previous_equity = float(self.equity)
+        logger.debug(f"  Current price: {current_price}")
+        logger.debug(f"  Starting equity: {previous_equity}")
+        
         # Take action and get reward
         realized_pnl, trade_executed = self._update_position(Actions(action))
+        logger.debug(f"  Position update result:")
+        logger.debug(f"    Realized PnL: {realized_pnl}")
+        logger.debug(f"    Trade executed: {trade_executed}")
         
         # Update equity
         self.equity += Decimal(str(realized_pnl))
+        equity_change = float(self.equity) - previous_equity
+        logger.debug(f"  Equity change: {equity_change}")
         
         # Calculate reward
         reward = self._calculate_reward(action)
+        logger.debug(f"  Calculated reward: {reward}")
         
         # Move to next step
         self.current_step += 1
         
         # Check if done
         done = self.current_step >= len(self.market_data.prices) - 1
+        logger.debug(f"  Episode done: {done}")
         
         # Get new state
         state = self._calculate_state()
+        logger.debug(f"  New state shape: {state.shape}")
+        logger.debug(f"  State summary - Mean: {state.mean():.4f}, Std: {state.std():.4f}")
         
-        # Calculate info dict
+        # Calculate additional metrics
+        unrealized_pnl = 0.0
+        if self.current_position is not None:
+            position_value = float(self.current_position.quantity) * current_price
+            entry_value = float(self.current_position.quantity) * float(self.current_position.avg_entry_price)
+            unrealized_pnl = position_value - entry_value
+            logger.debug(f"  Current position details:")
+            logger.debug(f"    Position value: {position_value}")
+            logger.debug(f"    Entry value: {entry_value}")
+            logger.debug(f"    Unrealized PnL: {unrealized_pnl}")
+        
+        # Calculate info dict with extended information
         info = {
             'equity': float(self.equity),
+            'equity_change': equity_change,
             'realized_pnl': realized_pnl,
+            'unrealized_pnl': unrealized_pnl,
             'position': self.current_position,
-            'trade_executed': trade_executed
+            'trade_executed': trade_executed,
+            'current_price': current_price,
+            'total_trades': len(self.positions),
+            'step_reward': reward
         }
         
+        # Log step completion
+        logger.debug("Step completion info:")
+        for key, value in info.items():
+            logger.debug(f"  {key}: {value}")
+        
+        # Save detailed step information to log file
         with open("logs/rl/trading_env_steps.log", "a") as f:
-            f.write(f"Step: {self.current_step}, Action: {action}, Reward: {reward}, Done: {done}, Info: {info}\n")
+            step_log = {
+                'step': self.current_step,
+                'action': action,
+                'action_name': Actions(action).name,
+                'reward': reward,
+                'done': done,
+                'info': info,
+                'state_mean': float(state.mean()),
+                'state_std': float(state.std())
+            }
+            f.write(f"{json.dumps(step_log)}\n")
+            
         return state, reward, done, False, info
         
     def reset(
@@ -337,16 +465,91 @@ class TradingEnv(gym.Env):
             - observation: Initial state
             - info: Additional information
         """
-        super().reset(seed=seed)
-        self._reset_state()
+        logger.debug("\nResetting environment:")
+        logger.debug(f"  Seed: {seed}")
+        logger.debug(f"  Options: {options}")
         
+        # Store previous state for debugging
+        previous_state = {
+            'step': getattr(self, 'current_step', None),
+            'equity': float(self.equity) if hasattr(self, 'equity') else None,
+            'positions': len(self.positions) if hasattr(self, 'positions') else 0,
+            'current_position': self.current_position if hasattr(self, 'current_position') else None
+        }
+        logger.debug("  Previous state:")
+        for key, value in previous_state.items():
+            logger.debug(f"    {key}: {value}")
+        
+        # Reset random state
+        super().reset(seed=seed)
+        if seed is not None:
+            logger.debug(f"  Random state reset with seed: {seed}")
+        
+        # Reset environment state
+        self._reset_state()
+        logger.debug("  Environment state reset:")
+        logger.debug(f"    Current step: {self.current_step}")
+        logger.debug(f"    Initial equity: {float(self.equity)}")
+        logger.debug(f"    Positions cleared: {len(self.positions)}")
+        
+        # Calculate initial state
         state = self._calculate_state()
+        logger.debug("  Initial state metrics:")
+        logger.debug(f"    Shape: {state.shape}")
+        logger.debug(f"    Mean: {state.mean():.4f}")
+        logger.debug(f"    Std: {state.std():.4f}")
+        logger.debug(f"    Min: {state.min():.4f}")
+        logger.debug(f"    Max: {state.max():.4f}")
+        
+        # Verify market data availability
+        available_steps = len(self.market_data.prices) - self.current_step
+        logger.debug("  Market data status:")
+        logger.debug(f"    Total timesteps available: {len(self.market_data.prices)}")
+        logger.debug(f"    Remaining timesteps: {available_steps}")
+        logger.debug(f"    Starting at step: {self.current_step}")
+        
+        # Calculate initial metrics
+        initial_price = float(self.market_data.prices['close'].iloc[self.current_step])
+        initial_volume = float(self.market_data.prices['volume'].iloc[self.current_step])
+        
+        # Prepare detailed info dict
         info = {
             'equity': float(self.equity),
             'realized_pnl': 0.0,
             'position': None,
-            'trade_executed': False
+            'trade_executed': False,
+            'initial_price': initial_price,
+            'initial_volume': initial_volume,
+            'available_steps': available_steps,
+            'window_size': self.config.window_size,
+            'reset_count': getattr(self, '_reset_count', 0) + 1,
+            'previous_state': previous_state
         }
+        
+        # Update reset counter
+        self._reset_count = info['reset_count']
+        
+        logger.debug("  Reset complete. Initial info:")
+        for key, value in info.items():
+            logger.debug(f"    {key}: {value}")
+        
+        # Save reset information to log file
+        with open("logs/rl/trading_env_resets.log", "a") as f:
+            reset_log = {
+                'timestamp': str(pd.Timestamp.now()),
+                'reset_count': self._reset_count,
+                'seed': seed,
+                'previous_state': previous_state,
+                'initial_state': {
+                    'shape': state.shape,
+                    'mean': float(state.mean()),
+                    'std': float(state.std()),
+                    'min': float(state.min()),
+                    'max': float(state.max())
+                },
+                'info': info
+            }
+            f.write(f"{json.dumps(reset_log)}\n")
         
         return state, info
         

@@ -291,44 +291,97 @@ def evaluate_and_save_trades(
         env_config.__dict__
     )
     
+    # Create evaluation log file
+    save_path.mkdir(parents=True, exist_ok=True)
+    eval_log_path = save_path / "evaluation_steps.log"
+    
     trades = []
+    attempted_trades = []
     obs = env.reset()[0]
     done = False
+    step = 0
+    
+    logger.info("Starting evaluation...")
     
     while not done and not should_exit:
-        action, _ = model.predict(obs, deterministic=True)
-        obs, reward, done, _, info = env.step(action.item() if isinstance(action, np.ndarray) else action)
-
-        if info['trade_executed'] and env.positions:
-            latest_trade = env.positions[-1]
-            trades.append({
-                'entry_time': latest_trade.timestamp,
-                'exit_time': latest_trade.exit_time,
-                'duration': latest_trade.exit_time - latest_trade.timestamp,
-                'entry_price': latest_trade.avg_entry_price,
-                'exit_price': latest_trade.exit_price,
-                'position_size': latest_trade.quantity,
-                'profit': latest_trade.pnl,
+        # Get model prediction and log it
+        action, _states = model.predict(obs, deterministic=True)
+        action_value = action.item() if isinstance(action, np.ndarray) else action
+        
+        # Execute step
+        obs, reward, done, _, info = env.step(action_value)
+        
+        # Log step details
+        step_info = {
+            'step': step,
+            'action': action_value,
+            'reward': reward,
+            'equity': info['equity'],
+            'position': str(info['position']),
+            'trade_executed': info['trade_executed'],
+            'realized_pnl': info['realized_pnl']
+        }
+        
+        # Save step info to log
+        with open(eval_log_path, 'a') as f:
+            f.write(f"Step {step}: {json.dumps(step_info)}\n")
+            
+        # Track attempted trades
+        if info['trade_executed']:
+            attempted_trades.append({
+                'step': step,
+                'action': action_value,
+                'position': info['position'],
+                'realized_pnl': info['realized_pnl'],
                 'equity': info['equity']
             })
-    
+            
+            # If trade was completed (has position history), add to trades list
+            if env.positions:
+                latest_trade = env.positions[-1]
+                trades.append({
+                    'entry_time': latest_trade.timestamp,
+                    'exit_time': latest_trade.exit_time,
+                    'duration': latest_trade.exit_time - latest_trade.timestamp,
+                    'entry_price': latest_trade.avg_entry_price,
+                    'exit_price': latest_trade.exit_price,
+                    'position_size': latest_trade.quantity,
+                    'profit': latest_trade.pnl,
+                    'equity': info['equity']
+                })
+        
+        step += 1
+        
+    # Save all evaluation data
     if trades:
         trades_df = pd.DataFrame(trades)
+        trades_df.to_csv(save_path / "completed_trades.csv", index=False)
         
-        # Save trades and metrics
-        save_path.mkdir(parents=True, exist_ok=True)
-        trades_df.to_csv(save_path / "trades.csv", index=False)
-        
-        # Calculate and save additional metrics
+        # Calculate and save metrics for completed trades
         metrics = calculate_trade_statistics(trades_df)
-        with open(save_path / "metrics.json", 'w') as f:
+        with open(save_path / "trade_metrics.json", 'w') as f:
             json.dump(metrics, f, indent=4)
             
-        logger.info(f"Saved {len(trades)} trades and metrics to {save_path}")
-        return trades_df
+        logger.info(f"Saved {len(trades)} completed trades and metrics to {save_path}")
     else:
-        logger.warning("No trades were executed during evaluation")
-        return pd.DataFrame()
+        logger.warning("No completed trades during evaluation")
+        
+    # Save attempted trades
+    if attempted_trades:
+        attempted_df = pd.DataFrame(attempted_trades)
+        attempted_df.to_csv(save_path / "attempted_trades.csv", index=False)
+        logger.info(f"Saved {len(attempted_trades)} attempted trades to {save_path}")
+    else:
+        logger.warning("No trade attempts during evaluation")
+        
+    # Log evaluation summary
+    logger.info(f"Evaluation completed:")
+    logger.info(f"Total steps: {step}")
+    logger.info(f"Attempted trades: {len(attempted_trades)}")
+    logger.info(f"Completed trades: {len(trades)}")
+    logger.info(f"Final equity: {info['equity']}")
+    
+    return pd.DataFrame(trades)
 
 
 async def main(
