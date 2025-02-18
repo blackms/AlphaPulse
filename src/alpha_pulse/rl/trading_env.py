@@ -227,7 +227,13 @@ class TradingEnv(gym.Env):
             reward = base_reward * risk_adjustment * self.config.reward_scaling
             reward_components['scaled_reward'] = reward
             logger.debug(f"  After risk adjustment and scaling: {reward}")
-            
+
+            # Add small negative reward for holding position
+            holding_penalty = -0.0001
+            reward += holding_penalty
+            reward_components['holding_penalty'] = holding_penalty
+            logger.debug(f"  Applied holding penalty: {holding_penalty}")
+
             # Check trade duration penalty
             if len(self.positions) > 0:
                 trade_duration = self.current_step - self.positions[-1].timestamp
@@ -248,7 +254,8 @@ class TradingEnv(gym.Env):
                 'base_reward': 0.0,
                 'risk_adjustment': 1.0,
                 'scaled_reward': 0.0,
-                'duration_penalty': 1.0
+                'duration_penalty': 1.0,
+                'holding_penalty': 0.0
             }
         
         # Log final reward and components
