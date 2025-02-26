@@ -57,6 +57,6 @@ Thumbs.db
 plots/
 
 binance_credentials.json
-.clinerules
+.clinerules*
 
 .venv
