@@ -75,31 +75,37 @@ const DashboardPage: React.FC = () => {
   
   // Derived data structures
   const portfolioPerformance = {
-    currentValue: totalValue,
-    totalReturn: performance.find(p => p.period === 'all')?.returnPercent || 0,
-    startDate: performance.find(p => p.period === 'all')?.startDate || 'N/A',
-    daily: performance.find(p => p.period === 'day')?.returnPercent || 0,
-    history: historicalValues.map(h => ({
-      date: new Date(h.timestamp).toLocaleDateString(),
-      value: h.value,
-      benchmark: h.value * 0.9 // Mock benchmark data
-    }))
+    currentValue: totalValue || 0,
+    totalReturn: performance && performance.length > 0 ?
+      performance.find(p => p.period === 'all')?.returnPercent || 0 : 0,
+    startDate: performance && performance.length > 0 ?
+      performance.find(p => p.period === 'all')?.startDate || 'N/A' : 'N/A',
+    daily: performance && performance.length > 0 ?
+      performance.find(p => p.period === 'day')?.returnPercent || 0 : 0,
+    history: historicalValues && historicalValues.length > 0 ?
+      historicalValues.map(h => ({
+        date: new Date(h.timestamp).toLocaleDateString(),
+        value: h.value,
+        benchmark: h.value * 0.9 // Mock benchmark data
+      })) : []
   };
   
-  const portfolioAllocation = assets.map(asset => ({
-    asset: asset.symbol,
-    value: asset.allocation
-  }));
+  const portfolioAllocation = assets && assets.length > 0 ?
+    assets.map(asset => ({
+      asset: asset.symbol,
+      value: asset.allocation
+    })) : [];
   
-  const portfolioPositions = assets.map(asset => ({
-    asset: asset.symbol,
-    size: asset.quantity,
-    entryPrice: asset.costBasis,
-    currentPrice: asset.price,
-    pnlPercentage: asset.unrealizedPnLPercent,
-    allocation: asset.allocation,
-    status: asset.unrealizedPnLPercent >= 0 ? 'active' : 'warning'
-  }));
+  const portfolioPositions = assets && assets.length > 0 ?
+    assets.map(asset => ({
+      asset: asset.symbol,
+      size: asset.quantity,
+      entryPrice: asset.costBasis,
+      currentPrice: asset.price,
+      pnlPercentage: asset.unrealizedPnLPercent,
+      allocation: asset.allocation,
+      status: asset.unrealizedPnLPercent >= 0 ? 'active' : 'warning'
+    })) : [];
   const systemMetrics = useSelector(selectSystemMetrics);
   const systemComponents = useSelector(selectSystemComponents);
 
@@ -174,12 +180,14 @@ const DashboardPage: React.FC = () => {
   };
 
   // Filter recent alerts (last 24 hours)
-  const recentAlerts = alerts
-    .filter(alert => !alert.read && new Date(alert.timestamp).getTime() > Date.now() - 24 * 60 * 60 * 1000)
-    .slice(0, 5);
+  const recentAlerts = alerts && alerts.length > 0
+    ? alerts
+        .filter(alert => !alert.read && new Date(alert.timestamp).getTime() > Date.now() - 24 * 60 * 60 * 1000)
+        .slice(0, 5)
+    : [];
 
   // Get overall system health percentage
-  const systemHealth = systemComponents.length > 0
+  const systemHealth = systemComponents && systemComponents.length > 0
     ? Math.floor(systemComponents.reduce((sum, comp) => sum + comp.healthScore, 0) / systemComponents.length)
     : 0;
 
