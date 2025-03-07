@@ -27,6 +27,7 @@ import {
   Error as DownIcon,
   Build as MaintenanceIcon,
   AccessTime as TimeIcon,
+  Help as UnknownIcon,
 } from '@mui/icons-material';
 import {
   selectSystemStatus,
@@ -90,7 +91,7 @@ const SystemStatusPage: React.FC = () => {
       case 'maintenance':
         return <MaintenanceIcon color="info" />;
       default:
-        return null;
+        return <UnknownIcon color="disabled" />;
     }
   };
 

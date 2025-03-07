@@ -1,255 +1,363 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { RootState } from '../store';
 
-export type SignalDirection = 'buy' | 'sell' | 'hold';
-export type SignalStrength = 'weak' | 'moderate' | 'strong';
-export type SignalSource = 'technical' | 'fundamental' | 'sentiment' | 'value' | 'ensemble';
-export type OrderStatus = 'pending' | 'filled' | 'partial' | 'cancelled' | 'failed';
+export type SignalDirection = 'buy' | 'sell' | 'neutral';
+export type SignalSource = 'technical' | 'fundamental' | 'sentiment' | 'value' | 'activist' | 'combined';
+export type SignalTimeframe = '1m' | '5m' | '15m' | '30m' | '1h' | '4h' | '1d' | '1w';
+export type OrderType = 'market' | 'limit' | 'stop' | 'stop_limit';
+export type OrderStatus = 'pending' | 'open' | 'filled' | 'partially_filled' | 'canceled' | 'rejected' | 'expired';
+export type StrategyType = 'trend_following' | 'mean_reversion' | 'breakout' | 'momentum' | 'value' | 'volatility' | 'grid' | 'custom';
 
-export interface Signal {
+export interface TradingSignal {
   id: string;
-  assetId: string;
-  symbol: string;
-  name: string;
-  direction: SignalDirection;
-  strength: SignalStrength;
-  confidence: number; // 0-100
-  source: SignalSource;
-  description: string;
   timestamp: number;
-  expiresAt: number;
-  suggestedSize: number; // In USD or as percentage of portfolio
-  riskScore: number; // 0-100, higher is riskier
-  status: 'active' | 'expired' | 'executed';
-  indicators?: {
-    name: string;
-    value: number;
-    trend: 'up' | 'down' | 'neutral';
-  }[];
+  asset: string;
+  direction: SignalDirection;
+  source: SignalSource;
+  confidence: number;
+  timeframe: SignalTimeframe;
+  price: number;
+  volume?: number;
+  metadata?: Record<string, any>;
+  expiration?: number;
+  isActive: boolean;
 }
 
-export interface Trade {
+export interface TradeOrder {
   id: string;
-  signalId?: string;
-  assetId: string;
-  symbol: string;
-  direction: 'buy' | 'sell';
+  timestamp: number;
+  asset: string;
+  side: 'buy' | 'sell';
+  type: OrderType;
+  status: OrderStatus;
   quantity: number;
   price: number;
-  total: number;
+  limitPrice?: number;
+  stopPrice?: number;
+  filledQuantity: number;
+  cost: number;
+  fee: number;
+  signalId?: string;
+  strategyId?: string;
+}
+
+export interface TradeExecution {
+  id: string;
+  orderId: string;
   timestamp: number;
-  status: OrderStatus;
-  fees: number;
-  pnl?: number;
-  pnlPercent?: number;
-  executionSpeed?: number; // milliseconds
-  notes?: string;
+  asset: string;
+  side: 'buy' | 'sell';
+  quantity: number;
+  price: number;
+  fee: number;
+}
+
+export interface TradingStrategy {
+  id: string;
+  name: string;
+  description: string;
+  type: StrategyType;
+  assets: string[];
+  enabled: boolean;
+  parameters: Record<string, any>;
+  performance: {
+    totalTrades: number;
+    winRate: number;
+    profitFactor: number;
+    averageProfit: number;
+    sharpeRatio: number;
+    maxDrawdown: number;
+  };
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface StrategyBacktest {
+  id: string;
+  strategyId: string;
+  startDate: string;
+  endDate: string;
+  initialCapital: number;
+  finalCapital: number;
+  totalReturn: number;
+  annualizedReturn: number;
+  sharpeRatio: number;
+  maxDrawdown: number;
+  trades: number;
+  winRate: number;
+  profitFactor: number;
+  averageProfit: number;
+  averageLoss: number;
+  averageHoldingPeriod: number;
+  results: {
+    dates: string[];
+    equity: number[];
+    drawdown: number[];
+    benchmark?: number[];
+  };
+  completedAt: number;
 }
 
 interface TradingState {
-  activeSignals: Signal[];
-  historicalSignals: Signal[];
-  recentTrades: Trade[];
-  historicalTrades: Trade[];
-  pendingOrders: Trade[];
-  loading: boolean;
-  lastUpdated: number | null;
+  signals: TradingSignal[];
+  orders: TradeOrder[];
+  executions: TradeExecution[];
+  strategies: TradingStrategy[];
+  backtests: StrategyBacktest[];
+  activeTrades: number;
+  isLoading: boolean;
+  error: string | null;
 }
 
 const initialState: TradingState = {
-  activeSignals: [
+  signals: [
     {
-      id: 's1',
-      assetId: '1',
-      symbol: 'BTC',
-      name: 'Bitcoin',
+      id: 'signal1',
+      timestamp: Date.now() - 2 * 60 * 60 * 1000,
+      asset: 'BTC',
       direction: 'buy',
-      strength: 'strong',
-      confidence: 85,
       source: 'technical',
-      description: 'Bullish breakout pattern confirmed with strong volume support',
-      timestamp: Date.now() - 3 * 60 * 60 * 1000, // 3 hours ago
-      expiresAt: Date.now() + 21 * 60 * 60 * 1000, // expires in 21 hours
-      suggestedSize: 5000,
-      riskScore: 45,
-      status: 'active',
-      indicators: [
-        { name: 'RSI', value: 62, trend: 'up' },
-        { name: 'MACD', value: 235, trend: 'up' },
-        { name: 'MA Cross', value: 1, trend: 'up' },
-      ],
+      confidence: 0.82,
+      timeframe: '4h',
+      price: 46750,
+      volume: 1.25,
+      metadata: {
+        pattern: 'breakout',
+        indicators: {
+          rsi: 65,
+          macd: 'bullish',
+          ma_cross: true
+        }
+      },
+      isActive: true
     },
     {
-      id: 's2',
-      assetId: '3',
-      symbol: 'SOL',
-      name: 'Solana',
+      id: 'signal2',
+      timestamp: Date.now() - 3 * 60 * 60 * 1000,
+      asset: 'ETH',
       direction: 'buy',
-      strength: 'moderate',
-      confidence: 68,
       source: 'fundamental',
-      description: 'Increasing network adoption and developer activity metrics',
-      timestamp: Date.now() - 5 * 60 * 60 * 1000, // 5 hours ago
-      expiresAt: Date.now() + 19 * 60 * 60 * 1000, // expires in 19 hours
-      suggestedSize: 3500,
-      riskScore: 60,
-      status: 'active',
-      indicators: [
-        { name: 'Active Addresses', value: 278500, trend: 'up' },
-        { name: 'Transaction Count', value: 4230000, trend: 'up' },
-        { name: 'TVL Change', value: 3.8, trend: 'up' },
-      ],
+      confidence: 0.75,
+      timeframe: '1d',
+      price: 3200,
+      volume: 12.5,
+      metadata: {
+        metrics: {
+          network_growth: 'high',
+          active_addresses: 'increasing',
+          development_activity: 'high'
+        }
+      },
+      isActive: true
     },
     {
-      id: 's3',
-      assetId: '2',
-      symbol: 'ETH',
-      name: 'Ethereum',
+      id: 'signal3',
+      timestamp: Date.now() - 5 * 60 * 60 * 1000,
+      asset: 'SOL',
       direction: 'sell',
-      strength: 'weak',
-      confidence: 55,
       source: 'sentiment',
-      description: 'Increasing negative sentiment in social media metrics',
-      timestamp: Date.now() - 8 * 60 * 60 * 1000, // 8 hours ago
-      expiresAt: Date.now() + 16 * 60 * 60 * 1000, // expires in 16 hours
-      suggestedSize: 2000,
-      riskScore: 65,
-      status: 'active',
-      indicators: [
-        { name: 'Social Volume', value: 125400, trend: 'up' },
-        { name: 'Sentiment Score', value: -0.12, trend: 'down' },
-        { name: 'News Sentiment', value: -0.08, trend: 'down' },
-      ],
+      confidence: 0.68,
+      timeframe: '1d',
+      price: 105.50,
+      metadata: {
+        sentiment: 'bearish',
+        social_volume: 'decreasing',
+        news_impact: 'negative'
+      },
+      isActive: false
     },
+    {
+      id: 'signal4',
+      timestamp: Date.now() - 8 * 60 * 60 * 1000,
+      asset: 'AVAX',
+      direction: 'neutral',
+      source: 'value',
+      confidence: 0.62,
+      timeframe: '1d',
+      price: 32.75,
+      metadata: {
+        metrics: {
+          pe_ratio: 'neutral',
+          market_cap_to_tvl: 'fair',
+          revenue_growth: 'moderate'
+        }
+      },
+      isActive: true
+    },
+    {
+      id: 'signal5',
+      timestamp: Date.now() - 1 * 24 * 60 * 60 * 1000,
+      asset: 'BTC',
+      direction: 'buy',
+      source: 'combined',
+      confidence: 0.85,
+      timeframe: '1d',
+      price: 45800,
+      metadata: {
+        components: {
+          technical: 0.78,
+          fundamental: 0.82,
+          sentiment: 0.62,
+          value: 0.75
+        }
+      },
+      isActive: true
+    }
   ],
-  historicalSignals: [
+  orders: [
     {
-      id: 'hs1',
-      assetId: '1',
-      symbol: 'BTC',
-      name: 'Bitcoin',
-      direction: 'buy',
-      strength: 'strong',
-      confidence: 88,
-      source: 'ensemble',
-      description: 'Multiple agents confirming bullish trend continuation',
-      timestamp: Date.now() - 3 * 24 * 60 * 60 * 1000, // 3 days ago
-      expiresAt: Date.now() - 2 * 24 * 60 * 60 * 1000, // expired 2 days ago
-      suggestedSize: 8000,
-      riskScore: 40,
-      status: 'executed',
-    },
-    {
-      id: 'hs2',
-      assetId: '4',
-      symbol: 'LINK',
-      name: 'Chainlink',
-      direction: 'buy',
-      strength: 'moderate',
-      confidence: 72,
-      source: 'technical',
-      description: 'Cup and handle pattern forming with volume confirmation',
-      timestamp: Date.now() - 5 * 24 * 60 * 60 * 1000, // 5 days ago
-      expiresAt: Date.now() - 4 * 24 * 60 * 60 * 1000, // expired 4 days ago
-      suggestedSize: 2500,
-      riskScore: 55,
-      status: 'executed',
-    },
-    {
-      id: 'hs3',
-      assetId: '5',
-      symbol: 'MATIC',
-      name: 'Polygon',
-      direction: 'sell',
-      strength: 'strong',
-      confidence: 82,
-      source: 'fundamental',
-      description: 'Declining network metrics and increased competition',
-      timestamp: Date.now() - 8 * 24 * 60 * 60 * 1000, // 8 days ago
-      expiresAt: Date.now() - 7 * 24 * 60 * 60 * 1000, // expired 7 days ago
-      suggestedSize: 1800,
-      riskScore: 35,
-      status: 'expired',
-    },
-  ],
-  recentTrades: [
-    {
-      id: 't1',
-      signalId: 'hs1',
-      assetId: '1',
-      symbol: 'BTC',
-      direction: 'buy',
-      quantity: 0.12,
-      price: 63550,
-      total: 7626,
-      timestamp: Date.now() - 2.5 * 24 * 60 * 60 * 1000, // 2.5 days ago
+      id: 'order1',
+      timestamp: Date.now() - 1 * 60 * 60 * 1000,
+      asset: 'BTC',
+      side: 'buy',
+      type: 'market',
       status: 'filled',
-      fees: 7.63,
-      executionSpeed: 235, // milliseconds
+      quantity: 0.25,
+      price: 46750,
+      filledQuantity: 0.25,
+      cost: 11687.50,
+      fee: 11.69,
+      signalId: 'signal1',
+      strategyId: 'strategy1'
     },
     {
-      id: 't2',
-      signalId: 'hs2',
-      assetId: '4',
-      symbol: 'LINK',
-      direction: 'buy',
-      quantity: 130,
-      price: 18.15,
-      total: 2359.5,
-      timestamp: Date.now() - 4.2 * 24 * 60 * 60 * 1000, // 4.2 days ago
-      status: 'filled',
-      fees: 2.36,
-      executionSpeed: 312, // milliseconds
-    },
-    {
-      id: 't3',
-      assetId: '2',
-      symbol: 'ETH',
-      direction: 'sell',
-      quantity: 1.5,
+      id: 'order2',
+      timestamp: Date.now() - 2 * 60 * 60 * 1000,
+      asset: 'ETH',
+      side: 'buy',
+      type: 'limit',
+      status: 'open',
+      quantity: 5.0,
       price: 3150,
-      total: 4725,
-      timestamp: Date.now() - 6.1 * 24 * 60 * 60 * 1000, // 6.1 days ago
-      status: 'filled',
-      fees: 4.73,
-      pnl: 525,
-      pnlPercent: 12.5,
-      executionSpeed: 180, // milliseconds
+      filledQuantity: 0,
+      cost: 0,
+      fee: 0,
+      signalId: 'signal2',
+      strategyId: 'strategy1'
     },
     {
-      id: 't4',
-      signalId: 'hs3',
-      assetId: '5',
-      symbol: 'MATIC',
-      direction: 'sell',
-      quantity: 1800,
-      price: 0.98,
-      total: 1764,
-      timestamp: Date.now() - 7.3 * 24 * 60 * 60 * 1000, // 7.3 days ago
+      id: 'order3',
+      timestamp: Date.now() - 6 * 60 * 60 * 1000,
+      asset: 'SOL',
+      side: 'sell',
+      type: 'market',
       status: 'filled',
-      fees: 1.76,
-      pnl: 144,
-      pnlPercent: 8.9,
-      executionSpeed: 205, // milliseconds
-    },
+      quantity: 25.0,
+      price: 105.50,
+      filledQuantity: 25.0,
+      cost: 2637.50,
+      fee: 2.64,
+      signalId: 'signal3',
+      strategyId: 'strategy2'
+    }
   ],
-  historicalTrades: [], // Would be filled with more historical trades
-  pendingOrders: [
+  executions: [
     {
-      id: 'p1',
-      assetId: '3',
-      symbol: 'SOL',
-      direction: 'buy',
-      quantity: 25,
-      price: 133.5,
-      total: 3337.5,
-      timestamp: Date.now() - 1 * 60 * 60 * 1000, // 1 hour ago
-      status: 'pending',
-      fees: 3.34,
+      id: 'exec1',
+      orderId: 'order1',
+      timestamp: Date.now() - 1 * 60 * 60 * 1000,
+      asset: 'BTC',
+      side: 'buy',
+      quantity: 0.25,
+      price: 46750,
+      fee: 11.69
     },
+    {
+      id: 'exec2',
+      orderId: 'order3',
+      timestamp: Date.now() - 6 * 60 * 60 * 1000,
+      asset: 'SOL',
+      side: 'sell',
+      quantity: 25.0,
+      price: 105.50,
+      fee: 2.64
+    }
   ],
-  loading: false,
-  lastUpdated: Date.now() - 15 * 60 * 1000, // 15 minutes ago
+  strategies: [
+    {
+      id: 'strategy1',
+      name: 'Multi-Agent Alpha',
+      description: 'Combined signals from all agents with risk-optimized position sizing',
+      type: 'custom',
+      assets: ['BTC', 'ETH', 'SOL', 'AVAX', 'DOT', 'LINK', 'MATIC'],
+      enabled: true,
+      parameters: {
+        technical_weight: 0.3,
+        fundamental_weight: 0.3,
+        sentiment_weight: 0.2,
+        value_weight: 0.2,
+        min_confidence: 0.65,
+        position_size_max: 0.1,
+        stop_loss_atr: 2.5
+      },
+      performance: {
+        totalTrades: 87,
+        winRate: 0.64,
+        profitFactor: 1.85,
+        averageProfit: 3.2,
+        sharpeRatio: 1.75,
+        maxDrawdown: 12.8
+      },
+      createdAt: Date.now() - 90 * 24 * 60 * 60 * 1000,
+      updatedAt: Date.now() - 5 * 24 * 60 * 60 * 1000
+    },
+    {
+      id: 'strategy2',
+      name: 'Breakout Momentum',
+      description: 'Detects breakouts with volume confirmation and momentum follow-through',
+      type: 'breakout',
+      assets: ['BTC', 'ETH', 'SOL'],
+      enabled: true,
+      parameters: {
+        lookback_period: 20,
+        volume_threshold: 2.0,
+        momentum_confirmation: true,
+        entry_delay: 1,
+        profit_target_atr: 4.0,
+        stop_loss_atr: 2.0
+      },
+      performance: {
+        totalTrades: 42,
+        winRate: 0.55,
+        profitFactor: 1.62,
+        averageProfit: 4.5,
+        sharpeRatio: 1.48,
+        maxDrawdown: 15.2
+      },
+      createdAt: Date.now() - 60 * 24 * 60 * 60 * 1000,
+      updatedAt: Date.now() - 10 * 24 * 60 * 60 * 1000
+    }
+  ],
+  backtests: [
+    {
+      id: 'backtest1',
+      strategyId: 'strategy1',
+      startDate: '2022-01-01',
+      endDate: '2022-12-31',
+      initialCapital: 100000,
+      finalCapital: 142500,
+      totalReturn: 42.5,
+      annualizedReturn: 42.5,
+      sharpeRatio: 1.68,
+      maxDrawdown: 18.2,
+      trades: 124,
+      winRate: 0.62,
+      profitFactor: 1.78,
+      averageProfit: 3.8,
+      averageLoss: -2.6,
+      averageHoldingPeriod: 3.5,
+      results: {
+        dates: ['2022-01-01', '2022-04-01', '2022-07-01', '2022-10-01', '2022-12-31'],
+        equity: [100000, 112000, 98000, 125000, 142500],
+        drawdown: [0, 5.2, 18.2, 8.1, 4.2],
+        benchmark: [100000, 95000, 85000, 92000, 105000]
+      },
+      completedAt: Date.now() - 15 * 24 * 60 * 60 * 1000
+    }
+  ],
+  activeTrades: 2,
+  isLoading: false,
+  error: null
 };
 
 const tradingSlice = createSlice({
@@ -257,104 +365,116 @@ const tradingSlice = createSlice({
   initialState,
   reducers: {
     fetchTradingDataStart: (state) => {
-      state.loading = true;
+      state.isLoading = true;
+      state.error = null;
     },
     fetchTradingDataSuccess: (state, action: PayloadAction<{
-      activeSignals: Signal[];
-      historicalSignals: Signal[];
-      recentTrades: Trade[];
-      pendingOrders: Trade[];
+      signals: TradingSignal[];
+      orders: TradeOrder[];
+      executions: TradeExecution[];
+      strategies: TradingStrategy[];
+      backtests: StrategyBacktest[];
+      activeTrades: number;
     }>) => {
-      state.activeSignals = action.payload.activeSignals;
-      state.historicalSignals = action.payload.historicalSignals;
-      state.recentTrades = action.payload.recentTrades;
-      state.pendingOrders = action.payload.pendingOrders;
-      state.loading = false;
-      state.lastUpdated = Date.now();
+      state.signals = action.payload.signals;
+      state.orders = action.payload.orders;
+      state.executions = action.payload.executions;
+      state.strategies = action.payload.strategies;
+      state.backtests = action.payload.backtests;
+      state.activeTrades = action.payload.activeTrades;
+      state.isLoading = false;
     },
-    fetchTradingDataFailure: (state) => {
-      state.loading = false;
+    fetchTradingDataFailure: (state, action: PayloadAction<string>) => {
+      state.isLoading = false;
+      state.error = action.payload;
     },
-    addSignal: (state, action: PayloadAction<Signal>) => {
-      state.activeSignals.push(action.payload);
+    addSignal: (state, action: PayloadAction<Omit<TradingSignal, 'id'>>) => {
+      state.signals.push({
+        id: `signal_${Date.now()}`,
+        ...action.payload
+      });
     },
     updateSignal: (state, action: PayloadAction<{
       id: string;
-      updates: Partial<Signal>;
+      updates: Partial<TradingSignal>;
     }>) => {
-      const signal = state.activeSignals.find(s => s.id === action.payload.id);
+      const signal = state.signals.find(s => s.id === action.payload.id);
       if (signal) {
         Object.assign(signal, action.payload.updates);
       }
     },
-    expireSignal: (state, action: PayloadAction<string>) => {
-      const signalIndex = state.activeSignals.findIndex(s => s.id === action.payload);
-      if (signalIndex !== -1) {
-        const signal = state.activeSignals[signalIndex];
-        signal.status = 'expired';
-        state.historicalSignals.push(signal);
-        state.activeSignals.splice(signalIndex, 1);
+    deactivateSignal: (state, action: PayloadAction<string>) => {
+      const signal = state.signals.find(s => s.id === action.payload);
+      if (signal) {
+        signal.isActive = false;
       }
     },
-    executeSignal: (state, action: PayloadAction<{
-      signalId: string;
-      trade: Trade;
-    }>) => {
-      const { signalId, trade } = action.payload;
-      
-      // Find and update the signal
-      const signalIndex = state.activeSignals.findIndex(s => s.id === signalId);
-      if (signalIndex !== -1) {
-        const signal = state.activeSignals[signalIndex];
-        signal.status = 'executed';
-        state.historicalSignals.push(signal);
-        state.activeSignals.splice(signalIndex, 1);
-      }
-      
-      // Add the trade
-      state.recentTrades.unshift(trade);
+    addOrder: (state, action: PayloadAction<Omit<TradeOrder, 'id'>>) => {
+      state.orders.push({
+        id: `order_${Date.now()}`,
+        ...action.payload
+      });
     },
-    addTrade: (state, action: PayloadAction<Trade>) => {
-      state.recentTrades.unshift(action.payload);
-    },
-    updateTradeStatus: (state, action: PayloadAction<{
-      tradeId: string;
+    updateOrderStatus: (state, action: PayloadAction<{
+      id: string;
       status: OrderStatus;
-      updates?: Partial<Trade>;
+      filledQuantity?: number;
+      cost?: number;
+      fee?: number;
     }>) => {
-      // Check in pending orders
-      const pendingIndex = state.pendingOrders.findIndex(t => t.id === action.payload.tradeId);
-      if (pendingIndex !== -1) {
-        state.pendingOrders[pendingIndex].status = action.payload.status;
+      const order = state.orders.find(o => o.id === action.payload.id);
+      if (order) {
+        order.status = action.payload.status;
         
-        if (action.payload.updates) {
-          Object.assign(state.pendingOrders[pendingIndex], action.payload.updates);
+        if (action.payload.filledQuantity !== undefined) {
+          order.filledQuantity = action.payload.filledQuantity;
         }
         
-        // If the order is filled or partially filled, move it to recent trades
-        if (action.payload.status === 'filled' || action.payload.status === 'partial') {
-          state.recentTrades.unshift(state.pendingOrders[pendingIndex]);
-          state.pendingOrders.splice(pendingIndex, 1);
+        if (action.payload.cost !== undefined) {
+          order.cost = action.payload.cost;
         }
-        return;
-      }
-      
-      // Check in recent trades
-      const recentIndex = state.recentTrades.findIndex(t => t.id === action.payload.tradeId);
-      if (recentIndex !== -1) {
-        state.recentTrades[recentIndex].status = action.payload.status;
         
-        if (action.payload.updates) {
-          Object.assign(state.recentTrades[recentIndex], action.payload.updates);
+        if (action.payload.fee !== undefined) {
+          order.fee = action.payload.fee;
         }
       }
     },
-    archiveTrades: (state, action: PayloadAction<string[]>) => {
-      const tradesToArchive = state.recentTrades.filter(t => action.payload.includes(t.id));
-      state.historicalTrades.push(...tradesToArchive);
-      state.recentTrades = state.recentTrades.filter(t => !action.payload.includes(t.id));
+    addExecution: (state, action: PayloadAction<Omit<TradeExecution, 'id'>>) => {
+      state.executions.push({
+        id: `exec_${Date.now()}`,
+        ...action.payload
+      });
     },
-  },
+    addStrategy: (state, action: PayloadAction<Omit<TradingStrategy, 'id'>>) => {
+      state.strategies.push({
+        id: `strategy_${Date.now()}`,
+        ...action.payload
+      });
+    },
+    updateStrategy: (state, action: PayloadAction<{
+      id: string;
+      updates: Partial<TradingStrategy>;
+    }>) => {
+      const strategy = state.strategies.find(s => s.id === action.payload.id);
+      if (strategy) {
+        Object.assign(strategy, action.payload.updates);
+        strategy.updatedAt = Date.now();
+      }
+    },
+    toggleStrategyEnabled: (state, action: PayloadAction<string>) => {
+      const strategy = state.strategies.find(s => s.id === action.payload);
+      if (strategy) {
+        strategy.enabled = !strategy.enabled;
+        strategy.updatedAt = Date.now();
+      }
+    },
+    addBacktest: (state, action: PayloadAction<Omit<StrategyBacktest, 'id'>>) => {
+      state.backtests.push({
+        id: `backtest_${Date.now()}`,
+        ...action.payload
+      });
+    }
+  }
 });
 
 export const {
@@ -363,28 +483,38 @@ export const {
   fetchTradingDataFailure,
   addSignal,
   updateSignal,
-  expireSignal,
-  executeSignal,
-  addTrade,
-  updateTradeStatus,
-  archiveTrades,
+  deactivateSignal,
+  addOrder,
+  updateOrderStatus,
+  addExecution,
+  addStrategy,
+  updateStrategy,
+  toggleStrategyEnabled,
+  addBacktest
 } = tradingSlice.actions;
 
 // Selectors
-export const selectActiveSignals = (state: RootState) => state.trading.activeSignals;
-export const selectHistoricalSignals = (state: RootState) => state.trading.historicalSignals;
-export const selectRecentTrades = (state: RootState) => state.trading.recentTrades;
-export const selectHistoricalTrades = (state: RootState) => state.trading.historicalTrades;
-export const selectPendingOrders = (state: RootState) => state.trading.pendingOrders;
-export const selectIsLoading = (state: RootState) => state.trading.loading;
-export const selectLastUpdated = (state: RootState) => state.trading.lastUpdated;
-export const selectSignalById = (id: string) =>
-  (state: RootState) => [...state.trading.activeSignals, ...state.trading.historicalSignals].find(s => s.id === id);
-export const selectTradeById = (id: string) =>
-  (state: RootState) => [...state.trading.recentTrades, ...state.trading.historicalTrades, ...state.trading.pendingOrders].find(t => t.id === id);
-export const selectSignalsByAsset = (assetId: string) =>
-  (state: RootState) => state.trading.activeSignals.filter(s => s.assetId === assetId);
-export const selectTradesByAsset = (assetId: string) =>
-  (state: RootState) => state.trading.recentTrades.filter(t => t.assetId === assetId);
+export const selectTradingSignals = (state: RootState) => state.trading.signals;
+export const selectActiveSignals = (state: RootState) => 
+  state.trading.signals.filter(signal => signal.isActive);
+export const selectSignalsByAsset = (asset: string) => 
+  (state: RootState) => state.trading.signals.filter(signal => signal.asset === asset);
+export const selectSignalsBySource = (source: SignalSource) => 
+  (state: RootState) => state.trading.signals.filter(signal => signal.source === source);
+export const selectTradingOrders = (state: RootState) => state.trading.orders;
+export const selectOpenOrders = (state: RootState) => 
+  state.trading.orders.filter(order => order.status === 'open' || order.status === 'pending');
+export const selectExecutions = (state: RootState) => state.trading.executions;
+export const selectStrategies = (state: RootState) => state.trading.strategies;
+export const selectEnabledStrategies = (state: RootState) => 
+  state.trading.strategies.filter(strategy => strategy.enabled);
+export const selectStrategyById = (id: string) => 
+  (state: RootState) => state.trading.strategies.find(s => s.id === id);
+export const selectBacktests = (state: RootState) => state.trading.backtests;
+export const selectBacktestsByStrategyId = (strategyId: string) => 
+  (state: RootState) => state.trading.backtests.filter(b => b.strategyId === strategyId);
+export const selectActiveTrades = (state: RootState) => state.trading.activeTrades;
+export const selectIsLoading = (state: RootState) => state.trading.isLoading;
+export const selectError = (state: RootState) => state.trading.error;
 
 export default tradingSlice.reducer;

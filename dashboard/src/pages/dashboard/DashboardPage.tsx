@@ -1,447 +1,484 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   Box,
+  Grid,
+  Paper,
   Typography,
+  Button,
   Card,
   CardContent,
   CardHeader,
-  Grid,
-  Divider,
-  Chip,
-  Button,
   List,
   ListItem,
   ListItemText,
-  ListItemAvatar,
-  Avatar,
+  ListItemIcon,
+  Divider,
+  CircularProgress,
+  Chip,
+  IconButton,
+  Tooltip,
   LinearProgress,
 } from '@mui/material';
 import {
   TrendingUp as TrendingUpIcon,
   TrendingDown as TrendingDownIcon,
-  AttachMoney as MoneyIcon,
-  Timeline as TimelineIcon,
-  Notifications as NotificationsIcon,
-  ShowChart as ChartIcon,
-  Memory as AgentIcon,
-  Security as RiskIcon,
-  AccountBalance as PortfolioIcon,
+  ErrorOutline as ErrorIcon,
+  WarningAmber as WarningIcon,
+  Info as InfoIcon,
+  CheckCircle as CheckIcon,
+  Refresh as RefreshIcon,
+  MoreVert as MoreVertIcon,
 } from '@mui/icons-material';
-import { useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
-import { selectTotalValue, selectAssets, selectPerformance } from '../../store/slices/portfolioSlice';
-import { selectActiveSignals, selectRecentTrades } from '../../store/slices/tradingSlice';
-import { selectSystemStatus, selectSystemComponents } from '../../store/slices/systemSlice';
-import { selectAlerts, selectUnreadCount } from '../../store/slices/alertsSlice';
+import { 
+  selectAlerts, 
+  selectUnreadAlertCount,
+  Alert,
+  AlertSeverity
+} from '../../store/slices/alertsSlice';
+import {
+  selectPortfolioPerformance,
+  selectPortfolioAllocation,
+  selectPortfolioPositions,
+  fetchPortfolioStart,
+} from '../../store/slices/portfolioSlice';
+import {
+  selectSystemMetrics,
+  selectSystemComponents,
+  fetchSystemStart,
+} from '../../store/slices/systemSlice';
+import {
+  LineChart,
+  ResponsiveContainer,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  PieChart,
+  Pie,
+  Cell,
+} from 'recharts';
+
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#A569BD', '#5DADE2', '#48C9B0', '#F4D03F'];
 
 const DashboardPage: React.FC = () => {
-  const navigate = useNavigate();
-  
-  // Portfolio data
-  const portfolioValue = useSelector(selectTotalValue);
-  const assets = useSelector(selectAssets);
-  const performance = useSelector(selectPerformance);
-  
-  // Trading data
-  const activeSignals = useSelector(selectActiveSignals);
-  const recentTrades = useSelector(selectRecentTrades);
-  
-  // System data
-  const systemStatus = useSelector(selectSystemStatus);
-  const systemComponents = useSelector(selectSystemComponents);
-  
-  // Alerts data
+  const dispatch = useDispatch();
   const alerts = useSelector(selectAlerts);
-  const unreadAlerts = useSelector(selectUnreadCount);
-  
-  // Helper functions
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(value);
+  const unreadAlertCount = useSelector(selectUnreadAlertCount);
+  const portfolioPerformance = useSelector(selectPortfolioPerformance);
+  const portfolioAllocation = useSelector(selectPortfolioAllocation);
+  const portfolioPositions = useSelector(selectPortfolioPositions);
+  const systemMetrics = useSelector(selectSystemMetrics);
+  const systemComponents = useSelector(selectSystemComponents);
+
+  useEffect(() => {
+    dispatch(fetchPortfolioStart());
+    dispatch(fetchSystemStart());
+    
+    // Set up polling every 30 seconds
+    const interval = setInterval(() => {
+      dispatch(fetchPortfolioStart());
+      dispatch(fetchSystemStart());
+    }, 30000);
+    
+    return () => clearInterval(interval);
+  }, [dispatch]);
+
+  const refreshData = () => {
+    dispatch(fetchPortfolioStart());
+    dispatch(fetchSystemStart());
+  };
+
+  // Filter recent alerts (last 24 hours)
+  const recentAlerts = alerts
+    .filter(alert => !alert.read && alert.timestamp > Date.now() - 24 * 60 * 60 * 1000)
+    .slice(0, 5);
+
+  // Get overall system health percentage
+  const systemHealth = systemComponents.length > 0
+    ? Math.floor(systemComponents.reduce((sum, comp) => sum + comp.healthScore, 0) / systemComponents.length)
+    : 0;
+
+  // Get daily portfolio performance
+  const portfolioDaily = portfolioPerformance?.daily || 0;
+
+  const getSeverityIcon = (severity: AlertSeverity) => {
+    switch (severity) {
+      case 'critical':
+        return <ErrorIcon color="error" />;
+      case 'high':
+        return <ErrorIcon color="error" />;
+      case 'medium':
+        return <WarningIcon color="warning" />;
+      case 'low':
+        return <InfoIcon color="info" />;
+      default:
+        return <InfoIcon />;
+    }
   };
   
-  const formatPercentage = (value: number) => {
-    return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
+  const getSeverityColor = (severity: AlertSeverity) => {
+    switch (severity) {
+      case 'critical':
+        return 'error';
+      case 'high':
+        return 'error';
+      case 'medium':
+        return 'warning';
+      case 'low':
+        return 'info';
+      default:
+        return 'default';
+    }
   };
-  
-  const getDailyPerformance = () => {
-    return performance.find(p => p.period === 'day') || { returnValue: 0, returnPercent: 0 };
-  };
-  
-  const getMonthlyPerformance = () => {
-    return performance.find(p => p.period === 'month') || { returnValue: 0, returnPercent: 0 };
-  };
-  
-  // Navigation handlers
-  const navigateToPortfolio = () => navigate('/dashboard/portfolio');
-  const navigateToTrading = () => navigate('/dashboard/trading');
-  const navigateToAlerts = () => navigate('/dashboard/alerts');
-  const navigateToSystem = () => navigate('/dashboard/system');
-  
+
   return (
     <Box sx={{ p: 3 }}>
-      <Typography variant="h4" component="h1" gutterBottom>
-        AI Hedge Fund Dashboard
-      </Typography>
-      
-      {/* Summary Cards */}
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+        <Typography variant="h4" component="h1">
+          Dashboard
+        </Typography>
+        <Button
+          variant="outlined"
+          startIcon={<RefreshIcon />}
+          onClick={refreshData}
+        >
+          Refresh
+        </Button>
+      </Box>
+
+      {/* Key Performance Indicators */}
       <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item xs={12} md={6} lg={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" mb={1}>
-                <MoneyIcon sx={{ mr: 1, color: 'primary.main' }} />
-                <Typography variant="h6">Portfolio Value</Typography>
-              </Box>
-              <Typography variant="h4" sx={{ mb: 1 }}>
-                {formatCurrency(portfolioValue)}
-              </Typography>
-              <Box display="flex" alignItems="center">
-                <Chip
-                  icon={getDailyPerformance().returnPercent >= 0 ? <TrendingUpIcon /> : <TrendingDownIcon />}
-                  label={formatPercentage(getDailyPerformance().returnPercent)}
-                  color={getDailyPerformance().returnPercent >= 0 ? 'success' : 'error'}
-                  size="small"
-                />
-                <Typography variant="body2" sx={{ ml: 1 }}>
-                  Today ({formatCurrency(getDailyPerformance().returnValue)})
-                </Typography>
-              </Box>
-              <Button 
-                variant="text" 
-                size="small" 
-                sx={{ mt: 1 }}
-                onClick={navigateToPortfolio}
+        <Grid item xs={12} sm={6} md={3}>
+          <Paper sx={{ p: 2 }}>
+            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+              Portfolio Value
+            </Typography>
+            <Typography variant="h4">
+              ${portfolioPerformance?.currentValue.toLocaleString()}
+            </Typography>
+            <Box display="flex" alignItems="center" mt={1}>
+              <Typography 
+                variant="body2" 
+                color={portfolioDaily >= 0 ? 'success.main' : 'error.main'}
+                sx={{ display: 'flex', alignItems: 'center' }}
               >
-                View Portfolio
-              </Button>
-            </CardContent>
-          </Card>
+                {portfolioDaily >= 0 ? <TrendingUpIcon fontSize="small" sx={{ mr: 0.5 }} /> : <TrendingDownIcon fontSize="small" sx={{ mr: 0.5 }} />}
+                {portfolioDaily >= 0 ? '+' : ''}{portfolioDaily.toFixed(2)}% Today
+              </Typography>
+            </Box>
+          </Paper>
         </Grid>
-        
-        <Grid item xs={12} md={6} lg={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" mb={1}>
-                <TimelineIcon sx={{ mr: 1, color: 'info.main' }} />
-                <Typography variant="h6">Trading</Typography>
-              </Box>
-              <Typography variant="h4" sx={{ mb: 1 }}>
-                {activeSignals.length} Signals
-              </Typography>
-              <Box display="flex" alignItems="center">
-                <Chip
-                  label={`${recentTrades.length} Recent Trades`}
-                  color="info"
-                  size="small"
-                />
-              </Box>
-              <Button 
-                variant="text" 
-                size="small" 
-                sx={{ mt: 1 }}
-                onClick={navigateToTrading}
+        <Grid item xs={12} sm={6} md={3}>
+          <Paper sx={{ p: 2 }}>
+            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+              Total Return
+            </Typography>
+            <Typography variant="h4">
+              {portfolioPerformance?.totalReturn >= 0 ? '+' : ''}{portfolioPerformance?.totalReturn.toFixed(2)}%
+            </Typography>
+            <Box display="flex" alignItems="center" mt={1}>
+              <Typography 
+                variant="body2" 
+                color="text.secondary"
               >
-                View Trading
-              </Button>
-            </CardContent>
-          </Card>
+                Since inception ({portfolioPerformance?.startDate})
+              </Typography>
+            </Box>
+          </Paper>
         </Grid>
-        
-        <Grid item xs={12} md={6} lg={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" mb={1}>
-                <NotificationsIcon sx={{ mr: 1, color: 'warning.main' }} />
-                <Typography variant="h6">Alerts</Typography>
-              </Box>
-              <Typography variant="h4" sx={{ mb: 1 }}>
-                {unreadAlerts} Unread
-              </Typography>
-              <Box display="flex" alignItems="center">
-                <Chip
-                  label={`${alerts.length} Total Alerts`}
-                  color="warning"
-                  size="small"
-                />
-              </Box>
-              <Button 
-                variant="text" 
-                size="small" 
-                sx={{ mt: 1 }}
-                onClick={navigateToAlerts}
-              >
-                View Alerts
-              </Button>
-            </CardContent>
-          </Card>
+        <Grid item xs={12} sm={6} md={3}>
+          <Paper sx={{ p: 2 }}>
+            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+              System Health
+            </Typography>
+            <Typography variant="h4">
+              {systemHealth}%
+            </Typography>
+            <Box display="flex" alignItems="center" mt={1}>
+              <LinearProgress 
+                variant="determinate" 
+                value={systemHealth} 
+                color={systemHealth > 90 ? 'success' : systemHealth > 75 ? 'info' : systemHealth > 50 ? 'warning' : 'error'} 
+                sx={{ width: '100%', height: 8, borderRadius: 5 }} 
+              />
+            </Box>
+          </Paper>
         </Grid>
-        
-        <Grid item xs={12} md={6} lg={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" mb={1}>
-                <ChartIcon sx={{ mr: 1, color: systemStatus === 'operational' ? 'success.main' : 'error.main' }} />
-                <Typography variant="h6">System Status</Typography>
-              </Box>
-              <Typography variant="h4" sx={{ mb: 1 }}>
-                {systemStatus.charAt(0).toUpperCase() + systemStatus.slice(1)}
-              </Typography>
-              <Box display="flex" alignItems="center">
-                <Chip
-                  label={`${systemComponents.filter(c => c.status === 'operational').length}/${systemComponents.length} Components Online`}
-                  color={systemStatus === 'operational' ? 'success' : 'warning'}
-                  size="small"
-                />
-              </Box>
-              <Button 
-                variant="text" 
-                size="small" 
-                sx={{ mt: 1 }}
-                onClick={navigateToSystem}
+        <Grid item xs={12} sm={6} md={3}>
+          <Paper sx={{ p: 2 }}>
+            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+              Active Alerts
+            </Typography>
+            <Typography variant="h4">
+              {unreadAlertCount}
+            </Typography>
+            <Box display="flex" alignItems="center" mt={1}>
+              <Typography 
+                variant="body2" 
+                color={unreadAlertCount > 5 ? 'error.main' : unreadAlertCount > 2 ? 'warning.main' : 'info.main'}
               >
-                View System
-              </Button>
-            </CardContent>
-          </Card>
+                {unreadAlertCount === 0 ? 'All clear' : unreadAlertCount > 5 ? 'Critical attention needed' : 'Requires attention'}
+              </Typography>
+            </Box>
+          </Paper>
         </Grid>
       </Grid>
-      
-      {/* Main Dashboard Content */}
+
+      {/* Main Content */}
       <Grid container spacing={3}>
-        {/* Asset Allocation */}
-        <Grid item xs={12} md={6}>
+        {/* Portfolio Performance Chart */}
+        <Grid item xs={12} md={8}>
           <Card>
-            <CardHeader title="Asset Allocation" />
+            <CardHeader 
+              title="Portfolio Performance" 
+              action={
+                <IconButton>
+                  <MoreVertIcon />
+                </IconButton>
+              } 
+            />
             <Divider />
             <CardContent>
-              <List>
-                {assets.slice(0, 5).map((asset) => (
-                  <ListItem key={asset.assetId}>
-                    <ListItemAvatar>
-                      <Avatar>{asset.symbol.charAt(0)}</Avatar>
-                    </ListItemAvatar>
-                    <ListItemText 
-                      primary={`${asset.symbol} - ${asset.name}`}
-                      secondary={`${formatCurrency(asset.value)} (${asset.allocation.toFixed(1)}%)`}
-                    />
-                    <Box display="flex" flexDirection="column" alignItems="flex-end">
-                      <Typography 
-                        variant="body2"
-                        color={asset.dayChangePercent >= 0 ? 'success.main' : 'error.main'}
-                        sx={{ display: 'flex', alignItems: 'center' }}
-                      >
-                        {asset.dayChangePercent >= 0 ? <TrendingUpIcon fontSize="small" /> : <TrendingDownIcon fontSize="small" />}
-                        {formatPercentage(asset.dayChangePercent)}
-                      </Typography>
-                    </Box>
-                  </ListItem>
-                ))}
-              </List>
-              <Button 
-                variant="outlined" 
-                fullWidth 
-                sx={{ mt: 2 }}
-                onClick={navigateToPortfolio}
-              >
-                View All Assets
-              </Button>
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart
+                  data={portfolioPerformance?.history || []}
+                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <RechartsTooltip />
+                  <Line 
+                    type="monotone" 
+                    dataKey="value" 
+                    stroke="#8884d8" 
+                    activeDot={{ r: 8 }} 
+                    name="Portfolio Value"
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="benchmark" 
+                    stroke="#82ca9d"
+                    name="Benchmark"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
             </CardContent>
           </Card>
         </Grid>
-        
+
         {/* Recent Alerts */}
-        <Grid item xs={12} md={6}>
+        <Grid item xs={12} md={4}>
           <Card>
-            <CardHeader title="Recent Alerts" />
+            <CardHeader 
+              title="Recent Alerts" 
+              action={
+                <Button size="small" href="/alerts">
+                  View All
+                </Button>
+              } 
+            />
             <Divider />
-            <CardContent>
+            <CardContent sx={{ p: 0 }}>
               <List>
-                {alerts.slice(0, 5).map((alert) => (
-                  <ListItem key={alert.id}>
-                    <ListItemAvatar>
-                      <Avatar sx={{ bgcolor: alert.severity === 'error' ? 'error.main' : 
-                                           alert.severity === 'warning' ? 'warning.main' :
-                                           alert.severity === 'success' ? 'success.main' : 'info.main' }}>
-                        {alert.category.charAt(0).toUpperCase()}
-                      </Avatar>
-                    </ListItemAvatar>
+                {recentAlerts.length === 0 ? (
+                  <ListItem>
                     <ListItemText 
-                      primary={alert.title}
-                      secondary={alert.message.length > 60 ? alert.message.substring(0, 60) + '...' : alert.message}
+                      primary="No recent alerts" 
+                      secondary="All systems operating normally"
                     />
-                    {!alert.read && (
-                      <Chip label="New" size="small" color="primary" />
-                    )}
                   </ListItem>
+                ) : (
+                  recentAlerts.map((alert) => (
+                    <React.Fragment key={alert.id}>
+                      <ListItem 
+                        alignItems="flex-start"
+                        secondaryAction={
+                          <Chip 
+                            label={alert.severity.toUpperCase()} 
+                            size="small" 
+                            color={getSeverityColor(alert.severity) as any}
+                          />
+                        }
+                      >
+                        <ListItemIcon>
+                          {getSeverityIcon(alert.severity)}
+                        </ListItemIcon>
+                        <ListItemText
+                          primary={alert.title}
+                          secondary={
+                            <React.Fragment>
+                              <Typography
+                                sx={{ display: 'inline' }}
+                                component="span"
+                                variant="body2"
+                                color="text.primary"
+                              >
+                                {alert.type}
+                              </Typography>
+                              {` — ${alert.message}`}
+                            </React.Fragment>
+                          }
+                        />
+                      </ListItem>
+                      <Divider variant="inset" component="li" />
+                    </React.Fragment>
+                  ))
+                )}
+              </List>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Portfolio Allocation */}
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardHeader title="Portfolio Allocation" />
+            <Divider />
+            <CardContent>
+              <Box display="flex" justifyContent="center">
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={portfolioAllocation || []}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      outerRadius={100}
+                      fill="#8884d8"
+                      dataKey="value"
+                      nameKey="asset"
+                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    >
+                      {(portfolioAllocation || []).map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <RechartsTooltip formatter={(value, name) => [`${value}%`, name]} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* System Metrics */}
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardHeader title="System Metrics" />
+            <Divider />
+            <CardContent>
+              <Grid container spacing={2}>
+                {systemMetrics.slice(0, 6).map((metric) => (
+                  <Grid item xs={12} sm={6} key={metric.id}>
+                    <Box display="flex" alignItems="center" justifyContent="space-between" mb={1}>
+                      <Typography variant="body2" color="text.secondary">
+                        {metric.name}
+                      </Typography>
+                      <Chip
+                        label={metric.status}
+                        size="small"
+                        color={
+                          metric.status === 'good' ? 'success' :
+                          metric.status === 'warning' ? 'warning' : 'error'
+                        }
+                      />
+                    </Box>
+                    <Typography variant="h6">
+                      {typeof metric.value === 'number' 
+                        ? metric.value.toLocaleString()
+                        : metric.value} {metric.unit}
+                    </Typography>
+                    {metric.change !== undefined && (
+                      <Typography 
+                        variant="caption" 
+                        color={metric.change >= 0 ? 'success.main' : 'error.main'}
+                        display="block"
+                      >
+                        {metric.change >= 0 ? '+' : ''}{metric.changePercent?.toFixed(1)}% from previous
+                      </Typography>
+                    )}
+                  </Grid>
                 ))}
-              </List>
-              <Button 
-                variant="outlined" 
-                fullWidth 
-                sx={{ mt: 2 }}
-                onClick={navigateToAlerts}
-              >
-                View All Alerts
-              </Button>
+              </Grid>
             </CardContent>
           </Card>
         </Grid>
-        
-        {/* AI Agent Status */}
-        <Grid item xs={12} md={6}>
+
+        {/* Open Positions */}
+        <Grid item xs={12}>
           <Card>
-            <CardHeader title="AI Agent System" />
+            <CardHeader title="Current Positions" />
             <Divider />
-            <CardContent>
-              <List>
-                <ListItem>
-                  <ListItemAvatar>
-                    <Avatar sx={{ bgcolor: 'primary.main' }}>
-                      <AgentIcon />
-                    </Avatar>
-                  </ListItemAvatar>
-                  <ListItemText 
-                    primary="Technical Agent"
-                    secondary="Analyzing market patterns and momentum"
-                  />
-                  <LinearProgress 
-                    variant="determinate" 
-                    value={90} 
-                    sx={{ width: 100, mr: 1 }}
-                  />
-                </ListItem>
-                <ListItem>
-                  <ListItemAvatar>
-                    <Avatar sx={{ bgcolor: 'primary.main' }}>
-                      <AgentIcon />
-                    </Avatar>
-                  </ListItemAvatar>
-                  <ListItemText 
-                    primary="Fundamental Agent"
-                    secondary="Evaluating on-chain metrics and fundamentals"
-                  />
-                  <LinearProgress 
-                    variant="determinate" 
-                    value={85} 
-                    sx={{ width: 100, mr: 1 }}
-                  />
-                </ListItem>
-                <ListItem>
-                  <ListItemAvatar>
-                    <Avatar sx={{ bgcolor: 'primary.main' }}>
-                      <AgentIcon />
-                    </Avatar>
-                  </ListItemAvatar>
-                  <ListItemText 
-                    primary="Sentiment Agent"
-                    secondary="Processing market sentiment data"
-                  />
-                  <LinearProgress 
-                    variant="determinate" 
-                    value={75} 
-                    sx={{ width: 100, mr: 1 }}
-                  />
-                </ListItem>
-                <ListItem>
-                  <ListItemAvatar>
-                    <Avatar sx={{ bgcolor: 'primary.main' }}>
-                      <AgentIcon />
-                    </Avatar>
-                  </ListItemAvatar>
-                  <ListItemText 
-                    primary="Value Agent"
-                    secondary="Calculating intrinsic value metrics"
-                  />
-                  <LinearProgress 
-                    variant="determinate" 
-                    value={80} 
-                    sx={{ width: 100, mr: 1 }}
-                  />
-                </ListItem>
-              </List>
-            </CardContent>
-          </Card>
-        </Grid>
-        
-        {/* Risk Management */}
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardHeader title="Risk Management" />
-            <Divider />
-            <CardContent>
-              <List>
-                <ListItem>
-                  <ListItemAvatar>
-                    <Avatar sx={{ bgcolor: 'success.main' }}>
-                      <RiskIcon />
-                    </Avatar>
-                  </ListItemAvatar>
-                  <ListItemText 
-                    primary="Portfolio Exposure"
-                    secondary="Current leverage: 1.1x (Max: 1.5x)"
-                  />
-                  <LinearProgress 
-                    variant="determinate" 
-                    value={(1.1 / 1.5) * 100} 
-                    sx={{ width: 100, mr: 1 }}
-                    color="success"
-                  />
-                </ListItem>
-                <ListItem>
-                  <ListItemAvatar>
-                    <Avatar sx={{ bgcolor: 'warning.main' }}>
-                      <RiskIcon />
-                    </Avatar>
-                  </ListItemAvatar>
-                  <ListItemText 
-                    primary="Volatility"
-                    secondary="Market volatility: Medium"
-                  />
-                  <LinearProgress 
-                    variant="determinate" 
-                    value={60} 
-                    sx={{ width: 100, mr: 1 }}
-                    color="warning"
-                  />
-                </ListItem>
-                <ListItem>
-                  <ListItemAvatar>
-                    <Avatar sx={{ bgcolor: 'info.main' }}>
-                      <PortfolioIcon />
-                    </Avatar>
-                  </ListItemAvatar>
-                  <ListItemText 
-                    primary="Diversification"
-                    secondary="Current: 78% (Target: 85%)"
-                  />
-                  <LinearProgress 
-                    variant="determinate" 
-                    value={(78 / 85) * 100} 
-                    sx={{ width: 100, mr: 1 }}
-                    color="info"
-                  />
-                </ListItem>
-                <ListItem>
-                  <ListItemAvatar>
-                    <Avatar sx={{ bgcolor: 'success.main' }}>
-                      <PortfolioIcon />
-                    </Avatar>
-                  </ListItemAvatar>
-                  <ListItemText 
-                    primary="Monthly Performance"
-                    secondary={`${formatPercentage(getMonthlyPerformance().returnPercent)} (${formatCurrency(getMonthlyPerformance().returnValue)})`}
-                  />
-                  <Chip
-                    label={getMonthlyPerformance().returnPercent >= 0 ? "Positive" : "Negative"}
-                    color={getMonthlyPerformance().returnPercent >= 0 ? "success" : "error"}
-                    size="small"
-                  />
-                </ListItem>
-              </List>
-            </CardContent>
+            <Box sx={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'left', padding: '12px 16px', borderBottom: '1px solid rgba(224, 224, 224, 1)' }}>Asset</th>
+                    <th style={{ textAlign: 'right', padding: '12px 16px', borderBottom: '1px solid rgba(224, 224, 224, 1)' }}>Position Size</th>
+                    <th style={{ textAlign: 'right', padding: '12px 16px', borderBottom: '1px solid rgba(224, 224, 224, 1)' }}>Entry Price</th>
+                    <th style={{ textAlign: 'right', padding: '12px 16px', borderBottom: '1px solid rgba(224, 224, 224, 1)' }}>Current Price</th>
+                    <th style={{ textAlign: 'right', padding: '12px 16px', borderBottom: '1px solid rgba(224, 224, 224, 1)' }}>P&L</th>
+                    <th style={{ textAlign: 'right', padding: '12px 16px', borderBottom: '1px solid rgba(224, 224, 224, 1)' }}>Allocation</th>
+                    <th style={{ textAlign: 'right', padding: '12px 16px', borderBottom: '1px solid rgba(224, 224, 224, 1)' }}>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(portfolioPositions || []).map((position) => (
+                    <tr key={position.asset}>
+                      <td style={{ padding: '12px 16px', borderBottom: '1px solid rgba(224, 224, 224, 1)' }}>
+                        <Box display="flex" alignItems="center">
+                          <Typography variant="body1">{position.asset}</Typography>
+                        </Box>
+                      </td>
+                      <td style={{ textAlign: 'right', padding: '12px 16px', borderBottom: '1px solid rgba(224, 224, 224, 1)' }}>
+                        {position.size.toFixed(4)}
+                      </td>
+                      <td style={{ textAlign: 'right', padding: '12px 16px', borderBottom: '1px solid rgba(224, 224, 224, 1)' }}>
+                        ${position.entryPrice.toLocaleString()}
+                      </td>
+                      <td style={{ textAlign: 'right', padding: '12px 16px', borderBottom: '1px solid rgba(224, 224, 224, 1)' }}>
+                        ${position.currentPrice.toLocaleString()}
+                      </td>
+                      <td 
+                        style={{ 
+                          textAlign: 'right', 
+                          padding: '12px 16px', 
+                          borderBottom: '1px solid rgba(224, 224, 224, 1)',
+                          color: position.pnlPercentage >= 0 ? '#2e7d32' : '#d32f2f',
+                        }}
+                      >
+                        {position.pnlPercentage >= 0 ? '+' : ''}{position.pnlPercentage.toFixed(2)}%
+                      </td>
+                      <td style={{ textAlign: 'right', padding: '12px 16px', borderBottom: '1px solid rgba(224, 224, 224, 1)' }}>
+                        {position.allocation.toFixed(2)}%
+                      </td>
+                      <td style={{ textAlign: 'right', padding: '12px 16px', borderBottom: '1px solid rgba(224, 224, 224, 1)' }}>
+                        <Chip
+                          label={position.status}
+                          size="small"
+                          color={
+                            position.status === 'active' ? 'success' :
+                            position.status === 'pending' ? 'warning' : 'error'
+                          }
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                  {!portfolioPositions || portfolioPositions.length === 0 && (
+                    <tr>
+                      <td colSpan={7} style={{ textAlign: 'center', padding: '24px 16px' }}>
+                        <Typography variant="body1" color="text.secondary">
+                          No open positions
+                        </Typography>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </Box>
           </Card>
         </Grid>
       </Grid>
