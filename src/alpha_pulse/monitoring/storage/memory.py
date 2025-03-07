@@ -86,10 +86,11 @@ class InMemoryStorage(TimeSeriesStorage):
 
     async def query_metrics(
         self,
-        metric_type: str,
-        start_time: datetime,
-        end_time: datetime,
+        metric_type: str = None,
+        start_time: datetime = None,
+        end_time: datetime = None,
         aggregation: Optional[str] = None,
+        metric_names: List[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         Query metrics from memory.
@@ -99,6 +100,7 @@ class InMemoryStorage(TimeSeriesStorage):
             start_time: Start time for the query range
             end_time: End time for the query range
             aggregation: Optional aggregation interval (e.g., '1m', '1h', '1d')
+            metric_names: List of specific metric names to query (overrides metric_type)
 
         Returns:
             List of metric data points
@@ -106,26 +108,49 @@ class InMemoryStorage(TimeSeriesStorage):
         if not self._connected:
             raise RuntimeError("Storage is not connected")
 
-        if metric_type not in self._storage:
-            return []
+        # Use metric_names if provided, otherwise use metric_type
+        metric_types_to_query = []
+        if metric_names:
+            metric_types_to_query = metric_names
+        elif metric_type and metric_type != "all":
+            metric_types_to_query = [metric_type]
+        else:
+            # Query all available metrics
+            metric_types_to_query = list(self._storage.keys())
 
-        # Find indices for the time range using binary search
-        timestamps = self._timestamps[metric_type]
-        start_idx = bisect.bisect_left(timestamps, start_time)
-        end_idx = bisect.bisect_right(timestamps, end_time)
+        # Default time range if not specified
+        if start_time is None:
+            start_time = datetime.min
+        if end_time is None:
+            end_time = datetime.max
+
+        result = []
+        for mt in metric_types_to_query:
+            if mt not in self._storage:
+                continue
+
+            # Find indices for the time range using binary search
+            timestamps = self._timestamps[mt]
+            start_idx = bisect.bisect_left(timestamps, start_time)
+            end_idx = bisect.bisect_right(timestamps, end_time)
+            
+            # Extract data points in the range
+            data_points = self._storage[mt][start_idx:end_idx]
+            
+            # If no aggregation requested, return raw data
+            if not aggregation:
+                result.extend([{"timestamp": ts, "name": mt, **data} for ts, data in data_points])
+            else:
+                # Perform aggregation
+                aggregated = self._aggregate_data(data_points, aggregation)
+                for point in aggregated:
+                    point["name"] = mt
+                result.extend(aggregated)
         
-        # Extract data points in the range
-        data_points = self._storage[metric_type][start_idx:end_idx]
-        
-        # If no aggregation requested, return raw data
-        if not aggregation:
-            return [{"timestamp": ts, **data} for ts, data in data_points]
-        
-        # Perform aggregation
-        return self._aggregate_data(data_points, aggregation)
+        return result
 
     async def get_latest_metrics(
-        self, metric_type: str, limit: int = 1
+        self, metric_type: str = None, limit: int = 1, metric_names: List[str] = None
     ) -> List[Dict[str, Any]]:
         """
         Get the latest metrics of a specific type.
@@ -133,6 +158,7 @@ class InMemoryStorage(TimeSeriesStorage):
         Args:
             metric_type: Type of metrics to query
             limit: Maximum number of data points to return
+            metric_names: List of specific metric names to query (overrides metric_type)
 
         Returns:
             List of the latest metric data points
@@ -140,14 +166,28 @@ class InMemoryStorage(TimeSeriesStorage):
         if not self._connected:
             raise RuntimeError("Storage is not connected")
 
-        if metric_type not in self._storage:
-            return []
+        # Use metric_names if provided, otherwise use metric_type
+        metric_types_to_query = []
+        if metric_names:
+            metric_types_to_query = metric_names
+        elif metric_type and metric_type != "all":
+            metric_types_to_query = [metric_type]
+        else:
+            # Query all available metrics
+            metric_types_to_query = list(self._storage.keys())
 
-        # Get the latest data points
-        latest_points = self._storage[metric_type][-limit:]
+        result = []
+        for mt in metric_types_to_query:
+            if mt not in self._storage:
+                continue
+
+            # Get the latest data points
+            latest_points = self._storage[mt][-limit:]
+            
+            # Format the response
+            result.extend([{"timestamp": ts, "name": mt, **data} for ts, data in latest_points])
         
-        # Format the response
-        return [{"timestamp": ts, **data} for ts, data in latest_points]
+        return result
 
     async def delete_metrics(
         self, metric_type: str, older_than: Optional[datetime] = None
