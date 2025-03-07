@@ -33,7 +33,7 @@ import LogoutIcon from '@mui/icons-material/Logout';
 // Redux
 import { selectThemeMode, setSidebarSize, selectSidebarSize } from '../store/slices/uiSlice';
 import { selectAllAlerts } from '../store/slices/alertsSlice';
-import { selectSystemOverallStatus } from '../store/slices/systemSlice';
+import { selectSystemOverallStatus, ComponentStatus } from '../store/slices/systemSlice';
 import { logout } from '../store/slices/authSlice';
 
 // Create temporary themes until we import actual ones
