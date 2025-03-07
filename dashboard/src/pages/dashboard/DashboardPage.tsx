@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   Box,
@@ -17,6 +17,8 @@ import {
   Chip,
   IconButton,
   LinearProgress,
+  CircularProgress,
+  Alert,
 } from '@mui/material';
 import {
   TrendingUp as TrendingUpIcon,
@@ -67,6 +69,10 @@ const DashboardPage: React.FC = () => {
   const historicalValues = useSelector(selectHistoricalValues);
   const totalValue = useSelector(selectTotalValue);
   
+  // Add loading and error states
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
   // Derived data structures
   const portfolioPerformance = {
     currentValue: totalValue,
@@ -98,21 +104,73 @@ const DashboardPage: React.FC = () => {
   const systemComponents = useSelector(selectSystemComponents);
 
   useEffect(() => {
-    dispatch(fetchPortfolioStart());
-    dispatch(fetchSystemStart());
+    console.log('DashboardPage: Fetching initial data');
+    setLoading(true);
+    setError(null);
+    
+    const fetchData = async () => {
+      try {
+        // Add try-catch blocks to handle errors
+        try {
+          dispatch(fetchPortfolioStart());
+        } catch (error) {
+          console.error('Error dispatching fetchPortfolioStart:', error);
+          setError('Failed to fetch portfolio data');
+        }
+        
+        try {
+          dispatch(fetchSystemStart());
+        } catch (error) {
+          console.error('Error dispatching fetchSystemStart:', error);
+          setError('Failed to fetch system data');
+        }
+        
+        // Set loading to false after a short delay to ensure data has time to load
+        setTimeout(() => {
+          setLoading(false);
+        }, 2000);
+      } catch (error) {
+        console.error('Error in fetchData:', error);
+        setError('Failed to load dashboard data');
+        setLoading(false);
+      }
+    };
+    
+    fetchData();
     
     // Set up polling every 30 seconds
     const interval = setInterval(() => {
-      dispatch(fetchPortfolioStart());
-      dispatch(fetchSystemStart());
+      console.log('DashboardPage: Polling data');
+      try {
+        dispatch(fetchPortfolioStart());
+        dispatch(fetchSystemStart());
+      } catch (error) {
+        console.error('Error during polling:', error);
+      }
     }, 30000);
     
     return () => clearInterval(interval);
   }, [dispatch]);
 
   const refreshData = () => {
-    dispatch(fetchPortfolioStart());
-    dispatch(fetchSystemStart());
+    setLoading(true);
+    setError(null);
+    
+    console.log('DashboardPage: Manually refreshing data');
+    
+    try {
+      dispatch(fetchPortfolioStart());
+      dispatch(fetchSystemStart());
+      
+      // Set loading to false after a short delay
+      setTimeout(() => {
+        setLoading(false);
+      }, 2000);
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+      setError('Failed to refresh dashboard data');
+      setLoading(false);
+    }
   };
 
   // Filter recent alerts (last 24 hours)
@@ -168,11 +226,39 @@ const DashboardPage: React.FC = () => {
           variant="outlined"
           startIcon={<RefreshIcon />}
           onClick={refreshData}
+          disabled={loading}
         >
-          Refresh
+          {loading ? 'Loading...' : 'Refresh'}
         </Button>
       </Box>
-
+      
+      {/* Show error message if there's an error */}
+      {error && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          {error}
+          <Button
+            size="small"
+            sx={{ ml: 2 }}
+            onClick={refreshData}
+          >
+            Retry
+          </Button>
+        </Alert>
+      )}
+      
+      {/* Show loading indicator */}
+      {loading && (
+        <Box display="flex" justifyContent="center" alignItems="center" height="200px">
+          <CircularProgress />
+          <Typography variant="h6" sx={{ ml: 2 }}>
+            Loading dashboard data...
+          </Typography>
+        </Box>
+      )}
+      
+      {/* Only show content when not loading or if there's an error */}
+      {(!loading || error) && (
+        <>
       {/* Key Performance Indicators */}
       <Grid container spacing={3} sx={{ mb: 3 }}>
         <Grid item xs={12} sm={6} md={3}>
@@ -507,6 +593,8 @@ const DashboardPage: React.FC = () => {
           </Card>
         </Grid>
       </Grid>
+        </>
+      )}
     </Box>
   );
 };
