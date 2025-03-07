@@ -13,14 +13,14 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-from alpha_pulse.exchanges.base import BaseExchange
+from alpha_pulse.exchanges.interfaces import BaseExchange
 from alpha_pulse.hedging.risk.config import HedgeConfig
 from alpha_pulse.hedging.risk.analyzers.llm import LLMHedgeAnalyzer
 from alpha_pulse.hedging.risk.manager import HedgeManager
 from alpha_pulse.hedging.execution.position_fetcher import ExchangePositionFetcher
 from alpha_pulse.hedging.execution.order_executor import ExchangeOrderExecutor
 from alpha_pulse.hedging.execution.strategy import BasicExecutionStrategy
-from ..dependencies import get_exchange_client, verify_api_key
+from ..dependencies import get_exchange_client, get_api_client
 
 router = APIRouter()
 
@@ -41,7 +41,7 @@ class HedgeExecutionResponse(BaseModel):
 @router.get(
     "/analysis",
     response_model=HedgeAnalysisResponse,
-    dependencies=[Depends(verify_api_key)]
+    dependencies=[Depends(get_api_client)]
 )
 async def analyze_hedge_positions(
     exchange: BaseExchange = Depends(get_exchange_client)
@@ -99,7 +99,7 @@ async def analyze_hedge_positions(
 @router.post(
     "/execute",
     response_model=HedgeExecutionResponse,
-    dependencies=[Depends(verify_api_key)]
+    dependencies=[Depends(get_api_client)]
 )
 async def execute_hedge_adjustments(
     exchange: BaseExchange = Depends(get_exchange_client)
@@ -168,7 +168,7 @@ async def execute_hedge_adjustments(
 @router.post(
     "/close",
     response_model=HedgeExecutionResponse,
-    dependencies=[Depends(verify_api_key)]
+    dependencies=[Depends(get_api_client)]
 )
 async def close_all_hedges(
     exchange: BaseExchange = Depends(get_exchange_client)
