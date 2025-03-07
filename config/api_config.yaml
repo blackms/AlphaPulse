@@ -1,0 +1,37 @@
+dashboard_api:
+  host: "0.0.0.0"
+  port: 8080
+  
+  # Authentication
+  auth:
+    jwt_secret: "${AP_JWT_SECRET}"
+    token_expiry: 3600  # seconds
+    api_keys_enabled: true
+    
+  # Rate limiting
+  rate_limit:
+    enabled: true
+    requests_per_minute: 120
+    
+  # CORS settings
+  cors:
+    allowed_origins:
+      - "http://localhost:3000"
+      - "https://dashboard.example.com"
+    allow_credentials: true
+    
+  # Caching
+  cache:
+    type: "memory"  # "memory", "redis"
+    redis_url: "${AP_REDIS_URL}"
+    default_ttl: 300  # seconds
+    
+  # Logging
+  logging:
+    level: "info"
+    format: "json"
+    
+  # WebSocket
+  websocket:
+    max_connections: 1000
+    ping_interval: 30  # seconds
