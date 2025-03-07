@@ -4,7 +4,8 @@ Main API application.
 This module defines the FastAPI application and routes.
 """
 import logging
-from fastapi import FastAPI, Depends
+from datetime import timedelta
+from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
@@ -15,7 +16,8 @@ from .websockets import endpoints as ws_endpoints
 from .websockets.subscription import subscription_manager
 
 # Import dependencies
-from .dependencies import get_current_user, get_alert_manager
+from .dependencies import get_alert_manager
+from .auth import authenticate_user, create_access_token, get_current_user, ACCESS_TOKEN_EXPIRE_MINUTES
 
 # Configure logging
 logging.basicConfig(
@@ -62,12 +64,24 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     """
     Get an access token.
     
-    In a real implementation, this would validate the username and password
-    and return a JWT token.
+    Authenticates the user and returns a JWT token if successful.
     """
-    # For testing purposes, accept any username/password
+    user = authenticate_user(form_data.username, form_data.password)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user["username"]},
+        expires_delta=access_token_expires
+    )
+    
     return {
-        "access_token": "mock_token",
+        "access_token": access_token,
         "token_type": "bearer"
     }
 

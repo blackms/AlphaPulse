@@ -6,7 +6,7 @@ This module provides dependencies for the FastAPI application.
 import logging
 from typing import Optional, Dict, Any
 from fastapi import Depends, HTTPException, status, Request
-from fastapi.security import OAuth2PasswordBearer, APIKeyHeader
+from fastapi.security import APIKeyHeader
 
 from alpha_pulse.monitoring.alerting import AlertManager, load_alerting_config
 
@@ -17,11 +17,11 @@ from .data import (
     TradeDataAccessor,
     SystemDataAccessor
 )
+from .auth import get_current_user, oauth2_scheme
 
 logger = logging.getLogger(__name__)
 
 # Authentication schemes
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 # Load alerting configuration
@@ -36,35 +36,7 @@ trade_accessor = TradeDataAccessor()
 system_accessor = SystemDataAccessor()
 
 
-async def get_current_user(
-    token: Optional[str] = Depends(oauth2_scheme)
-) -> Dict[str, Any]:
-    """
-    Get the current user from the token.
-    
-    In a real implementation, this would validate the JWT token
-    and return the user information.
-    """
-    if not token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    # For testing purposes, return a mock admin user
-    return {
-        "username": "admin",
-        "role": "admin",
-        "permissions": [
-            "view_metrics",
-            "view_alerts",
-            "acknowledge_alerts",
-            "view_portfolio",
-            "view_trades",
-            "view_system"
-        ]
-    }
+# This function is now imported from auth.py
 
 
 async def get_api_key_user(
@@ -105,23 +77,18 @@ async def get_user(
     This dependency will try to authenticate using JWT token first,
     and if that fails, it will try API key authentication.
     """
-    # For testing purposes, allow all requests
-    if request.headers.get("Authorization") == "Bearer mock_token":
-        return {
-            "username": "admin",
-            "role": "admin",
-            "permissions": [
-                "view_metrics",
-                "view_alerts",
-                "acknowledge_alerts",
-                "view_portfolio",
-                "view_trades",
-                "view_system"
-            ]
-        }
-    
+    # Add permissions to the user object
     if token_user:
+        token_user["permissions"] = [
+            "view_metrics",
+            "view_alerts",
+            "acknowledge_alerts",
+            "view_portfolio",
+            "view_trades",
+            "view_system"
+        ]
         return token_user
+        
     if api_key_user:
         return api_key_user
     
