@@ -53,7 +53,7 @@ const MetricCard: React.FC<MetricCardProps> = ({
   }) : value;
   
   // Determine trend
-  let trendIcon = null;
+  let trendIcon: React.ReactElement | undefined = undefined;
   let trendColor = theme.palette.text.secondary;
   
   if (showTrend && percentChange !== undefined) {
