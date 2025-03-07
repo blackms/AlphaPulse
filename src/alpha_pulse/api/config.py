@@ -3,7 +3,8 @@ Configuration module for AlphaPulse API.
 """
 import os
 from typing import List, Optional, Dict
-from pydantic import BaseSettings, Field, validator
+from pydantic import Field, validator
+from pydantic_settings import BaseSettings
 
 
 class AuthConfig(BaseSettings):
