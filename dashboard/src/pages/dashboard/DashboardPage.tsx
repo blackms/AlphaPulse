@@ -37,9 +37,10 @@ import {
   AlertSeverity
 } from '../../store/slices/alertsSlice';
 import {
-  selectPortfolioPerformance,
-  selectPortfolioAllocation,
-  selectPortfolioPositions,
+  selectPerformance,
+  selectAssets,
+  selectHistoricalValues,
+  selectTotalValue,
   fetchPortfolioStart,
 } from '../../store/slices/portfolioSlice';
 import {
@@ -66,9 +67,38 @@ const DashboardPage: React.FC = () => {
   const dispatch = useDispatch();
   const alerts = useSelector(selectAlerts);
   const unreadAlertCount = useSelector(selectUnreadAlertCount);
-  const portfolioPerformance = useSelector(selectPortfolioPerformance);
-  const portfolioAllocation = useSelector(selectPortfolioAllocation);
-  const portfolioPositions = useSelector(selectPortfolioPositions);
+  const performance = useSelector(selectPerformance);
+  const assets = useSelector(selectAssets);
+  const historicalValues = useSelector(selectHistoricalValues);
+  const totalValue = useSelector(selectTotalValue);
+  
+  // Derived data structures
+  const portfolioPerformance = {
+    currentValue: totalValue,
+    totalReturn: performance.find(p => p.period === 'all')?.returnPercent || 0,
+    startDate: performance.find(p => p.period === 'all')?.startDate || 'N/A',
+    daily: performance.find(p => p.period === 'day')?.returnPercent || 0,
+    history: historicalValues.map(h => ({
+      date: new Date(h.timestamp).toLocaleDateString(),
+      value: h.value,
+      benchmark: h.value * 0.9 // Mock benchmark data
+    }))
+  };
+  
+  const portfolioAllocation = assets.map(asset => ({
+    asset: asset.symbol,
+    value: asset.allocation
+  }));
+  
+  const portfolioPositions = assets.map(asset => ({
+    asset: asset.symbol,
+    size: asset.quantity,
+    entryPrice: asset.costBasis,
+    currentPrice: asset.price,
+    pnlPercentage: asset.unrealizedPnLPercent,
+    allocation: asset.allocation,
+    status: asset.unrealizedPnLPercent >= 0 ? 'active' : 'warning'
+  }));
   const systemMetrics = useSelector(selectSystemMetrics);
   const systemComponents = useSelector(selectSystemComponents);
 
@@ -92,7 +122,7 @@ const DashboardPage: React.FC = () => {
 
   // Filter recent alerts (last 24 hours)
   const recentAlerts = alerts
-    .filter(alert => !alert.read && alert.timestamp > Date.now() - 24 * 60 * 60 * 1000)
+    .filter(alert => !alert.read && new Date(alert.timestamp).getTime() > Date.now() - 24 * 60 * 60 * 1000)
     .slice(0, 5);
 
   // Get overall system health percentage
@@ -103,7 +133,7 @@ const DashboardPage: React.FC = () => {
   // Get daily portfolio performance
   const portfolioDaily = portfolioPerformance?.daily || 0;
 
-  const getSeverityIcon = (severity: AlertSeverity) => {
+  const getSeverityIcon = (severity: string) => {
     switch (severity) {
       case 'critical':
         return <ErrorIcon color="error" />;
@@ -118,7 +148,7 @@ const DashboardPage: React.FC = () => {
     }
   };
   
-  const getSeverityColor = (severity: AlertSeverity) => {
+  const getSeverityColor = (severity: string) => {
     switch (severity) {
       case 'critical':
         return 'error';
@@ -467,7 +497,7 @@ const DashboardPage: React.FC = () => {
                       </td>
                     </tr>
                   ))}
-                  {!portfolioPositions || portfolioPositions.length === 0 && (
+                  {(!portfolioPositions || portfolioPositions.length === 0) && (
                     <tr>
                       <td colSpan={7} style={{ textAlign: 'center', padding: '24px 16px' }}>
                         <Typography variant="body1" color="text.secondary">
