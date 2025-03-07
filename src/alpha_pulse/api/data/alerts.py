@@ -2,8 +2,8 @@
 from typing import Dict, List, Optional
 from datetime import datetime
 import logging
-
 from alpha_pulse.monitoring.alerting.manager import AlertManager
+from alpha_pulse.monitoring.alerting.config import load_alerting_config
 
 
 class AlertDataAccessor:
@@ -12,6 +12,8 @@ class AlertDataAccessor:
     def __init__(self):
         """Initialize alert accessor."""
         self.logger = logging.getLogger("alpha_pulse.api.data.alerts")
+        config = load_alerting_config()
+        self.alert_manager = AlertManager(config)
         self.alert_manager = AlertManager.get_instance()
     
     async def get_alerts(
