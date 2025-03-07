@@ -74,19 +74,25 @@ client.interceptors.response.use(
     console.log(`Response received for ${response.config.url}:`, response.status);
     return response;
   },
-  (error) => {
+  async (error) => {
     console.error(`API Error for ${error.config?.url}:`, error);
     
     // If the error is due to authentication, try to get a new token
     if (error.response?.status === 401) {
       console.log('Authentication error, trying to get a new token...');
-      getAndStoreToken();
+      const token = await getAndStoreToken();
+      
+      // Retry the request with the new token
+      if (token && error.config) {
+        error.config.headers.Authorization = `Bearer ${token}`;
+        return client(error.config);
+      }
     }
     
     // For testing purposes, return mock data on error
     if (error.config?.url?.includes('/portfolio')) {
       console.log('Returning mock portfolio data due to error');
-      return Promise.resolve({
+      return {
         data: {
           total_value: 160500.0,
           cash: 50000.0,
@@ -127,12 +133,12 @@ client.interceptors.response.use(
             return_since_inception: 0.35
           }
         }
-      });
+      };
     }
     
     if (error.config?.url?.includes('/system')) {
       console.log('Returning mock system data due to error');
-      return Promise.resolve({
+      return {
         data: {
           status: 'operational',
           components: [
@@ -170,19 +176,19 @@ client.interceptors.response.use(
           lastUpdated: new Date().toISOString(),
           uptime: 3600
         }
-      });
+      };
     }
     
     if (error.config?.url?.includes('/alerts')) {
       console.log('Returning mock alerts data due to error');
-      return Promise.resolve({
+      return {
         data: {
           alerts: [],
           rules: [],
           count: 0,
           unacknowledged: 0
         }
-      });
+      };
     }
     
     return Promise.reject(error);
