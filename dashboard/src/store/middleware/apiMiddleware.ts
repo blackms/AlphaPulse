@@ -59,16 +59,21 @@ const apiMiddleware: Middleware = ({ dispatch }) => (next) => async (action) => 
   // Handle alerts fetching
   if (action.type === fetchAlertsStart.type) {
     try {
+      console.log('Fetching alerts data in middleware...');
       const [alertsData, preferencesData] = await Promise.all([
         alertsService.getAlerts(),
         alertsService.getNotificationPreferences()
       ]);
+      
+      console.log('Alerts data received:', alertsData);
+      console.log('Preferences data received:', preferencesData);
       
       // Dispatch each part separately
       dispatch(fetchAlertsSuccess(alertsData.alerts || []));
       dispatch(fetchRulesSuccess(alertsData.rules || []));
       dispatch(fetchPreferencesSuccess(preferencesData));
     } catch (error) {
+      console.error('Error in alerts middleware:', error);
       dispatch(fetchAlertsFailure(error instanceof Error ? error.message : 'Unknown error'));
     }
   }
