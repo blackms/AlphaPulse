@@ -3,7 +3,7 @@ import authService from '../auth/authService';
 
 // Create a base axios instance
 const client: AxiosInstance = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1',
+  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8000',
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json'
