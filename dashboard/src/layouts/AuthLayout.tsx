@@ -1,76 +1,56 @@
 import React from 'react';
 import { Outlet } from 'react-router-dom';
-import { styled } from '@mui/material/styles';
-import { Box, Container, Typography, Link, Paper } from '@mui/material';
-
-const AuthLayoutRoot = styled(Box)(({ theme }) => ({
-  display: 'flex',
-  flexDirection: 'column',
-  minHeight: '100vh',
-  backgroundColor: theme.palette.background.default,
-}));
-
-const AuthLayoutWrapper = styled(Box)(({ theme }) => ({
-  flex: '1 1 auto',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: theme.spacing(3),
-}));
-
-const AuthLayoutContainer = styled(Container)(({ theme }) => ({
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  maxWidth: '450px',
-}));
-
-const AuthLayoutPaper = styled(Paper)(({ theme }) => ({
-  padding: theme.spacing(4),
-  width: '100%',
-  borderRadius: theme.shape.borderRadius,
-  boxShadow: theme.shadows[3],
-}));
-
-const Footer = styled(Box)(({ theme }) => ({
-  padding: theme.spacing(2),
-  textAlign: 'center',
-  marginTop: theme.spacing(2),
-}));
+import {
+  Box,
+  Container,
+  Paper,
+  CssBaseline,
+  Typography,
+  Link,
+  AppBar,
+  Toolbar,
+} from '@mui/material';
 
 const AuthLayout: React.FC = () => {
   return (
-    <AuthLayoutRoot>
-      <AuthLayoutWrapper>
-        <AuthLayoutContainer>
-          <Box sx={{ mb: 3, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <Typography variant="h4" component="h1" gutterBottom>
-              Alpha Pulse
-            </Typography>
-            <Typography variant="subtitle1" color="textSecondary">
-              AI-Powered Trading Platform
-            </Typography>
-          </Box>
-          <AuthLayoutPaper>
-            <Outlet />
-          </AuthLayoutPaper>
-          <Footer>
-            <Typography variant="body2" color="textSecondary">
-              © {new Date().getFullYear()} Alpha Pulse. All rights reserved.
-            </Typography>
-            <Typography variant="body2" color="textSecondary">
-              <Link href="#" color="inherit" underline="hover">
-                Terms of Service
-              </Link>{' '}
-              |{' '}
-              <Link href="#" color="inherit" underline="hover">
-                Privacy Policy
-              </Link>
-            </Typography>
-          </Footer>
-        </AuthLayoutContainer>
-      </AuthLayoutWrapper>
-    </AuthLayoutRoot>
+    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      <CssBaseline />
+      
+      <AppBar position="static" color="primary" elevation={0}>
+        <Toolbar>
+          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+            Alpha Pulse AI Hedge Fund
+          </Typography>
+        </Toolbar>
+      </AppBar>
+      
+      <Container component="main" maxWidth="sm" sx={{ mt: 8, mb: 4 }}>
+        <Paper
+          elevation={3}
+          sx={{
+            my: { xs: 3, md: 6 },
+            p: { xs: 2, md: 3 },
+          }}
+        >
+          <Outlet />
+        </Paper>
+        
+        <Box mt={5} textAlign="center">
+          <Typography variant="body2" color="textSecondary" align="center">
+            &copy; {new Date().getFullYear()} Alpha Pulse AI Hedge Fund
+          </Typography>
+          <Typography variant="body2" color="textSecondary" align="center">
+            <Link color="inherit" href="#">
+              Terms of Service
+            </Link>{' '}
+            |{' '}
+            <Link color="inherit" href="#">
+              Privacy Policy
+            </Link>
+          </Typography>
+        </Box>
+      </Container>
+    </Box>
   );
 };
 

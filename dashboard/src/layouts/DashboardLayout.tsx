@@ -1,132 +1,66 @@
 import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
-import { styled } from '@mui/material/styles';
 import {
-  AppBar,
   Box,
   CssBaseline,
-  Divider,
+  AppBar,
+  Toolbar,
+  Typography,
   Drawer,
-  IconButton,
   List,
   ListItem,
   ListItemButton,
   ListItemIcon,
   ListItemText,
-  Toolbar,
-  Typography,
-  Avatar,
-  Menu,
-  MenuItem,
-  Badge,
+  Divider,
+  IconButton,
+  useTheme,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
   Dashboard as DashboardIcon,
   AccountBalance as PortfolioIcon,
-  SwapVert as TradingIcon,
+  Sync as TradingIcon,
   Notifications as AlertsIcon,
   Settings as SettingsIcon,
-  Speed as SystemIcon,
+  Memory as SystemIcon,
+  ChevronLeft as ChevronLeftIcon,
+  ChevronRight as ChevronRightIcon,
   Logout as LogoutIcon,
-  Person as PersonIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
-import { useSelector } from 'react-redux';
-import { RootState } from '../store/store';
+import { useDispatch, useSelector } from 'react-redux';
+import { toggleSidebar, selectSidebarOpen } from '../store/slices/uiSlice';
+import { logout } from '../store/slices/authSlice';
 
 const drawerWidth = 240;
 
-const Main = styled('main', { shouldForwardProp: (prop) => prop !== 'open' })<{
-  open?: boolean;
-}>(({ theme, open }) => ({
-  flexGrow: 1,
-  transition: theme.transitions.create('margin', {
-    easing: theme.transitions.easing.sharp,
-    duration: theme.transitions.duration.leavingScreen,
-  }),
-  marginLeft: `-${drawerWidth}px`,
-  ...(open && {
-    transition: theme.transitions.create('margin', {
-      easing: theme.transitions.easing.easeOut,
-      duration: theme.transitions.duration.enteringScreen,
-    }),
-    marginLeft: 0,
-  }),
-}));
-
-const DrawerHeader = styled('div')(({ theme }) => ({
-  display: 'flex',
-  alignItems: 'center',
-  padding: theme.spacing(0, 1),
-  // necessary for content to be below app bar
-  ...theme.mixins.toolbar,
-  justifyContent: 'center',
-}));
-
 const DashboardLayout: React.FC = () => {
+  const theme = useTheme();
   const navigate = useNavigate();
-  const [open, setOpen] = useState(true);
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const menuOpen = Boolean(anchorEl);
-  const alertsCount = useSelector((state: RootState) => state.alerts.alerts.length || 0);
+  const dispatch = useDispatch();
+  const open = useSelector(selectSidebarOpen);
 
   const handleDrawerToggle = () => {
-    setOpen(!open);
+    dispatch(toggleSidebar());
   };
 
-  const handleMenu = (event: React.MouseEvent<HTMLElement>) => {
-    setAnchorEl(event.currentTarget);
-  };
-
-  const handleClose = () => {
-    setAnchorEl(null);
+  const handleNavigation = (path: string) => {
+    navigate(path);
   };
 
   const handleLogout = () => {
-    // Handle logout logic here
-    handleClose();
-  };
-
-  const handleProfile = () => {
-    // Navigate to profile page
-    handleClose();
+    dispatch(logout());
+    navigate('/login');
   };
 
   const menuItems = [
-    {
-      text: 'Dashboard',
-      icon: <DashboardIcon />,
-      path: '/dashboard',
-    },
-    {
-      text: 'Portfolio',
-      icon: <PortfolioIcon />,
-      path: '/dashboard/portfolio',
-    },
-    {
-      text: 'Trading',
-      icon: <TradingIcon />,
-      path: '/dashboard/trading',
-    },
-    {
-      text: 'Alerts',
-      icon: 
-        <Badge badgeContent={alertsCount} color="error">
-          <AlertsIcon />
-        </Badge>,
-      path: '/dashboard/alerts',
-    },
-    {
-      text: 'System',
-      icon: <SystemIcon />,
-      path: '/dashboard/system',
-    },
-    {
-      text: 'Settings',
-      icon: <SettingsIcon />,
-      path: '/dashboard/settings',
-    },
+    { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
+    { text: 'Portfolio', icon: <PortfolioIcon />, path: '/dashboard/portfolio' },
+    { text: 'Trading', icon: <TradingIcon />, path: '/dashboard/trading' },
+    { text: 'Alerts', icon: <AlertsIcon />, path: '/dashboard/alerts' },
+    { text: 'System', icon: <SystemIcon />, path: '/dashboard/system' },
+    { text: 'Settings', icon: <SettingsIcon />, path: '/dashboard/settings' },
   ];
 
   return (
@@ -135,106 +69,137 @@ const DashboardLayout: React.FC = () => {
       <AppBar
         position="fixed"
         sx={{
-          width: { sm: `calc(100% - ${open ? drawerWidth : 0}px)` },
-          ml: { sm: `${open ? drawerWidth : 0}px` },
-          transition: 'width 225ms cubic-bezier(0.4, 0, 0.6, 1) 0ms',
+          zIndex: theme.zIndex.drawer + 1,
+          transition: theme.transitions.create(['width', 'margin'], {
+            easing: theme.transitions.easing.sharp,
+            duration: theme.transitions.duration.leavingScreen,
+          }),
+          ...(open && {
+            marginLeft: drawerWidth,
+            width: `calc(100% - ${drawerWidth}px)`,
+            transition: theme.transitions.create(['width', 'margin'], {
+              easing: theme.transitions.easing.sharp,
+              duration: theme.transitions.duration.enteringScreen,
+            }),
+          }),
         }}
       >
         <Toolbar>
           <IconButton
             color="inherit"
             aria-label="open drawer"
-            edge="start"
             onClick={handleDrawerToggle}
-            sx={{ mr: 2 }}
+            edge="start"
+            sx={{
+              marginRight: 5,
+              ...(open && { display: 'none' }),
+            }}
           >
             <MenuIcon />
           </IconButton>
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-            AI Hedge Fund
+            Alpha Pulse AI Hedge Fund
           </Typography>
-          <div>
-            <IconButton
-              size="large"
-              aria-label="account of current user"
-              aria-controls="menu-appbar"
-              aria-haspopup="true"
-              onClick={handleMenu}
-              color="inherit"
-            >
-              <Avatar sx={{ width: 32, height: 32 }}>U</Avatar>
-            </IconButton>
-            <Menu
-              id="menu-appbar"
-              anchorEl={anchorEl}
-              anchorOrigin={{
-                vertical: 'bottom',
-                horizontal: 'right',
-              }}
-              keepMounted
-              transformOrigin={{
-                vertical: 'top',
-                horizontal: 'right',
-              }}
-              open={menuOpen}
-              onClose={handleClose}
-            >
-              <MenuItem onClick={handleProfile}>
-                <ListItemIcon>
-                  <PersonIcon fontSize="small" />
-                </ListItemIcon>
-                <ListItemText>Profile</ListItemText>
-              </MenuItem>
-              <MenuItem onClick={handleLogout}>
-                <ListItemIcon>
-                  <LogoutIcon fontSize="small" />
-                </ListItemIcon>
-                <ListItemText>Logout</ListItemText>
-              </MenuItem>
-            </Menu>
-          </div>
         </Toolbar>
       </AppBar>
       <Drawer
+        variant="permanent"
+        open={open}
         sx={{
           width: drawerWidth,
           flexShrink: 0,
-          '& .MuiDrawer-paper': {
-            width: drawerWidth,
-            boxSizing: 'border-box',
-          },
-          display: { xs: open ? 'block' : 'none', sm: 'block' },
+          whiteSpace: 'nowrap',
+          boxSizing: 'border-box',
+          ...(open && {
+            '& .MuiDrawer-paper': {
+              width: drawerWidth,
+              transition: theme.transitions.create('width', {
+                easing: theme.transitions.easing.sharp,
+                duration: theme.transitions.duration.enteringScreen,
+              }),
+              boxSizing: 'border-box',
+            },
+          }),
+          ...(!open && {
+            '& .MuiDrawer-paper': {
+              width: theme.spacing(7),
+              transition: theme.transitions.create('width', {
+                easing: theme.transitions.easing.sharp,
+                duration: theme.transitions.duration.leavingScreen,
+              }),
+              overflowX: 'hidden',
+              boxSizing: 'border-box',
+            },
+          }),
         }}
-        variant="persistent"
-        anchor="left"
-        open={open}
       >
-        <DrawerHeader>
-          <Typography variant="h6" component="div" sx={{ fontWeight: 'bold' }}>
-            Alpha Pulse
-          </Typography>
-        </DrawerHeader>
+        <Toolbar
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            px: [1],
+          }}
+        >
+          <IconButton onClick={handleDrawerToggle}>
+            {theme.direction === 'rtl' ? <ChevronRightIcon /> : <ChevronLeftIcon />}
+          </IconButton>
+        </Toolbar>
         <Divider />
         <List>
-          {menuItems.map((item, index) => (
-            <ListItem key={item.text} disablePadding>
+          {menuItems.map((item) => (
+            <ListItem key={item.text} disablePadding sx={{ display: 'block' }}>
               <ListItemButton
-                onClick={() => navigate(item.path)}
-                selected={window.location.pathname === item.path}
+                sx={{
+                  minHeight: 48,
+                  justifyContent: open ? 'initial' : 'center',
+                  px: 2.5,
+                }}
+                onClick={() => handleNavigation(item.path)}
               >
-                <ListItemIcon>{item.icon}</ListItemIcon>
-                <ListItemText primary={item.text} />
+                <ListItemIcon
+                  sx={{
+                    minWidth: 0,
+                    mr: open ? 3 : 'auto',
+                    justifyContent: 'center',
+                  }}
+                >
+                  {item.icon}
+                </ListItemIcon>
+                <ListItemText primary={item.text} sx={{ opacity: open ? 1 : 0 }} />
               </ListItemButton>
             </ListItem>
           ))}
         </List>
+        <Divider />
+        <List>
+          <ListItem disablePadding sx={{ display: 'block' }}>
+            <ListItemButton
+              sx={{
+                minHeight: 48,
+                justifyContent: open ? 'initial' : 'center',
+                px: 2.5,
+              }}
+              onClick={handleLogout}
+            >
+              <ListItemIcon
+                sx={{
+                  minWidth: 0,
+                  mr: open ? 3 : 'auto',
+                  justifyContent: 'center',
+                }}
+              >
+                <LogoutIcon />
+              </ListItemIcon>
+              <ListItemText primary="Logout" sx={{ opacity: open ? 1 : 0 }} />
+            </ListItemButton>
+          </ListItem>
+        </List>
       </Drawer>
-      <Main open={open}>
-        <DrawerHeader />
-        <Box sx={{ flexGrow: 1, overflow: 'auto' }}>
-          <Outlet />
-        </Box>
-      </Main>
+      <Box component="main" sx={{ flexGrow: 1, p: 3 }}>
+        <Toolbar />
+        <Outlet />
+      </Box>
     </Box>
   );
 };

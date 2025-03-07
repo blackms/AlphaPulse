@@ -1,101 +1,47 @@
-import React, { useEffect, useState } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
+import React from 'react';
 import {
   Box,
   Typography,
-  Paper,
-  Grid,
-  Divider,
   Card,
   CardContent,
   CardHeader,
-  IconButton,
-  Tabs,
-  Tab,
+  Grid,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
+  Divider,
   Chip,
+  Button,
+  Paper,
 } from '@mui/material';
 import {
-  Refresh as RefreshIcon,
-  TrendingUp as TrendingUpIcon,
-  TrendingDown as TrendingDownIcon,
+  ArrowUpward as BuyIcon,
+  ArrowDownward as SellIcon,
+  CheckCircle as CompletedIcon,
+  Pending as PendingIcon,
+  Error as FailedIcon,
+  Cancel as CanceledIcon,
 } from '@mui/icons-material';
-import { RootState } from '../../store/store';
-import { Trade, Order, TradeStatus, TradeDirection } from '../../store/slices/tradingSlice';
+import { useSelector, useDispatch } from 'react-redux';
+import {
+  selectRecentTrades,
+  selectPendingTrades,
+  selectActiveSignals,
+  updateSignalStatus,
+  TradeType,
+  TradeStatus,
+} from '../../store/slices/tradingSlice';
 
-// Interface for TabPanel
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
-}
-
-// TabPanel component
-const TabPanel = (props: TabPanelProps) => {
-  const { children, value, index, ...other } = props;
-
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`simple-tabpanel-${index}`}
-      aria-labelledby={`simple-tab-${index}`}
-      {...other}
-    >
-      {value === index && <Box sx={{ pt: 2 }}>{children}</Box>}
-    </div>
-  );
-};
-
-// This is a placeholder component until the full implementation is complete
 const TradingPage: React.FC = () => {
   const dispatch = useDispatch();
-  const { trades, orders, performance, loading, error } = useSelector(
-    (state: RootState) => state.trading
-  );
-  const [tabValue, setTabValue] = useState(0);
+  const recentTrades = useSelector(selectRecentTrades);
+  const pendingTrades = useSelector(selectPendingTrades);
+  const activeSignals = useSelector(selectActiveSignals);
 
-  useEffect(() => {
-    // Placeholder for fetching trading data
-    // dispatch(fetchTrades());
-  }, [dispatch]);
-
-  const handleRefresh = () => {
-    // Placeholder for refreshing trading data
-    // dispatch(fetchTrades());
-  };
-
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
-    setTabValue(newValue);
-  };
-
-  const getStatusColor = (status: TradeStatus | string) => {
-    switch (status) {
-      case 'completed':
-      case 'filled':
-        return 'success';
-      case 'pending':
-      case 'open':
-      case 'partial':
-        return 'info';
-      case 'cancelled':
-        return 'warning';
-      case 'failed':
-        return 'error';
-      default:
-        return 'default';
-    }
-  };
-
-  const getDirectionColor = (direction: TradeDirection) => {
-    return direction === 'buy' ? 'success' : 'error';
-  };
-
+  // Helper functions for formatting
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -103,208 +49,256 @@ const TradingPage: React.FC = () => {
     }).format(value);
   };
 
-  const formatTimestamp = (timestamp: string) => {
+  const formatTimestamp = (timestamp: number) => {
     return new Date(timestamp).toLocaleString();
+  };
+
+  const getTradeTypeIcon = (type: TradeType) => {
+    return type === 'buy' ? <BuyIcon /> : <SellIcon />;
+  };
+
+  const getTradeTypeColor = (type: TradeType) => {
+    return type === 'buy' ? 'success' : 'error';
+  };
+
+  const getStatusIcon = (status: TradeStatus) => {
+    switch (status) {
+      case 'completed':
+        return <CompletedIcon />;
+      case 'pending':
+        return <PendingIcon />;
+      case 'failed':
+        return <FailedIcon />;
+      case 'canceled':
+        return <CanceledIcon />;
+      default:
+        return <PendingIcon />; // Default icon
+    }
+  };
+
+  const getStatusColor = (status: TradeStatus) => {
+    switch (status) {
+      case 'completed':
+        return 'success';
+      case 'pending':
+        return 'warning';
+      case 'failed':
+        return 'error';
+      case 'canceled':
+        return 'default';
+      default:
+        return 'default';
+    }
+  };
+
+  const handleAcceptSignal = (signalId: string) => {
+    dispatch(updateSignalStatus({ signalId, status: 'accepted' }));
+  };
+
+  const handleRejectSignal = (signalId: string) => {
+    dispatch(updateSignalStatus({ signalId, status: 'rejected' }));
   };
 
   return (
     <Box sx={{ p: 3 }}>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4" component="h1">
-          Trading
-        </Typography>
-        <IconButton onClick={handleRefresh} disabled={loading}>
-          <RefreshIcon />
-        </IconButton>
-      </Box>
+      <Typography variant="h4" component="h1" gutterBottom>
+        Trading
+      </Typography>
 
-      {loading ? (
-        <Typography>Loading trading data...</Typography>
-      ) : error ? (
-        <Paper sx={{ p: 2, bgcolor: 'error.light' }}>
-          <Typography color="error">{error}</Typography>
-        </Paper>
-      ) : (
-        <Grid container spacing={3}>
-          {/* Trading Performance Cards */}
-          <Grid item xs={12} md={6} lg={3}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  Win Rate
+      <Grid container spacing={3}>
+        {/* Trade Signals */}
+        <Grid item xs={12}>
+          <Card>
+            <CardHeader title="Active Trading Signals" />
+            <Divider />
+            <CardContent>
+              {activeSignals.length === 0 ? (
+                <Typography variant="body1" textAlign="center" py={2}>
+                  No active trading signals available.
                 </Typography>
-                <Typography variant="h4">{performance.winRate.toFixed(2)}%</Typography>
-                <Typography variant="body2" color="text.secondary" mt={1}>
-                  Based on last 100 trades
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} md={6} lg={3}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  Profit Factor
-                </Typography>
-                <Typography variant="h4">{performance.profitFactor.toFixed(2)}</Typography>
-                <Typography variant="body2" color="text.secondary" mt={1}>
-                  Gross Profit / Gross Loss
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} md={6} lg={3}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  Average Win
-                </Typography>
-                <Typography variant="h4">{formatCurrency(performance.avgWin)}</Typography>
-                <Box display="flex" alignItems="center" mt={1}>
-                  <TrendingUpIcon color="success" fontSize="small" sx={{ mr: 0.5 }} />
-                  <Typography variant="body2" color="success.main">
-                    {formatCurrency(performance.largestWin)} Largest
-                  </Typography>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} md={6} lg={3}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  Average Loss
-                </Typography>
-                <Typography variant="h4">{formatCurrency(performance.avgLoss)}</Typography>
-                <Box display="flex" alignItems="center" mt={1}>
-                  <TrendingDownIcon color="error" fontSize="small" sx={{ mr: 0.5 }} />
-                  <Typography variant="body2" color="error.main">
-                    {formatCurrency(performance.largestLoss)} Largest
-                  </Typography>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-
-          {/* Trading Tabs: Trades & Orders */}
-          <Grid item xs={12}>
-            <Card>
-              <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-                <Tabs value={tabValue} onChange={handleTabChange} aria-label="trading tabs">
-                  <Tab label="Recent Trades" />
-                  <Tab label="Open Orders" />
-                </Tabs>
-              </Box>
-
-              {/* Trades Tab */}
-              <TabPanel value={tabValue} index={0}>
-                <TableContainer>
-                  <Table>
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Time</TableCell>
-                        <TableCell>Symbol</TableCell>
-                        <TableCell>Direction</TableCell>
-                        <TableCell align="right">Quantity</TableCell>
-                        <TableCell align="right">Price</TableCell>
-                        <TableCell align="right">Value</TableCell>
-                        <TableCell>Status</TableCell>
-                        <TableCell>Agent</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {trades && trades.length > 0 ? (
-                        trades.map((trade: Trade) => (
-                          <TableRow key={trade.id}>
-                            <TableCell>{formatTimestamp(trade.timestamp)}</TableCell>
-                            <TableCell>{trade.symbol}</TableCell>
-                            <TableCell>
-                              <Chip
-                                label={trade.direction.toUpperCase()}
-                                color={getDirectionColor(trade.direction) as any}
-                                size="small"
-                              />
-                            </TableCell>
-                            <TableCell align="right">{trade.quantity}</TableCell>
-                            <TableCell align="right">{formatCurrency(trade.price)}</TableCell>
-                            <TableCell align="right">{formatCurrency(trade.value)}</TableCell>
-                            <TableCell>
-                              <Chip
-                                label={trade.status}
-                                color={getStatusColor(trade.status) as any}
-                                size="small"
-                              />
-                            </TableCell>
-                            <TableCell>{trade.agent || '-'}</TableCell>
-                          </TableRow>
-                        ))
-                      ) : (
-                        <TableRow>
-                          <TableCell colSpan={8} align="center">
-                            No trades found
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </TabPanel>
-
-              {/* Orders Tab */}
-              <TabPanel value={tabValue} index={1}>
-                <TableContainer>
-                  <Table>
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Time</TableCell>
-                        <TableCell>Symbol</TableCell>
-                        <TableCell>Type</TableCell>
-                        <TableCell>Direction</TableCell>
-                        <TableCell align="right">Quantity</TableCell>
-                        <TableCell align="right">Price</TableCell>
-                        <TableCell>Status</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {orders && orders.length > 0 ? (
-                        orders.map((order: Order) => (
-                          <TableRow key={order.id}>
-                            <TableCell>{formatTimestamp(order.created)}</TableCell>
-                            <TableCell>{order.symbol}</TableCell>
-                            <TableCell>{order.type.replace('_', ' ').toUpperCase()}</TableCell>
-                            <TableCell>
-                              <Chip
-                                label={order.direction.toUpperCase()}
-                                color={getDirectionColor(order.direction) as any}
-                                size="small"
-                              />
-                            </TableCell>
-                            <TableCell align="right">{order.quantity}</TableCell>
-                            <TableCell align="right">{formatCurrency(order.price)}</TableCell>
-                            <TableCell>
-                              <Chip
-                                label={order.status}
-                                color={getStatusColor(order.status) as any}
-                                size="small"
-                              />
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      ) : (
-                        <TableRow>
-                          <TableCell colSpan={7} align="center">
-                            No open orders
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </TabPanel>
-            </Card>
-          </Grid>
+              ) : (
+                <>
+                  {activeSignals.map((signal) => (
+                    <Paper key={signal.id} variant="outlined" sx={{ p: 2, mb: 2 }}>
+                      <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                        <Box display="flex" alignItems="center">
+                          <Chip
+                            label={signal.type.toUpperCase()}
+                            color={getTradeTypeColor(signal.type) as any}
+                            icon={getTradeTypeIcon(signal.type)}
+                            size="small"
+                            sx={{ mr: 1 }}
+                          />
+                          <Typography variant="h6">
+                            {signal.symbol} ({formatCurrency(signal.suggestedPrice)})
+                          </Typography>
+                        </Box>
+                        <Chip
+                          label={`Confidence: ${(signal.confidence * 100).toFixed(0)}%`}
+                          color={signal.confidence > 0.7 ? 'success' : 'warning'}
+                          size="small"
+                        />
+                      </Box>
+                      <Typography variant="body1" mb={1}>
+                        Suggested Quantity: {signal.suggestedQuantity.toLocaleString()}
+                      </Typography>
+                      <Typography variant="body1" mb={1}>
+                        Total Value: {formatCurrency(signal.suggestedPrice * signal.suggestedQuantity)}
+                      </Typography>
+                      <Box mb={2}>
+                        <Typography variant="subtitle2" gutterBottom>
+                          Rationale:
+                        </Typography>
+                        <Typography variant="body2">
+                          {signal.rationale}
+                        </Typography>
+                      </Box>
+                      <Box display="flex" justifyContent="space-between" alignItems="center">
+                        <Typography variant="caption" color="textSecondary">
+                          From {signal.agentName} • {formatTimestamp(signal.timestamp)}
+                        </Typography>
+                        <Box>
+                          <Button
+                            variant="outlined"
+                            color="error"
+                            size="small"
+                            onClick={() => handleRejectSignal(signal.id)}
+                            sx={{ mr: 1 }}
+                          >
+                            Reject
+                          </Button>
+                          <Button
+                            variant="contained"
+                            color="primary"
+                            size="small"
+                            onClick={() => handleAcceptSignal(signal.id)}
+                          >
+                            Accept
+                          </Button>
+                        </Box>
+                      </Box>
+                    </Paper>
+                  ))}
+                </>
+              )}
+            </CardContent>
+          </Card>
         </Grid>
-      )}
+
+        {/* Pending Trades */}
+        <Grid item xs={12}>
+          <Card>
+            <CardHeader title="Pending Trades" />
+            <Divider />
+            <CardContent>
+              {pendingTrades.length === 0 ? (
+                <Typography variant="body1" textAlign="center" py={2}>
+                  No pending trades.
+                </Typography>
+              ) : (
+                <TableContainer>
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Type</TableCell>
+                        <TableCell>Asset</TableCell>
+                        <TableCell align="right">Price</TableCell>
+                        <TableCell align="right">Quantity</TableCell>
+                        <TableCell align="right">Value</TableCell>
+                        <TableCell align="right">Time</TableCell>
+                        <TableCell align="right">Status</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {pendingTrades.map((trade) => (
+                        <TableRow key={trade.id}>
+                          <TableCell>
+                            <Chip
+                              label={trade.type.toUpperCase()}
+                              color={getTradeTypeColor(trade.type) as any}
+                              icon={getTradeTypeIcon(trade.type)}
+                              size="small"
+                            />
+                          </TableCell>
+                          <TableCell>{trade.symbol}</TableCell>
+                          <TableCell align="right">{formatCurrency(trade.price)}</TableCell>
+                          <TableCell align="right">{trade.quantity.toLocaleString()}</TableCell>
+                          <TableCell align="right">{formatCurrency(trade.value)}</TableCell>
+                          <TableCell align="right">{formatTimestamp(trade.timestamp)}</TableCell>
+                          <TableCell align="right">
+                            <Chip
+                              label={trade.status.toUpperCase()}
+                              color={getStatusColor(trade.status) as any}
+                              size="small"
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Recent Trades */}
+        <Grid item xs={12}>
+          <Card>
+            <CardHeader title="Recent Trades" />
+            <Divider />
+            <CardContent>
+              {recentTrades.length === 0 ? (
+                <Typography variant="body1" textAlign="center" py={2}>
+                  No recent trades.
+                </Typography>
+              ) : (
+                <TableContainer>
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Type</TableCell>
+                        <TableCell>Asset</TableCell>
+                        <TableCell align="right">Price</TableCell>
+                        <TableCell align="right">Quantity</TableCell>
+                        <TableCell align="right">Value</TableCell>
+                        <TableCell align="right">Time</TableCell>
+                        <TableCell align="right">Status</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {recentTrades.map((trade) => (
+                        <TableRow key={trade.id}>
+                          <TableCell>
+                            <Chip
+                              label={trade.type.toUpperCase()}
+                              color={getTradeTypeColor(trade.type) as any}
+                              icon={getTradeTypeIcon(trade.type)}
+                              size="small"
+                            />
+                          </TableCell>
+                          <TableCell>{trade.symbol}</TableCell>
+                          <TableCell align="right">{formatCurrency(trade.price)}</TableCell>
+                          <TableCell align="right">{trade.quantity.toLocaleString()}</TableCell>
+                          <TableCell align="right">{formatCurrency(trade.value)}</TableCell>
+                          <TableCell align="right">{formatTimestamp(trade.timestamp)}</TableCell>
+                          <TableCell align="right">
+                            <Chip
+                              label={trade.status.toUpperCase()}
+                              color={getStatusColor(trade.status) as any}
+                              size="small"
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
     </Box>
   );
 };

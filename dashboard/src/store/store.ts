@@ -1,16 +1,29 @@
 import { configureStore } from '@reduxjs/toolkit';
-import rootReducer from './rootReducer';
+import alertsReducer from './slices/alertsSlice';
+import authReducer from './slices/authSlice';
+import metricsReducer from './slices/metricsSlice';
+import portfolioReducer from './slices/portfolioSlice';
+import systemReducer from './slices/systemSlice';
+import tradingReducer from './slices/tradingSlice';
+import uiReducer from './slices/uiSlice';
 
+// Create the store with all reducers
 const store = configureStore({
-  reducer: rootReducer,
+  reducer: {
+    alerts: alertsReducer,
+    auth: authReducer,
+    metrics: metricsReducer,
+    portfolio: portfolioReducer,
+    system: systemReducer,
+    trading: tradingReducer,
+    ui: uiReducer,
+  },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
       serializableCheck: {
-        // Ignore these action types
+        // Ignore these fields
         ignoredActions: ['persist/PERSIST'],
-        // Ignore these field paths in all actions
         ignoredActionPaths: ['meta.arg', 'payload.timestamp'],
-        // Ignore these paths in the state
         ignoredPaths: ['items.dates'],
       },
     }),

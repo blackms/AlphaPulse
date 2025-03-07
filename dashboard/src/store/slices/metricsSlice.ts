@@ -1,62 +1,111 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { RootState } from '../store';
+
+export interface PerformanceMetric {
+  id: string;
+  name: string;
+  value: number;
+  previousValue: number;
+  change: number;
+  changePercentage: number;
+  timestamp: number;
+  period: 'daily' | 'weekly' | 'monthly' | 'yearly';
+}
+
+export interface HistoricalDataPoint {
+  timestamp: number;
+  value: number;
+}
+
+export interface MetricHistory {
+  id: string;
+  data: HistoricalDataPoint[];
+}
 
 interface MetricsState {
-  performance: {
-    daily: number;
-    weekly: number;
-    monthly: number;
-    yearly: number;
-  };
-  volatility: number;
-  sharpeRatio: number;
-  maxDrawdown: number;
+  metrics: PerformanceMetric[];
+  history: Record<string, HistoricalDataPoint[]>;
   loading: boolean;
-  error: string | null;
-  lastUpdated: string | null;
+  lastUpdated: number | null;
 }
 
 const initialState: MetricsState = {
-  performance: {
-    daily: 0,
-    weekly: 0,
-    monthly: 0,
-    yearly: 0,
-  },
-  volatility: 0,
-  sharpeRatio: 0,
-  maxDrawdown: 0,
+  metrics: [
+    {
+      id: 'portfolio-value',
+      name: 'Portfolio Value',
+      value: 125000,
+      previousValue: 120000,
+      change: 5000,
+      changePercentage: 4.17,
+      timestamp: Date.now(),
+      period: 'daily',
+    },
+    {
+      id: 'daily-return',
+      name: 'Daily Return',
+      value: 1.2,
+      previousValue: 0.8,
+      change: 0.4,
+      changePercentage: 50,
+      timestamp: Date.now(),
+      period: 'daily',
+    },
+    {
+      id: 'monthly-return',
+      name: 'Monthly Return',
+      value: 8.4,
+      previousValue: 7.2,
+      change: 1.2,
+      changePercentage: 16.67,
+      timestamp: Date.now(),
+      period: 'monthly',
+    },
+    {
+      id: 'yearly-return',
+      name: 'Yearly Return',
+      value: -2.1,
+      previousValue: -4.3,
+      change: 2.2,
+      changePercentage: 51.16,
+      timestamp: Date.now(),
+      period: 'yearly',
+    },
+  ],
+  history: {},
   loading: false,
-  error: null,
-  lastUpdated: null,
+  lastUpdated: Date.now(),
 };
 
 const metricsSlice = createSlice({
   name: 'metrics',
   initialState,
   reducers: {
-    fetchMetricsStart(state) {
+    fetchMetricsStart: (state) => {
       state.loading = true;
-      state.error = null;
     },
-    fetchMetricsSuccess(state, action: PayloadAction<Partial<MetricsState>>) {
-      return {
-        ...state,
-        ...action.payload,
-        loading: false,
-        error: null,
-        lastUpdated: new Date().toISOString(),
-      };
-    },
-    fetchMetricsFailure(state, action: PayloadAction<string>) {
+    fetchMetricsSuccess: (state, action: PayloadAction<PerformanceMetric[]>) => {
+      state.metrics = action.payload;
       state.loading = false;
-      state.error = action.payload;
+      state.lastUpdated = Date.now();
     },
-    updateMetrics(state, action: PayloadAction<Partial<MetricsState>>) {
-      return {
-        ...state,
-        ...action.payload,
-        lastUpdated: new Date().toISOString(),
-      };
+    fetchMetricsFailure: (state) => {
+      state.loading = false;
+    },
+    fetchHistoricalDataSuccess: (state, action: PayloadAction<{ 
+      id: string; 
+      data: HistoricalDataPoint[]; 
+    }>) => {
+      state.history[action.payload.id] = action.payload.data;
+    },
+    updateMetric: (state, action: PayloadAction<PerformanceMetric>) => {
+      const index = state.metrics.findIndex(m => m.id === action.payload.id);
+      if (index !== -1) {
+        state.metrics[index] = action.payload;
+      } else {
+        state.metrics.push(action.payload);
+      }
+      state.lastUpdated = Date.now();
     },
   },
 });
@@ -65,7 +114,17 @@ export const {
   fetchMetricsStart,
   fetchMetricsSuccess,
   fetchMetricsFailure,
-  updateMetrics,
+  fetchHistoricalDataSuccess,
+  updateMetric,
 } = metricsSlice.actions;
+
+// Selectors
+export const selectMetrics = (state: RootState) => state.metrics.metrics;
+export const selectMetricById = (id: string) => (state: RootState) => 
+  state.metrics.metrics.find(m => m.id === id);
+export const selectHistoricalData = (id: string) => (state: RootState) => 
+  state.metrics.history[id] || [];
+export const selectIsLoading = (state: RootState) => state.metrics.loading;
+export const selectLastUpdated = (state: RootState) => state.metrics.lastUpdated;
 
 export default metricsSlice.reducer;

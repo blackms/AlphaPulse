@@ -7,17 +7,11 @@ import {
   Typography,
   FormControlLabel,
   Checkbox,
-  Link,
   Alert,
 } from '@mui/material';
-import { Login as LoginIcon } from '@mui/icons-material';
-import { useDispatch } from 'react-redux';
-// In a real implementation, you would import auth actions
-// import { login } from '../../store/slices/authSlice';
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
-  const dispatch = useDispatch();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
@@ -43,10 +37,6 @@ const LoginPage: React.FC = () => {
     
     try {
       // For demo purposes, we'll just simulate a login
-      // In a real implementation, you would dispatch a login action
-      // await dispatch(login({ username, password, rememberMe }));
-      
-      // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       // For demo, hardcode successful login with demo/demo
@@ -120,18 +110,11 @@ const LoginPage: React.FC = () => {
         type="submit"
         fullWidth
         variant="contained"
-        startIcon={<LoginIcon />}
         sx={{ mt: 3, mb: 2 }}
         disabled={loading}
       >
         {loading ? 'Signing in...' : 'Sign In'}
       </Button>
-      
-      <Box display="flex" justifyContent="center">
-        <Link href="#" variant="body2">
-          Forgot password?
-        </Link>
-      </Box>
       
       <Box mt={3} textAlign="center">
         <Typography variant="body2" color="textSecondary">

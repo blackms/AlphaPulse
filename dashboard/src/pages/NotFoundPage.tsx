@@ -1,7 +1,7 @@
 import React from 'react';
 import { Box, Button, Container, Typography } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import { SentimentVeryDissatisfied as SadFaceIcon, Home as HomeIcon } from '@mui/icons-material';
+import { SentimentVeryDissatisfied as SadFaceIcon } from '@mui/icons-material';
 
 const NotFoundPage: React.FC = () => {
   const navigate = useNavigate();
@@ -29,17 +29,14 @@ const NotFoundPage: React.FC = () => {
           Page Not Found
         </Typography>
         
-        <Typography variant="body1" color="text.secondary" paragraph sx={{ mb: 4 }}>
+        <Typography variant="body1" color="textSecondary" paragraph sx={{ mb: 4 }}>
           Sorry, we couldn't find the page you're looking for.
-          <br />
-          The page might have been removed or the URL might be incorrect.
         </Typography>
         
         <Button
           variant="contained"
           color="primary"
           size="large"
-          startIcon={<HomeIcon />}
           onClick={() => navigate('/dashboard')}
         >
           Back to Dashboard

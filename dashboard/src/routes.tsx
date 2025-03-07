@@ -1,44 +1,57 @@
 import React from 'react';
-import { Navigate, useRoutes } from 'react-router-dom';
-
-// Layouts
+import { Navigate, Route, Routes } from 'react-router-dom';
 import DashboardLayout from './layouts/DashboardLayout';
 import AuthLayout from './layouts/AuthLayout';
-
-// Pages
-import DashboardPage from './pages/dashboard/DashboardPage';
-import PortfolioPage from './pages/portfolio/PortfolioPage';
-import TradingPage from './pages/trading/TradingPage';
-import AlertsPage from './pages/alerts/AlertsPage';
-import SystemStatusPage from './pages/system/SystemStatusPage';
-import SettingsPage from './pages/settings/SettingsPage';
 import LoginPage from './pages/auth/LoginPage';
+import DashboardPage from './pages/dashboard/DashboardPage';
 import NotFoundPage from './pages/NotFoundPage';
 
-export default function Router() {
-  return useRoutes([
-    {
-      path: '/dashboard',
-      element: <DashboardLayout />,
-      children: [
-        { path: '', element: <DashboardPage /> },
-        { path: 'portfolio', element: <PortfolioPage /> },
-        { path: 'trading', element: <TradingPage /> },
-        { path: 'alerts', element: <AlertsPage /> },
-        { path: 'system', element: <SystemStatusPage /> },
-        { path: 'settings', element: <SettingsPage /> },
-      ],
-    },
-    {
-      path: '/',
-      element: <AuthLayout />,
-      children: [
-        { path: '/', element: <Navigate to="/dashboard" /> },
-        { path: 'login', element: <LoginPage /> },
-        { path: '404', element: <NotFoundPage /> },
-        { path: '*', element: <Navigate to="/404" /> },
-      ],
-    },
-    { path: '*', element: <Navigate to="/404" replace /> },
-  ]);
-}
+// Check if user is authenticated
+const isAuthenticated = () => {
+  return localStorage.getItem('isAuthenticated') === 'true';
+};
+
+// Protected route component
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  if (!isAuthenticated()) {
+    return <Navigate to="/login" />;
+  }
+  return <>{children}</>;
+};
+
+const Router: React.FC = () => {
+  return (
+    <Routes>
+      {/* Auth routes */}
+      <Route element={<AuthLayout />}>
+        <Route path="/login" element={<LoginPage />} />
+      </Route>
+
+      {/* Protected dashboard routes */}
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<DashboardPage />} />
+        {/* For now, just use DashboardPage for all routes */}
+        <Route path="portfolio" element={<DashboardPage />} />
+        <Route path="trading" element={<DashboardPage />} />
+        <Route path="alerts" element={<DashboardPage />} />
+        <Route path="system" element={<DashboardPage />} />
+        <Route path="settings" element={<DashboardPage />} />
+      </Route>
+
+      {/* Root redirect */}
+      <Route path="/" element={<Navigate to="/dashboard" />} />
+
+      {/* 404 Not Found */}
+      <Route path="*" element={<NotFoundPage />} />
+    </Routes>
+  );
+};
+
+export default Router;

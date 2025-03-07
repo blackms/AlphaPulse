@@ -1,137 +1,115 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { RootState } from '../store';
 
 export type SystemStatus = 'operational' | 'degraded' | 'maintenance' | 'outage';
-export type ComponentStatus = 'operational' | 'degraded' | 'down' | 'maintenance';
 
 export interface SystemComponent {
   id: string;
   name: string;
-  status: ComponentStatus;
-  lastUpdated: string;
+  status: SystemStatus;
   message?: string;
-  metrics?: Record<string, number>;
-}
-
-export interface SystemResources {
-  cpu: number;
-  memory: number;
-  disk: number;
-  network: {
-    in: number;
-    out: number;
-  };
-}
-
-export interface ApiStatus {
-  responseTime: number;
-  requests: {
-    total: number;
-    success: number;
-    error: number;
-  };
-  lastError?: string;
+  lastUpdated: number | null;
 }
 
 interface SystemState {
-  status: {
-    overall: SystemStatus;
-    message?: string;
-  };
+  status: SystemStatus;
+  message: string | null;
   components: SystemComponent[];
-  resources: SystemResources;
-  api: ApiStatus;
-  lastErrors: Array<{
-    timestamp: string;
-    component: string;
-    message: string;
-    level: 'info' | 'warning' | 'error' | 'critical';
-  }>;
+  lastChecked: number | null;
   loading: boolean;
-  error: string | null;
-  lastUpdated: string | null;
 }
 
 const initialState: SystemState = {
-  status: {
-    overall: 'operational',
-  },
-  components: [],
-  resources: {
-    cpu: 0,
-    memory: 0,
-    disk: 0,
-    network: {
-      in: 0,
-      out: 0,
+  status: 'operational',
+  message: null,
+  components: [
+    {
+      id: 'data-pipeline',
+      name: 'Data Pipeline',
+      status: 'operational',
+      lastUpdated: Date.now() - 300000, // 5 minutes ago
     },
-  },
-  api: {
-    responseTime: 0,
-    requests: {
-      total: 0,
-      success: 0,
-      error: 0,
+    {
+      id: 'trading-engine',
+      name: 'Trading Engine',
+      status: 'operational',
+      lastUpdated: Date.now() - 180000, // 3 minutes ago
     },
-  },
-  lastErrors: [],
+    {
+      id: 'agent-system',
+      name: 'AI Agent System',
+      status: 'operational',
+      lastUpdated: Date.now() - 240000, // 4 minutes ago
+    },
+    {
+      id: 'portfolio-manager',
+      name: 'Portfolio Manager',
+      status: 'operational',
+      lastUpdated: Date.now() - 120000, // 2 minutes ago
+    },
+    {
+      id: 'risk-manager',
+      name: 'Risk Management',
+      status: 'operational',
+      lastUpdated: Date.now() - 210000, // 3.5 minutes ago
+    },
+    {
+      id: 'execution-broker',
+      name: 'Execution Broker',
+      status: 'operational',
+      lastUpdated: Date.now() - 270000, // 4.5 minutes ago
+    },
+  ],
+  lastChecked: Date.now(),
   loading: false,
-  error: null,
-  lastUpdated: null,
 };
 
 const systemSlice = createSlice({
   name: 'system',
   initialState,
   reducers: {
-    fetchSystemStatusStart(state) {
+    fetchSystemStatusStart: (state) => {
       state.loading = true;
-      state.error = null;
     },
-    fetchSystemStatusSuccess(state, action: PayloadAction<Partial<SystemState>>) {
-      return {
-        ...state,
-        ...action.payload,
-        loading: false,
-        error: null,
-        lastUpdated: new Date().toISOString(),
-      };
-    },
-    fetchSystemStatusFailure(state, action: PayloadAction<string>) {
+    fetchSystemStatusSuccess: (state, action: PayloadAction<{
+      status: SystemStatus;
+      message: string | null;
+      components: SystemComponent[];
+    }>) => {
+      state.status = action.payload.status;
+      state.message = action.payload.message;
+      state.components = action.payload.components;
+      state.lastChecked = Date.now();
       state.loading = false;
-      state.error = action.payload;
     },
-    updateSystemStatus(state, action: PayloadAction<Partial<SystemState>>) {
-      return {
-        ...state,
-        ...action.payload,
-        lastUpdated: new Date().toISOString(),
-      };
+    fetchSystemStatusFailure: (state) => {
+      state.loading = false;
     },
-    updateComponent(state, action: PayloadAction<SystemComponent>) {
-      const index = state.components.findIndex(c => c.id === action.payload.id);
-      if (index >= 0) {
-        state.components[index] = action.payload;
-      } else {
-        state.components.push(action.payload);
+    updateComponentStatus: (state, action: PayloadAction<{
+      componentId: string;
+      status: SystemStatus;
+      message?: string;
+    }>) => {
+      const component = state.components.find(c => c.id === action.payload.componentId);
+      if (component) {
+        component.status = action.payload.status;
+        component.message = action.payload.message;
+        component.lastUpdated = Date.now();
       }
       
-      // Recalculate overall status based on component statuses
-      const statuses = state.components.map(c => c.status);
-      if (statuses.includes('down')) {
-        state.status.overall = 'outage';
-      } else if (statuses.includes('degraded')) {
-        state.status.overall = 'degraded';
-      } else if (statuses.includes('maintenance')) {
-        state.status.overall = 'maintenance';
+      // Recalculate overall system status
+      if (state.components.some(c => c.status === 'outage')) {
+        state.status = 'outage';
+      } else if (state.components.some(c => c.status === 'degraded')) {
+        state.status = 'degraded';
+      } else if (state.components.some(c => c.status === 'maintenance')) {
+        state.status = 'maintenance';
       } else {
-        state.status.overall = 'operational';
+        state.status = 'operational';
       }
-      
-      state.lastUpdated = new Date().toISOString();
     },
-    addSystemError(state, action: PayloadAction<SystemState['lastErrors'][0]>) {
-      state.lastErrors = [action.payload, ...state.lastErrors].slice(0, 50); // Keep last 50 errors
-      state.lastUpdated = new Date().toISOString();
+    setSystemMessage: (state, action: PayloadAction<string | null>) => {
+      state.message = action.payload;
     },
   },
 });
@@ -140,9 +118,15 @@ export const {
   fetchSystemStatusStart,
   fetchSystemStatusSuccess,
   fetchSystemStatusFailure,
-  updateSystemStatus,
-  updateComponent,
-  addSystemError,
+  updateComponentStatus,
+  setSystemMessage,
 } = systemSlice.actions;
+
+// Selectors
+export const selectSystemStatus = (state: RootState) => state.system.status;
+export const selectSystemMessage = (state: RootState) => state.system.message;
+export const selectSystemComponents = (state: RootState) => state.system.components;
+export const selectLastChecked = (state: RootState) => state.system.lastChecked;
+export const selectIsLoading = (state: RootState) => state.system.loading;
 
 export default systemSlice.reducer;
