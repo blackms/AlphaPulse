@@ -1,324 +1,239 @@
 import React, { useState } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
 import {
   Box,
   Typography,
-  Paper,
-  Grid,
-  Divider,
   Card,
   CardContent,
   CardHeader,
-  Button,
-  Switch,
+  Grid,
+  Divider,
   FormControl,
   FormControlLabel,
+  FormGroup,
+  FormLabel,
+  Switch,
   TextField,
-  InputLabel,
-  MenuItem,
   Select,
-  SelectChangeEvent,
-  Alert,
+  MenuItem,
+  InputLabel,
+  Button,
   Snackbar,
+  Alert,
+  SelectChangeEvent,
 } from '@mui/material';
-import { Save as SaveIcon } from '@mui/icons-material';
-import { RootState } from '../../store/store';
+import { useDispatch, useSelector } from 'react-redux';
+import {
+  selectTheme,
+  selectCompactMode,
+  setTheme,
+  setCompactMode,
+} from '../../store/slices/uiSlice';
 
-interface SettingsState {
-  theme: 'light' | 'dark' | 'system';
-  notifications: {
-    alerts: boolean;
-    trades: boolean;
-    performance: boolean;
-    system: boolean;
-    email: boolean;
-  };
-  refreshInterval: number;
-  apiEndpoint: string;
-  chartSettings: {
-    showAnimations: boolean;
-    detailedTooltips: boolean;
-    defaultTimeframe: string;
-  };
-}
-
-// This is a placeholder component until the full implementation is complete
 const SettingsPage: React.FC = () => {
   const dispatch = useDispatch();
+  const currentTheme = useSelector(selectTheme);
+  const compactMode = useSelector(selectCompactMode);
   
-  // In a real implementation, these settings would be stored in Redux
-  const [settings, setSettings] = useState<SettingsState>({
-    theme: 'system',
-    notifications: {
-      alerts: true,
-      trades: true,
-      performance: false,
-      system: true,
-      email: false,
-    },
-    refreshInterval: 30,
-    apiEndpoint: 'http://localhost:8000',
-    chartSettings: {
-      showAnimations: true,
-      detailedTooltips: true,
-      defaultTimeframe: '1d',
-    },
-  });
+  // Local state for form values
+  const [tradingEnabled, setTradingEnabled] = useState<boolean>(false);
+  const [maxTradeSize, setMaxTradeSize] = useState<string>('5');
+  const [riskLevel, setRiskLevel] = useState<string>('medium');
+  const [alertFrequency, setAlertFrequency] = useState<string>('important');
+  const [emailNotifications, setEmailNotifications] = useState<boolean>(true);
   
-  const [saveStatus, setSaveStatus] = useState<{
-    open: boolean;
-    message: string;
-    severity: 'success' | 'error';
-  }>({
-    open: false,
-    message: '',
-    severity: 'success',
-  });
-
-  const handleThemeChange = (event: SelectChangeEvent) => {
-    setSettings({
-      ...settings,
-      theme: event.target.value as 'light' | 'dark' | 'system',
-    });
+  // Snackbar state
+  const [snackbarOpen, setSnackbarOpen] = useState<boolean>(false);
+  const [snackbarMessage, setSnackbarMessage] = useState<string>('');
+  
+  const handleThemeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    dispatch(setTheme(event.target.checked ? 'dark' : 'light'));
   };
-
-  const handleNotificationChange = (setting: keyof typeof settings.notifications) => {
-    setSettings({
-      ...settings,
-      notifications: {
-        ...settings.notifications,
-        [setting]: !settings.notifications[setting],
-      },
-    });
+  
+  const handleCompactModeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    dispatch(setCompactMode(event.target.checked));
   };
-
-  const handleRefreshIntervalChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const value = parseInt(event.target.value, 10);
-    if (!isNaN(value) && value > 0) {
-      setSettings({
-        ...settings,
-        refreshInterval: value,
-      });
-    }
+  
+  const handleTradingEnabledChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setTradingEnabled(event.target.checked);
   };
-
-  const handleApiEndpointChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setSettings({
-      ...settings,
-      apiEndpoint: event.target.value,
-    });
+  
+  const handleMaxTradeSizeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setMaxTradeSize(event.target.value);
   };
-
-  const handleChartSettingChange = (setting: keyof typeof settings.chartSettings, value: any) => {
-    setSettings({
-      ...settings,
-      chartSettings: {
-        ...settings.chartSettings,
-        [setting]: value,
-      },
-    });
+  
+  const handleRiskLevelChange = (event: SelectChangeEvent) => {
+    setRiskLevel(event.target.value);
   };
-
+  
+  const handleAlertFrequencyChange = (event: SelectChangeEvent) => {
+    setAlertFrequency(event.target.value);
+  };
+  
+  const handleEmailNotificationsChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setEmailNotifications(event.target.checked);
+  };
+  
   const handleSaveSettings = () => {
-    // In a real implementation, this would dispatch an action to update Redux state
-    // dispatch(updateSettings(settings));
-    
-    // Show success message
-    setSaveStatus({
-      open: true,
-      message: 'Settings saved successfully',
-      severity: 'success',
-    });
+    // In a real app, this would save to backend
+    // For now, we just show a success message
+    setSnackbarMessage('Settings saved successfully');
+    setSnackbarOpen(true);
   };
-
+  
   const handleCloseSnackbar = () => {
-    setSaveStatus({
-      ...saveStatus,
-      open: false,
-    });
+    setSnackbarOpen(false);
   };
-
+  
   return (
     <Box sx={{ p: 3 }}>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4" component="h1">
-          Settings
-        </Typography>
-        <Button
-          variant="contained"
-          color="primary"
-          startIcon={<SaveIcon />}
-          onClick={handleSaveSettings}
-        >
-          Save Settings
-        </Button>
-      </Box>
-
+      <Typography variant="h4" component="h1" gutterBottom>
+        Settings
+      </Typography>
+      
       <Grid container spacing={3}>
         {/* Appearance Settings */}
         <Grid item xs={12} md={6}>
           <Card>
-            <CardHeader title="Appearance" />
+            <CardHeader title="Appearance Settings" />
             <Divider />
             <CardContent>
-              <FormControl fullWidth margin="normal">
-                <InputLabel id="theme-select-label">Theme</InputLabel>
-                <Select
-                  labelId="theme-select-label"
-                  id="theme-select"
-                  value={settings.theme}
-                  label="Theme"
-                  onChange={handleThemeChange}
-                >
-                  <MenuItem value="light">Light</MenuItem>
-                  <MenuItem value="dark">Dark</MenuItem>
-                  <MenuItem value="system">System Default</MenuItem>
-                </Select>
-              </FormControl>
-
-              <Box mt={2}>
-                <Typography variant="subtitle1" gutterBottom>
-                  Chart Settings
-                </Typography>
+              <FormGroup>
                 <FormControlLabel
                   control={
                     <Switch
-                      checked={settings.chartSettings.showAnimations}
-                      onChange={(e) => handleChartSettingChange('showAnimations', e.target.checked)}
+                      checked={currentTheme === 'dark'}
+                      onChange={handleThemeChange}
                     />
                   }
-                  label="Enable Chart Animations"
+                  label="Dark Theme"
                 />
                 <FormControlLabel
                   control={
                     <Switch
-                      checked={settings.chartSettings.detailedTooltips}
-                      onChange={(e) => handleChartSettingChange('detailedTooltips', e.target.checked)}
+                      checked={compactMode}
+                      onChange={handleCompactModeChange}
                     />
                   }
-                  label="Detailed Chart Tooltips"
+                  label="Compact Mode"
                 />
-                <FormControl fullWidth margin="normal">
-                  <InputLabel id="timeframe-select-label">Default Timeframe</InputLabel>
-                  <Select
-                    labelId="timeframe-select-label"
-                    id="timeframe-select"
-                    value={settings.chartSettings.defaultTimeframe}
-                    label="Default Timeframe"
-                    onChange={(e) => handleChartSettingChange('defaultTimeframe', e.target.value)}
-                  >
-                    <MenuItem value="1h">1 Hour</MenuItem>
-                    <MenuItem value="4h">4 Hours</MenuItem>
-                    <MenuItem value="1d">1 Day</MenuItem>
-                    <MenuItem value="1w">1 Week</MenuItem>
-                    <MenuItem value="1m">1 Month</MenuItem>
-                  </Select>
-                </FormControl>
-              </Box>
+              </FormGroup>
             </CardContent>
           </Card>
         </Grid>
-
-        {/* Notification Settings */}
+        
+        {/* Trading Settings */}
         <Grid item xs={12} md={6}>
           <Card>
-            <CardHeader title="Notifications" />
+            <CardHeader title="Trading Settings" />
             <Divider />
             <CardContent>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={settings.notifications.alerts}
-                    onChange={() => handleNotificationChange('alerts')}
+              <FormGroup>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={tradingEnabled}
+                      onChange={handleTradingEnabledChange}
+                    />
+                  }
+                  label="Enable Automated Trading"
+                />
+                
+                <Box mt={2} mb={2}>
+                  <TextField
+                    label="Maximum Trade Size (%)"
+                    type="number"
+                    value={maxTradeSize}
+                    onChange={handleMaxTradeSizeChange}
+                    InputProps={{ inputProps: { min: 1, max: 100 } }}
+                    fullWidth
+                    disabled={!tradingEnabled}
                   />
-                }
-                label="Alert Notifications"
-              />
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={settings.notifications.trades}
-                    onChange={() => handleNotificationChange('trades')}
-                  />
-                }
-                label="Trade Notifications"
-              />
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={settings.notifications.performance}
-                    onChange={() => handleNotificationChange('performance')}
-                  />
-                }
-                label="Performance Updates"
-              />
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={settings.notifications.system}
-                    onChange={() => handleNotificationChange('system')}
-                  />
-                }
-                label="System Notifications"
-              />
-              <Divider sx={{ my: 2 }} />
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={settings.notifications.email}
-                    onChange={() => handleNotificationChange('email')}
-                  />
-                }
-                label="Email Notifications"
-              />
+                </Box>
+                
+                <FormControl fullWidth sx={{ mt: 2 }} disabled={!tradingEnabled}>
+                  <InputLabel id="risk-level-label">Risk Level</InputLabel>
+                  <Select
+                    labelId="risk-level-label"
+                    value={riskLevel}
+                    label="Risk Level"
+                    onChange={handleRiskLevelChange}
+                  >
+                    <MenuItem value="low">Low</MenuItem>
+                    <MenuItem value="medium">Medium</MenuItem>
+                    <MenuItem value="high">High</MenuItem>
+                  </Select>
+                </FormControl>
+              </FormGroup>
             </CardContent>
           </Card>
         </Grid>
-
-        {/* Data & API Settings */}
+        
+        {/* Notification Settings */}
         <Grid item xs={12}>
           <Card>
-            <CardHeader title="Data & API" />
+            <CardHeader title="Notification Settings" />
             <Divider />
             <CardContent>
-              <Grid container spacing={2}>
+              <Grid container spacing={3}>
                 <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    label="Refresh Interval (seconds)"
-                    type="number"
-                    value={settings.refreshInterval}
-                    onChange={handleRefreshIntervalChange}
-                    inputProps={{ min: 5 }}
-                  />
+                  <FormControl fullWidth>
+                    <InputLabel id="alert-frequency-label">Alert Frequency</InputLabel>
+                    <Select
+                      labelId="alert-frequency-label"
+                      value={alertFrequency}
+                      label="Alert Frequency"
+                      onChange={handleAlertFrequencyChange}
+                    >
+                      <MenuItem value="all">All Alerts</MenuItem>
+                      <MenuItem value="important">Important Only</MenuItem>
+                      <MenuItem value="critical">Critical Only</MenuItem>
+                      <MenuItem value="none">None</MenuItem>
+                    </Select>
+                  </FormControl>
                 </Grid>
+                
                 <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    label="API Endpoint"
-                    value={settings.apiEndpoint}
-                    onChange={handleApiEndpointChange}
-                  />
+                  <FormGroup>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={emailNotifications}
+                          onChange={handleEmailNotificationsChange}
+                        />
+                      }
+                      label="Email Notifications"
+                    />
+                  </FormGroup>
                 </Grid>
               </Grid>
             </CardContent>
           </Card>
         </Grid>
+        
+        {/* Save Button */}
+        <Grid item xs={12}>
+          <Box display="flex" justifyContent="flex-end">
+            <Button
+              variant="contained"
+              color="primary"
+              size="large"
+              onClick={handleSaveSettings}
+            >
+              Save Settings
+            </Button>
+          </Box>
+        </Grid>
       </Grid>
-
-      {/* Success/Error Notification */}
+      
+      {/* Snackbar for notifications */}
       <Snackbar
-        open={saveStatus.open}
+        open={snackbarOpen}
         autoHideDuration={6000}
         onClose={handleCloseSnackbar}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
       >
-        <Alert
-          onClose={handleCloseSnackbar}
-          severity={saveStatus.severity}
-          sx={{ width: '100%' }}
-        >
-          {saveStatus.message}
+        <Alert onClose={handleCloseSnackbar} severity="success">
+          {snackbarMessage}
         </Alert>
       </Snackbar>
     </Box>

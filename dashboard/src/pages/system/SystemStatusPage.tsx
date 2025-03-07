@@ -1,83 +1,103 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   Box,
   Typography,
+  Paper,
+  Grid,
+  Chip,
+  Button,
   Card,
   CardContent,
   CardHeader,
-  Grid,
-  Chip,
   Divider,
-  List,
-  ListItem,
-  ListItemText,
-  Paper,
-  Button,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
+  LinearProgress,
+  Alert,
+  IconButton,
 } from '@mui/material';
 import {
+  Refresh as RefreshIcon,
   CheckCircle as OperationalIcon,
   Warning as DegradedIcon,
-  Info as MaintenanceIcon,
-  Error as OutageIcon,
-  Refresh as RefreshIcon,
+  Error as DownIcon,
+  Build as MaintenanceIcon,
+  AccessTime as TimeIcon,
 } from '@mui/icons-material';
-import { useSelector, useDispatch } from 'react-redux';
 import {
   selectSystemStatus,
-  selectSystemMessage,
   selectSystemComponents,
-  selectLastChecked,
-  selectIsLoading,
-  fetchSystemStatusStart,
+  selectSystemLogs,
+  selectSystemMetrics,
+  selectSystemLastUpdated,
+  selectSystemLoading,
+  fetchSystemStart,
   SystemStatus,
+  ComponentStatus,
 } from '../../store/slices/systemSlice';
 
 const SystemStatusPage: React.FC = () => {
   const dispatch = useDispatch();
   const status = useSelector(selectSystemStatus);
-  const message = useSelector(selectSystemMessage);
   const components = useSelector(selectSystemComponents);
-  const lastChecked = useSelector(selectLastChecked);
-  const loading = useSelector(selectIsLoading);
+  const logs = useSelector(selectSystemLogs);
+  const metrics = useSelector(selectSystemMetrics);
+  const lastUpdated = useSelector(selectSystemLastUpdated);
+  const isLoading = useSelector(selectSystemLoading);
 
-  const getStatusColor = (status: SystemStatus) => {
+  useEffect(() => {
+    dispatch(fetchSystemStart());
+    
+    // Set up polling every 30 seconds
+    const interval = setInterval(() => {
+      dispatch(fetchSystemStart());
+    }, 30000);
+    
+    return () => clearInterval(interval);
+  }, [dispatch]);
+
+  const handleRefresh = () => {
+    dispatch(fetchSystemStart());
+  };
+
+  const getStatusColor = (status: SystemStatus | ComponentStatus) => {
     switch (status) {
       case 'operational':
         return 'success';
       case 'degraded':
         return 'warning';
+      case 'down':
+        return 'error';
       case 'maintenance':
         return 'info';
-      case 'outage':
-        return 'error';
       default:
         return 'default';
     }
   };
 
-  const getStatusIcon = (status: SystemStatus) => {
+  const getStatusIcon = (status: SystemStatus | ComponentStatus) => {
     switch (status) {
       case 'operational':
-        return <OperationalIcon />;
+        return <OperationalIcon color="success" />;
       case 'degraded':
-        return <DegradedIcon />;
+        return <DegradedIcon color="warning" />;
+      case 'down':
+        return <DownIcon color="error" />;
       case 'maintenance':
-        return <MaintenanceIcon />;
-      case 'outage':
-        return <OutageIcon />;
+        return <MaintenanceIcon color="info" />;
       default:
-        return <MaintenanceIcon />; // Using MaintenanceIcon instead of InfoIcon
+        return null;
     }
   };
 
-  const formatTimestamp = (timestamp: number | null) => {
+  const formatDateTime = (timestamp: number | null) => {
     if (!timestamp) return 'Never';
+    
     return new Date(timestamp).toLocaleString();
-  };
-
-  const handleRefresh = () => {
-    dispatch(fetchSystemStatusStart());
-    // This would typically trigger an API call
   };
 
   return (
@@ -90,71 +110,219 @@ const SystemStatusPage: React.FC = () => {
           variant="outlined"
           startIcon={<RefreshIcon />}
           onClick={handleRefresh}
-          disabled={loading}
+          disabled={isLoading}
         >
           Refresh
         </Button>
       </Box>
 
-      <Grid container spacing={3}>
-        {/* System Status Overview */}
-        <Grid item xs={12}>
-          <Card>
-            <CardHeader title="System Overview" />
-            <Divider />
-            <CardContent>
-              <Box display="flex" alignItems="center">
-                <Chip
-                  label={status.toUpperCase()}
-                  color={getStatusColor(status) as any}
-                  icon={getStatusIcon(status)}
-                  sx={{ mr: 2 }}
-                />
-                {message && (
-                  <Typography variant="body1">{message}</Typography>
-                )}
-              </Box>
-              <Typography variant="caption" display="block" mt={2} color="textSecondary">
-                Last updated: {formatTimestamp(lastChecked)}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
+      {/* Overall Status Card */}
+      <Paper sx={{ p: 3, mb: 3, position: 'relative' }}>
+        {isLoading && (
+          <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0 }} />
+        )}
+        <Box display="flex" alignItems="center" mb={2}>
+          {getStatusIcon(status)}
+          <Typography variant="h5" sx={{ ml: 1 }}>
+            AI Hedge Fund System is currently{' '}
+            <Box component="span" fontWeight="bold" color={`${getStatusColor(status)}.main`}>
+              {status.toUpperCase()}
+            </Box>
+          </Typography>
+        </Box>
+        <Typography variant="body1" color="text.secondary">
+          Last updated: {formatDateTime(lastUpdated)}
+        </Typography>
+      </Paper>
 
-        {/* Component Status */}
+      {/* Component Status Section */}
+      <Grid container spacing={3} sx={{ mb: 3 }}>
         <Grid item xs={12}>
           <Card>
             <CardHeader title="Component Status" />
             <Divider />
             <CardContent>
-              <Grid container spacing={2}>
-                {components.map((component) => (
-                  <Grid item xs={12} sm={6} md={4} key={component.id}>
-                    <Box
-                      component={Paper}
-                      variant="outlined"
-                      sx={{ p: 2, height: '100%' }}
-                    >
-                      <Box display="flex" justifyContent="space-between" alignItems="center">
-                        <Typography variant="h6">{component.name}</Typography>
-                        <Chip
-                          size="small"
-                          color={getStatusColor(component.status) as any}
-                          icon={getStatusIcon(component.status)}
-                        />
-                      </Box>
-                      {component.message && (
-                        <Typography variant="body2" mt={1}>
-                          {component.message}
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Component</TableCell>
+                    <TableCell>Type</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell>Health</TableCell>
+                    <TableCell>Last Updated</TableCell>
+                    <TableCell>Description</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {components.map((component) => (
+                    <TableRow key={component.id}>
+                      <TableCell>
+                        <Typography variant="body1" fontWeight="medium">
+                          {component.name}
                         </Typography>
-                      )}
-                      <Typography variant="caption" display="block" mt={1} color="textSecondary">
-                        Last updated: {formatTimestamp(component.lastUpdated)}
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          label={component.type.charAt(0).toUpperCase() + component.type.slice(1)}
+                          size="small"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          icon={getStatusIcon(component.status)}
+                          label={component.status.charAt(0).toUpperCase() + component.status.slice(1)}
+                          color={getStatusColor(component.status) as any}
+                          size="small"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          <Box width="100%" mr={1}>
+                            <LinearProgress
+                              variant="determinate"
+                              value={component.healthScore}
+                              color={
+                                component.healthScore > 80 ? 'success' :
+                                component.healthScore > 50 ? 'warning' : 'error'
+                              }
+                              sx={{ height: 8, borderRadius: 5 }}
+                            />
+                          </Box>
+                          <Box minWidth={35}>
+                            <Typography variant="body2" color="text.secondary">
+                              {component.healthScore}%
+                            </Typography>
+                          </Box>
+                        </Box>
+                      </TableCell>
+                      <TableCell>
+                        {formatDateTime(component.lastUpdated)}
+                      </TableCell>
+                      <TableCell>
+                        {component.description}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
+      {/* System Metrics */}
+      <Grid container spacing={3} sx={{ mb: 3 }}>
+        <Grid item xs={12}>
+          <Card>
+            <CardHeader title="System Metrics" />
+            <Divider />
+            <CardContent>
+              <Grid container spacing={3}>
+                {metrics.map((metric) => (
+                  <Grid item xs={12} sm={6} md={4} key={metric.id}>
+                    <Paper sx={{ p: 2 }}>
+                      <Typography variant="body2" color="text.secondary">
+                        {metric.name}
                       </Typography>
-                    </Box>
+                      <Box display="flex" alignItems="center" mt={1}>
+                        <Typography variant="h5" fontWeight="medium">
+                          {metric.value.toLocaleString()} {metric.unit}
+                        </Typography>
+                        {metric.change !== undefined && (
+                          <Chip
+                            size="small"
+                            label={`${metric.change >= 0 ? '+' : ''}${metric.changePercent?.toFixed(1)}%`}
+                            color={metric.change >= 0 ? 'success' : 'error'}
+                            sx={{ ml: 1 }}
+                          />
+                        )}
+                      </Box>
+                      {metric.target !== undefined && (
+                        <Box sx={{ mt: 1 }}>
+                          <Typography variant="caption" color="text.secondary">
+                            Target: {metric.target} {metric.unit}
+                          </Typography>
+                          <LinearProgress
+                            variant="determinate"
+                            value={Math.min((metric.value / metric.target) * 100, 100)}
+                            color={
+                              metric.status === 'good' ? 'success' :
+                              metric.status === 'warning' ? 'warning' : 'error'
+                            }
+                            sx={{ height: 4, borderRadius: 5, mt: 0.5 }}
+                          />
+                        </Box>
+                      )}
+                    </Paper>
                   </Grid>
                 ))}
               </Grid>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
+      {/* System Logs */}
+      <Grid container spacing={3}>
+        <Grid item xs={12}>
+          <Card>
+            <CardHeader title="System Logs" />
+            <Divider />
+            <CardContent>
+              {logs.length === 0 ? (
+                <Typography variant="body1" color="text.secondary" textAlign="center" py={3}>
+                  No system logs available
+                </Typography>
+              ) : (
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Time</TableCell>
+                      <TableCell>Level</TableCell>
+                      <TableCell>Component</TableCell>
+                      <TableCell>Message</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {logs.map((log) => (
+                      <TableRow key={log.id}>
+                        <TableCell>
+                          <Box display="flex" alignItems="center">
+                            <TimeIcon fontSize="small" sx={{ mr: 0.5 }} />
+                            {new Date(log.timestamp).toLocaleString()}
+                          </Box>
+                        </TableCell>
+                        <TableCell>
+                          <Chip
+                            label={log.level.toUpperCase()}
+                            size="small"
+                            color={
+                              log.level === 'error' || log.level === 'critical' ? 'error' :
+                              log.level === 'warning' ? 'warning' :
+                              log.level === 'info' ? 'info' : 'default'
+                            }
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2">
+                            {log.component}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2">
+                            {log.message}
+                            {log.details && (
+                              <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.5 }}>
+                                {log.details}
+                              </Typography>
+                            )}
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </Grid>
