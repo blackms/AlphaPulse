@@ -1,177 +1,160 @@
 # AlphaPulse Alerting Configuration
 
-alerting:
-  enabled: true
-  check_interval: 60  # seconds
+# General settings
+enabled: true
+check_interval: 60  # seconds
+
+# Alert history storage
+history:
+  type: "database"  # "memory", "file", or "database"
+  db_path: "data/alerts.db"
+
+# Notification channels
+channels:
+  email:
+    enabled: true
+    smtp_server: "smtp.example.com"
+    smtp_port: 587
+    smtp_user: "${AP_EMAIL_USER}"
+    smtp_password: "${AP_EMAIL_PASSWORD}"
+    from_address: "alerts@example.com"
+    to_addresses:
+      - "admin@example.com"
+      - "analyst@example.com"
+    use_tls: true
   
-  # Alert history storage
-  history:
-    type: "file"
-    file_path: "data/alerts.jsonl"
+  slack:
+    enabled: true
+    webhook_url: "${AP_SLACK_WEBHOOK}"
+    channel: "#alerts"
+    username: "AlphaPulse Alerting"
   
-  # Notification channels
-  channels:
-    email:
-      enabled: true
-      type: "email"
-      smtp_server: "smtp.example.com"
-      smtp_port: 587
-      smtp_user: "${AP_EMAIL_USER}"
-      smtp_password: "${AP_EMAIL_PASSWORD}"
-      from_address: "alerts@example.com"
-      to_addresses: 
-        - "admin@example.com"
-        - "trader@example.com"
-      use_tls: true
-      
-    slack:
-      enabled: true
-      type: "slack"
-      webhook_url: "${AP_SLACK_WEBHOOK}"
-      channel: "#alerts"
-      username: "AlphaPulse Alerting"
-      
-    web:
-      enabled: true
-      type: "web"
-      max_alerts: 100
+  sms:
+    enabled: false
+    account_sid: "${AP_TWILIO_SID}"
+    auth_token: "${AP_TWILIO_TOKEN}"
+    from_number: "${AP_TWILIO_FROM}"
+    to_numbers:
+      - "${AP_TWILIO_TO_1}"
+      - "${AP_TWILIO_TO_2}"
   
-  # Alert rules
-  rules:
-    # Performance alerts
-    - rule_id: "sharpe_ratio_low"
-      name: "Low Sharpe Ratio"
-      description: "Alerts when the Sharpe ratio falls below threshold"
-      metric_name: "sharpe_ratio"
-      condition: "< 0.5"
-      severity: "warning"
-      message_template: "Sharpe ratio is {value:.2f}, below threshold of 0.5"
-      channels: ["email", "slack", "web"]
-      cooldown_period: 3600  # 1 hour
-      enabled: true
-      
-    - rule_id: "high_drawdown"
-      name: "High Drawdown"
-      description: "Alerts when drawdown exceeds threshold"
-      metric_name: "max_drawdown"
-      condition: "> 0.1"
-      severity: "error"
-      message_template: "Drawdown is {value:.2%}, exceeding threshold of 10%"
-      channels: ["email", "slack", "web"]
-      cooldown_period: 1800  # 30 minutes
-      enabled: true
-      
-    # Risk alerts
-    - rule_id: "high_var"
-      name: "High Value at Risk"
-      description: "Alerts when VaR exceeds threshold"
-      metric_name: "var_95"
-      condition: "> 0.05"
-      severity: "warning"
-      message_template: "Value at Risk (95%) is {value:.2%}, exceeding threshold of 5%"
-      channels: ["slack", "web"]
-      cooldown_period: 3600  # 1 hour
-      enabled: true
-      
-    - rule_id: "high_leverage"
-      name: "High Leverage"
-      description: "Alerts when portfolio leverage exceeds threshold"
-      metric_name: "leverage"
-      condition: "> 1.5"
-      severity: "error"
-      message_template: "Portfolio leverage is {value:.2f}x, exceeding threshold of 1.5x"
-      channels: ["email", "slack", "web"]
-      cooldown_period: 1800  # 30 minutes
-      enabled: true
-      
-    # API performance alerts
-    - rule_id: "high_api_latency"
-      name: "High API Latency"
-      description: "Alerts when API latency exceeds threshold"
-      metric_name: "api_latency"
-      condition: "> 1000"
-      severity: "warning"
-      message_template: "API latency is {value:.0f}ms, exceeding threshold of 1000ms"
-      channels: ["slack", "web"]
-      cooldown_period: 1800  # 30 minutes
-      enabled: true
-      
-    - rule_id: "high_error_rate"
-      name: "High Error Rate"
-      description: "Alerts when API error rate exceeds threshold"
-      metric_name: "error_rate"
-      condition: "> 0.05"
-      severity: "error"
-      message_template: "API error rate is {value:.2%}, exceeding threshold of 5%"
-      channels: ["email", "slack", "web"]
-      cooldown_period: 1800  # 30 minutes
-      enabled: true
-      
-    # Trade execution alerts
-    - rule_id: "high_slippage"
-      name: "High Slippage"
-      description: "Alerts when trade slippage exceeds threshold"
-      metric_name: "avg_slippage"
-      condition: "> 0.002"
-      severity: "warning"
-      message_template: "Average trade slippage is {value:.2%}, exceeding threshold of 0.2%"
-      channels: ["slack", "web"]
-      cooldown_period: 3600  # 1 hour
-      enabled: true
-      
-    - rule_id: "low_fill_rate"
-      name: "Low Fill Rate"
-      description: "Alerts when order fill rate falls below threshold"
-      metric_name: "fill_rate"
-      condition: "< 0.95"
-      severity: "warning"
-      message_template: "Order fill rate is {value:.2%}, below threshold of 95%"
-      channels: ["slack", "web"]
-      cooldown_period: 3600  # 1 hour
-      enabled: true
-      
-    # Agent performance alerts
-    - rule_id: "low_signal_quality"
-      name: "Low Signal Quality"
-      description: "Alerts when agent signal quality falls below threshold"
-      metric_name: "signal_quality"
-      condition: "< 0.6"
-      severity: "warning"
-      message_template: "Agent signal quality is {value:.2%}, below threshold of 60%"
-      channels: ["slack", "web"]
-      cooldown_period: 7200  # 2 hours
-      enabled: true
-      
-    # System alerts
-    - rule_id: "high_memory_usage"
-      name: "High Memory Usage"
-      description: "Alerts when system memory usage exceeds threshold"
-      metric_name: "memory_usage_percent"
-      condition: "> 85"
-      severity: "warning"
-      message_template: "System memory usage is {value:.1f}%, exceeding threshold of 85%"
-      channels: ["slack", "web"]
-      cooldown_period: 1800  # 30 minutes
-      enabled: true
-      
-    - rule_id: "high_cpu_usage"
-      name: "High CPU Usage"
-      description: "Alerts when system CPU usage exceeds threshold"
-      metric_name: "cpu_usage_percent"
-      condition: "> 90"
-      severity: "warning"
-      message_template: "System CPU usage is {value:.1f}%, exceeding threshold of 90%"
-      channels: ["slack", "web"]
-      cooldown_period: 1800  # 30 minutes
-      enabled: true
-      
-    - rule_id: "disk_space_low"
-      name: "Low Disk Space"
-      description: "Alerts when disk space falls below threshold"
-      metric_name: "disk_usage_percent"
-      condition: "> 90"
-      severity: "error"
-      message_template: "Disk usage is {value:.1f}%, exceeding threshold of 90%"
-      channels: ["email", "slack", "web"]
-      cooldown_period: 3600  # 1 hour
-      enabled: true
+  web:
+    enabled: true
+    max_alerts: 100
+
+# Alert rules
+rules:
+  # Performance alerts
+  - rule_id: "sharpe_ratio_low"
+    name: "Low Sharpe Ratio"
+    description: "Alerts when the Sharpe ratio falls below threshold"
+    metric_name: "sharpe_ratio"
+    condition: "< 0.5"
+    severity: "warning"
+    message_template: "Sharpe ratio is {value}, below threshold of 0.5"
+    channels: ["email", "slack", "web"]
+    cooldown_period: 3600  # 1 hour
+    enabled: true
+  
+  - rule_id: "drawdown_high"
+    name: "High Drawdown"
+    description: "Alerts when drawdown exceeds threshold"
+    metric_name: "max_drawdown"
+    condition: "> 0.1"
+    severity: "error"
+    message_template: "Drawdown is {value}, exceeding threshold of 10%"
+    channels: ["email", "sms", "slack", "web"]
+    cooldown_period: 1800  # 30 minutes
+    enabled: true
+  
+  # Risk alerts
+  - rule_id: "portfolio_leverage"
+    name: "High Portfolio Leverage"
+    description: "Alerts when portfolio leverage exceeds threshold"
+    metric_name: "leverage"
+    condition: "> 1.5"
+    severity: "error"
+    message_template: "Portfolio leverage is {value}, exceeding threshold of 1.5x"
+    channels: ["email", "sms", "slack", "web"]
+    cooldown_period: 1800  # 30 minutes
+    enabled: true
+  
+  - rule_id: "var_high"
+    name: "High Value at Risk"
+    description: "Alerts when Value at Risk exceeds threshold"
+    metric_name: "var_95"
+    condition: "> 0.05"
+    severity: "warning"
+    message_template: "Value at Risk (95%) is {value}, exceeding threshold of 5%"
+    channels: ["slack", "web"]
+    cooldown_period: 3600  # 1 hour
+    enabled: true
+  
+  # Trade execution alerts
+  - rule_id: "high_slippage"
+    name: "High Slippage"
+    description: "Alerts when trade slippage exceeds threshold"
+    metric_name: "avg_slippage"
+    condition: "> 0.002"
+    severity: "warning"
+    message_template: "Average trade slippage is {value}, exceeding threshold of 0.2%"
+    channels: ["slack", "web"]
+    cooldown_period: 3600  # 1 hour
+    enabled: true
+  
+  - rule_id: "low_fill_rate"
+    name: "Low Fill Rate"
+    description: "Alerts when order fill rate falls below threshold"
+    metric_name: "fill_rate"
+    condition: "< 0.95"
+    severity: "warning"
+    message_template: "Order fill rate is {value}, below threshold of 95%"
+    channels: ["slack", "web"]
+    cooldown_period: 3600  # 1 hour
+    enabled: true
+  
+  # System alerts
+  - rule_id: "high_memory_usage"
+    name: "High Memory Usage"
+    description: "Alerts when system memory usage exceeds threshold"
+    metric_name: "memory_usage_percent"
+    condition: "> 85"
+    severity: "warning"
+    message_template: "System memory usage is {value}%, exceeding threshold of 85%"
+    channels: ["slack", "web"]
+    cooldown_period: 1800  # 30 minutes
+    enabled: true
+  
+  - rule_id: "high_cpu_usage"
+    name: "High CPU Usage"
+    description: "Alerts when system CPU usage exceeds threshold"
+    metric_name: "cpu_usage_percent"
+    condition: "> 90"
+    severity: "warning"
+    message_template: "System CPU usage is {value}%, exceeding threshold of 90%"
+    channels: ["slack", "web"]
+    cooldown_period: 1800  # 30 minutes
+    enabled: true
+  
+  # API performance alerts
+  - rule_id: "high_api_latency"
+    name: "High API Latency"
+    description: "Alerts when API latency exceeds threshold"
+    metric_name: "api_p95_latency"
+    condition: "> 1000"
+    severity: "warning"
+    message_template: "API latency (p95) is {value}ms, exceeding threshold of 1000ms"
+    channels: ["slack", "web"]
+    cooldown_period: 1800  # 30 minutes
+    enabled: true
+  
+  - rule_id: "high_api_error_rate"
+    name: "High API Error Rate"
+    description: "Alerts when API error rate exceeds threshold"
+    metric_name: "api_error_rate"
+    condition: "> 0.05"
+    severity: "error"
+    message_template: "API error rate is {value}, exceeding threshold of 5%"
+    channels: ["email", "slack", "web"]
+    cooldown_period: 1800  # 30 minutes
+    enabled: true

@@ -21,6 +21,10 @@ from .metrics_calculations import (
     calculate_risk_metrics,
     calculate_trade_metrics
 )
+from .integrations.alerting import (
+    initialize_alerting,
+    process_metrics_for_alerts
+)
 
 # Global metrics storage
 API_LATENCY = defaultdict(list)
@@ -81,10 +85,12 @@ class EnhancedMetricsCollector:
     """
     
     def __init__(
-        self, 
+        self,
         config: Optional[MonitoringConfig] = None,
         storage: Optional[TimeSeriesStorage] = None,
-        risk_free_rate: float = 0.0
+        risk_free_rate: float = 0.0,
+        enable_alerting: bool = True,
+        alerting_config_path: Optional[str] = None
     ):
         """
         Initialize the enhanced metrics collector.
@@ -93,6 +99,8 @@ class EnhancedMetricsCollector:
             config: Monitoring configuration
             storage: Optional time series storage (if not provided, created from config)
             risk_free_rate: Risk-free rate for calculations
+            enable_alerting: Whether to enable the alerting system
+            alerting_config_path: Optional path to alerting configuration file
         """
         self.config = config or load_config()
         self.risk_free_rate = risk_free_rate
@@ -121,6 +129,11 @@ class EnhancedMetricsCollector:
         
         # Initialize API metrics history
         self._api_metrics_history = defaultdict(lambda: deque(maxlen=100))
+        
+        # Alerting system
+        self.enable_alerting = enable_alerting
+        self.alerting_config_path = alerting_config_path
+        self.alerting_initialized = False
     
     async def start(self):
         """
@@ -131,6 +144,17 @@ class EnhancedMetricsCollector:
             
         # Connect to storage
         await self.storage.connect()
+        
+        # Initialize alerting system if enabled
+        if self.enable_alerting:
+            try:
+                self.alerting_initialized = await initialize_alerting(self.alerting_config_path)
+                if self.alerting_initialized:
+                    self.logger.info("Alerting system initialized")
+                else:
+                    self.logger.warning("Failed to initialize alerting system")
+            except Exception as e:
+                self.logger.error(f"Error initializing alerting system: {str(e)}")
         
         # Start collection task if real-time is enabled
         if self.config.enable_realtime:
@@ -154,6 +178,15 @@ class EnhancedMetricsCollector:
             except asyncio.CancelledError:
                 pass
             self._collection_task = None
+        
+        # Shut down alerting system if initialized
+        if self.enable_alerting and self.alerting_initialized:
+            try:
+                from .integrations.alerting import shutdown_alerting
+                await shutdown_alerting()
+                self.logger.info("Alerting system shut down")
+            except Exception as e:
+                self.logger.error(f"Error shutting down alerting system: {str(e)}")
         
         # Disconnect from storage
         await self.storage.disconnect()
@@ -228,6 +261,31 @@ class EnhancedMetricsCollector:
                 await self.storage.store_metrics("system", now, system_metrics)
         
         self._last_collection_time = now
+        
+        # Process metrics for alerts if alerting is enabled and initialized
+        if self.enable_alerting and self.alerting_initialized:
+            try:
+                # Combine all metrics into a single dictionary for alerting
+                all_metrics = {}
+                for metric_type, metric_data in metrics.items():
+                    for key, value in metric_data.items():
+                        all_metrics[f"{key}"] = value
+                
+                # Process metrics for alerts
+                alerts = await process_metrics_for_alerts(all_metrics)
+                
+                if alerts:
+                    self.logger.info(f"Generated {len(alerts)} alerts from metrics")
+                    
+                    # Log alert details at debug level
+                    for alert in alerts:
+                        self.logger.debug(
+                            f"Alert: {alert.severity.value.upper()} - {alert.message} "
+                            f"(Metric: {alert.metric_name}={alert.metric_value})"
+                        )
+            except Exception as e:
+                self.logger.error(f"Error processing metrics for alerts: {str(e)}")
+        
         return metrics
     
     async def get_metrics_history(

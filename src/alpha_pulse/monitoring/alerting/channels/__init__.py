@@ -9,10 +9,12 @@ from .base import NotificationChannel
 from .email import EmailNotificationChannel
 from .slack import SlackNotificationChannel
 from .web import WebNotificationChannel
+from .sms import SMSNotificationChannel
 
 __all__ = [
     'NotificationChannel',
     'EmailNotificationChannel',
     'SlackNotificationChannel',
-    'WebNotificationChannel'
+    'WebNotificationChannel',
+    'SMSNotificationChannel'
 ]

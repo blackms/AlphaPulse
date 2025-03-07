@@ -124,6 +124,16 @@ class AlertingConfig:
                 "username": os.environ.get("AP_SLACK_USERNAME", "AlphaPulse Alerting")
             }
         
+        # SMS channel configuration
+        if os.environ.get("AP_SMS_ENABLED", "false").lower() == "true":
+            config["channels"]["sms"] = {
+                "enabled": True,
+                "account_sid": os.environ.get("AP_TWILIO_SID", ""),
+                "auth_token": os.environ.get("AP_TWILIO_TOKEN", ""),
+                "from_number": os.environ.get("AP_TWILIO_FROM", ""),
+                "to_numbers": os.environ.get("AP_TWILIO_TO", "").split(",")
+            }
+        
         # Web channel configuration
         config["channels"]["web"] = {
             "enabled": True,

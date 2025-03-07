@@ -290,5 +290,12 @@ def create_alert_history(config: Dict[str, Any]) -> AlertHistoryStorage:
     elif storage_type == "file":
         file_path = config.get("file_path", "alerts.jsonl")
         return FileAlertHistory(file_path=file_path)
+    elif storage_type == "database":
+        # Import here to avoid circular imports
+        from .storage import DatabaseAlertHistory
+        db_path = config.get("db_path", "alerts.db")
+        storage = DatabaseAlertHistory(db_path=db_path)
+        asyncio.create_task(storage.initialize())
+        return storage
     else:
         raise ValueError(f"Unsupported alert history storage type: {storage_type}")

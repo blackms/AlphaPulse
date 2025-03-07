@@ -56,6 +56,9 @@ class AlertManager:
                 elif channel_type == "slack":
                     from .channels.slack import SlackNotificationChannel
                     channel_class = SlackNotificationChannel
+                elif channel_type == "sms":
+                    from .channels.sms import SMSNotificationChannel
+                    channel_class = SMSNotificationChannel
                 elif channel_type == "web":
                     from .channels.web import WebNotificationChannel
                     channel_class = WebNotificationChannel
