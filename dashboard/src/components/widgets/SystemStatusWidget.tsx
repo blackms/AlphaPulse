@@ -40,7 +40,7 @@ const SystemStatusWidget: React.FC<SystemStatusWidgetProps> = ({
   const theme = useTheme();
   
   // Get status icon
-  const getStatusIcon = (statusType: string) => {
+  const getStatusIcon = (statusType: string): React.ReactElement => {
     switch (statusType) {
       case 'operational':
         return <CheckCircleIcon fontSize="small" />;
@@ -51,7 +51,7 @@ const SystemStatusWidget: React.FC<SystemStatusWidgetProps> = ({
       case 'outage':
         return <ErrorIcon fontSize="small" />;
       default:
-        return null;
+        return <CheckCircleIcon fontSize="small" color="disabled" />;
     }
   };
   
