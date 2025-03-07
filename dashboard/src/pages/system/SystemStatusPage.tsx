@@ -138,11 +138,11 @@ const SystemStatusPage: React.FC = () => {
           <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0 }} />
         )}
         <Box display="flex" alignItems="center" mb={2}>
-          {getStatusIcon(status)}
+          {getStatusIcon(status || SystemStatus.OPERATIONAL)}
           <Typography variant="h5" sx={{ ml: 1 }}>
             AI Hedge Fund System is currently{' '}
-            <Box component="span" fontWeight="bold" color={`${getStatusColor(status)}.main`}>
-              {status.toUpperCase()}
+            <Box component="span" fontWeight="bold" color={`${getStatusColor(status || SystemStatus.OPERATIONAL)}.main`}>
+              {status ? status.toUpperCase() : 'UNKNOWN'}
             </Box>
           </Typography>
         </Box>
@@ -170,7 +170,7 @@ const SystemStatusPage: React.FC = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {components.map((component) => (
+                  {components && components.length > 0 ? components.map((component) => (
                     <TableRow key={component.id}>
                       <TableCell>
                         <Typography variant="body1" fontWeight="medium">
@@ -179,15 +179,15 @@ const SystemStatusPage: React.FC = () => {
                       </TableCell>
                       <TableCell>
                         <Chip
-                          label={component.type.charAt(0).toUpperCase() + component.type.slice(1)}
+                          label={component.type ? component.type.charAt(0).toUpperCase() + component.type.slice(1) : 'Unknown'}
                           size="small"
                         />
                       </TableCell>
                       <TableCell>
                         <Chip
-                          icon={getStatusIcon(component.status)}
-                          label={component.status.charAt(0).toUpperCase() + component.status.slice(1)}
-                          color={getStatusColor(component.status) as any}
+                          icon={getStatusIcon(component.status || 'unknown')}
+                          label={component.status ? component.status.charAt(0).toUpperCase() + component.status.slice(1) : 'Unknown'}
+                          color={getStatusColor(component.status || 'unknown') as any}
                           size="small"
                         />
                       </TableCell>
@@ -196,17 +196,17 @@ const SystemStatusPage: React.FC = () => {
                           <Box width="100%" mr={1}>
                             <LinearProgress
                               variant="determinate"
-                              value={component.healthScore}
+                              value={component.healthScore || 0}
                               color={
-                                component.healthScore > 80 ? 'success' :
-                                component.healthScore > 50 ? 'warning' : 'error'
+                                (component.healthScore || 0) > 80 ? 'success' :
+                                (component.healthScore || 0) > 50 ? 'warning' : 'error'
                               }
                               sx={{ height: 8, borderRadius: 5 }}
                             />
                           </Box>
                           <Box minWidth={35}>
                             <Typography variant="body2" color="text.secondary">
-                              {component.healthScore}%
+                              {component.healthScore || 0}%
                             </Typography>
                           </Box>
                         </Box>
@@ -218,7 +218,11 @@ const SystemStatusPage: React.FC = () => {
                         {component.description}
                       </TableCell>
                     </TableRow>
-                  ))}
+                  )) : (
+                    <TableRow>
+                      <TableCell colSpan={6} align="center">No components available</TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
@@ -234,7 +238,7 @@ const SystemStatusPage: React.FC = () => {
             <Divider />
             <CardContent>
               <Grid container spacing={3}>
-                {metrics.map((metric) => (
+                {metrics && metrics.length > 0 ? metrics.map((metric) => (
                   <Grid item xs={12} sm={6} md={4} key={metric.id}>
                     <Paper sx={{ p: 2 }}>
                       <Typography variant="body2" color="text.secondary">
@@ -242,7 +246,7 @@ const SystemStatusPage: React.FC = () => {
                       </Typography>
                       <Box display="flex" alignItems="center" mt={1}>
                         <Typography variant="h5" fontWeight="medium">
-                          {metric.value.toLocaleString()} {metric.unit}
+                          {(metric.value || 0).toLocaleString()} {metric.unit}
                         </Typography>
                         {metric.change !== undefined && (
                           <Chip
@@ -260,7 +264,7 @@ const SystemStatusPage: React.FC = () => {
                           </Typography>
                           <LinearProgress
                             variant="determinate"
-                            value={Math.min((metric.value / metric.target) * 100, 100)}
+                            value={Math.min(((metric.value || 0) / (metric.target || 1)) * 100, 100)}
                             color={
                               metric.status === 'good' ? 'success' :
                               metric.status === 'warning' ? 'warning' : 'error'
@@ -271,7 +275,13 @@ const SystemStatusPage: React.FC = () => {
                       )}
                     </Paper>
                   </Grid>
-                ))}
+                )) : (
+                  <Grid item xs={12}>
+                    <Typography variant="body1" color="text.secondary" textAlign="center" py={3}>
+                      No system metrics available
+                    </Typography>
+                  </Grid>
+                )}
               </Grid>
             </CardContent>
           </Card>
@@ -285,7 +295,7 @@ const SystemStatusPage: React.FC = () => {
             <CardHeader title="System Logs" />
             <Divider />
             <CardContent>
-              {logs.length === 0 ? (
+              {!logs || logs.length === 0 ? (
                 <Typography variant="body1" color="text.secondary" textAlign="center" py={3}>
                   No system logs available
                 </Typography>
