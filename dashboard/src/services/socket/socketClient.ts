@@ -103,6 +103,33 @@ class SocketClient {
     }
   }
 
+  // Alias methods to match the useSocket hook
+  public subscribe(channel: string, params?: any): void {
+    if (this.socket) {
+      this.socket.emit('subscribe', { channel, params });
+    }
+  }
+
+  public unsubscribe(channel: string): void {
+    if (this.socket) {
+      this.socket.emit('unsubscribe', { channel });
+    }
+  }
+
+  public addListener(channel: string, listener: SocketListener): void {
+    this.on(channel, listener);
+  }
+
+  public removeListener(channel: string, listener: SocketListener): void {
+    this.off(channel, listener);
+  }
+
+  public emit(event: string, data: any): void {
+    if (this.socket) {
+      this.socket.emit(event, data);
+    }
+  }
+
   private notifyListeners(channel: string, data: any): void {
     if (this.listeners[channel]) {
       this.listeners[channel].forEach((listener) => {
