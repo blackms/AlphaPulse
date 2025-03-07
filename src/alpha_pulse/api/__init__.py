@@ -1,4 +1,5 @@
 """
-AlphaPulse API Package.
-This package contains the FastAPI implementation for exposing AlphaPulse functionality.
+API package for AlphaPulse.
+
+This package contains the API implementation for the AlphaPulse system.
 """

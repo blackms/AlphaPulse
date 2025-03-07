@@ -1,47 +1,58 @@
-"""Alerts router."""
-from typing import Dict, List, Optional
-from datetime import datetime
-from fastapi import APIRouter, Depends, Query, HTTPException
+"""
+Alerts router.
 
-from ..dependencies import get_current_user, has_permission
+This module defines the API endpoints for alerts.
+"""
+import logging
+from typing import List, Dict, Any, Optional
+from datetime import datetime
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
+
+from ..dependencies import (
+    require_view_alerts,
+    require_acknowledge_alerts,
+    get_alert_accessor,
+    get_current_user
+)
 from ..data import AlertDataAccessor
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
-alert_accessor = AlertDataAccessor()
 
 
-@router.get("/", response_model=List[Dict])
+@router.get("/alerts")
 async def get_alerts(
-    start_time: Optional[datetime] = Query(None),
-    end_time: Optional[datetime] = Query(None),
-    severity: Optional[str] = Query(None),
-    acknowledged: Optional[bool] = Query(None),
-    current_user: Dict = Depends(get_current_user)
-):
+    start_time: Optional[datetime] = None,
+    end_time: Optional[datetime] = None,
+    severity: Optional[str] = None,
+    acknowledged: Optional[bool] = None,
+    source: Optional[str] = None,
+    _: Dict[str, Any] = Depends(require_view_alerts),
+    alert_accessor: AlertDataAccessor = Depends(get_alert_accessor)
+) -> List[Dict[str, Any]]:
     """
-    Get alert history.
+    Get alerts.
     
     Args:
-        start_time: Filter alerts after this time
-        end_time: Filter alerts before this time
-        severity: Filter by severity
+        start_time: Start time for the query
+        end_time: End time for the query
+        severity: Filter by severity (info, warning, critical)
         acknowledged: Filter by acknowledgment status
-        
-    Returns:
-        List of alert data
-    """
-    # Check permissions
-    if not has_permission(current_user, "view_alerts"):
-        raise HTTPException(status_code=403, detail="Not authorized to view alerts")
+        source: Filter by source
     
+    Returns:
+        List of alerts
+    """
     # Build filters
     filters = {}
     if severity:
         filters["severity"] = severity
     if acknowledged is not None:
         filters["acknowledged"] = acknowledged
+    if source:
+        filters["source"] = source
     
-    # Get from data accessor
     return await alert_accessor.get_alerts(
         start_time=start_time,
         end_time=end_time,
@@ -49,31 +60,27 @@ async def get_alerts(
     )
 
 
-@router.post("/{alert_id}/acknowledge", response_model=Dict)
+@router.post("/alerts/{alert_id}/acknowledge")
 async def acknowledge_alert(
-    alert_id: str,
-    current_user: Dict = Depends(get_current_user)
-):
+    alert_id: int = Path(..., description="The ID of the alert to acknowledge"),
+    user: Dict[str, Any] = Depends(require_acknowledge_alerts),
+    alert_accessor: AlertDataAccessor = Depends(get_alert_accessor)
+) -> Dict[str, Any]:
     """
     Acknowledge an alert.
     
     Args:
         alert_id: ID of the alert to acknowledge
-        
-    Returns:
-        Updated alert data
-    """
-    # Check permissions
-    if not has_permission(current_user, "acknowledge_alerts"):
-        raise HTTPException(status_code=403, detail="Not authorized to acknowledge alerts")
     
-    # Acknowledge alert
+    Returns:
+        Acknowledgment result
+    """
     result = await alert_accessor.acknowledge_alert(
         alert_id=alert_id,
-        user=current_user["username"]
+        user=user["username"]
     )
     
     if not result["success"]:
-        raise HTTPException(status_code=404, detail=result["error"])
+        raise HTTPException(status_code=404, detail="Alert not found or already acknowledged")
     
     return result

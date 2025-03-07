@@ -1,27 +1,32 @@
-"""System router."""
-from typing import Dict
-from fastapi import APIRouter, Depends, HTTPException
+"""
+System router.
 
-from ..dependencies import get_current_user, has_permission
+This module defines the API endpoints for system data.
+"""
+import logging
+from typing import Dict, Any
+from fastapi import APIRouter, Depends
+
+from ..dependencies import (
+    require_view_system,
+    get_system_accessor
+)
 from ..data import SystemDataAccessor
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
-system_accessor = SystemDataAccessor()
 
 
-@router.get("/", response_model=Dict)
+@router.get("/system")
 async def get_system_metrics(
-    current_user: Dict = Depends(get_current_user)
-):
+    _: Dict[str, Any] = Depends(require_view_system),
+    system_accessor: SystemDataAccessor = Depends(get_system_accessor)
+) -> Dict[str, Any]:
     """
-    Get current system metrics.
+    Get system metrics.
     
     Returns:
-        System metrics
+        System metrics data
     """
-    # Check permissions
-    if not has_permission(current_user, "view_system"):
-        raise HTTPException(status_code=403, detail="Not authorized to view system metrics")
-    
-    # Get from data accessor
     return await system_accessor.get_system_metrics()

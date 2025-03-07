@@ -1,271 +1,123 @@
-# AlphaPulse 🚀🌟
+# AlphaPulse - AI Hedge Fund
 
-[![Tests](https://github.com/blackms/AlphaPulse/actions/workflows/python-app.yml/badge.svg)](https://github.com/blackms/AlphaPulse/actions/workflows/python-app.yml)
-[![codecov](https://codecov.io/gh/blackms/AlphaPulse/branch/main/graph/badge.svg)](https://codecov.io/gh/blackms/AlphaPulse)
-[![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/release/python-3110/)
-[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
-[![Last Commit](https://img.shields.io/github/last-commit/blackms/AlphaPulse)](https://github.com/blackms/AlphaPulse/commits/main)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+AlphaPulse is an advanced algorithmic trading system that combines multiple AI agents, sophisticated risk management, and portfolio optimization to make data-driven investment decisions in cryptocurrency markets.
 
+## Features
 
-A comprehensive cryptocurrency and stock trading system with AI-powered portfolio management. 🤖💹
+- Multi-agent architecture combining technical, fundamental, sentiment, and value analysis
+- Risk-first approach with multiple layers of risk controls
+- Portfolio optimization using modern portfolio theory
+- Extensible framework for adding new strategies and data sources
+- Real-time monitoring and performance analytics
 
-## Features ✨
+## Getting Started
 
-### AI Hedge Fund System 🧠💫
-- 🤖 Multi-agent trading system with specialized strategies:
-  - 🎯 Activist investing (Bill Ackman strategy)
-  - 💎 Value investing (Warren Buffett strategy)
-  - 📊 Fundamental analysis
-  - 🗣️ Sentiment analysis
-  - 📈 Technical analysis
-  - 💰 Valuation analysis
-- 🎯 Intelligent signal aggregation
-- ⚖️ Risk-aware position sizing
-- 📊 Performance tracking and adaptation
-- 🔄 Real-time strategy adjustment
+### Prerequisites
 
-### Portfolio Management 💼✨
-- 💹 Black-Litterman portfolio optimization
-- 📊 Hierarchical Risk Parity (HRP) strategy
-- 🏛️ Modern Portfolio Theory (MPT) implementation
-- 🤖 LLM-assisted portfolio analysis
-- 🎯 Dynamic rebalancing
-- 📈 Performance attribution
+- Python 3.9+
+- Docker and Docker Compose
+- PostgreSQL with TimescaleDB (or use Docker setup)
+- Redis (or use Docker setup)
 
-### Risk Management 🔒💪
-- 📉 Multi-asset risk analysis
-- ⚖️ Position sizing optimization
-- 🚦 Portfolio-level risk controls
-- ⏱️ Real-time monitoring
-- 🎯 Stop-loss management
-- 💫 Dynamic volatility adjustment
+### Installation
 
-### Hedging Strategies 🛡️✨
-- 🧮 Grid-based hedging with risk management
-- 💱 Basic futures hedging
-- 🔄 Position tracking and rebalancing
-- 🎭 Multiple trading modes (Real/Paper/Recommendation)
-- 🎯 Delta-neutral strategies
-- ⚡ Quick position adjustment
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/your-org/alpha-pulse.git
+   cd alpha-pulse
+   ```
 
-### Data Pipeline 📡🔍
-- ⏱️ Real-time market data integration
-- 🗄️ Historical data management
-- 🛠️ Feature engineering
-- 💾 Database integration
-- 🔄 Automated data cleaning
-- 📊 Market data normalization
+2. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-### Execution ⚡🎯
-- 🌐 Multi-exchange support (Binance, Bybit)
-- 📝 Paper trading simulation
-- 📈 Real-time order management
-- 🛡️ Risk-aware execution
-- ⚡ Smart order routing
-- 🔒 Fail-safe mechanisms
+3. Set up the database infrastructure:
+   ```bash
+   ./scripts/setup_database.sh
+   ```
 
-### Machine Learning 🤖🧠
-- 🔧 Feature generation
-- 🎓 Model training pipeline
-- 🧠 Reinforcement learning integration
-- 💡 LLM-powered analysis
-- 🎯 Hyperparameter optimization
-- 📊 Model performance tracking
+4. Initialize the database:
+   ```bash
+   python src/scripts/init_db.py
+   ```
 
-## Installation 🛠️
+### Running the System
+
+1. Start the data pipeline:
+   ```bash
+   python -m alpha_pulse.data_pipeline
+   ```
+
+2. Launch the trading engine:
+   ```bash
+   python -m alpha_pulse.main
+   ```
+
+3. Monitor performance:
+   ```bash
+   python -m alpha_pulse.monitoring
+   ```
+
+## Database Infrastructure
+
+AlphaPulse uses a robust database infrastructure:
+
+- **PostgreSQL with TimescaleDB**: For relational data and time-series metrics
+- **Redis**: For caching and real-time messaging
+
+### Database Setup
+
+The database infrastructure can be set up using Docker Compose:
 
 ```bash
-# Clone repository
-git clone https://github.com/blackms/AlphaPulse.git
-cd AlphaPulse
-
-# Install dependencies
-pip install -e .
+docker-compose -f docker-compose.db.yml up -d
 ```
 
-## Quick Start 🚀
+This will start:
+- PostgreSQL with TimescaleDB extension
+- Redis
+- PgAdmin (web interface for PostgreSQL)
 
-### AI Hedge Fund 🤖
+### Database Schema
 
-```python
-from alpha_pulse.agents.manager import AgentManager
-from alpha_pulse.data_pipeline.managers.mock_data import MockDataManager
+The database schema includes:
+- Users and authentication
+- Portfolios and positions
+- Trades and orders
+- Time-series metrics
+- Alerts and notifications
 
-# Initialize agent manager
-manager = AgentManager()
-await manager.initialize()
+### Database Access
 
-# Load market data
-data_manager = MockDataManager()
-market_data = await data_manager.get_market_data(symbols=["AAPL", "MSFT", "GOOGL"])
+The database access layer provides:
+- Connection management
+- Repository pattern for data access
+- ORM models
+- Transaction support
 
-# Generate trading signals
-signals = await manager.generate_signals(market_data)
+## Examples
 
-# Get agent performance
-performance = manager.get_agent_performance()
-```
+Check out the examples directory for sample scripts:
 
-### Portfolio Management 💼
+- `examples/database/demo_database.py`: Demonstrates database operations
+- `examples/trading/demo_ai_hedge_fund.py`: Demonstrates the AI Hedge Fund
+- `examples/monitoring/demo_monitoring.py`: Demonstrates the monitoring system
 
-```python
-from alpha_pulse.portfolio.portfolio_manager import PortfolioManager
-from alpha_pulse.portfolio.strategies import BlackLittermanStrategy
-
-# Initialize portfolio manager
-manager = PortfolioManager(strategy=BlackLittermanStrategy())
-
-# Run optimization
-optimal_weights = manager.optimize_portfolio(assets, returns)
-```
-
-### Grid Hedging 🛡️
-
-```python
-from alpha_pulse.execution.broker_factory import create_broker, TradingMode
-from alpha_pulse.hedging.grid_hedge_bot import GridHedgeBot
-
-# Create paper trading broker
-broker = create_broker(trading_mode=TradingMode.PAPER)
-
-# Initialize grid hedging bot
-bot = await GridHedgeBot.create_for_spot_hedge(
-    broker=broker,
-    symbol="BTCUSDT",
-    volatility=0.02,  # 2% daily volatility
-    spot_quantity=1.0  # Amount to hedge
-)
-
-# Run strategy
-bot.execute(current_price)
-```
-
-### Data Pipeline 📡
-
-```python
-from alpha_pulse.data_pipeline.data_fetcher import DataFetcher
-from alpha_pulse.features.feature_engineering import FeatureEngineer
-
-# Fetch market data
-fetcher = DataFetcher()
-data = await fetcher.fetch_ohlcv("BTCUSDT", "1h")
-
-# Generate features
-engineer = FeatureEngineer()
-features = engineer.calculate_features(data)
-```
-
-## Configuration ⚙️
-
-### AI Hedge Fund 🤖
-
-Create a configuration file at `config/ai_hedge_fund_config.yaml`:
-
-```yaml
-agents:
-  agent_weights:
-    activist: 0.15
-    value: 0.20
-    fundamental: 0.20
-    sentiment: 0.15
-    technical: 0.15
-    valuation: 0.15
-
-risk:
-  max_position_size: 0.20
-  max_portfolio_leverage: 1.5
-  max_drawdown: 0.25
-  stop_loss: 0.10
-
-execution:
-  mode: paper
-  initial_balance: 1000000
-  slippage: 0.001
-  fee_rate: 0.001
-```
-
-### Exchange Credentials 🔑
-
-Create a credentials file at `src/alpha_pulse/exchanges/credentials/config.yaml`:
-
-```yaml
-binance:
-  api_key: "your-api-key"
-  api_secret: "your-api-secret"
-  testnet: true  # Use testnet for testing
-
-bybit:
-  api_key: "your-api-key"
-  api_secret: "your-api-secret"
-  testnet: true
-```
-
-### Grid Hedging 🛡️
-
-Configure hedging parameters in `src/alpha_pulse/hedging/config/grid_hedge.yaml`:
-
-```yaml
-symbol: BTCUSDT
-trading_mode: PAPER  # REAL, PAPER, or RECOMMENDATION
-grid:
-  volatility: 0.02  # 2% daily volatility
-  num_levels: 5
-  direction: SHORT  # For hedging spot
-risk:
-  stop_loss_pct: 0.04  # 4% stop loss
-  take_profit_pct: 0.06  # 6% take profit
-```
-
-## Examples 📚
-
-The `src/alpha_pulse/examples/` directory contains example scripts:
-
-- 🤖 `demo_ai_hedge_fund.py`: Multi-agent trading system
-- 💼 `demo_portfolio_rebalancing.py`: Portfolio optimization
-- 🛡️ `demo_grid_hedge_integration.py`: Grid hedging strategy
-- 📊 `demo_feature_engineering.py`: Feature calculation
-- 🎓 `demo_model_training.py`: ML model training
-- 🧠 `demo_rl_trading.py`: Reinforcement learning
-- 💡 `demo_llm_portfolio_analysis.py`: LLM integration
-
-## Documentation 📚
-
-### Technical Documentation 📖
-- [AI Hedge Fund Technical Documentation](AI_HEDGE_FUND_DOCUMENTATION.md) - Comprehensive system architecture and implementation details
-- [API Documentation](API_DOCUMENTATION.md) - REST API endpoints and usage
-
-### Module Documentation 📑
-- [AI Hedge Fund Agents](src/alpha_pulse/agents/README.md) - Trading agents and signal generation
-- [Portfolio Management](src/alpha_pulse/portfolio/README.md) - Portfolio optimization strategies
-- [Risk Management](src/alpha_pulse/risk_management/README.md) - Risk controls and position sizing
-- [Hedging Strategies](src/alpha_pulse/hedging/README.md) - Grid hedging and futures hedging
-- [Data Pipeline](src/alpha_pulse/data_pipeline/README.md) - Data ingestion and processing
-- [Feature Engineering](src/alpha_pulse/features/README.md) - Technical indicators and ML features
-- [Reinforcement Learning](src/alpha_pulse/rl/README.md) - RL models and training
-
-### Additional Resources 📌
-- [Deployment Guide](DEPLOYMENT.md) - Production deployment instructions
-- [Release Notes](RELEASE.md) - Version history and changes
-
-## Testing 🧪
+To run the database demo:
 
 ```bash
-# Run all tests
-python -m pytest src/alpha_pulse/tests/
-
-# Run specific test file
-python -m pytest src/alpha_pulse/tests/test_hedging.py
+cd examples/database
+./run_demo.sh
 ```
 
-## Contributing 🤝
+## Documentation
 
-1. 🔄 Fork the repository
-2. 🌿 Create a feature branch
-3. ✍️ Commit your changes
-4. ⬆️ Push to the branch
-5. 🎯 Create a Pull Request
+- [API Documentation](API_DOCUMENTATION.md)
+- [System Architecture](SYSTEM_ARCHITECTURE.md)
+- [Hedge Fund Requirements](HEDGE_FUND_REQUIREMENTS.md)
+- [Deployment Guide](DEPLOYMENT.md)
 
-## License 📄
+## License
 
-This project is licensed under the GNU Affero General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

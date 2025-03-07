@@ -1,0 +1,32 @@
+# Database Configuration for AI Hedge Fund
+
+# PostgreSQL Configuration
+postgres:
+  host: localhost
+  port: 5432
+  database: alphapulse
+  username: postgres
+  password: 
+  schema: public
+  sslmode: disable
+  pool:
+    min_connections: 5
+    max_connections: 20
+    max_idle_time_seconds: 300
+  timescale:
+    enabled: false  # TimescaleDB is not available
+
+# Redis Configuration
+redis:
+  host: localhost
+  port: 6379
+  password: 
+  database: 0
+  ssl: false
+  pool:
+    max_connections: 20
+  timeout: 10
+  cache:
+    ttl_seconds: 300
+  pubsub:
+    channel_prefix: alphapulse

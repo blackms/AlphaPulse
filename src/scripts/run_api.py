@@ -1,46 +1,50 @@
-"""Launch the API server."""
+#!/usr/bin/env python
+"""
+Run the AlphaPulse API server.
+
+This script starts the API server using uvicorn.
+"""
 import os
+import sys
 import argparse
-import uvicorn
 import logging
-from alpha_pulse.api.config import load_config
+import uvicorn
+from pathlib import Path
+
+# Add the src directory to the Python path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
-
-logger = logging.getLogger("alpha_pulse.api.launcher")
+logger = logging.getLogger('run_api')
 
 
 def main():
     """Run the API server."""
-    parser = argparse.ArgumentParser(description="Launch the AI Hedge Fund Dashboard API")
-    parser.add_argument("--host", help="Host to bind to", default=None)
-    parser.add_argument("--port", help="Port to bind to", type=int, default=None)
-    parser.add_argument("--reload", help="Enable auto-reload", action="store_true")
+    parser = argparse.ArgumentParser(description='Run the AlphaPulse API server')
+    parser.add_argument('--host', default='0.0.0.0', help='Host to bind to')
+    parser.add_argument('--port', type=int, default=8000, help='Port to bind to')
+    parser.add_argument('--reload', action='store_true', help='Enable auto-reload')
+    parser.add_argument('--workers', type=int, default=1, help='Number of worker processes')
+    parser.add_argument('--log-level', default='info', help='Log level')
     
     args = parser.parse_args()
     
-    # Load config
-    config = load_config()
+    logger.info(f"Starting API server on {args.host}:{args.port}")
     
-    # Get host and port
-    host = args.host or config.host
-    port = args.port or config.port
-    
-    logger.info(f"Starting API server on {host}:{port}")
-    logger.info(f"Swagger UI available at http://{host}:{port}/docs")
-    
-    # Run server
+    # Run the server
     uvicorn.run(
         "alpha_pulse.api.main:app",
-        host=host,
-        port=port,
-        reload=args.reload
+        host=args.host,
+        port=args.port,
+        reload=args.reload,
+        workers=args.workers,
+        log_level=args.log_level
     )
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
