@@ -77,7 +77,7 @@ const TradingActivityWidget: React.FC<TradingActivityWidgetProps> = ({
       case 'failed':
         return <ErrorIcon fontSize="small" color="error" />;
       default:
-        return null;
+        return <CheckCircleIcon fontSize="small" color="disabled" />;
     }
   };
   
@@ -126,6 +126,7 @@ const TradingActivityWidget: React.FC<TradingActivityWidgetProps> = ({
               <React.Fragment key={trade.id}>
                 <ListItem
                   alignItems="flex-start"
+                  // @ts-ignore - MUI v5 type issue with button prop
                   button={!!onTradeClick}
                   onClick={() => onTradeClick && onTradeClick(trade)}
                   sx={{ px: 1 }}
