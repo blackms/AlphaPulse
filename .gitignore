@@ -60,11 +60,3 @@ binance_credentials.json
 .clinerules*
 
 .venv
-.roomodes
-.roo/system-prompt-architect
-.roo/system-prompt-ask
-.roo/system-prompt-code
-.roo/system-prompt-debug
-.roo/system-prompt-test
-memory-bank/*
-memory-bank/activeContext.md
