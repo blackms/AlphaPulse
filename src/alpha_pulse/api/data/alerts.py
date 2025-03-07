@@ -14,7 +14,6 @@ class AlertDataAccessor:
         self.logger = logging.getLogger("alpha_pulse.api.data.alerts")
         config = load_alerting_config()
         self.alert_manager = AlertManager(config)
-        self.alert_manager = AlertManager.get_instance()
     
     async def get_alerts(
         self,
