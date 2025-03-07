@@ -23,6 +23,7 @@ setup(
         "python-dotenv",
         "loguru",
         "PyJWT",
+        "asyncpg",
         "pytest",
         "pytest-asyncio",
         "pytest-cov",
