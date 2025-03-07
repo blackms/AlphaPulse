@@ -1,6 +1,6 @@
 from decimal import Decimal
 from typing import List, Optional
-from alpha_pulse.exchanges.base import BaseExchange
+from alpha_pulse.exchanges.interfaces import BaseExchange
 from alpha_pulse.hedging.common.interfaces import MarketDataProvider as IPositionFetcher
 from alpha_pulse.hedging.common.types import SpotPosition, FuturesPosition
 
