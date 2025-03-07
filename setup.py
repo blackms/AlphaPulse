@@ -25,6 +25,7 @@ setup(
         "PyJWT",
         "asyncpg",
         "aiosmtplib",
+        "aioredis",
         "pytest",
         "pytest-asyncio",
         "pytest-cov",
