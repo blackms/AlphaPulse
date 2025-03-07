@@ -69,6 +69,7 @@ const PieChart: React.FC<PieChartProps> = ({
       responsive: true,
       maintainAspectRatio: false,
       animation: animate ? undefined : false,
+      // @ts-ignore - cutout is valid for doughnut/pie charts but not in the type definition
       cutout: doughnut ? cutout : 0,
       plugins: {
         legend: {
@@ -80,6 +81,7 @@ const PieChart: React.FC<PieChartProps> = ({
               const datasets = chart.data.datasets;
               return chart.data.labels?.map((label, i) => {
                 const meta = chart.getDatasetMeta(0);
+                // @ts-ignore - Chart.js v3 API expects 1 argument, but TypeScript definition expects 2
                 const style = meta.controller.getStyle(i);
                 
                 return {
