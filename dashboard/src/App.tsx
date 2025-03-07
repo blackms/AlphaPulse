@@ -1,68 +1,35 @@
 import React from 'react';
-import { BrowserRouter as Router } from 'react-router-dom';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
-import CssBaseline from '@mui/material/CssBaseline';
-import AppRoutes from './routes';
+import { BrowserRouter } from 'react-router-dom';
+import { Provider } from 'react-redux';
+import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
+import Router from './routes';
+import store from './store/store';
 
-// Create a theme instance
+// Create theme
 const theme = createTheme({
   palette: {
+    mode: 'light',
     primary: {
-      main: '#3f51b5', // Indigo
+      main: '#1976d2',
     },
     secondary: {
-      main: '#f50057', // Pink
-    },
-    error: {
-      main: '#f44336', // Red
-    },
-    warning: {
-      main: '#ff9800', // Orange
-    },
-    info: {
-      main: '#2196f3', // Blue
-    },
-    success: {
-      main: '#4caf50', // Green
+      main: '#dc004e',
     },
     background: {
-      default: '#f5f5f5', // Light Grey
-      paper: '#ffffff', // White
-    },
-    text: {
-      primary: '#212121', // Dark Grey
-      secondary: '#757575', // Medium Grey
+      default: '#f5f5f5',
     },
   },
   typography: {
     fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
-    h1: {
-      fontSize: '2.5rem',
-      fontWeight: 500,
-    },
-    h2: {
-      fontSize: '2rem',
-      fontWeight: 500,
-    },
-    h3: {
-      fontSize: '1.75rem',
-      fontWeight: 500,
-    },
     h4: {
-      fontSize: '1.5rem',
-      fontWeight: 500,
+      fontWeight: 600,
     },
     h5: {
-      fontSize: '1.25rem',
-      fontWeight: 500,
+      fontWeight: 600,
     },
     h6: {
-      fontSize: '1rem',
-      fontWeight: 500,
+      fontWeight: 600,
     },
-  },
-  shape: {
-    borderRadius: 8,
   },
   components: {
     MuiButton: {
@@ -75,7 +42,8 @@ const theme = createTheme({
     MuiCard: {
       styleOverrides: {
         root: {
-          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+          borderRadius: 8,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
         },
       },
     },
@@ -84,12 +52,14 @@ const theme = createTheme({
 
 const App: React.FC = () => {
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <Router>
-        <AppRoutes />
-      </Router>
-    </ThemeProvider>
+    <Provider store={store}>
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <BrowserRouter>
+          <Router />
+        </BrowserRouter>
+      </ThemeProvider>
+    </Provider>
   );
 };
 

@@ -1,40 +1,44 @@
 import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
-import { useAuth } from './hooks/useAuth';
-import MainLayout from './components/layout/MainLayout';
-import LoginPage from './pages/auth/LoginPage';
+import { Navigate, useRoutes } from 'react-router-dom';
+
+// Layouts
+import DashboardLayout from './layouts/DashboardLayout';
+import AuthLayout from './layouts/AuthLayout';
+
+// Pages
 import DashboardPage from './pages/dashboard/DashboardPage';
-import AlertsPage from './pages/alerts/AlertsPage';
 import PortfolioPage from './pages/portfolio/PortfolioPage';
 import TradingPage from './pages/trading/TradingPage';
+import AlertsPage from './pages/alerts/AlertsPage';
 import SystemStatusPage from './pages/system/SystemStatusPage';
 import SettingsPage from './pages/settings/SettingsPage';
+import LoginPage from './pages/auth/LoginPage';
+import NotFoundPage from './pages/NotFoundPage';
 
-// Protected route wrapper
-interface ProtectedRouteProps {
-  element: React.ReactElement;
+export default function Router() {
+  return useRoutes([
+    {
+      path: '/dashboard',
+      element: <DashboardLayout />,
+      children: [
+        { path: '', element: <DashboardPage /> },
+        { path: 'portfolio', element: <PortfolioPage /> },
+        { path: 'trading', element: <TradingPage /> },
+        { path: 'alerts', element: <AlertsPage /> },
+        { path: 'system', element: <SystemStatusPage /> },
+        { path: 'settings', element: <SettingsPage /> },
+      ],
+    },
+    {
+      path: '/',
+      element: <AuthLayout />,
+      children: [
+        { path: '/', element: <Navigate to="/dashboard" /> },
+        { path: 'login', element: <LoginPage /> },
+        { path: '404', element: <NotFoundPage /> },
+        { path: '*', element: <Navigate to="/404" /> },
+      ],
+    },
+    { path: '*', element: <Navigate to="/404" replace /> },
+  ]);
 }
-
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ element }) => {
-  const { isAuthenticated } = useAuth();
-  return isAuthenticated ? element : <Navigate to="/login" />;
-};
-
-const AppRoutes: React.FC = () => {
-  return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/" element={<ProtectedRoute element={<MainLayout />} />}>
-        <Route index element={<DashboardPage />} />
-        <Route path="alerts" element={<AlertsPage />} />
-        <Route path="portfolio" element={<PortfolioPage />} />
-        <Route path="trading" element={<TradingPage />} />
-        <Route path="system" element={<SystemStatusPage />} />
-        <Route path="settings" element={<SettingsPage />} />
-      </Route>
-      <Route path="*" element={<Navigate to="/" />} />
-    </Routes>
-  );
-};
-
-export default AppRoutes;

@@ -37,6 +37,7 @@ class PortfolioData:
     cash_balance: Decimal
     positions: List[PortfolioPosition]
     risk_metrics: Optional[Dict[str, str]] = None
+    timestamp: Optional[datetime] = None
 
 
 @dataclass

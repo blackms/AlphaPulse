@@ -1,109 +1,78 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { RootState } from '../store';
 
-// Define the UI state interface
-interface UIState {
+interface UiState {
+  theme: 'light' | 'dark' | 'system';
   sidebarOpen: boolean;
-  darkMode: boolean;
-  notifications: Notification[];
-  currentTheme: string;
-  isMobile: boolean;
-  modalOpen: {
-    [key: string]: boolean;
+  drawerWidth: number;
+  notifications: {
+    showBadges: boolean;
+    sound: boolean;
+  };
+  chartSettings: {
+    showAnimations: boolean;
+    detailedTooltips: boolean;
+    defaultTimeframe: string;
   };
 }
 
-// Define the notification interface
-interface Notification {
-  id: string;
-  message: string;
-  type: 'success' | 'error' | 'info' | 'warning';
-  autoHide: boolean;
-  duration?: number;
-}
-
-// Initial state
-const initialState: UIState = {
+const initialState: UiState = {
+  theme: 'light',
   sidebarOpen: true,
-  darkMode: localStorage.getItem('darkMode') === 'true',
-  notifications: [],
-  currentTheme: localStorage.getItem('theme') || 'default',
-  isMobile: window.innerWidth < 768,
-  modalOpen: {},
+  drawerWidth: 240,
+  notifications: {
+    showBadges: true,
+    sound: false,
+  },
+  chartSettings: {
+    showAnimations: true,
+    detailedTooltips: true,
+    defaultTimeframe: '1d',
+  },
 };
 
-// Create the UI slice
 const uiSlice = createSlice({
   name: 'ui',
   initialState,
   reducers: {
-    toggleSidebar: (state) => {
+    setTheme(state, action: PayloadAction<'light' | 'dark' | 'system'>) {
+      state.theme = action.payload;
+    },
+    toggleSidebar(state) {
       state.sidebarOpen = !state.sidebarOpen;
     },
-    setSidebarOpen: (state, action: PayloadAction<boolean>) => {
+    setSidebarOpen(state, action: PayloadAction<boolean>) {
       state.sidebarOpen = action.payload;
     },
-    toggleDarkMode: (state) => {
-      state.darkMode = !state.darkMode;
-      localStorage.setItem('darkMode', state.darkMode.toString());
+    setDrawerWidth(state, action: PayloadAction<number>) {
+      state.drawerWidth = action.payload;
     },
-    setDarkMode: (state, action: PayloadAction<boolean>) => {
-      state.darkMode = action.payload;
-      localStorage.setItem('darkMode', action.payload.toString());
+    toggleNotificationBadges(state) {
+      state.notifications.showBadges = !state.notifications.showBadges;
     },
-    addNotification: (state, action: PayloadAction<Omit<Notification, 'id'>>) => {
-      const id = Date.now().toString();
-      state.notifications.push({
+    toggleNotificationSound(state) {
+      state.notifications.sound = !state.notifications.sound;
+    },
+    updateChartSettings(state, action: PayloadAction<Partial<UiState['chartSettings']>>) {
+      state.chartSettings = {
+        ...state.chartSettings,
         ...action.payload,
-        id,
-      });
+      };
     },
-    removeNotification: (state, action: PayloadAction<string>) => {
-      state.notifications = state.notifications.filter(
-        (notification) => notification.id !== action.payload
-      );
-    },
-    clearNotifications: (state) => {
-      state.notifications = [];
-    },
-    setCurrentTheme: (state, action: PayloadAction<string>) => {
-      state.currentTheme = action.payload;
-      localStorage.setItem('theme', action.payload);
-    },
-    setIsMobile: (state, action: PayloadAction<boolean>) => {
-      state.isMobile = action.payload;
-    },
-    openModal: (state, action: PayloadAction<string>) => {
-      state.modalOpen[action.payload] = true;
-    },
-    closeModal: (state, action: PayloadAction<string>) => {
-      state.modalOpen[action.payload] = false;
+    resetUiSettings(state) {
+      return initialState;
     },
   },
 });
 
-// Export actions
 export const {
+  setTheme,
   toggleSidebar,
   setSidebarOpen,
-  toggleDarkMode,
-  setDarkMode,
-  addNotification,
-  removeNotification,
-  clearNotifications,
-  setCurrentTheme,
-  setIsMobile,
-  openModal,
-  closeModal,
+  setDrawerWidth,
+  toggleNotificationBadges,
+  toggleNotificationSound,
+  updateChartSettings,
+  resetUiSettings,
 } = uiSlice.actions;
 
-// Export selectors
-export const selectSidebarOpen = (state: RootState) => state.ui.sidebarOpen;
-export const selectDarkMode = (state: RootState) => state.ui.darkMode;
-export const selectNotifications = (state: RootState) => state.ui.notifications;
-export const selectCurrentTheme = (state: RootState) => state.ui.currentTheme;
-export const selectIsMobile = (state: RootState) => state.ui.isMobile;
-export const selectModalOpen = (state: RootState, modalId: string) => state.ui.modalOpen[modalId] || false;
-
-// Export reducer
 export default uiSlice.reducer;
