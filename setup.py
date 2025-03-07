@@ -24,6 +24,7 @@ setup(
         "loguru",
         "PyJWT",
         "asyncpg",
+        "aiosmtplib",
         "pytest",
         "pytest-asyncio",
         "pytest-cov",
