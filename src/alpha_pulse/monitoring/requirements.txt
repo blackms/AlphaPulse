@@ -6,8 +6,12 @@ pyyaml>=6.0
 psutil>=5.9.0
 
 # Storage backends
-aiohttp>=3.8.0  # For InfluxDB
+aiohttp>=3.8.0  # For InfluxDB and Slack notifications
 asyncpg>=0.25.0  # For TimescaleDB
+
+# Alerting system
+aiosmtplib>=2.0.0  # For email notifications
+aiofiles>=0.8.0  # For file-based alert history
 
 # Optional dependencies
 matplotlib>=3.5.0  # For visualization

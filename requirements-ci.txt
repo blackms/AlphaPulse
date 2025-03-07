@@ -48,3 +48,7 @@ matplotlib
 
 # Monitoring system dependencies
 influxdb-client
+
+# Alerting system dependencies
+aiosmtplib
+aiofiles

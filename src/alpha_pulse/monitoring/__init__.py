@@ -28,6 +28,16 @@ from .metrics_calculations import (
     calculate_volatility
 )
 
+# Import alerting system
+from .alerting import (
+    Alert,
+    AlertRule,
+    AlertSeverity,
+    AlertManager,
+    AlertingConfig,
+    load_alerting_config
+)
+
 __all__ = [
     'EnhancedMetricsCollector',
     'track_latency',
@@ -50,5 +60,12 @@ __all__ = [
     'calculate_treynor_ratio',
     'calculate_total_return',
     'calculate_annualized_return',
-    'calculate_volatility'
+    'calculate_volatility',
+    # Alerting system
+    'Alert',
+    'AlertRule',
+    'AlertSeverity',
+    'AlertManager',
+    'AlertingConfig',
+    'load_alerting_config'
 ]
