@@ -74,8 +74,9 @@ const DashboardLayout: React.FC = () => {
   // Redux state
   const themeMode = useSelector(selectThemeMode);
   const sidebarSize = useSelector(selectSidebarSize);
-  const alerts = useSelector(selectAllAlerts);
   const systemStatus = useSelector(selectSystemOverallStatus);
+  // Get unread alerts count (for future use)
+  const unreadAlertsCount = useSelector(selectAllAlerts).filter(alert => !alert.acknowledged).length;
   
   // Local state
   const [mobileOpen, setMobileOpen] = useState<boolean>(false);

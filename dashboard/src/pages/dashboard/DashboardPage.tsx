@@ -14,10 +14,8 @@ import {
   ListItemText,
   ListItemIcon,
   Divider,
-  CircularProgress,
   Chip,
   IconButton,
-  Tooltip,
   LinearProgress,
 } from '@mui/material';
 import {
@@ -26,15 +24,12 @@ import {
   ErrorOutline as ErrorIcon,
   WarningAmber as WarningIcon,
   Info as InfoIcon,
-  CheckCircle as CheckIcon,
   Refresh as RefreshIcon,
   MoreVert as MoreVertIcon,
 } from '@mui/icons-material';
-import { 
-  selectAlerts, 
-  selectUnreadAlertCount,
-  Alert,
-  AlertSeverity
+import {
+  selectAlerts,
+  selectUnreadAlertCount
 } from '../../store/slices/alertsSlice';
 import {
   selectPerformance,

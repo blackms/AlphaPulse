@@ -1,75 +1,127 @@
 import { Middleware } from 'redux';
-import axios, { AxiosRequestConfig } from 'axios';
-import { RootState } from '../rootReducer';
+import portfolioService from '../../services/api/portfolioService';
+import systemService from '../../services/api/systemService';
+import alertsService from '../../services/api/alertsService';
+import {
+  fetchPortfolioStart,
+  fetchPortfolioSuccess,
+  fetchPortfolioFailure
+} from '../slices/portfolioSlice';
+import {
+  fetchSystemStart,
+  fetchSystemStatusSuccess as fetchSystemSuccess,
+  fetchSystemStatusFailure as fetchSystemFailure
+} from '../slices/systemSlice';
+import {
+  fetchAlertsStart,
+  fetchAlertsSuccess,
+  fetchAlertsFailure,
+  fetchRulesSuccess,
+  fetchPreferencesSuccess,
+  updateAlertStatus,
+  addRule,
+  updateRule,
+  deleteRule,
+  updateNotificationSettings
+} from '../slices/alertsSlice';
 
-// API middleware for Redux
-const apiMiddleware: Middleware = ({ dispatch, getState }) => next => action => {
-  // Check if the action is an API call
-  if (!action.meta || !action.meta.api) {
-    return next(action);
+/**
+ * Middleware to handle API calls
+ */
+const apiMiddleware: Middleware = ({ dispatch }) => (next) => async (action) => {
+  next(action);
+
+  // Handle portfolio data fetching
+  if (action.type === fetchPortfolioStart.type) {
+    try {
+      const portfolioData = await portfolioService.getPortfolio();
+      dispatch(fetchPortfolioSuccess(portfolioData));
+    } catch (error) {
+      dispatch(fetchPortfolioFailure(error instanceof Error ? error.message : 'Unknown error'));
+    }
   }
-  
-  // Extract API details from the action
-  const { url, method = 'GET', data, onSuccess, onError } = action.meta.api;
-  
-  // Get the authentication token from the state
-  const token = getState().auth.tokens?.accessToken;
-  
-  // Create headers with authentication token
-  const requestHeaders: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json'
-  };
-  
-  if (token) {
-    requestHeaders['Authorization'] = `Bearer ${token}`;
+
+  // Handle system status fetching
+  if (action.type === fetchSystemStart.type) {
+    try {
+      const systemData = await systemService.getSystemStatus();
+      dispatch(fetchSystemSuccess({
+        status: systemData.status,
+        components: systemData.components,
+        lastUpdated: systemData.lastUpdated,
+        uptime: systemData.uptime || 0
+      }));
+    } catch (error) {
+      dispatch(fetchSystemFailure(error instanceof Error ? error.message : 'Unknown error'));
+    }
   }
-  
-  // Create the request configuration
-  const requestConfig: AxiosRequestConfig = {
-    url,
-    method,
-    headers: requestHeaders,
-    data
-  };
-  
-  // Dispatch the request action
-  dispatch({
-    type: `${action.type}_REQUEST`
-  });
-  
-  // Make the API call
-  return axios(requestConfig)
-    .then(response => {
-      // Dispatch the success action
-      dispatch({
-        type: `${action.type}_SUCCESS`,
-        payload: response.data,
-        meta: action.meta
-      });
+
+  // Handle alerts fetching
+  if (action.type === fetchAlertsStart.type) {
+    try {
+      const [alertsData, preferencesData] = await Promise.all([
+        alertsService.getAlerts(),
+        alertsService.getNotificationPreferences()
+      ]);
       
-      // Call the onSuccess callback if provided
-      if (onSuccess) {
-        dispatch(onSuccess(response.data));
-      }
-      
-      return response.data;
-    })
-    .catch(error => {
-      // Dispatch the error action
-      dispatch({
-        type: `${action.type}_FAILURE`,
-        error: error.response ? error.response.data : error.message,
-        meta: action.meta
-      });
-      
-      // Call the onError callback if provided
-      if (onError) {
-        dispatch(onError(error.response ? error.response.data : error.message));
-      }
-      
-      return Promise.reject(error);
-    });
+      // Dispatch each part separately
+      dispatch(fetchAlertsSuccess(alertsData.alerts || []));
+      dispatch(fetchRulesSuccess(alertsData.rules || []));
+      dispatch(fetchPreferencesSuccess(preferencesData));
+    } catch (error) {
+      dispatch(fetchAlertsFailure(error instanceof Error ? error.message : 'Unknown error'));
+    }
+  }
+
+  // Handle alert status updates
+  if (action.type === updateAlertStatus.type) {
+    try {
+      const { id, acknowledged } = action.payload;
+      await alertsService.updateAlertStatus(id, { acknowledged });
+      // No need to dispatch success as the state is already updated optimistically
+    } catch (error) {
+      console.error('Error updating alert status:', error);
+      // Could dispatch a failure action here if needed
+    }
+  }
+
+  // Handle alert rule operations
+  if (action.type === addRule.type) {
+    try {
+      await alertsService.createAlertRule(action.payload);
+      // State already updated optimistically
+    } catch (error) {
+      console.error('Error creating alert rule:', error);
+    }
+  }
+
+  if (action.type === updateRule.type) {
+    try {
+      await alertsService.updateAlertRule(action.payload.id, action.payload);
+      // State already updated optimistically
+    } catch (error) {
+      console.error('Error updating alert rule:', error);
+    }
+  }
+
+  if (action.type === deleteRule.type) {
+    try {
+      await alertsService.deleteAlertRule(action.payload);
+      // State already updated optimistically
+    } catch (error) {
+      console.error('Error deleting alert rule:', error);
+    }
+  }
+
+  // Handle notification preferences updates
+  if (action.type === updateNotificationSettings.type) {
+    try {
+      await alertsService.updateNotificationPreferences(action.payload);
+      // State already updated optimistically
+    } catch (error) {
+      console.error('Error updating notification preferences:', error);
+    }
+  }
 };
 
 export default apiMiddleware;

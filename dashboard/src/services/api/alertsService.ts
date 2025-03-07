@@ -94,11 +94,10 @@ const alertsService = {
       if (status.acknowledged) {
         const response = await apiClient.post(`/api/v1/alerts/${alertId}/acknowledge`);
         return response.data;
-      } else {
-        // This might not be supported by the API
-        console.warn('API might not support un-acknowledging alerts');
-        return { success: false, message: 'Operation not supported' };
       }
+      // This might not be supported by the API
+      console.warn('API might not support un-acknowledging alerts');
+      return { success: false, message: 'Operation not supported' };
     } catch (error) {
       console.error('Error updating alert status:', error);
       throw error;
