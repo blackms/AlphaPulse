@@ -1,6 +1,7 @@
 import axios from 'axios';
 import jwtDecode from 'jwt-decode';
 import { User } from '../../types';
+import { UserRole } from '../../store/slices/authSlice';
 
 // API URL from environment variables
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1';
@@ -42,7 +43,7 @@ class AuthService {
           email: `${username}@example.com`,
           firstName: 'Admin',
           lastName: 'User',
-          role: 'admin',
+          role: 'admin' as UserRole,
           permissions: ['*'],
           preferences: {
             theme: 'dark',
