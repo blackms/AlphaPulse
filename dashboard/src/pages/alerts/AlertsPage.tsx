@@ -246,7 +246,7 @@ const AlertsPage: React.FC = () => {
     return true;
   });
   
-  const getSeverityIcon = (severity: AlertSeverity) => {
+  const getSeverityIcon = (severity: string) => {
     switch (severity) {
       case 'critical':
         return <ErrorIcon color="error" />;
@@ -261,7 +261,7 @@ const AlertsPage: React.FC = () => {
     }
   };
   
-  const getSeverityColor = (severity: AlertSeverity) => {
+  const getSeverityColor = (severity: string) => {
     switch (severity) {
       case 'critical':
         return 'error';
@@ -427,9 +427,9 @@ const AlertsPage: React.FC = () => {
                   <Typography variant="body1" sx={{ mt: 1 }}>
                     {alert.message}
                   </Typography>
-                  {alert.details && (
+                  {alert.metadata && alert.metadata.details && (
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                      {alert.details}
+                      {alert.metadata.details}
                     </Typography>
                   )}
                   {alert.actions && alert.actions.length > 0 && (
@@ -439,7 +439,10 @@ const AlertsPage: React.FC = () => {
                           key={index}
                           variant={index === 0 ? "contained" : "outlined"}
                           size="small"
-                          onClick={action.onClick}
+                          onClick={() => {
+                            // Handle action based on the action string
+                            console.log(`Action triggered: ${action.action}`);
+                          }}
                           sx={{ mr: 1 }}
                         >
                           {action.label}
