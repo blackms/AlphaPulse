@@ -11,7 +11,7 @@ import pandas as pd
 from alpha_pulse.exchanges.interfaces import BaseExchange
 from alpha_pulse.portfolio.portfolio_manager import PortfolioManager
 from pathlib import Path
-from alpha_pulse.portfolio.data_models import PortfolioAnalysis, PortfolioMetrics
+from alpha_pulse.portfolio.data_models import PortfolioMetrics
 from ..dependencies import get_exchange_client, verify_api_key
 
 router = APIRouter()
