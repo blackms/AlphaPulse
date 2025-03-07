@@ -33,15 +33,8 @@ export const useAuth = () => {
       try {
         dispatch(loginStart());
         const response = await authService.login(username, password);
-        // Convert LoginResponse to the expected format
-        dispatch(loginSuccess({
-          user: response.user,
-          tokens: {
-            accessToken: response.accessToken || '',
-            refreshToken: response.refreshToken || '',
-            expiresAt: response.expiresAt || Date.now() + 3600000 // Default 1 hour
-          }
-        }));
+        // The response from authService.login is already in the correct format
+        dispatch(loginSuccess(response));
         return response;
       } catch (error: any) {
         const errorMessage = error.response?.data?.message || 'Login failed';
