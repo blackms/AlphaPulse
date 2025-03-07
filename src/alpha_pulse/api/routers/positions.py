@@ -6,10 +6,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from loguru import logger
 
-from alpha_pulse.exchanges.base import BaseExchange
+from alpha_pulse.exchanges.interfaces import BaseExchange
 from alpha_pulse.hedging.common.types import SpotPosition, FuturesPosition
 from alpha_pulse.hedging.execution.position_fetcher import ExchangePositionFetcher
-from ..dependencies import get_exchange_client, verify_api_key
+from ..dependencies import get_exchange_client, get_api_client
 
 router = APIRouter()
 
@@ -26,7 +26,7 @@ class PositionMetrics(BaseModel):
 @router.get(
     "/spot",
     response_model=List[SpotPosition],
-    dependencies=[Depends(verify_api_key)]
+    dependencies=[Depends(get_api_client)]
 )
 async def get_spot_positions(
     exchange: BaseExchange = Depends(get_exchange_client)
@@ -46,7 +46,7 @@ async def get_spot_positions(
 @router.get(
     "/futures",
     response_model=List[FuturesPosition],
-    dependencies=[Depends(verify_api_key)]
+    dependencies=[Depends(get_api_client)]
 )
 async def get_futures_positions(
     exchange: BaseExchange = Depends(get_exchange_client)
@@ -66,7 +66,7 @@ async def get_futures_positions(
 @router.get(
     "/metrics",
     response_model=List[PositionMetrics],
-    dependencies=[Depends(verify_api_key)]
+    dependencies=[Depends(get_api_client)]
 )
 async def get_position_metrics(
     exchange: BaseExchange = Depends(get_exchange_client)
