@@ -1,8 +1,8 @@
 """Portfolio data access module."""
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 import logging
-
-from alpha_pulse.portfolio.portfolio_manager import PortfolioManager
+from datetime import datetime, timezone
+from decimal import Decimal
 
 
 class PortfolioDataAccessor:
@@ -11,7 +11,6 @@ class PortfolioDataAccessor:
     def __init__(self):
         """Initialize portfolio accessor."""
         self.logger = logging.getLogger("alpha_pulse.api.data.portfolio")
-        self.portfolio_manager = PortfolioManager.get_instance()
     
     async def get_portfolio(self, include_history: bool = False) -> Dict:
         """
@@ -24,49 +23,69 @@ class PortfolioDataAccessor:
             Portfolio data
         """
         try:
-            # Get current portfolio
-            portfolio = self.portfolio_manager.get_portfolio_data()
+            # Mock portfolio data for demo purposes
+            positions = [
+                {
+                    "symbol": "BTC-USD",
+                    "quantity": 1.5,
+                    "entry_price": 45000.0,
+                    "current_price": 47000.0,
+                    "value": 70500.0,
+                    "pnl": 3000.0,
+                    "pnl_percentage": 6.67
+                },
+                {
+                    "symbol": "ETH-USD",
+                    "quantity": 10.0,
+                    "entry_price": 2500.0,
+                    "current_price": 2800.0,
+                    "value": 28000.0,
+                    "pnl": 3000.0,
+                    "pnl_percentage": 12.0
+                },
+                {
+                    "symbol": "SOL-USD",
+                    "quantity": 100.0,
+                    "entry_price": 100.0,
+                    "current_price": 120.0,
+                    "value": 12000.0,
+                    "pnl": 2000.0,
+                    "pnl_percentage": 20.0
+                }
+            ]
             
-            # Transform to API format
+            # Calculate total value
+            total_value = sum(p["value"] for p in positions)
+            cash = 50000.0  # Mock cash balance
+            
+            # Create portfolio response
             result = {
-                "total_value": portfolio.total_value,
-                "cash": portfolio.cash,
-                "positions": []
+                "total_value": total_value + cash,
+                "cash": cash,
+                "positions": positions,
+                "metrics": {
+                    "sharpe_ratio": 1.8,
+                    "sortino_ratio": 2.2,
+                    "max_drawdown": 0.15,
+                    "volatility": 0.25,
+                    "return_since_inception": 0.35
+                }
             }
             
-            # Add positions
-            for position in portfolio.positions:
-                result["positions"].append({
-                    "symbol": position.symbol,
-                    "quantity": position.quantity,
-                    "entry_price": position.entry_price,
-                    "current_price": position.current_price,
-                    "value": position.value,
-                    "pnl": position.pnl,
-                    "pnl_percentage": position.pnl_percentage
-                })
-                
-            # Add performance metrics
-            result["metrics"] = {
-                "sharpe_ratio": portfolio.metrics.sharpe_ratio,
-                "sortino_ratio": portfolio.metrics.sortino_ratio,
-                "max_drawdown": portfolio.metrics.max_drawdown,
-                "volatility": portfolio.metrics.volatility,
-                "return_since_inception": portfolio.metrics.return_since_inception
-            }
-            
-            # Add historical data if requested
+            # Add history if requested
             if include_history:
-                history = self.portfolio_manager.get_portfolio_history()
-                result["history"] = []
-                
-                for entry in history:
-                    result["history"].append({
-                        "timestamp": entry.timestamp.isoformat(),
-                        "total_value": entry.total_value,
-                        "cash": entry.cash,
-                        "positions_value": entry.positions_value
+                # Generate demo history data
+                history = []
+                now = datetime.now(timezone.utc)
+                for i in range(30):
+                    day = now.replace(day=now.day - i)
+                    history.append({
+                        "timestamp": day.isoformat(),
+                        "total_value": 1000000.0 + i * 10000.0,
+                        "cash": 200000.0 - i * 5000.0,
+                        "positions_value": 800000.0 + i * 15000.0
                     })
+                result["history"] = history
             
             return result
         except Exception as e:

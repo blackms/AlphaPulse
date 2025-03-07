@@ -12,7 +12,7 @@ from ..dependencies import (
     require_view_metrics,
     get_metric_accessor
 )
-from ..data import MetricDataAccessor
+from ..data import MetricsDataAccessor
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ async def get_metrics(
     interval: Optional[str] = None,
     aggregation: str = Query("avg", regex="^(avg|min|max|sum|count)$"),
     _: Dict[str, Any] = Depends(require_view_metrics),
-    metric_accessor: MetricDataAccessor = Depends(get_metric_accessor)
+    metric_accessor: MetricsDataAccessor = Depends(get_metric_accessor)
 ) -> List[Dict[str, Any]]:
     """
     Get metrics data.
@@ -55,7 +55,7 @@ async def get_metrics(
 async def get_latest_metric(
     metric_type: str,
     _: Dict[str, Any] = Depends(require_view_metrics),
-    metric_accessor: MetricDataAccessor = Depends(get_metric_accessor)
+    metric_accessor: MetricsDataAccessor = Depends(get_metric_accessor)
 ) -> Dict[str, Any]:
     """
     Get the latest metric value.

@@ -302,11 +302,3 @@ class SystemDataAccessor:
             return {
                 "error": str(e)
             }
-
-
-# Create singleton instances
-metric_accessor = MetricDataAccessor()
-alert_accessor = AlertDataAccessor()
-portfolio_accessor = PortfolioDataAccessor()
-trade_accessor = TradeDataAccessor()
-system_accessor = SystemDataAccessor()

@@ -11,6 +11,8 @@ from fastapi.security import OAuth2PasswordRequestForm
 
 # Import routers
 from .routers import metrics, alerts, portfolio, system, trades
+from .websockets import endpoints as ws_endpoints
+from .websockets.subscription import subscription_manager
 
 # Import dependencies
 from .dependencies import get_current_user
@@ -45,6 +47,9 @@ app.include_router(portfolio.router, prefix="/api/v1", tags=["portfolio"])
 app.include_router(trades.router, prefix="/api/v1", tags=["trades"])
 app.include_router(system.router, prefix="/api/v1", tags=["system"])
 
+# Include WebSocket routers
+app.include_router(ws_endpoints.router, tags=["websockets"])
+
 
 @app.get("/")
 async def root():
@@ -71,12 +76,18 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
 async def startup_event():
     """Run when the application starts."""
     logger.info("Starting AlphaPulse API")
+    
+    # Start the subscription manager
+    await subscription_manager.start()
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """Run when the application shuts down."""
     logger.info("Shutting down AlphaPulse API")
+    
+    # Stop the subscription manager
+    await subscription_manager.stop()
 
 
 @app.exception_handler(Exception)

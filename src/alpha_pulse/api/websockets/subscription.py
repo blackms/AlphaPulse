@@ -1,224 +1,170 @@
-"""WebSocket subscription management."""
-from typing import Dict, List, Optional, Set
-import asyncio
+"""
+WebSocket subscription manager.
+
+This module provides a subscription manager for WebSocket connections.
+"""
 import logging
+import asyncio
+import json
+from typing import Dict, Any, Set, List
 from datetime import datetime
 
-from .manager import ConnectionManager
-from alpha_pulse.monitoring.metrics_calculations import calculate_derived_metrics
+from .manager import connection_manager
+
+logger = logging.getLogger(__name__)
 
 
 class SubscriptionManager:
-    """Manage subscriptions and updates."""
+    """
+    WebSocket subscription manager.
     
-    _instance = None
-    
-    @classmethod
-    def get_instance(cls):
-        """Get singleton instance."""
-        if cls._instance is None:
-            cls._instance = SubscriptionManager()
-        return cls._instance
+    This class manages subscriptions and broadcasts updates to subscribers.
+    """
     
     def __init__(self):
-        """Initialize subscription manager."""
-        self.logger = logging.getLogger("alpha_pulse.api.websockets.subscription")
-        self.connection_manager = ConnectionManager.get_instance()
+        """Initialize the subscription manager."""
         self.running = False
-        self.update_tasks = []
-        
-    async def start(self) -> None:
-        """Start subscription manager."""
+        self.tasks = []
+    
+    async def start(self):
+        """Start the subscription manager."""
         if self.running:
             return
-            
+        
         self.running = True
         
-        # Start update tasks
-        self.update_tasks = [
-            asyncio.create_task(self._update_metrics()),
-            asyncio.create_task(self._update_portfolio()),
-            asyncio.create_task(self._listen_for_alerts()),
-            asyncio.create_task(self._listen_for_trades())
+        # Start background tasks
+        self.tasks = [
+            asyncio.create_task(self._metrics_updater()),
+            asyncio.create_task(self._alerts_updater()),
+            asyncio.create_task(self._portfolio_updater()),
+            asyncio.create_task(self._trades_updater())
         ]
         
-        self.logger.info("Subscription manager started")
-        
-    async def stop(self) -> None:
-        """Stop subscription manager."""
+        logger.info("Subscription manager started")
+    
+    async def stop(self):
+        """Stop the subscription manager."""
         if not self.running:
             return
-            
+        
         self.running = False
         
         # Cancel all tasks
-        for task in self.update_tasks:
+        for task in self.tasks:
             task.cancel()
-            
-        self.update_tasks = []
-        self.logger.info("Subscription manager stopped")
+        
+        # Wait for tasks to complete
+        await asyncio.gather(*self.tasks, return_exceptions=True)
+        self.tasks = []
+        
+        logger.info("Subscription manager stopped")
     
-    async def _update_metrics(self) -> None:
+    async def _metrics_updater(self):
         """Update metrics periodically."""
-        from alpha_pulse.monitoring.collector import MetricsCollector
-        
-        collector = MetricsCollector.get_instance()
-        
         try:
             while self.running:
-                # Get latest metrics
-                latest_metrics = await collector.collect_latest_metrics()
-                
-                # Add derived metrics
-                derived = calculate_derived_metrics(latest_metrics)
-                
-                # Create update message
-                message = {
+                # In a real implementation, this would get actual metrics
+                # For now, send demo data
+                await connection_manager.broadcast("metrics", {
                     "type": "metrics",
                     "timestamp": datetime.now().isoformat(),
-                    "data": {}
-                }
-                
-                # Add metrics to message
-                for metric in latest_metrics:
-                    message["data"][metric.name] = {
-                        "value": metric.value,
-                        "timestamp": metric.timestamp.isoformat(),
-                        "labels": metric.labels
+                    "data": {
+                        "portfolio_value": {
+                            "value": 1050000.0,
+                            "timestamp": datetime.now().isoformat(),
+                            "labels": {"currency": "USD"}
+                        },
+                        "sharpe_ratio": {
+                            "value": 1.9,
+                            "timestamp": datetime.now().isoformat(),
+                            "labels": {"window": "30d"}
+                        }
                     }
-                    
-                # Add derived metrics
-                for name, value in derived.items():
-                    message["data"][name] = {
-                        "value": value,
-                        "timestamp": datetime.now().isoformat(),
-                        "labels": {"derived": "true"}
-                    }
-                
-                # Broadcast to subscribers
-                await self.connection_manager.broadcast("metrics", message)
+                })
                 
                 # Wait for next update
-                await asyncio.sleep(5)  # Update every 5 seconds
+                await asyncio.sleep(5)
         except asyncio.CancelledError:
-            # Task was cancelled
-            pass
+            logger.info("Metrics updater cancelled")
         except Exception as e:
-            self.logger.error(f"Error updating metrics: {str(e)}")
-            
-    async def _update_portfolio(self) -> None:
-        """Update portfolio periodically."""
-        from alpha_pulse.portfolio.portfolio_manager import PortfolioManager
-        
-        portfolio_manager = PortfolioManager.get_instance()
-        
+            logger.error(f"Error in metrics updater: {e}")
+    
+    async def _alerts_updater(self):
+        """Update alerts periodically."""
         try:
             while self.running:
-                # Get current portfolio
-                portfolio = portfolio_manager.get_portfolio_data()
+                # In a real implementation, this would get actual alerts
+                # For now, send demo data
+                await connection_manager.broadcast("alerts", {
+                    "type": "alert",
+                    "timestamp": datetime.now().isoformat(),
+                    "data": {
+                        "id": 123,
+                        "title": "High Volatility Detected",
+                        "message": "Market volatility has exceeded threshold",
+                        "severity": "warning",
+                        "source": "market_monitor",
+                        "created_at": datetime.now().isoformat()
+                    }
+                })
                 
-                # Create update message
-                message = {
+                # Wait for next update (longer interval for alerts)
+                await asyncio.sleep(30)
+        except asyncio.CancelledError:
+            logger.info("Alerts updater cancelled")
+        except Exception as e:
+            logger.error(f"Error in alerts updater: {e}")
+    
+    async def _portfolio_updater(self):
+        """Update portfolio periodically."""
+        try:
+            while self.running:
+                # In a real implementation, this would get actual portfolio data
+                # For now, send demo data
+                await connection_manager.broadcast("portfolio", {
                     "type": "portfolio",
                     "timestamp": datetime.now().isoformat(),
                     "data": {
-                        "total_value": portfolio.total_value,
-                        "cash": portfolio.cash,
-                        "positions": []
+                        "total_value": 1250000.0,
+                        "cash": 250000.0,
+                        "positions_value": 1000000.0
                     }
-                }
-                
-                # Add positions
-                for position in portfolio.positions:
-                    message["data"]["positions"].append({
-                        "symbol": position.symbol,
-                        "quantity": position.quantity,
-                        "entry_price": position.entry_price,
-                        "current_price": position.current_price,
-                        "value": position.value,
-                        "pnl": position.pnl,
-                        "pnl_percentage": position.pnl_percentage
-                    })
-                
-                # Broadcast to subscribers
-                await self.connection_manager.broadcast("portfolio", message)
+                })
                 
                 # Wait for next update
-                await asyncio.sleep(10)  # Update every 10 seconds
+                await asyncio.sleep(10)
         except asyncio.CancelledError:
-            # Task was cancelled
-            pass
+            logger.info("Portfolio updater cancelled")
         except Exception as e:
-            self.logger.error(f"Error updating portfolio: {str(e)}")
-            
-    async def _listen_for_alerts(self) -> None:
-        """Listen for alert events."""
-        from alpha_pulse.monitoring.alerting.manager import AlertManager
-        
-        alert_manager = AlertManager.get_instance()
-        
+            logger.error(f"Error in portfolio updater: {e}")
+    
+    async def _trades_updater(self):
+        """Update trades periodically."""
         try:
-            # Register callback for new alerts
-            async def handle_alert(alert):
-                # Create update message
-                message = {
-                    "type": "alert",
-                    "timestamp": datetime.now().isoformat(),
-                    "data": alert.to_dict()
-                }
-                
-                # Broadcast to subscribers
-                await self.connection_manager.broadcast("alerts", message)
-            
-            # Register callback
-            alert_manager.register_alert_callback(handle_alert)
-            
-            # Keep task alive
             while self.running:
-                await asyncio.sleep(1)
-        except asyncio.CancelledError:
-            # Task was cancelled
-            alert_manager.unregister_alert_callback(handle_alert)
-        except Exception as e:
-            self.logger.error(f"Error listening for alerts: {str(e)}")
-            
-    async def _listen_for_trades(self) -> None:
-        """Listen for trade events."""
-        from alpha_pulse.execution.broker_interface import BrokerInterface
-        
-        broker = BrokerInterface.get_instance()
-        
-        try:
-            # Register callback for new trades
-            async def handle_trade(trade):
-                # Create update message
-                message = {
+                # In a real implementation, this would get actual trade data
+                # For now, send demo data
+                await connection_manager.broadcast("trades", {
                     "type": "trade",
                     "timestamp": datetime.now().isoformat(),
                     "data": {
-                        "id": trade.id,
-                        "symbol": trade.symbol,
-                        "side": trade.side,
-                        "quantity": trade.quantity,
-                        "price": trade.price,
-                        "timestamp": trade.timestamp.isoformat(),
-                        "status": trade.status,
-                        "order_type": trade.order_type,
-                        "fees": trade.fees
+                        "id": 456,
+                        "symbol": "BTC-USD",
+                        "side": "buy",
+                        "quantity": 0.5,
+                        "price": 45000.0,
+                        "executed_at": datetime.now().isoformat()
                     }
-                }
+                })
                 
-                # Broadcast to subscribers
-                await self.connection_manager.broadcast("trades", message)
-            
-            # Register callback
-            broker.register_trade_callback(handle_trade)
-            
-            # Keep task alive
-            while self.running:
-                await asyncio.sleep(1)
+                # Wait for next update (longer interval for trades)
+                await asyncio.sleep(20)
         except asyncio.CancelledError:
-            # Task was cancelled
-            broker.unregister_trade_callback(handle_trade)
+            logger.info("Trades updater cancelled")
         except Exception as e:
-            self.logger.error(f"Error listening for trades: {str(e)}")
+            logger.error(f"Error in trades updater: {e}")
+
+
+# Create a singleton instance
+subscription_manager = SubscriptionManager()
