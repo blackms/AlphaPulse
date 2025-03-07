@@ -157,7 +157,7 @@ const AlertsPage: React.FC = () => {
       type: 'portfolio',
       condition: '',
       threshold: 0,
-      severity: 'medium',
+      severity: 'medium' as AlertSeverity,
       enabled: true,
       createdAt: Date.now(),
     });
@@ -178,7 +178,7 @@ const AlertsPage: React.FC = () => {
         type: alertRule.category as AlertType,
         condition: alertRule.conditions && alertRule.conditions.length > 0 ? alertRule.conditions[0].metric : '',
         threshold: alertRule.conditions && alertRule.conditions.length > 0 ? Number(alertRule.conditions[0].value) : 0,
-        severity: alertRule.severity,
+        severity: alertRule.severity as AlertSeverity,
         enabled: alertRule.enabled,
         createdAt: new Date(alertRule.createdAt).getTime()
       });
