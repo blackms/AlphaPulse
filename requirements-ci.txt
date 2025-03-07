@@ -41,3 +41,10 @@ requests
 typing-extensions
 TA-Lib
 optuna
+pyyaml
+psutil
+asyncpg
+matplotlib
+
+# Monitoring system dependencies
+influxdb-client

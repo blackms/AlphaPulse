@@ -1,0 +1,14 @@
+# AlphaPulse Monitoring System Requirements
+
+# Core dependencies
+numpy>=1.20.0
+pyyaml>=6.0
+psutil>=5.9.0
+
+# Storage backends
+aiohttp>=3.8.0  # For InfluxDB
+asyncpg>=0.25.0  # For TimescaleDB
+
+# Optional dependencies
+matplotlib>=3.5.0  # For visualization
+pandas>=1.3.0  # For data manipulation

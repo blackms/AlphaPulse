@@ -1,0 +1,191 @@
+# AlphaPulse Monitoring Configuration
+
+# Storage configuration
+storage:
+  # Storage type: 'influxdb', 'timescaledb', or 'memory'
+  type: "influxdb"
+  
+  # Data retention period in days
+  retention_days: 30
+  
+  # InfluxDB settings
+  influxdb_url: "http://localhost:8086"
+  influxdb_token: "${AP_INFLUXDB_TOKEN}"  # Set via environment variable
+  influxdb_org: "alpha_pulse"
+  influxdb_bucket: "metrics"
+  
+  # TimescaleDB settings (used if type is 'timescaledb')
+  timescaledb_host: "localhost"
+  timescaledb_port: 5432
+  timescaledb_user: "postgres"
+  timescaledb_password: "${AP_TIMESCALEDB_PASSWORD}"  # Set via environment variable
+  timescaledb_database: "alpha_pulse"
+  timescaledb_schema: "public"
+  
+  # Memory storage settings (used if type is 'memory')
+  memory_max_points: 10000
+
+# Collection settings
+collection_interval: 60  # seconds
+enable_realtime: true
+collect_api_latency: true
+collect_trade_metrics: true
+collect_agent_metrics: true
+
+# Notification channels
+notification_channels:
+  - name: "email"
+    type: "email"
+    params:
+      smtp_server: "smtp.example.com"
+      smtp_port: 587
+      smtp_user: "${AP_SMTP_USER}"  # Set via environment variable
+      smtp_password: "${AP_SMTP_PASSWORD}"  # Set via environment variable
+      from_address: "alerts@example.com"
+      to_addresses: ["admin@example.com"]
+      use_tls: true
+  
+  - name: "slack"
+    type: "slack"
+    params:
+      webhook_url: "${AP_SLACK_WEBHOOK}"  # Set via environment variable
+      channel: "#alerts"
+      username: "AlphaPulse Monitor"
+  
+  - name: "webhook"
+    type: "webhook"
+    params:
+      url: "https://example.com/webhook"
+      method: "POST"
+      headers:
+        Content-Type: "application/json"
+        Authorization: "Bearer ${AP_WEBHOOK_TOKEN}"  # Set via environment variable
+
+# Alert configurations
+alerts:
+  # Performance alerts
+  - name: "low_sharpe_ratio"
+    metric_type: "performance"
+    field: "sharpe_ratio"
+    condition_type: "threshold"
+    condition_params:
+      operator: "<"
+      value: 0.5
+    severity: "warning"
+    message: "Sharpe ratio is below threshold: {value}"
+    channels: ["email", "slack"]
+  
+  - name: "high_drawdown"
+    metric_type: "performance"
+    field: "max_drawdown"
+    condition_type: "threshold"
+    condition_params:
+      operator: ">"
+      value: 0.1  # 10% drawdown
+    severity: "error"
+    message: "Maximum drawdown exceeded threshold: {value:.2%}"
+    channels: ["email", "slack", "webhook"]
+  
+  # Risk alerts
+  - name: "high_var"
+    metric_type: "risk"
+    field: "var_95"
+    condition_type: "threshold"
+    condition_params:
+      operator: ">"
+      value: 0.05  # 5% VaR
+    severity: "warning"
+    message: "Value at Risk (95%) exceeded threshold: {value:.2%}"
+    channels: ["slack"]
+  
+  - name: "portfolio_leverage"
+    metric_type: "risk"
+    field: "leverage"
+    condition_type: "threshold"
+    condition_params:
+      operator: ">"
+      value: 1.5  # 1.5x leverage
+    severity: "error"
+    message: "Portfolio leverage exceeded threshold: {value:.2f}x"
+    channels: ["email", "slack", "webhook"]
+  
+  # API performance alerts
+  - name: "high_api_latency"
+    metric_type: "api"
+    field: "p95_latency"
+    condition_type: "threshold"
+    condition_params:
+      operator: ">"
+      value: 1000  # 1000ms
+    severity: "warning"
+    message: "API latency (p95) is high: {value:.0f}ms"
+    channels: ["slack"]
+  
+  - name: "api_error_rate"
+    metric_type: "api"
+    field: "error_rate"
+    condition_type: "threshold"
+    condition_params:
+      operator: ">"
+      value: 0.05  # 5% error rate
+    severity: "error"
+    message: "API error rate exceeded threshold: {value:.2%}"
+    channels: ["email", "slack"]
+  
+  # Trade execution alerts
+  - name: "high_slippage"
+    metric_type: "trade"
+    field: "avg_slippage"
+    condition_type: "threshold"
+    condition_params:
+      operator: ">"
+      value: 0.002  # 0.2% slippage
+    severity: "warning"
+    message: "Average trade slippage is high: {value:.2%}"
+    channels: ["slack"]
+  
+  - name: "low_fill_rate"
+    metric_type: "trade"
+    field: "fill_rate"
+    condition_type: "threshold"
+    condition_params:
+      operator: "<"
+      value: 0.95  # 95% fill rate
+    severity: "warning"
+    message: "Order fill rate is below threshold: {value:.2%}"
+    channels: ["slack"]
+  
+  # Agent performance alerts
+  - name: "low_signal_quality"
+    metric_type: "agent"
+    field: "signal_quality"
+    condition_type: "threshold"
+    condition_params:
+      operator: "<"
+      value: 0.6  # 60% quality
+    severity: "warning"
+    message: "Agent signal quality is below threshold: {value:.2%}"
+    channels: ["slack"]
+  
+  # System alerts
+  - name: "high_memory_usage"
+    metric_type: "system"
+    field: "memory_usage_percent"
+    condition_type: "threshold"
+    condition_params:
+      operator: ">"
+      value: 85  # 85% memory usage
+    severity: "warning"
+    message: "System memory usage is high: {value:.1f}%"
+    channels: ["slack"]
+  
+  - name: "high_cpu_usage"
+    metric_type: "system"
+    field: "cpu_usage_percent"
+    condition_type: "threshold"
+    condition_params:
+      operator: ">"
+      value: 90  # 90% CPU usage
+    severity: "warning"
+    message: "System CPU usage is high: {value:.1f}%"
+    channels: ["slack"]
