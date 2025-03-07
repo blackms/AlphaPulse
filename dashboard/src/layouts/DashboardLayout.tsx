@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { 
   Box, 
@@ -68,6 +68,7 @@ const useWindowSize = () => {
 const DashboardLayout: React.FC = () => {
   const dispatch = useDispatch();
   const location = useLocation();
+  const navigate = useNavigate();
   const { width } = useWindowSize();
   
   // Redux state
@@ -92,6 +93,11 @@ const DashboardLayout: React.FC = () => {
 
   const handleLogout = () => {
     dispatch(logout());
+  };
+
+  const handleNavigation = (path: string) => {
+    navigate(path);
+    setMobileOpen(false); // Close mobile drawer if open
   };
   
   // Update page title based on route
@@ -222,7 +228,8 @@ const DashboardLayout: React.FC = () => {
               {menuItems.map((item) => (
                 <ListItem key={item.text} disablePadding>
                   <ListItemButton
-                    sx={{ 
+                    onClick={() => handleNavigation(item.path)}
+                    sx={{
                       minHeight: 48,
                       justifyContent: sidebarSize === 'normal' ? 'initial' : 'center',
                       px: 2.5,
@@ -290,7 +297,7 @@ const DashboardLayout: React.FC = () => {
             <List>
               {menuItems.map((item) => (
                 <ListItem key={item.text} disablePadding>
-                  <ListItemButton>
+                  <ListItemButton onClick={() => handleNavigation(item.path)}>
                     <ListItemIcon>{item.icon}</ListItemIcon>
                     <ListItemText primary={item.text} />
                   </ListItemButton>
