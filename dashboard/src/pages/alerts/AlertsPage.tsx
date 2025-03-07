@@ -164,19 +164,25 @@ const AlertsPage: React.FC = () => {
     setEditRuleDialogOpen(true);
   };
   
-  const handleEditRule = (rule: AlertRule) => {
-    // Convert AlertRule to CustomAlertRule
-    setCurrentRule({
-      id: rule.id,
-      name: rule.name,
-      description: rule.description,
-      type: rule.category as AlertType,
-      condition: rule.conditions.length > 0 ? rule.conditions[0].metric : '',
-      threshold: rule.conditions.length > 0 ? Number(rule.conditions[0].value) : 0,
-      severity: rule.severity,
-      enabled: rule.enabled,
-      createdAt: new Date(rule.createdAt).getTime()
-    });
+  const handleEditRule = (rule: CustomAlertRule | AlertRule) => {
+    // Check if it's already a CustomAlertRule
+    if ('condition' in rule && 'threshold' in rule) {
+      setCurrentRule(rule as CustomAlertRule);
+    } else {
+      // Convert AlertRule to CustomAlertRule
+      const alertRule = rule as AlertRule;
+      setCurrentRule({
+        id: alertRule.id,
+        name: alertRule.name,
+        description: alertRule.description,
+        type: alertRule.category as AlertType,
+        condition: alertRule.conditions && alertRule.conditions.length > 0 ? alertRule.conditions[0].metric : '',
+        threshold: alertRule.conditions && alertRule.conditions.length > 0 ? Number(alertRule.conditions[0].value) : 0,
+        severity: alertRule.severity,
+        enabled: alertRule.enabled,
+        createdAt: new Date(alertRule.createdAt).getTime()
+      });
+    }
     setEditRuleDialogOpen(true);
   };
   
@@ -270,8 +276,13 @@ const AlertsPage: React.FC = () => {
     }
   };
   
-  const formatDateTime = (timestamp: number) => {
-    return new Date(timestamp).toLocaleString();
+  const formatDateTime = (timestamp: string | number) => {
+    // Convert string to number if it's a numeric string
+    const numericTimestamp = typeof timestamp === 'string' && !isNaN(Number(timestamp))
+      ? Number(timestamp)
+      : timestamp;
+    
+    return new Date(numericTimestamp).toLocaleString();
   };
   
   return (
@@ -471,7 +482,7 @@ const AlertsPage: React.FC = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {((notificationSettings as any).rules || []).map((rule) => (
+                {((notificationSettings as any).rules || []).map((rule: CustomAlertRule) => (
                   <TableRow key={rule.id}>
                     <TableCell>
                       <Typography variant="body1">{rule.name}</Typography>
