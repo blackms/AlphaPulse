@@ -12,6 +12,7 @@ import {
 } from '@mui/material';
 import authService from '../../services/auth/authService';
 import { loginSuccess } from '../../store/slices/authSlice';
+import { initializeDataFetching } from '../../initApp';
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -52,6 +53,8 @@ const LoginPage: React.FC = () => {
           }
         }));
         localStorage.setItem('isAuthenticated', 'true');
+        // Initialize data fetching after successful login
+        initializeDataFetching();
         navigate('/dashboard');
         return;
       } catch (apiError) {
@@ -61,6 +64,8 @@ const LoginPage: React.FC = () => {
       // Fallback to demo mode
       if (username === 'demo' && password === 'demo') {
         localStorage.setItem('isAuthenticated', 'true');
+        // Initialize data fetching after successful demo login
+        initializeDataFetching();
         navigate('/dashboard');
       } else {
         throw new Error('Invalid credentials');
