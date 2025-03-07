@@ -65,40 +65,55 @@ const SystemStatusPage: React.FC = () => {
     dispatch(fetchSystemStart());
   };
 
-  const getStatusColor = (status: SystemStatus | ComponentStatus) => {
+  const getStatusColor = (status: SystemStatus | ComponentStatus | string) => {
     switch (status) {
       case 'operational':
+      case SystemStatus.OPERATIONAL:
         return 'success';
       case 'degraded':
+      case SystemStatus.DEGRADED:
         return 'warning';
-      case 'down':
+      case 'outage':
+      case 'down': // Add support for 'down' status
+      case SystemStatus.OUTAGE:
         return 'error';
       case 'maintenance':
+      case SystemStatus.MAINTENANCE:
         return 'info';
       default:
         return 'default';
     }
   };
 
-  const getStatusIcon = (status: SystemStatus | ComponentStatus) => {
+  const getStatusIcon = (status: SystemStatus | ComponentStatus | string) => {
     switch (status) {
       case 'operational':
+      case SystemStatus.OPERATIONAL:
         return <OperationalIcon color="success" />;
       case 'degraded':
+      case SystemStatus.DEGRADED:
         return <DegradedIcon color="warning" />;
-      case 'down':
+      case 'outage':
+      case 'down': // Add support for 'down' status
+      case SystemStatus.OUTAGE:
         return <DownIcon color="error" />;
       case 'maintenance':
+      case SystemStatus.MAINTENANCE:
         return <MaintenanceIcon color="info" />;
       default:
         return <UnknownIcon color="disabled" />;
     }
   };
 
-  const formatDateTime = (timestamp: number | null) => {
+  const formatDateTime = (timestamp: string | number | null) => {
     if (!timestamp) return 'Never';
     
-    return new Date(timestamp).toLocaleString();
+    // Convert string to number if it's a numeric string
+    const numericTimestamp = typeof timestamp === 'string' && !isNaN(Number(timestamp))
+      ? Number(timestamp)
+      : timestamp;
+    
+    return new Date(numericTimestamp).toLocaleString();
   };
 
   return (
@@ -298,7 +313,7 @@ const SystemStatusPage: React.FC = () => {
                             label={log.level.toUpperCase()}
                             size="small"
                             color={
-                              log.level === 'error' || log.level === 'critical' ? 'error' :
+                              log.level === 'error' ? 'error' :
                               log.level === 'warning' ? 'warning' :
                               log.level === 'info' ? 'info' : 'default'
                             }
