@@ -9,7 +9,7 @@ from loguru import logger
 from .config import config
 from .middleware import setup_middleware
 from .dependencies import cleanup_exchange
-from .routers import metrics, portfolio, alerts, trades, system, hedging, risk, positions
+from .routers import metrics, portfolio, alerts, system, hedging, risk, positions
 from .websockets.manager import ConnectionManager
 from .websockets.auth import WebSocketAuthenticator
 from .websockets.subscription import SubscriptionManager
@@ -87,7 +87,6 @@ async def root():
 app.include_router(metrics, prefix="/api/v1/metrics", tags=["metrics"])
 app.include_router(portfolio, prefix="/api/v1/portfolio", tags=["portfolio"])
 app.include_router(alerts, prefix="/api/v1/alerts", tags=["alerts"])
-app.include_router(trades, prefix="/api/v1/trades", tags=["trades"])
 app.include_router(system, prefix="/api/v1/system", tags=["system"])
 app.include_router(hedging, prefix="/api/v1/hedging", tags=["hedging"])
 app.include_router(risk, prefix="/api/v1/risk", tags=["risk"])
