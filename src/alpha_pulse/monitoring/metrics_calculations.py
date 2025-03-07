@@ -455,7 +455,6 @@ def calculate_annualized_return(portfolio_data: PortfolioData) -> float:
     total_return = calculate_total_return(portfolio_data)
     return ((1 + total_return) ** (1 / years)) - 1
 
-
 def calculate_volatility(returns: np.ndarray) -> float:
     """
     Calculate portfolio volatility.
@@ -469,4 +468,58 @@ def calculate_volatility(returns: np.ndarray) -> float:
     if returns.size == 0:
         return 0.0
         
+    return np.std(returns) * np.sqrt(252)
+
+
+def calculate_derived_metrics(metrics: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Calculate derived metrics from raw metrics.
+    
+    Args:
+        metrics: List of raw metrics
+        
+    Returns:
+        Dictionary of derived metrics
+    """
+    derived = {}
+    
+    # Extract metric values by name
+    metric_values = {}
+    for metric in metrics:
+        if hasattr(metric, 'name') and hasattr(metric, 'value'):
+            metric_values[metric.name] = metric.value
+    
+    # Calculate risk-adjusted returns if we have both return and volatility
+    if 'total_return' in metric_values and 'volatility' in metric_values:
+        total_return = metric_values['total_return']
+        volatility = metric_values['volatility']
+        
+        if volatility > 0:
+            derived['risk_adjusted_return'] = total_return / volatility
+    
+    # Calculate portfolio efficiency
+    if 'sharpe_ratio' in metric_values and 'max_drawdown' in metric_values:
+        sharpe = metric_values['sharpe_ratio']
+        drawdown = metric_values['max_drawdown']
+        
+        if drawdown > 0:
+            derived['portfolio_efficiency'] = sharpe / drawdown
+    
+    # Calculate risk contribution
+    if 'position_count' in metric_values and 'concentration_hhi' in metric_values:
+        position_count = metric_values['position_count']
+        concentration = metric_values['concentration_hhi']
+        
+        if position_count > 0:
+            derived['avg_risk_contribution'] = concentration / position_count
+    
+    # Calculate performance stability
+    if 'sharpe_ratio' in metric_values and 'sortino_ratio' in metric_values:
+        sharpe = metric_values['sharpe_ratio']
+        sortino = metric_values['sortino_ratio']
+        
+        if sortino > 0:
+            derived['performance_stability'] = sharpe / sortino
+    
+    return derived
     return np.std(returns) * np.sqrt(252)
