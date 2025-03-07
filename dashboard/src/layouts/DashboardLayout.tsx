@@ -86,8 +86,8 @@ const DashboardLayout: React.FC = () => {
   };
   
   const toggleSidebar = () => {
-    // Toggle between expanded and collapsed
-    dispatch(setSidebarSize(sidebarSize === 'expanded' ? 'collapsed' : 'expanded'));
+    // Toggle between normal and compact
+    dispatch(setSidebarSize(sidebarSize === 'normal' ? 'compact' : 'normal'));
   };
 
   const handleLogout = () => {
@@ -125,8 +125,8 @@ const DashboardLayout: React.FC = () => {
   
   // Auto-collapse sidebar on small screens
   useEffect(() => {
-    if (width < 1200 && sidebarSize === 'expanded') {
-      dispatch(setSidebarSize('collapsed'));
+    if (width < 1200 && sidebarSize === 'normal') {
+      dispatch(setSidebarSize('compact'));
     }
   }, [width, dispatch, sidebarSize]);
   
@@ -174,7 +174,7 @@ const DashboardLayout: React.FC = () => {
               onClick={toggleSidebar}
               sx={{ mr: 2, display: { xs: 'none', sm: 'block' } }}
             >
-              {sidebarSize === 'expanded' ? <ChevronLeftIcon /> : <ChevronRightIcon />}
+              {sidebarSize === 'normal' ? <ChevronLeftIcon /> : <ChevronRightIcon />}
             </IconButton>
             <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
               {pageTitle}
@@ -186,7 +186,7 @@ const DashboardLayout: React.FC = () => {
                   width: 12, 
                   height: 12, 
                   borderRadius: '50%', 
-                  bgcolor: systemStatus === 'operational' ? 'success.main' : 'error.main',
+                  bgcolor: systemStatus === 'HEALTHY' ? 'success.main' : 'error.main',
                   mr: 2
                 }} 
               />
@@ -203,10 +203,10 @@ const DashboardLayout: React.FC = () => {
         <Drawer
           variant="permanent"
           sx={{
-            width: sidebarSize === 'expanded' ? 240 : 72,
+            width: sidebarSize === 'normal' ? 240 : 72,
             flexShrink: 0,
             [`& .MuiDrawer-paper`]: {
-              width: sidebarSize === 'expanded' ? 240 : 72,
+              width: sidebarSize === 'normal' ? 240 : 72,
               boxSizing: 'border-box',
               transition: (theme) => theme.transitions.create('width', {
                 easing: theme.transitions.easing.sharp,
@@ -224,20 +224,20 @@ const DashboardLayout: React.FC = () => {
                   <ListItemButton
                     sx={{ 
                       minHeight: 48,
-                      justifyContent: sidebarSize === 'expanded' ? 'initial' : 'center',
+                      justifyContent: sidebarSize === 'normal' ? 'initial' : 'center',
                       px: 2.5,
                     }}
                   >
                     <ListItemIcon
                       sx={{
                         minWidth: 0,
-                        mr: sidebarSize === 'expanded' ? 3 : 'auto',
+                        mr: sidebarSize === 'normal' ? 3 : 'auto',
                         justifyContent: 'center',
                       }}
                     >
                       {item.icon}
                     </ListItemIcon>
-                    {sidebarSize === 'expanded' && <ListItemText primary={item.text} />}
+                    {sidebarSize === 'normal' && <ListItemText primary={item.text} />}
                   </ListItemButton>
                 </ListItem>
               ))}
@@ -249,20 +249,20 @@ const DashboardLayout: React.FC = () => {
                   onClick={handleLogout}
                   sx={{
                     minHeight: 48,
-                    justifyContent: sidebarSize === 'expanded' ? 'initial' : 'center',
+                    justifyContent: sidebarSize === 'normal' ? 'initial' : 'center',
                     px: 2.5,
                   }}
                 >
                   <ListItemIcon
                     sx={{
                       minWidth: 0,
-                      mr: sidebarSize === 'expanded' ? 3 : 'auto',
+                      mr: sidebarSize === 'normal' ? 3 : 'auto',
                       justifyContent: 'center',
                     }}
                   >
                     <LogoutIcon />
                   </ListItemIcon>
-                  {sidebarSize === 'expanded' && <ListItemText primary="Logout" />}
+                  {sidebarSize === 'normal' && <ListItemText primary="Logout" />}
                 </ListItemButton>
               </ListItem>
             </List>
