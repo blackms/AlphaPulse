@@ -334,16 +334,16 @@ const PortfolioPage: React.FC = () => {
                     <TableCell align="right">{asset.allocation.toFixed(1)}%</TableCell>
                     <TableCell align="right">
                       <Box display="flex" alignItems="center" justifyContent="flex-end">
-                        {asset.dayChangePercent >= 0 ? 
-                          <TrendingUpIcon fontSize="small" color="success" /> : 
+                        {asset.change24hPercent >= 0 ?
+                          <TrendingUpIcon fontSize="small" color="success" /> :
                           <TrendingDownIcon fontSize="small" color="error" />
                         }
-                        <Typography 
+                        <Typography
                           variant="body2"
-                          color={asset.dayChangePercent >= 0 ? 'success.main' : 'error.main'}
+                          color={asset.change24hPercent >= 0 ? 'success.main' : 'error.main'}
                           sx={{ ml: 0.5 }}
                         >
-                          {formatPercentage(asset.dayChangePercent)}
+                          {formatPercentage(asset.change24hPercent)}
                         </Typography>
                       </Box>
                     </TableCell>
