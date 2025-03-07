@@ -49,21 +49,25 @@ import {
 } from '@mui/icons-material';
 import {
   selectAlerts,
-  selectNotificationSettings,
-  selectLoading,
+  selectAlertPreferences,
+  selectAlertsLoading,
   fetchAlertsStart,
-  markAlertAsRead,
-  deleteAlert,
+  updateAlertStatus,
+  clearAllAlerts,
+  addAlert,
   updateNotificationSettings,
-  addAlertRule,
-  deleteAlertRule,
-  updateAlertRule,
+  addRule,
+  deleteRule,
+  updateRule,
   Alert,
   AlertSeverity,
-  AlertType,
   AlertRule,
-  NotificationChannel,
+  AlertPreferences,
 } from '../../store/slices/alertsSlice';
+
+// Define missing types
+type AlertType = 'portfolio' | 'trading' | 'system' | 'security' | 'market';
+type NotificationChannel = 'email' | 'sms' | 'push' | 'slack';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -90,14 +94,13 @@ const TabPanel: React.FC<TabPanelProps> = (props) => {
 const AlertsPage: React.FC = () => {
   const dispatch = useDispatch();
   const alerts = useSelector(selectAlerts);
-  const notificationSettings = useSelector(selectNotificationSettings);
-  const loading = useSelector(selectLoading);
+  const notificationSettings = useSelector(selectAlertPreferences);
+  const loading = useSelector(selectAlertsLoading);
   
   const [tabValue, setTabValue] = useState(0);
   const [filterSeverity, setFilterSeverity] = useState<AlertSeverity | 'all'>('all');
   const [filterType, setFilterType] = useState<AlertType | 'all'>('all');
   const [editRuleDialogOpen, setEditRuleDialogOpen] = useState(false);
-  const [currentRule, setCurrentRule] = useState<AlertRule | null>(null);
   const [notificationDialogOpen, setNotificationDialogOpen] = useState(false);
   
   useEffect(() => {
@@ -120,13 +123,32 @@ const AlertsPage: React.FC = () => {
   };
   
   const handleMarkAsRead = (alertId: string) => {
-    dispatch(markAlertAsRead(alertId));
+    dispatch(updateAlertStatus({ id: alertId, acknowledged: true }));
   };
   
   const handleDeleteAlert = (alertId: string) => {
-    dispatch(deleteAlert(alertId));
+    // Since there's no direct deleteAlert action, we'll filter the alert out client-side
+    // In a real app, you'd have a proper API call to delete the alert
+    const updatedAlerts = alerts.filter(alert => alert.id !== alertId);
+    dispatch(clearAllAlerts());
+    updatedAlerts.forEach(alert => dispatch(addAlert(alert)));
   };
   
+  // Define a custom rule type that matches what we're using in the UI
+  interface CustomAlertRule {
+    id: string;
+    name: string;
+    description: string;
+    type: AlertType;
+    condition: string;
+    threshold: number;
+    severity: AlertSeverity;
+    enabled: boolean;
+    createdAt: number;
+  }
+
+  const [currentRule, setCurrentRule] = useState<CustomAlertRule | null>(null);
+
   const handleAddRule = () => {
     setCurrentRule({
       id: '',
@@ -143,26 +165,53 @@ const AlertsPage: React.FC = () => {
   };
   
   const handleEditRule = (rule: AlertRule) => {
-    setCurrentRule(rule);
+    // Convert AlertRule to CustomAlertRule
+    setCurrentRule({
+      id: rule.id,
+      name: rule.name,
+      description: rule.description,
+      type: rule.category as AlertType,
+      condition: rule.conditions.length > 0 ? rule.conditions[0].metric : '',
+      threshold: rule.conditions.length > 0 ? Number(rule.conditions[0].value) : 0,
+      severity: rule.severity,
+      enabled: rule.enabled,
+      createdAt: new Date(rule.createdAt).getTime()
+    });
     setEditRuleDialogOpen(true);
   };
   
   const handleSaveRule = () => {
     if (currentRule) {
+      // Convert CustomAlertRule to AlertRule
+      const alertRule: AlertRule = {
+        id: currentRule.id || `rule_${Date.now()}`,
+        name: currentRule.name,
+        description: currentRule.description,
+        enabled: currentRule.enabled,
+        conditions: [{
+          type: 'threshold',
+          metric: currentRule.condition,
+          operator: 'gt',
+          value: currentRule.threshold
+        }],
+        actions: [],
+        severity: currentRule.severity,
+        category: currentRule.type,
+        createdAt: new Date(currentRule.createdAt).toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      
       if (currentRule.id) {
-        dispatch(updateAlertRule(currentRule));
+        dispatch(updateRule(alertRule));
       } else {
-        dispatch(addAlertRule({
-          ...currentRule,
-          id: `rule_${Date.now()}`,
-        }));
+        dispatch(addRule(alertRule));
       }
     }
     setEditRuleDialogOpen(false);
   };
   
   const handleDeleteRule = (ruleId: string) => {
-    dispatch(deleteAlertRule(ruleId));
+    dispatch(deleteRule(ruleId));
   };
   
   const handleOpenNotificationSettings = () => {
@@ -170,16 +219,17 @@ const AlertsPage: React.FC = () => {
   };
   
   const handleSaveNotificationSettings = () => {
-    dispatch(updateNotificationSettings(notificationSettings));
+    dispatch(updateNotificationSettings(notificationSettings as AlertPreferences));
     setNotificationDialogOpen(false);
   };
   
   const handleToggleNotificationChannel = (channel: NotificationChannel) => {
+    const typedSettings = notificationSettings as AlertPreferences;
     dispatch(updateNotificationSettings({
-      ...notificationSettings,
+      ...typedSettings,
       channels: {
-        ...notificationSettings.channels,
-        [channel]: !notificationSettings.channels[channel],
+        ...typedSettings.channels,
+        [channel]: !typedSettings.channels[channel],
       }
     }));
   };
@@ -421,7 +471,7 @@ const AlertsPage: React.FC = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {notificationSettings.rules.map((rule) => (
+                {((notificationSettings as any).rules || []).map((rule) => (
                   <TableRow key={rule.id}>
                     <TableCell>
                       <Typography variant="body1">{rule.name}</Typography>
@@ -468,7 +518,7 @@ const AlertsPage: React.FC = () => {
                     </TableCell>
                   </TableRow>
                 ))}
-                {notificationSettings.rules.length === 0 && (
+                {(((notificationSettings as any).rules || []).length === 0) && (
                   <TableRow>
                     <TableCell colSpan={6} sx={{ textAlign: 'center', py: 3 }}>
                       <Typography variant="body1" color="text.secondary">
@@ -677,7 +727,7 @@ const AlertsPage: React.FC = () => {
           <FormControlLabel
             control={
               <Switch
-                checked={notificationSettings.channels.email}
+                checked={(notificationSettings as AlertPreferences).channels.email}
                 onChange={() => handleToggleNotificationChannel('email')}
               />
             }
@@ -686,7 +736,7 @@ const AlertsPage: React.FC = () => {
           <FormControlLabel
             control={
               <Switch
-                checked={notificationSettings.channels.sms}
+                checked={(notificationSettings as AlertPreferences).channels.sms}
                 onChange={() => handleToggleNotificationChannel('sms')}
               />
             }
@@ -695,7 +745,7 @@ const AlertsPage: React.FC = () => {
           <FormControlLabel
             control={
               <Switch
-                checked={notificationSettings.channels.push}
+                checked={(notificationSettings as AlertPreferences).channels.push}
                 onChange={() => handleToggleNotificationChannel('push')}
               />
             }
@@ -704,7 +754,7 @@ const AlertsPage: React.FC = () => {
           <FormControlLabel
             control={
               <Switch
-                checked={notificationSettings.channels.slack}
+                checked={(notificationSettings as AlertPreferences).channels.slack}
                 onChange={() => handleToggleNotificationChannel('slack')}
               />
             }
@@ -719,14 +769,17 @@ const AlertsPage: React.FC = () => {
           <FormControlLabel
             control={
               <Switch
-                checked={notificationSettings.preferences.includeCritical}
-                onChange={(e) => dispatch(updateNotificationSettings({
-                  ...notificationSettings,
-                  preferences: {
-                    ...notificationSettings.preferences,
-                    includeCritical: e.target.checked,
-                  }
-                }))}
+                checked={(notificationSettings as AlertPreferences).preferences.includeCritical}
+                onChange={(e) => {
+                  const typedSettings = notificationSettings as AlertPreferences;
+                  dispatch(updateNotificationSettings({
+                    ...typedSettings,
+                    preferences: {
+                      ...typedSettings.preferences,
+                      includeCritical: e.target.checked,
+                    }
+                  }));
+                }}
               />
             }
             label="Critical Alerts"
@@ -734,14 +787,17 @@ const AlertsPage: React.FC = () => {
           <FormControlLabel
             control={
               <Switch
-                checked={notificationSettings.preferences.includeHigh}
-                onChange={(e) => dispatch(updateNotificationSettings({
-                  ...notificationSettings,
-                  preferences: {
-                    ...notificationSettings.preferences,
-                    includeHigh: e.target.checked,
-                  }
-                }))}
+                checked={(notificationSettings as AlertPreferences).preferences.includeHigh}
+                onChange={(e) => {
+                  const typedSettings = notificationSettings as AlertPreferences;
+                  dispatch(updateNotificationSettings({
+                    ...typedSettings,
+                    preferences: {
+                      ...typedSettings.preferences,
+                      includeHigh: e.target.checked,
+                    }
+                  }));
+                }}
               />
             }
             label="High Alerts"
@@ -749,14 +805,17 @@ const AlertsPage: React.FC = () => {
           <FormControlLabel
             control={
               <Switch
-                checked={notificationSettings.preferences.includeMedium}
-                onChange={(e) => dispatch(updateNotificationSettings({
-                  ...notificationSettings,
-                  preferences: {
-                    ...notificationSettings.preferences,
-                    includeMedium: e.target.checked,
-                  }
-                }))}
+                checked={(notificationSettings as AlertPreferences).preferences.includeMedium}
+                onChange={(e) => {
+                  const typedSettings = notificationSettings as AlertPreferences;
+                  dispatch(updateNotificationSettings({
+                    ...typedSettings,
+                    preferences: {
+                      ...typedSettings.preferences,
+                      includeMedium: e.target.checked,
+                    }
+                  }));
+                }}
               />
             }
             label="Medium Alerts"
@@ -764,14 +823,17 @@ const AlertsPage: React.FC = () => {
           <FormControlLabel
             control={
               <Switch
-                checked={notificationSettings.preferences.includeLow}
-                onChange={(e) => dispatch(updateNotificationSettings({
-                  ...notificationSettings,
-                  preferences: {
-                    ...notificationSettings.preferences,
-                    includeLow: e.target.checked,
-                  }
-                }))}
+                checked={(notificationSettings as AlertPreferences).preferences.includeLow}
+                onChange={(e) => {
+                  const typedSettings = notificationSettings as AlertPreferences;
+                  dispatch(updateNotificationSettings({
+                    ...typedSettings,
+                    preferences: {
+                      ...typedSettings.preferences,
+                      includeLow: e.target.checked,
+                    }
+                  }));
+                }}
               />
             }
             label="Low Alerts"
