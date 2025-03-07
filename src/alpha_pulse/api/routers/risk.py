@@ -8,12 +8,12 @@ from decimal import Decimal
 import pandas as pd
 from loguru import logger
 
-from alpha_pulse.exchanges.base import BaseExchange
+from alpha_pulse.exchanges.interfaces import BaseExchange
 from alpha_pulse.exchanges import OHLCV
 from alpha_pulse.risk_management.manager import RiskManager, RiskConfig
 from alpha_pulse.risk_management.analysis import RiskAnalyzer
 from alpha_pulse.risk_management.position_sizing import PositionSizer
-from ..dependencies import get_exchange_client, verify_api_key
+from ..dependencies import get_exchange_client, get_api_client
 
 router = APIRouter()
 
@@ -46,7 +46,7 @@ class PositionSizeResponse(BaseModel):
 @router.get(
     "/exposure",
     response_model=Dict[str, float],
-    dependencies=[Depends(verify_api_key)]
+    dependencies=[Depends(get_api_client)]
 )
 async def get_risk_exposure(
     exchange: BaseExchange = Depends(get_exchange_client)
@@ -78,7 +78,7 @@ async def get_risk_exposure(
 @router.get(
     "/metrics",
     response_model=RiskMetricsResponse,
-    dependencies=[Depends(verify_api_key)]
+    dependencies=[Depends(get_api_client)]
 )
 async def get_risk_metrics(
     exchange: BaseExchange = Depends(get_exchange_client)
@@ -119,7 +119,7 @@ async def get_risk_metrics(
 @router.get(
     "/limits",
     response_model=RiskLimitsResponse,
-    dependencies=[Depends(verify_api_key)]
+    dependencies=[Depends(get_api_client)]
 )
 async def get_risk_limits(
     exchange: BaseExchange = Depends(get_exchange_client)
@@ -163,7 +163,7 @@ async def get_risk_limits(
 @router.get(
     "/position-size/{asset}",
     response_model=PositionSizeResponse,
-    dependencies=[Depends(verify_api_key)]
+    dependencies=[Depends(get_api_client)]
 )
 async def get_position_size_recommendation(
     asset: str,
