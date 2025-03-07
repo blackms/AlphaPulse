@@ -37,15 +37,15 @@ import {
   Delete as DeleteIcon,
   Edit as EditIcon,
   Notifications as NotificationsIcon,
-  NotificationsActive as NotificationsActiveIcon,
+  // NotificationsActive as NotificationsActiveIcon, // Unused import
   NotificationsOff as NotificationsOffIcon,
   ErrorOutline as ErrorIcon,
   WarningAmber as WarningIcon,
   Info as InfoIcon,
   Check as CheckIcon,
   Add as AddIcon,
-  Close as CloseIcon,
-  FilterList as FilterIcon,
+  // Close as CloseIcon, // Unused import
+  // FilterList as FilterIcon, // Unused import
 } from '@mui/icons-material';
 import {
   selectAlerts,
@@ -59,7 +59,7 @@ import {
   addRule,
   deleteRule,
   updateRule,
-  Alert,
+  // Alert, // Unused import
   AlertSeverity,
   AlertRule,
   AlertPreferences,
