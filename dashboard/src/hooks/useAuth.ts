@@ -1,15 +1,15 @@
 import { useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { 
-  loginRequest, 
-  loginSuccess, 
-  loginFailure, 
+import {
+  loginStart,
+  loginSuccess,
+  loginFailure,
   logout as logoutAction,
   selectIsAuthenticated,
   selectUser,
-  selectToken,
+  selectTokens,
   selectAuthError,
-  selectIsLoading
+  selectAuthLoading
 } from '../store/slices/authSlice';
 import authService from '../services/auth/authService';
 import { LoginResponse, User } from '../types';
@@ -21,9 +21,9 @@ export const useAuth = () => {
   const dispatch = useDispatch();
   const isAuthenticated = useSelector(selectIsAuthenticated);
   const user = useSelector(selectUser);
-  const token = useSelector(selectToken);
+  const token = useSelector(selectTokens);
   const error = useSelector(selectAuthError);
-  const isLoading = useSelector(selectIsLoading);
+  const isLoading = useSelector(selectAuthLoading);
   
   /**
    * Login with username and password
@@ -31,9 +31,17 @@ export const useAuth = () => {
   const login = useCallback(
     async (username: string, password: string) => {
       try {
-        dispatch(loginRequest());
+        dispatch(loginStart());
         const response = await authService.login(username, password);
-        dispatch(loginSuccess(response as LoginResponse));
+        // Convert LoginResponse to the expected format
+        dispatch(loginSuccess({
+          user: response.user,
+          tokens: {
+            accessToken: response.accessToken || '',
+            refreshToken: response.refreshToken || '',
+            expiresAt: response.expiresAt || Date.now() + 3600000 // Default 1 hour
+          }
+        }));
         return response;
       } catch (error: any) {
         const errorMessage = error.response?.data?.message || 'Login failed';
