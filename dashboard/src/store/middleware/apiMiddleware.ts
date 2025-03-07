@@ -1,69 +1,75 @@
-import { Middleware } from '@reduxjs/toolkit';
-import { RootState } from '../store';
+import { Middleware } from 'redux';
+import axios, { AxiosRequestConfig } from 'axios';
+import { RootState } from '../rootReducer';
 
-/**
- * Middleware for handling API requests
- * This middleware intercepts actions with an API request and handles the request lifecycle
- */
-export const apiMiddleware: Middleware<{}, RootState> = ({ dispatch, getState }) => (next) => (action) => {
-  // If the action doesn't have an API request, pass it to the next middleware
+// API middleware for Redux
+const apiMiddleware: Middleware = ({ dispatch, getState }) => next => action => {
+  // Check if the action is an API call
   if (!action.meta || !action.meta.api) {
     return next(action);
   }
-
-  // Extract API request details from the action
-  const { url, method, data, onSuccess, onError, headers } = action.meta.api;
+  
+  // Extract API details from the action
+  const { url, method = 'GET', data, onSuccess, onError } = action.meta.api;
   
   // Get the authentication token from the state
-  const token = getState().auth.token;
+  const token = getState().auth.tokens?.accessToken;
   
   // Create headers with authentication token
-  const requestHeaders = {
+  const requestHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...headers,
+    'Accept': 'application/json'
   };
   
-  // Dispatch the request start action
-  dispatch({ type: `${action.type}_REQUEST` });
+  if (token) {
+    requestHeaders['Authorization'] = `Bearer ${token}`;
+  }
   
-  // Make the API request
-  fetch(url, {
-    method: method || 'GET',
+  // Create the request configuration
+  const requestConfig: AxiosRequestConfig = {
+    url,
+    method,
     headers: requestHeaders,
-    body: data ? JSON.stringify(data) : undefined,
-  })
-    .then((response) => {
-      if (!response.ok) {
-        throw new Error(`API request failed with status ${response.status}`);
-      }
-      return response.json();
-    })
-    .then((responseData) => {
+    data
+  };
+  
+  // Dispatch the request action
+  dispatch({
+    type: `${action.type}_REQUEST`
+  });
+  
+  // Make the API call
+  return axios(requestConfig)
+    .then(response => {
       // Dispatch the success action
       dispatch({
         type: `${action.type}_SUCCESS`,
-        payload: responseData,
+        payload: response.data,
+        meta: action.meta
       });
       
       // Call the onSuccess callback if provided
       if (onSuccess) {
-        dispatch(onSuccess(responseData));
+        dispatch(onSuccess(response.data));
       }
+      
+      return response.data;
     })
-    .catch((error) => {
+    .catch(error => {
       // Dispatch the error action
       dispatch({
         type: `${action.type}_FAILURE`,
-        error: error.message,
+        error: error.response ? error.response.data : error.message,
+        meta: action.meta
       });
       
       // Call the onError callback if provided
       if (onError) {
-        dispatch(onError(error));
+        dispatch(onError(error.response ? error.response.data : error.message));
       }
+      
+      return Promise.reject(error);
     });
-  
-  // Return the original action
-  return next(action);
 };
+
+export default apiMiddleware;

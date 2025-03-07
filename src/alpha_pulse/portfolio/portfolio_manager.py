@@ -421,7 +421,7 @@ class PortfolioManager:
         for attempt in range(max_retries):
             try:
                 async with self._timeout_context(timeout):
-                    return await asyncio.wait_for(coro_func(), timeout=timeout)
+                    return await asyncio.wait_for(coro_func, timeout=timeout)
             except (TimeoutError, Exception) as e:
                 if attempt == max_retries - 1:
                     logger.error(f"Operation failed after {max_retries} attempts: {str(e)}")
