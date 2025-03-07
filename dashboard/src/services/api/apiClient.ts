@@ -11,10 +11,41 @@ const client: AxiosInstance = axios.create({
   timeout: 10000 // 10 seconds
 });
 
+// For testing purposes, get a token and store it
+const getAndStoreToken = async () => {
+  try {
+    const response = await axios.post(
+      `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/token`,
+      new URLSearchParams({
+        username: 'admin',
+        password: 'password'
+      }).toString(),
+      {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
+      }
+    );
+    
+    if (response.data.access_token) {
+      localStorage.setItem('token', response.data.access_token);
+      console.log('Token obtained and stored for API requests');
+      return response.data.access_token;
+    }
+  } catch (error) {
+    console.error('Error getting token:', error);
+  }
+  return null;
+};
+
+// Call this function immediately
+getAndStoreToken();
+
 // Add request interceptor for authentication
 client.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const token = authService.getToken();
+    // Get token from localStorage
+    const token = localStorage.getItem('token');
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }

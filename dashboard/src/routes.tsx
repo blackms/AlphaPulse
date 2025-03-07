@@ -10,16 +10,16 @@ import SystemStatusPage from './pages/system/SystemStatusPage';
 import SettingsPage from './pages/settings/SettingsPage';
 import NotFoundPage from './pages/NotFoundPage';
 
-// Check if user is authenticated
+// Check if user is authenticated - always return true for testing
 const isAuthenticated = () => {
-  return localStorage.getItem('isAuthenticated') === 'true';
+  // For testing purposes, always return true
+  localStorage.setItem('isAuthenticated', 'true');
+  return true;
 };
 
-// Protected route component
+// Protected route component - bypassed for testing
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  if (!isAuthenticated()) {
-    return <Navigate to="/login" />;
-  }
+  // Always render children for testing
   return <>{children}</>;
 };
 

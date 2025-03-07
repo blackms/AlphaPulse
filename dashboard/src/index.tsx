@@ -4,15 +4,16 @@ import { Provider } from 'react-redux';
 import store from './store/store';
 import App from './App';
 import './assets/styles/global.css';
-// Import but don't call initializeApp - it will be called after login
-import './initApp';
+// Import initializeApp and call it directly for testing
+import { initializeApp } from './initApp';
 
 const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement
 );
 
-// We no longer initialize the application here
-// This will be done after login in the LoginPage component
+// Initialize the application immediately for testing
+// This will fetch data regardless of authentication status
+initializeApp();
 
 root.render(
   <React.StrictMode>

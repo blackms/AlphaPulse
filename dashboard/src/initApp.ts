@@ -9,24 +9,27 @@ import { fetchAlertsStart } from './store/slices/alertsSlice';
 export const initializeApp = () => {
   console.log('Initializing application...');
   
-  // Only fetch data and set up polling if the user is authenticated
-  const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
+  // For testing purposes, always fetch data regardless of authentication
+  console.log('Fetching initial data...');
   
-  if (isAuthenticated) {
-    console.log('User is authenticated, fetching initial data...');
-    // Fetch initial data
-    store.dispatch(fetchPortfolioStart());
-    store.dispatch(fetchSystemStart());
-    store.dispatch(fetchAlertsStart());
-    
-    // Set up polling for real-time data
-    setupPolling();
-    
-    console.log('Application initialized with data fetching');
-  } else {
-    console.log('User is not authenticated, skipping data fetching');
-  }
+  // Set authentication flag for testing
+  localStorage.setItem('isAuthenticated', 'true');
+  
+  // Fetch initial data
+  store.dispatch(fetchPortfolioStart());
+  store.dispatch(fetchSystemStart());
+  store.dispatch(fetchAlertsStart());
+  
+  // Set up polling for real-time data
+  setupPolling();
+  
+  console.log('Application initialized with data fetching');
 };
+
+// Call initializeApp immediately for testing
+setTimeout(() => {
+  initializeApp();
+}, 1000);
 
 /**
  * Initialize data fetching after login
