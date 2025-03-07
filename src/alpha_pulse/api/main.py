@@ -15,7 +15,7 @@ from .websockets import endpoints as ws_endpoints
 from .websockets.subscription import subscription_manager
 
 # Import dependencies
-from .dependencies import get_current_user
+from .dependencies import get_current_user, get_alert_manager
 
 # Configure logging
 logging.basicConfig(
@@ -77,8 +77,19 @@ async def startup_event():
     """Run when the application starts."""
     logger.info("Starting AlphaPulse API")
     
+    # Get the alert manager
+    alert_manager = get_alert_manager()
+    
+    # Start the alert manager
+    await alert_manager.start()
+    
+    # Connect the alert manager to the subscription manager
+    subscription_manager.set_alert_manager(alert_manager)
+    
     # Start the subscription manager
     await subscription_manager.start()
+    
+    logger.info("AlphaPulse API started successfully")
 
 
 @app.on_event("shutdown")
@@ -88,6 +99,14 @@ async def shutdown_event():
     
     # Stop the subscription manager
     await subscription_manager.stop()
+    
+    # Get the alert manager
+    alert_manager = get_alert_manager()
+    
+    # Stop the alert manager
+    await alert_manager.stop()
+    
+    logger.info("AlphaPulse API shutdown complete")
 
 
 @app.exception_handler(Exception)

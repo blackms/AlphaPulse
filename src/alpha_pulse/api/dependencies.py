@@ -8,6 +8,8 @@ from typing import Optional, Dict, Any
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer, APIKeyHeader
 
+from alpha_pulse.monitoring.alerting import AlertManager, load_alerting_config
+
 from .data import (
     MetricsDataAccessor,
     AlertDataAccessor,
@@ -22,9 +24,13 @@ logger = logging.getLogger(__name__)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
+# Load alerting configuration
+alerting_config = load_alerting_config()
+alert_manager = AlertManager(alerting_config)
+
 # Create data accessor instances
 metric_accessor = MetricsDataAccessor()
-alert_accessor = AlertDataAccessor()
+alert_accessor = AlertDataAccessor(alert_manager)
 portfolio_accessor = PortfolioDataAccessor()
 trade_accessor = TradeDataAccessor()
 system_accessor = SystemDataAccessor()
@@ -171,3 +177,8 @@ def get_trade_accessor():
 def get_system_accessor():
     """Get the system data accessor."""
     return system_accessor
+
+
+def get_alert_manager():
+    """Get the alert manager instance."""
+    return alert_manager

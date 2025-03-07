@@ -2,79 +2,22 @@
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
 import logging
-import random
-import uuid
+
+from alpha_pulse.monitoring.alerting import AlertManager
+from alpha_pulse.monitoring.alerting.models import Alert
 
 
 class AlertDataAccessor:
-    """Access alert data."""
+    """Access alert data from the alerting system."""
     
-    def __init__(self):
-        """Initialize alert accessor."""
+    def __init__(self, alert_manager: AlertManager):
+        """Initialize alert accessor with alert manager.
+        
+        Args:
+            alert_manager: The alerting system manager
+        """
         self.logger = logging.getLogger("alpha_pulse.api.data.alerts")
-        # Mock alerts for demo purposes
-        self.mock_alerts = [
-            {
-                "id": str(uuid.uuid4()),
-                "title": "High Volatility Detected",
-                "message": "Market volatility has exceeded threshold of 25%",
-                "severity": "warning",
-                "source": "market_monitor",
-                "created_at": (datetime.now() - timedelta(hours=2)).isoformat(),
-                "acknowledged": False,
-                "acknowledged_by": None,
-                "acknowledged_at": None,
-                "tags": ["volatility", "market"]
-            },
-            {
-                "id": str(uuid.uuid4()),
-                "title": "Portfolio Drawdown Alert",
-                "message": "Portfolio drawdown has reached 15%",
-                "severity": "critical",
-                "source": "risk_manager",
-                "created_at": (datetime.now() - timedelta(hours=5)).isoformat(),
-                "acknowledged": True,
-                "acknowledged_by": "system",
-                "acknowledged_at": (datetime.now() - timedelta(hours=4)).isoformat(),
-                "tags": ["drawdown", "risk"]
-            },
-            {
-                "id": str(uuid.uuid4()),
-                "title": "New Trading Opportunity",
-                "message": "Technical indicators suggest potential entry point for BTC-USD",
-                "severity": "info",
-                "source": "technical_agent",
-                "created_at": (datetime.now() - timedelta(hours=1)).isoformat(),
-                "acknowledged": False,
-                "acknowledged_by": None,
-                "acknowledged_at": None,
-                "tags": ["opportunity", "technical"]
-            },
-            {
-                "id": str(uuid.uuid4()),
-                "title": "Stop Loss Triggered",
-                "message": "Stop loss triggered for ETH-USD position at $2750",
-                "severity": "warning",
-                "source": "risk_manager",
-                "created_at": (datetime.now() - timedelta(hours=3)).isoformat(),
-                "acknowledged": False,
-                "acknowledged_by": None,
-                "acknowledged_at": None,
-                "tags": ["stop_loss", "risk"]
-            },
-            {
-                "id": str(uuid.uuid4()),
-                "title": "API Rate Limit Warning",
-                "message": "Exchange API rate limit at 80% utilization",
-                "severity": "info",
-                "source": "system_monitor",
-                "created_at": (datetime.now() - timedelta(minutes=30)).isoformat(),
-                "acknowledged": False,
-                "acknowledged_by": None,
-                "acknowledged_at": None,
-                "tags": ["api", "system"]
-            }
-        ]
+        self.alert_manager = alert_manager
     
     async def get_alerts(
         self,
@@ -94,41 +37,25 @@ class AlertDataAccessor:
             List of alert data
         """
         try:
-            # Apply filters
-            result = self.mock_alerts.copy()
+            # Set default start time if not provided (24 hours ago)
+            if start_time is None:
+                start_time = datetime.now() - timedelta(days=1)
             
-            if filters:
-                # Filter by severity
-                if 'severity' in filters:
-                    result = [a for a in result if a['severity'] == filters['severity']]
-                
-                # Filter by acknowledged status
-                if 'acknowledged' in filters:
-                    result = [a for a in result if a['acknowledged'] == filters['acknowledged']]
-                
-                # Filter by source
-                if 'source' in filters:
-                    result = [a for a in result if a['source'] == filters['source']]
+            # Get alerts from the alert manager
+            alerts = await self.alert_manager.get_alert_history(
+                start_time=start_time,
+                end_time=end_time,
+                filters=filters
+            )
             
-            # Filter by time range
-            if start_time:
-                result = [
-                    a for a in result 
-                    if datetime.fromisoformat(a['created_at']) >= start_time
-                ]
+            # Convert Alert objects to dictionaries for API response
+            return [self._format_alert_for_api(alert) for alert in alerts]
             
-            if end_time:
-                result = [
-                    a for a in result 
-                    if datetime.fromisoformat(a['created_at']) <= end_time
-                ]
-            
-            return result
         except Exception as e:
             self.logger.error(f"Error retrieving alerts: {str(e)}")
             return []
     
-    async def acknowledge_alert(self, alert_id: int, user: str) -> Dict[str, Any]:
+    async def acknowledge_alert(self, alert_id: str, user: str) -> Dict[str, Any]:
         """
         Acknowledge an alert.
         
@@ -140,33 +67,61 @@ class AlertDataAccessor:
             Updated alert data
         """
         try:
-            # Find the alert
-            for alert in self.mock_alerts:
-                if str(alert['id']) == str(alert_id):
-                    # Check if already acknowledged
-                    if alert['acknowledged']:
-                        return {
-                            "success": False,
-                            "error": "Alert already acknowledged"
-                        }
-                    
-                    # Acknowledge the alert
-                    alert['acknowledged'] = True
-                    alert['acknowledged_by'] = user
-                    alert['acknowledged_at'] = datetime.now().isoformat()
-                    
+            # Acknowledge the alert through the alert manager
+            success = await self.alert_manager.acknowledge_alert(alert_id, user)
+            
+            if success:
+                # Get the updated alert
+                alerts = await self.alert_manager.get_alert_history(
+                    filters={"alert_id": alert_id}
+                )
+                
+                if alerts:
                     return {
                         "success": True,
-                        "alert": alert
+                        "alert": self._format_alert_for_api(alerts[0])
+                    }
+                else:
+                    return {
+                        "success": True,
+                        "alert": {"alert_id": alert_id, "acknowledged": True}
                     }
             
             return {
                 "success": False,
-                "error": "Alert not found"
+                "error": "Alert not found or already acknowledged"
             }
+            
         except Exception as e:
             self.logger.error(f"Error acknowledging alert: {str(e)}")
             return {
                 "success": False,
                 "error": str(e)
             }
+    
+    def _format_alert_for_api(self, alert: Alert) -> Dict[str, Any]:
+        """
+        Format an Alert object for API response.
+        
+        Args:
+            alert: The Alert object
+            
+        Returns:
+            Dictionary representation of the alert
+        """
+        # Convert Alert object to a dictionary
+        alert_dict = alert.to_dict()
+        
+        # Rename and restructure fields to match API format
+        return {
+            "id": alert_dict["alert_id"],
+            "title": f"{alert_dict['metric_name']} Alert",
+            "message": alert_dict["message"],
+            "severity": alert_dict["severity"],
+            "source": alert_dict["metric_name"],
+            "created_at": alert_dict["timestamp"],
+            "acknowledged": alert_dict["acknowledged"],
+            "acknowledged_by": alert_dict["acknowledged_by"],
+            "acknowledged_at": alert_dict["acknowledged_at"],
+            "tags": [alert_dict["metric_name"], alert_dict["severity"]]
+        }
