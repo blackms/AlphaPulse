@@ -7,6 +7,7 @@ import portfolioReducer from './slices/portfolioSlice';
 import systemReducer from './slices/systemSlice';
 import tradingReducer from './slices/tradingSlice';
 import uiReducer from './slices/uiSlice';
+import apiMiddleware from './middleware/apiMiddleware';
 
 const store = configureStore({
   reducer: {
@@ -33,7 +34,7 @@ const store = configureStore({
           'trading.strategies',
         ],
       },
-    }),
+    }).concat(apiMiddleware),
 });
 
 export type RootState = ReturnType<typeof store.getState>;
