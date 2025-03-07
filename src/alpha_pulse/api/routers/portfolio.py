@@ -12,7 +12,7 @@ from alpha_pulse.exchanges.interfaces import BaseExchange
 from alpha_pulse.portfolio.portfolio_manager import PortfolioManager
 from pathlib import Path
 from alpha_pulse.portfolio.data_models import PortfolioMetrics
-from ..dependencies import get_exchange_client, verify_api_key
+from ..dependencies import get_exchange_client, get_api_client
 
 router = APIRouter()
 
@@ -36,7 +36,7 @@ class PortfolioMetricsResponse(BaseModel):
 @router.get(
     "/analysis",
     response_model=PortfolioAnalysisResponse,
-    dependencies=[Depends(verify_api_key)]
+    dependencies=[Depends(get_api_client)]
 )
 async def get_portfolio_analysis(
     exchange: BaseExchange = Depends(get_exchange_client)
@@ -88,7 +88,7 @@ async def get_portfolio_analysis(
 @router.get(
     "/metrics",
     response_model=PortfolioMetricsResponse,
-    dependencies=[Depends(verify_api_key)]
+    dependencies=[Depends(get_api_client)]
 )
 async def get_portfolio_metrics(
     exchange: BaseExchange = Depends(get_exchange_client)
@@ -122,7 +122,7 @@ async def get_portfolio_metrics(
 @router.get(
     "/performance",
     response_model=Dict[str, float],
-    dependencies=[Depends(verify_api_key)]
+    dependencies=[Depends(get_api_client)]
 )
 async def get_portfolio_performance(
     exchange: BaseExchange = Depends(get_exchange_client)
