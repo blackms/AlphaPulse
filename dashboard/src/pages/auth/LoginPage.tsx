@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
 import {
   Box,
   Button,
@@ -9,9 +10,12 @@ import {
   Checkbox,
   Alert,
 } from '@mui/material';
+import authService from '../../services/auth/authService';
+import { loginSuccess } from '../../store/slices/authSlice';
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
@@ -36,10 +40,25 @@ const LoginPage: React.FC = () => {
     setError(null);
     
     try {
-      // For demo purposes, we'll just simulate a login
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Try API login first
+      try {
+        const result = await authService.login(username, password);
+        dispatch(loginSuccess({
+          user: result.user,
+          tokens: {
+            accessToken: result.accessToken,
+            refreshToken: result.refreshToken || '',
+            expiresAt: result.expiresAt || Date.now() + 3600000
+          }
+        }));
+        localStorage.setItem('isAuthenticated', 'true');
+        navigate('/dashboard');
+        return;
+      } catch (apiError) {
+        console.error('API login failed, falling back to demo mode', apiError);
+      }
       
-      // For demo, hardcode successful login with demo/demo
+      // Fallback to demo mode
       if (username === 'demo' && password === 'demo') {
         localStorage.setItem('isAuthenticated', 'true');
         navigate('/dashboard');
