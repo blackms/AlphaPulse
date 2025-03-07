@@ -186,7 +186,7 @@ const DashboardLayout: React.FC = () => {
                   width: 12, 
                   height: 12, 
                   borderRadius: '50%', 
-                  bgcolor: systemStatus === 'HEALTHY' ? 'success.main' : 'error.main',
+                  bgcolor: systemStatus === ComponentStatus.HEALTHY ? 'success.main' : 'error.main',
                   mr: 2
                 }} 
               />
