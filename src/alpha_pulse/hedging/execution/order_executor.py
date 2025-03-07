@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Dict, List, Optional
 from loguru import logger
 
-from alpha_pulse.exchanges.base import BaseExchange
+from alpha_pulse.exchanges.interfaces import BaseExchange
 from alpha_pulse.execution.broker_interface import Order, OrderSide, OrderType
 
 
