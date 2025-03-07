@@ -518,6 +518,7 @@ class PortfolioManager:
             positions=positions,
             total_value=total_value,
             cash_balance=current_allocation.get(self.base_currency, Decimal('0')) * total_value,
+            asset_allocation=current_allocation,
             risk_metrics={
                 'volatility_target': self.risk_constraints['volatility_target'],
                 'max_drawdown_limit': self.risk_constraints['max_drawdown_limit'],

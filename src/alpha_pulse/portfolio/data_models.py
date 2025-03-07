@@ -38,6 +38,7 @@ class PortfolioData:
     positions: List[PortfolioPosition]
     risk_metrics: Optional[Dict[str, str]] = None
     timestamp: Optional[datetime] = None
+    asset_allocation: Optional[Dict[str, Decimal]] = None  # Added missing field
 
 
 @dataclass

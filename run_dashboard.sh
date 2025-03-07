@@ -1,62 +1,56 @@
 #!/bin/bash
+# Script to run only the dashboard component of the AI Hedge Fund system
 
-# Set up environment
-export NODE_ENV=development
-export REACT_APP_API_URL=http://localhost:5000/api
+# Display header
+echo "==============================================="
+echo "  AI HEDGE FUND - DASHBOARD ONLY"
+echo "==============================================="
+echo ""
 
-# Colors for output
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m' # No Color
-
-echo -e "${YELLOW}Starting AI Hedge Fund Dashboard...${NC}"
-
-# Check if Node.js is installed
-if ! command -v node &> /dev/null; then
-    echo -e "${RED}Error: Node.js is not installed.${NC}"
-    echo -e "Please install Node.js to run the dashboard."
+# Check if the API is running
+echo "Checking if API is already running..."
+if curl -s http://localhost:8000/ > /dev/null; then
+  echo "✅ API appears to be running at http://localhost:8000"
+else
+  echo "⚠️  Warning: API does not seem to be running at http://localhost:8000"
+  echo "   You should start the API first with: './run_api.sh'"
+  echo "   The dashboard will start, but it won't have any data to display."
+  echo ""
+  read -p "Continue anyway? (y/n): " -n 1 -r
+  echo ""
+  if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    echo "Exiting. Please start the API first."
     exit 1
-fi
-
-# Check if npm is installed
-if ! command -v npm &> /dev/null; then
-    echo -e "${RED}Error: npm is not installed.${NC}"
-    echo -e "Please install npm to run the dashboard."
-    exit 1
+  fi
 fi
 
 # Navigate to dashboard directory
-cd dashboard
+cd dashboard || {
+  echo "Error: dashboard directory not found!"
+  echo "Make sure you're running this script from the project root."
+  exit 1
+}
 
 # Install dependencies if node_modules doesn't exist
 if [ ! -d "node_modules" ]; then
-    echo -e "${YELLOW}Installing dependencies...${NC}"
-    npm install
-    
-    if [ $? -ne 0 ]; then
-        echo -e "${RED}Failed to install dependencies.${NC}"
-        exit 1
-    fi
+  echo "Installing dashboard dependencies..."
+  npm install
+  if [ $? -ne 0 ]; then
+    echo "Failed to install dependencies! Please check your npm installation."
+    exit 1
+  fi
 fi
 
-# Check if API is running
-echo -e "${YELLOW}Checking API connection...${NC}"
-if curl -s http://localhost:5000/api/health > /dev/null; then
-    echo -e "${GREEN}API is running.${NC}"
-else
-    echo -e "${YELLOW}Warning: API does not appear to be running at http://localhost:5000/api${NC}"
-    echo -e "You may have issues with data fetching. Would you like to continue? (y/n)"
-    read -r response
-    if [[ "$response" =~ ^([nN][oO]|[nN])$ ]]; then
-        exit 0
-    fi
-fi
+# Start the dashboard
+echo "Starting dashboard development server..."
+echo "The dashboard will be available at: http://localhost:3000"
+echo ""
+echo "Default login credentials:"
+echo "  Username: admin"
+echo "  Password: password"
+echo ""
+echo "Press Ctrl+C to stop the dashboard"
+echo "==============================================="
 
-# Start the dashboard in development mode
-echo -e "${GREEN}Starting dashboard development server...${NC}"
-echo -e "${YELLOW}The dashboard will be available at http://localhost:3000${NC}"
+# Run the development server
 npm start
-
-# Exit with npm's exit code
-exit $?

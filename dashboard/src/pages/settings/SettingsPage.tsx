@@ -1,241 +1,634 @@
 import React, { useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   Box,
-  Typography,
   Card,
   CardContent,
-  CardHeader,
+  Typography,
   Grid,
   Divider,
-  FormControl,
+  Switch,
   FormControlLabel,
   FormGroup,
-  FormLabel,
-  Switch,
-  TextField,
+  Tab,
+  Tabs,
   Select,
   MenuItem,
+  FormControl,
   InputLabel,
   Button,
-  Snackbar,
+  TextField,
+  Paper,
   Alert,
   SelectChangeEvent,
 } from '@mui/material';
-import { useDispatch, useSelector } from 'react-redux';
-import {
-  selectTheme,
-  selectCompactMode,
-  setTheme,
-  setCompactMode,
+import SaveIcon from '@mui/icons-material/Save';
+import NotificationsIcon from '@mui/icons-material/Notifications';
+import PaletteIcon from '@mui/icons-material/Palette';
+import SecurityIcon from '@mui/icons-material/Security';
+import AccountCircleIcon from '@mui/icons-material/AccountCircle';
+import SettingsIcon from '@mui/icons-material/Settings';
+
+// Redux
+import { 
+  selectThemeMode, 
+  selectDisplayDensity, 
+  setThemeMode, 
+  setDisplayDensity,
+  selectChartStyle,
+  setChartStyle,
+  selectAnimationsEnabled,
+  toggleAnimations,
+  ThemeMode,
+  DisplayDensity,
+  ChartStyle
 } from '../../store/slices/uiSlice';
+
+import {
+  selectAlertPreferences,
+  updatePreferences,
+  AlertPreferences
+} from '../../store/slices/alertsSlice';
+
+import {
+  selectUser,
+  updateUserStart,
+  updateUserSuccess,
+  updatePreferences as updateUserPreferences,
+  User,
+  UserPreferences
+} from '../../store/slices/authSlice';
+
+interface TabPanelProps {
+  children?: React.ReactNode;
+  index: number;
+  value: number;
+}
+
+const TabPanel = (props: TabPanelProps) => {
+  const { children, value, index, ...other } = props;
+
+  return (
+    <div
+      role="tabpanel"
+      hidden={value !== index}
+      id={`settings-tabpanel-${index}`}
+      aria-labelledby={`settings-tab-${index}`}
+      {...other}
+    >
+      {value === index && (
+        <Box sx={{ p: 3 }}>
+          {children}
+        </Box>
+      )}
+    </div>
+  );
+};
+
+const a11yProps = (index: number) => {
+  return {
+    id: `settings-tab-${index}`,
+    'aria-controls': `settings-tabpanel-${index}`,
+  };
+};
 
 const SettingsPage: React.FC = () => {
   const dispatch = useDispatch();
-  const currentTheme = useSelector(selectTheme);
-  const compactMode = useSelector(selectCompactMode);
   
-  // Local state for form values
-  const [tradingEnabled, setTradingEnabled] = useState<boolean>(false);
-  const [maxTradeSize, setMaxTradeSize] = useState<string>('5');
-  const [riskLevel, setRiskLevel] = useState<string>('medium');
-  const [alertFrequency, setAlertFrequency] = useState<string>('important');
-  const [emailNotifications, setEmailNotifications] = useState<boolean>(true);
+  // UI settings
+  const themeMode = useSelector(selectThemeMode);
+  const displayDensity = useSelector(selectDisplayDensity);
+  const chartStyle = useSelector(selectChartStyle);
+  const animationsEnabled = useSelector(selectAnimationsEnabled);
   
-  // Snackbar state
-  const [snackbarOpen, setSnackbarOpen] = useState<boolean>(false);
-  const [snackbarMessage, setSnackbarMessage] = useState<string>('');
+  // Alert preferences
+  const alertPreferences = useSelector(selectAlertPreferences);
   
+  // User settings
+  const user = useSelector(selectUser);
+  
+  // Local state
+  const [tabValue, setTabValue] = useState(0);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  
+  // Local form state
+  const [userForm, setUserForm] = useState({
+    firstName: user?.firstName || '',
+    lastName: user?.lastName || '',
+    email: user?.email || '',
+    timezone: user?.preferences.timezone || 'UTC',
+    language: user?.preferences.language || 'en',
+  });
+  
+  // Tab change handler
+  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+    setTabValue(newValue);
+  };
+  
+  // UI settings handlers
   const handleThemeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    dispatch(setTheme(event.target.checked ? 'dark' : 'light'));
+    dispatch(setThemeMode(event.target.checked ? 'dark' : 'light'));
   };
   
-  const handleCompactModeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    dispatch(setCompactMode(event.target.checked));
+  const handleDensityChange = (event: SelectChangeEvent<DisplayDensity>) => {
+    dispatch(setDisplayDensity(event.target.value as DisplayDensity));
   };
   
-  const handleTradingEnabledChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setTradingEnabled(event.target.checked);
+  const handleChartStyleChange = (event: SelectChangeEvent<ChartStyle>) => {
+    dispatch(setChartStyle(event.target.value as ChartStyle));
   };
   
-  const handleMaxTradeSizeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setMaxTradeSize(event.target.value);
+  const handleAnimationsToggle = () => {
+    dispatch(toggleAnimations());
   };
   
-  const handleRiskLevelChange = (event: SelectChangeEvent) => {
-    setRiskLevel(event.target.value);
+  // Alert preferences handlers
+  const handleAlertPreferenceChange = (key: keyof AlertPreferences) => 
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+    dispatch(updatePreferences({ [key]: event.target.checked }));
   };
   
-  const handleAlertFrequencyChange = (event: SelectChangeEvent) => {
-    setAlertFrequency(event.target.value);
+  // User form handlers
+  const handleUserFormChange = (key: string) => 
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+    setUserForm({
+      ...userForm,
+      [key]: event.target.value
+    });
   };
   
-  const handleEmailNotificationsChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setEmailNotifications(event.target.checked);
-  };
-  
-  const handleSaveSettings = () => {
-    // In a real app, this would save to backend
-    // For now, we just show a success message
-    setSnackbarMessage('Settings saved successfully');
-    setSnackbarOpen(true);
-  };
-  
-  const handleCloseSnackbar = () => {
-    setSnackbarOpen(false);
+  // Save user profile
+  const handleSaveUserProfile = () => {
+    // Manually call updateUserStart action
+    dispatch(updateUserStart());
+    
+    // Then manually update user with data
+    dispatch(updateUserSuccess({
+      firstName: userForm.firstName,
+      lastName: userForm.lastName,
+      email: userForm.email
+    }));
+    
+    dispatch(updateUserPreferences({
+      timezone: userForm.timezone,
+      language: userForm.language
+    }));
+    
+    setSaveSuccess(true);
+    setTimeout(() => setSaveSuccess(false), 3000);
   };
   
   return (
-    <Box sx={{ p: 3 }}>
-      <Typography variant="h4" component="h1" gutterBottom>
-        Settings
-      </Typography>
-      
-      <Grid container spacing={3}>
-        {/* Appearance Settings */}
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardHeader title="Appearance Settings" />
-            <Divider />
-            <CardContent>
-              <FormGroup>
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={currentTheme === 'dark'}
-                      onChange={handleThemeChange}
-                    />
-                  }
-                  label="Dark Theme"
-                />
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={compactMode}
-                      onChange={handleCompactModeChange}
-                    />
-                  }
-                  label="Compact Mode"
-                />
-              </FormGroup>
-            </CardContent>
-          </Card>
-        </Grid>
+    <Box sx={{ width: '100%' }}>
+      <Paper sx={{ width: '100%', mb: 2 }}>
+        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+          <Tabs 
+            value={tabValue} 
+            onChange={handleTabChange} 
+            aria-label="settings tabs"
+            variant="scrollable"
+            scrollButtons="auto"
+          >
+            <Tab icon={<PaletteIcon />} label="Appearance" {...a11yProps(0)} />
+            <Tab icon={<NotificationsIcon />} label="Notifications" {...a11yProps(1)} />
+            <Tab icon={<AccountCircleIcon />} label="Profile" {...a11yProps(2)} />
+            <Tab icon={<SecurityIcon />} label="Security" {...a11yProps(3)} />
+            <Tab icon={<SettingsIcon />} label="Advanced" {...a11yProps(4)} />
+          </Tabs>
+        </Box>
         
-        {/* Trading Settings */}
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardHeader title="Trading Settings" />
-            <Divider />
-            <CardContent>
-              <FormGroup>
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={tradingEnabled}
-                      onChange={handleTradingEnabledChange}
-                    />
-                  }
-                  label="Enable Automated Trading"
-                />
-                
-                <Box mt={2} mb={2}>
-                  <TextField
-                    label="Maximum Trade Size (%)"
-                    type="number"
-                    value={maxTradeSize}
-                    onChange={handleMaxTradeSizeChange}
-                    InputProps={{ inputProps: { min: 1, max: 100 } }}
-                    fullWidth
-                    disabled={!tradingEnabled}
-                  />
-                </Box>
-                
-                <FormControl fullWidth sx={{ mt: 2 }} disabled={!tradingEnabled}>
-                  <InputLabel id="risk-level-label">Risk Level</InputLabel>
-                  <Select
-                    labelId="risk-level-label"
-                    value={riskLevel}
-                    label="Risk Level"
-                    onChange={handleRiskLevelChange}
-                  >
-                    <MenuItem value="low">Low</MenuItem>
-                    <MenuItem value="medium">Medium</MenuItem>
-                    <MenuItem value="high">High</MenuItem>
-                  </Select>
-                </FormControl>
-              </FormGroup>
-            </CardContent>
-          </Card>
-        </Grid>
-        
-        {/* Notification Settings */}
-        <Grid item xs={12}>
-          <Card>
-            <CardHeader title="Notification Settings" />
-            <Divider />
-            <CardContent>
-              <Grid container spacing={3}>
-                <Grid item xs={12} md={6}>
-                  <FormControl fullWidth>
-                    <InputLabel id="alert-frequency-label">Alert Frequency</InputLabel>
-                    <Select
-                      labelId="alert-frequency-label"
-                      value={alertFrequency}
-                      label="Alert Frequency"
-                      onChange={handleAlertFrequencyChange}
-                    >
-                      <MenuItem value="all">All Alerts</MenuItem>
-                      <MenuItem value="important">Important Only</MenuItem>
-                      <MenuItem value="critical">Critical Only</MenuItem>
-                      <MenuItem value="none">None</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Grid>
-                
-                <Grid item xs={12} md={6}>
+        {/* Appearance Tab */}
+        <TabPanel value={tabValue} index={0}>
+          <Grid container spacing={3}>
+            <Grid item xs={12}>
+              <Typography variant="h6" gutterBottom>
+                Interface Settings
+              </Typography>
+            </Grid>
+            
+            <Grid item xs={12} md={6}>
+              <Card>
+                <CardContent>
                   <FormGroup>
                     <FormControlLabel
                       control={
-                        <Switch
-                          checked={emailNotifications}
-                          onChange={handleEmailNotificationsChange}
+                        <Switch 
+                          checked={themeMode === 'dark'} 
+                          onChange={handleThemeChange} 
+                        />
+                      }
+                      label="Dark Mode"
+                    />
+                    
+                    <FormControlLabel
+                      control={
+                        <Switch 
+                          checked={animationsEnabled} 
+                          onChange={handleAnimationsToggle} 
+                        />
+                      }
+                      label="Enable Animations"
+                    />
+                  </FormGroup>
+                </CardContent>
+              </Card>
+            </Grid>
+            
+            <Grid item xs={12} md={6}>
+              <Card>
+                <CardContent>
+                  <FormControl fullWidth sx={{ mb: 2 }}>
+                    <InputLabel id="density-select-label">Display Density</InputLabel>
+                    <Select
+                      labelId="density-select-label"
+                      value={displayDensity}
+                      label="Display Density"
+                      onChange={handleDensityChange}
+                    >
+                      <MenuItem value="comfortable">Comfortable</MenuItem>
+                      <MenuItem value="compact">Compact</MenuItem>
+                      <MenuItem value="spacious">Spacious</MenuItem>
+                    </Select>
+                  </FormControl>
+                  
+                  <FormControl fullWidth>
+                    <InputLabel id="chart-style-select-label">Chart Style</InputLabel>
+                    <Select
+                      labelId="chart-style-select-label"
+                      value={chartStyle}
+                      label="Chart Style"
+                      onChange={handleChartStyleChange}
+                    >
+                      <MenuItem value="candle">Candlestick</MenuItem>
+                      <MenuItem value="line">Line</MenuItem>
+                      <MenuItem value="area">Area</MenuItem>
+                      <MenuItem value="bar">Bar</MenuItem>
+                    </Select>
+                  </FormControl>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+        </TabPanel>
+        
+        {/* Notifications Tab */}
+        <TabPanel value={tabValue} index={1}>
+          <Grid container spacing={3}>
+            <Grid item xs={12}>
+              <Typography variant="h6" gutterBottom>
+                Alert & Notification Settings
+              </Typography>
+            </Grid>
+            
+            <Grid item xs={12} md={6}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    Notification Channels
+                  </Typography>
+                  <FormGroup>
+                    <FormControlLabel
+                      control={
+                        <Switch 
+                          checked={alertPreferences?.emailNotifications} 
+                          onChange={handleAlertPreferenceChange('emailNotifications')} 
                         />
                       }
                       label="Email Notifications"
                     />
+                    
+                    <FormControlLabel
+                      control={
+                        <Switch 
+                          checked={alertPreferences?.pushNotifications} 
+                          onChange={handleAlertPreferenceChange('pushNotifications')} 
+                        />
+                      }
+                      label="Push Notifications"
+                    />
+                    
+                    <FormControlLabel
+                      control={
+                        <Switch 
+                          checked={alertPreferences?.smsNotifications} 
+                          onChange={handleAlertPreferenceChange('smsNotifications')} 
+                        />
+                      }
+                      label="SMS Notifications"
+                    />
+                    
+                    <FormControlLabel
+                      control={
+                        <Switch 
+                          checked={alertPreferences?.slackNotifications} 
+                          onChange={handleAlertPreferenceChange('slackNotifications')} 
+                        />
+                      }
+                      label="Slack Notifications"
+                    />
                   </FormGroup>
-                </Grid>
-              </Grid>
-            </CardContent>
-          </Card>
-        </Grid>
+                </CardContent>
+              </Card>
+            </Grid>
+            
+            <Grid item xs={12} md={6}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    Notification Settings
+                  </Typography>
+                  <FormGroup>
+                    <FormControlLabel
+                      control={
+                        <Switch 
+                          checked={alertPreferences?.criticalAlertsOnly} 
+                          onChange={handleAlertPreferenceChange('criticalAlertsOnly')} 
+                        />
+                      }
+                      label="Critical Alerts Only"
+                    />
+                    
+                    <FormControlLabel
+                      control={
+                        <Switch 
+                          checked={alertPreferences?.soundEnabled} 
+                          onChange={handleAlertPreferenceChange('soundEnabled')} 
+                        />
+                      }
+                      label="Sound Alerts"
+                    />
+                  </FormGroup>
+                  
+                  <Box sx={{ mt: 2 }}>
+                    <Typography variant="subtitle2" gutterBottom>
+                      Quiet Hours
+                    </Typography>
+                    <Grid container spacing={2}>
+                      <Grid item xs={6}>
+                        <TextField
+                          label="Start Time"
+                          type="time"
+                          value={alertPreferences?.muteStartTime || "22:00"}
+                          onChange={(e) => dispatch(updatePreferences({ muteStartTime: e.target.value }))}
+                          InputLabelProps={{
+                            shrink: true,
+                          }}
+                          fullWidth
+                        />
+                      </Grid>
+                      <Grid item xs={6}>
+                        <TextField
+                          label="End Time"
+                          type="time"
+                          value={alertPreferences?.muteEndTime || "08:00"}
+                          onChange={(e) => dispatch(updatePreferences({ muteEndTime: e.target.value }))}
+                          InputLabelProps={{
+                            shrink: true,
+                          }}
+                          fullWidth
+                        />
+                      </Grid>
+                    </Grid>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+        </TabPanel>
         
-        {/* Save Button */}
-        <Grid item xs={12}>
-          <Box display="flex" justifyContent="flex-end">
-            <Button
-              variant="contained"
-              color="primary"
-              size="large"
-              onClick={handleSaveSettings}
-            >
-              Save Settings
-            </Button>
-          </Box>
-        </Grid>
-      </Grid>
-      
-      {/* Snackbar for notifications */}
-      <Snackbar
-        open={snackbarOpen}
-        autoHideDuration={6000}
-        onClose={handleCloseSnackbar}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-      >
-        <Alert onClose={handleCloseSnackbar} severity="success">
-          {snackbarMessage}
-        </Alert>
-      </Snackbar>
+        {/* Profile Tab */}
+        <TabPanel value={tabValue} index={2}>
+          <Grid container spacing={3}>
+            <Grid item xs={12}>
+              <Typography variant="h6" gutterBottom>
+                User Profile
+              </Typography>
+              {saveSuccess && (
+                <Alert severity="success" sx={{ mb: 2 }}>
+                  Profile updated successfully!
+                </Alert>
+              )}
+            </Grid>
+            
+            <Grid item xs={12} md={6}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    Personal Information
+                  </Typography>
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} md={6}>
+                      <TextField
+                        label="First Name"
+                        value={userForm.firstName}
+                        onChange={handleUserFormChange('firstName')}
+                        fullWidth
+                        margin="normal"
+                      />
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <TextField
+                        label="Last Name"
+                        value={userForm.lastName}
+                        onChange={handleUserFormChange('lastName')}
+                        fullWidth
+                        margin="normal"
+                      />
+                    </Grid>
+                    <Grid item xs={12}>
+                      <TextField
+                        label="Email"
+                        type="email"
+                        value={userForm.email}
+                        onChange={handleUserFormChange('email')}
+                        fullWidth
+                        margin="normal"
+                      />
+                    </Grid>
+                  </Grid>
+                </CardContent>
+              </Card>
+            </Grid>
+            
+            <Grid item xs={12} md={6}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    Regional Settings
+                  </Typography>
+                  <FormControl fullWidth sx={{ mb: 2, mt: 1 }}>
+                    <InputLabel id="timezone-select-label">Timezone</InputLabel>
+                    <Select
+                      labelId="timezone-select-label"
+                      value={userForm.timezone}
+                      label="Timezone"
+                      onChange={(e: SelectChangeEvent) => setUserForm({ ...userForm, timezone: e.target.value })}
+                    >
+                      <MenuItem value="UTC">UTC</MenuItem>
+                      <MenuItem value="America/New_York">Eastern Time (ET)</MenuItem>
+                      <MenuItem value="America/Chicago">Central Time (CT)</MenuItem>
+                      <MenuItem value="America/Denver">Mountain Time (MT)</MenuItem>
+                      <MenuItem value="America/Los_Angeles">Pacific Time (PT)</MenuItem>
+                      <MenuItem value="Europe/London">London (GMT)</MenuItem>
+                      <MenuItem value="Europe/Paris">Central European Time (CET)</MenuItem>
+                      <MenuItem value="Asia/Tokyo">Japan (JST)</MenuItem>
+                      <MenuItem value="Asia/Hong_Kong">Hong Kong</MenuItem>
+                      <MenuItem value="Australia/Sydney">Sydney</MenuItem>
+                    </Select>
+                  </FormControl>
+                  
+                  <FormControl fullWidth sx={{ mb: 2 }}>
+                    <InputLabel id="language-select-label">Language</InputLabel>
+                    <Select
+                      labelId="language-select-label"
+                      value={userForm.language}
+                      label="Language"
+                      onChange={(e: SelectChangeEvent) => setUserForm({ ...userForm, language: e.target.value })}
+                    >
+                      <MenuItem value="en">English</MenuItem>
+                      <MenuItem value="es">Spanish</MenuItem>
+                      <MenuItem value="fr">French</MenuItem>
+                      <MenuItem value="de">German</MenuItem>
+                      <MenuItem value="ja">Japanese</MenuItem>
+                      <MenuItem value="zh">Chinese</MenuItem>
+                    </Select>
+                  </FormControl>
+                </CardContent>
+              </Card>
+            </Grid>
+            
+            <Grid item xs={12}>
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
+                <Button
+                  variant="contained"
+                  startIcon={<SaveIcon />}
+                  onClick={handleSaveUserProfile}
+                >
+                  Save Changes
+                </Button>
+              </Box>
+            </Grid>
+          </Grid>
+        </TabPanel>
+        
+        {/* Security Tab */}
+        <TabPanel value={tabValue} index={3}>
+          <Grid container spacing={3}>
+            <Grid item xs={12}>
+              <Typography variant="h6" gutterBottom>
+                Security Settings
+              </Typography>
+            </Grid>
+            
+            <Grid item xs={12} md={6}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    Change Password
+                  </Typography>
+                  <TextField
+                    label="Current Password"
+                    type="password"
+                    fullWidth
+                    margin="normal"
+                  />
+                  <TextField
+                    label="New Password"
+                    type="password"
+                    fullWidth
+                    margin="normal"
+                  />
+                  <TextField
+                    label="Confirm New Password"
+                    type="password"
+                    fullWidth
+                    margin="normal"
+                  />
+                  <Box sx={{ mt: 2 }}>
+                    <Button variant="contained">Update Password</Button>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+            
+            <Grid item xs={12} md={6}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    Two-Factor Authentication
+                  </Typography>
+                  <FormGroup>
+                    <FormControlLabel
+                      control={<Switch />}
+                      label="Enable Two-Factor Authentication"
+                    />
+                  </FormGroup>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                    Two-factor authentication adds an additional layer of security to your account by requiring more than just a password to log in.
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+        </TabPanel>
+        
+        {/* Advanced Tab */}
+        <TabPanel value={tabValue} index={4}>
+          <Grid container spacing={3}>
+            <Grid item xs={12}>
+              <Typography variant="h6" gutterBottom>
+                Advanced Settings
+              </Typography>
+            </Grid>
+            
+            <Grid item xs={12} md={6}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    Data & Privacy
+                  </Typography>
+                  <Button variant="outlined" color="primary" sx={{ mr: 2, mb: 2 }}>
+                    Export My Data
+                  </Button>
+                  <Button variant="outlined" color="error" sx={{ mb: 2 }}>
+                    Delete Account
+                  </Button>
+                  <Typography variant="body2" color="text.secondary">
+                    Deleting your account will remove all your data and cannot be undone.
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            
+            <Grid item xs={12} md={6}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    API Access
+                  </Typography>
+                  <TextField
+                    label="API Key"
+                    value="••••••••••••••••••••••••••••••"
+                    InputProps={{
+                      readOnly: true,
+                    }}
+                    fullWidth
+                    margin="normal"
+                  />
+                  <Box sx={{ mt: 2 }}>
+                    <Button variant="outlined" sx={{ mr: 2 }}>
+                      Regenerate API Key
+                    </Button>
+                    <Button variant="outlined">
+                      View API Documentation
+                    </Button>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+        </TabPanel>
+      </Paper>
     </Box>
   );
 };
