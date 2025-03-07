@@ -142,11 +142,11 @@ const DashboardLayout: React.FC = () => {
   // Navigation items
   const menuItems = [
     { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
-    { text: 'Portfolio', icon: <AccountBalanceWalletIcon />, path: '/portfolio' },
-    { text: 'Trading', icon: <ShowChartIcon />, path: '/trading' },
-    { text: 'Alerts', icon: <NotificationsIcon />, path: '/alerts' },
-    { text: 'System Status', icon: <MonitorHeartIcon />, path: '/system' },
-    { text: 'Settings', icon: <SettingsIcon />, path: '/settings' }
+    { text: 'Portfolio', icon: <AccountBalanceWalletIcon />, path: '/dashboard/portfolio' },
+    { text: 'Trading', icon: <ShowChartIcon />, path: '/dashboard/trading' },
+    { text: 'Alerts', icon: <NotificationsIcon />, path: '/dashboard/alerts' },
+    { text: 'System Status', icon: <MonitorHeartIcon />, path: '/dashboard/system' },
+    { text: 'Settings', icon: <SettingsIcon />, path: '/dashboard/settings' }
   ];
   
   return (
