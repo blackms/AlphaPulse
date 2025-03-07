@@ -94,6 +94,22 @@ const PortfolioPage: React.FC = () => {
   
   // Chart data preparation
   const prepareChartData = () => {
+    if (!historicalValues || historicalValues.length === 0) {
+      return {
+        labels: [],
+        datasets: [
+          {
+            label: 'Portfolio Value',
+            data: [],
+            fill: false,
+            backgroundColor: 'rgba(75, 192, 192, 0.4)',
+            borderColor: 'rgba(75, 192, 192, 1)',
+            tension: 0.1,
+          },
+        ],
+      };
+    }
+    
     const sortedData = [...historicalValues].sort((a, b) => a.timestamp - b.timestamp);
     
     return {
@@ -161,7 +177,7 @@ const PortfolioPage: React.FC = () => {
                 {formatCurrency(totalValue)}
               </Typography>
               <Box display="flex" alignItems="center">
-                {performance.find(p => p.period === 'day')?.returnPercent !== undefined && (
+                {performance && performance.length > 0 && performance.find(p => p.period === 'day')?.returnPercent !== undefined && (
                   <Chip
                     icon={performance.find(p => p.period === 'day')!.returnPercent >= 0 ? <TrendingUpIcon /> : <TrendingDownIcon />}
                     label={formatPercentage(performance.find(p => p.period === 'day')!.returnPercent)}
@@ -197,11 +213,13 @@ const PortfolioPage: React.FC = () => {
             <CardContent>
               <Typography variant="h6" gutterBottom>Monthly Return</Typography>
               <Typography variant="h4" sx={{ mb: 1 }}>
-                {formatPercentage(performance.find(p => p.period === 'month')?.returnPercent || 0)}
+                {formatPercentage(performance && performance.length > 0 ?
+                  performance.find(p => p.period === 'month')?.returnPercent || 0 : 0)}
               </Typography>
               <Box display="flex" alignItems="center">
                 <Typography variant="body2">
-                  {formatCurrency(performance.find(p => p.period === 'month')?.returnValue || 0)}
+                  {formatCurrency(performance && performance.length > 0 ?
+                    performance.find(p => p.period === 'month')?.returnValue || 0 : 0)}
                 </Typography>
               </Box>
             </CardContent>
@@ -213,11 +231,13 @@ const PortfolioPage: React.FC = () => {
             <CardContent>
               <Typography variant="h6" gutterBottom>YTD Return</Typography>
               <Typography variant="h4" sx={{ mb: 1 }}>
-                {formatPercentage(performance.find(p => p.period === 'year')?.returnPercent || 0)}
+                {formatPercentage(performance && performance.length > 0 ?
+                  performance.find(p => p.period === 'year')?.returnPercent || 0 : 0)}
               </Typography>
               <Box display="flex" alignItems="center">
                 <Typography variant="body2">
-                  {formatCurrency(performance.find(p => p.period === 'year')?.returnValue || 0)}
+                  {formatCurrency(performance && performance.length > 0 ?
+                    performance.find(p => p.period === 'year')?.returnValue || 0 : 0)}
                 </Typography>
               </Box>
             </CardContent>
@@ -274,7 +294,7 @@ const PortfolioPage: React.FC = () => {
                   <Grid container spacing={3}>
                     <Grid item xs={12} md={6}>
                       <Typography variant="body1" gutterBottom>
-                        <strong>Assets:</strong> {assets.length}
+                        <strong>Assets:</strong> {assets && assets.length ? assets.length : 0}
                       </Typography>
                       <Typography variant="body1" gutterBottom>
                         <strong>Diversification Score:</strong> 78%
@@ -316,7 +336,7 @@ const PortfolioPage: React.FC = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {assets.map((asset) => (
+                {assets && assets.length > 0 ? assets.map((asset) => (
                   <TableRow key={asset.assetId}>
                     <TableCell component="th" scope="row">
                       <Box display="flex" alignItems="center">
@@ -348,7 +368,7 @@ const PortfolioPage: React.FC = () => {
                       </Box>
                     </TableCell>
                     <TableCell align="right">
-                      <Typography 
+                      <Typography
                         variant="body2"
                         color={asset.unrealizedPnL >= 0 ? 'success.main' : 'error.main'}
                       >
@@ -361,7 +381,11 @@ const PortfolioPage: React.FC = () => {
                       </IconButton>
                     </TableCell>
                   </TableRow>
-                ))}
+                )) : (
+                  <TableRow>
+                    <TableCell colSpan={8} align="center">No assets available</TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </TabPanel>
@@ -381,13 +405,13 @@ const PortfolioPage: React.FC = () => {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {performance.map((period) => (
+                      {performance && performance.length > 0 ? performance.map((period) => (
                         <TableRow key={period.period}>
                           <TableCell component="th" scope="row">
                             {period.period.charAt(0).toUpperCase() + period.period.slice(1)}
                           </TableCell>
                           <TableCell align="right">
-                            <Typography 
+                            <Typography
                               variant="body2"
                               color={period.returnPercent >= 0 ? 'success.main' : 'error.main'}
                             >
@@ -395,7 +419,7 @@ const PortfolioPage: React.FC = () => {
                             </Typography>
                           </TableCell>
                           <TableCell align="right">
-                            <Typography 
+                            <Typography
                               variant="body2"
                               color={period.returnValue >= 0 ? 'success.main' : 'error.main'}
                             >
@@ -403,7 +427,11 @@ const PortfolioPage: React.FC = () => {
                             </Typography>
                           </TableCell>
                         </TableRow>
-                      ))}
+                      )) : (
+                        <TableRow>
+                          <TableCell colSpan={3} align="center">No performance data available</TableCell>
+                        </TableRow>
+                      )}
                     </TableBody>
                   </Table>
                 </Paper>
@@ -421,33 +449,40 @@ const PortfolioPage: React.FC = () => {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {assets
-                        .filter(asset => asset.symbol !== 'CASH')
-                        .sort((a, b) => b.unrealizedPnLPercent - a.unrealizedPnLPercent)
-                        .slice(0, 5)
-                        .map((asset) => (
-                          <TableRow key={asset.assetId}>
-                            <TableCell component="th" scope="row">
-                              {asset.symbol}
-                            </TableCell>
-                            <TableCell align="right">
-                              <Typography 
-                                variant="body2"
-                                color={asset.unrealizedPnLPercent >= 0 ? 'success.main' : 'error.main'}
-                              >
-                                {formatPercentage(asset.unrealizedPnLPercent)}
-                              </Typography>
-                            </TableCell>
-                            <TableCell align="right">
-                              <Typography 
-                                variant="body2"
-                                color={asset.unrealizedPnL >= 0 ? 'success.main' : 'error.main'}
-                              >
-                                {formatCurrency(asset.unrealizedPnL)}
-                              </Typography>
-                            </TableCell>
+                      {assets && assets.length > 0 ?
+                        assets
+                          .filter(asset => asset.symbol !== 'CASH')
+                          .sort((a, b) => b.unrealizedPnLPercent - a.unrealizedPnLPercent)
+                          .slice(0, 5)
+                          .map((asset) => (
+                            <TableRow key={asset.assetId}>
+                              <TableCell component="th" scope="row">
+                                {asset.symbol}
+                              </TableCell>
+                              <TableCell align="right">
+                                <Typography
+                                  variant="body2"
+                                  color={asset.unrealizedPnLPercent >= 0 ? 'success.main' : 'error.main'}
+                                >
+                                  {formatPercentage(asset.unrealizedPnLPercent)}
+                                </Typography>
+                              </TableCell>
+                              <TableCell align="right">
+                                <Typography
+                                  variant="body2"
+                                  color={asset.unrealizedPnL >= 0 ? 'success.main' : 'error.main'}
+                                >
+                                  {formatCurrency(asset.unrealizedPnL)}
+                                </Typography>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        : (
+                          <TableRow>
+                            <TableCell colSpan={3} align="center">No asset data available</TableCell>
                           </TableRow>
-                        ))}
+                        )
+                      }
                     </TableBody>
                   </Table>
                 </Paper>
@@ -471,36 +506,42 @@ const PortfolioPage: React.FC = () => {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {assets.map((asset) => {
-                        // Mock target allocations for demo purposes
-                        const targetAllocation = 
-                          asset.symbol === 'BTC' ? 35.0 :
-                          asset.symbol === 'ETH' ? 25.0 :
-                          asset.symbol === 'SOL' ? 20.0 :
-                          asset.symbol === 'LINK' ? 5.0 :
-                          asset.symbol === 'MATIC' ? 5.0 :
-                          asset.symbol === 'CASH' ? 10.0 : 0;
+                      {assets && assets.length > 0 ?
+                        assets.map((asset) => {
+                          // Mock target allocations for demo purposes
+                          const targetAllocation =
+                            asset.symbol === 'BTC' ? 35.0 :
+                            asset.symbol === 'ETH' ? 25.0 :
+                            asset.symbol === 'SOL' ? 20.0 :
+                            asset.symbol === 'LINK' ? 5.0 :
+                            asset.symbol === 'MATIC' ? 5.0 :
+                            asset.symbol === 'CASH' ? 10.0 : 0;
+                            
+                          const difference = asset.allocation - targetAllocation;
                           
-                        const difference = asset.allocation - targetAllocation;
-                        
-                        return (
-                          <TableRow key={asset.assetId}>
-                            <TableCell component="th" scope="row">
-                              {asset.symbol}
-                            </TableCell>
-                            <TableCell align="right">{asset.allocation.toFixed(1)}%</TableCell>
-                            <TableCell align="right">{targetAllocation.toFixed(1)}%</TableCell>
-                            <TableCell align="right">
-                              <Typography 
-                                variant="body2"
-                                color={Math.abs(difference) > 2 ? 'warning.main' : 'text.primary'}
-                              >
-                                {difference >= 0 ? '+' : ''}{difference.toFixed(1)}%
-                              </Typography>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
+                          return (
+                            <TableRow key={asset.assetId}>
+                              <TableCell component="th" scope="row">
+                                {asset.symbol}
+                              </TableCell>
+                              <TableCell align="right">{asset.allocation.toFixed(1)}%</TableCell>
+                              <TableCell align="right">{targetAllocation.toFixed(1)}%</TableCell>
+                              <TableCell align="right">
+                                <Typography
+                                  variant="body2"
+                                  color={Math.abs(difference) > 2 ? 'warning.main' : 'text.primary'}
+                                >
+                                  {difference >= 0 ? '+' : ''}{difference.toFixed(1)}%
+                                </Typography>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
+                      : (
+                        <TableRow>
+                          <TableCell colSpan={4} align="center">No asset data available</TableCell>
+                        </TableRow>
+                      )}
                     </TableBody>
                   </Table>
                 </Paper>
@@ -515,32 +556,36 @@ const PortfolioPage: React.FC = () => {
                     </Typography>
                     
                     <Box component="ul">
-                      {assets.map((asset) => {
-                        // Mock target allocations for demo purposes
-                        const targetAllocation = 
-                          asset.symbol === 'BTC' ? 35.0 :
-                          asset.symbol === 'ETH' ? 25.0 :
-                          asset.symbol === 'SOL' ? 20.0 :
-                          asset.symbol === 'LINK' ? 5.0 :
-                          asset.symbol === 'MATIC' ? 5.0 :
-                          asset.symbol === 'CASH' ? 10.0 : 0;
+                      {assets && assets.length > 0 ?
+                        assets.map((asset) => {
+                          // Mock target allocations for demo purposes
+                          const targetAllocation =
+                            asset.symbol === 'BTC' ? 35.0 :
+                            asset.symbol === 'ETH' ? 25.0 :
+                            asset.symbol === 'SOL' ? 20.0 :
+                            asset.symbol === 'LINK' ? 5.0 :
+                            asset.symbol === 'MATIC' ? 5.0 :
+                            asset.symbol === 'CASH' ? 10.0 : 0;
+                            
+                          const difference = asset.allocation - targetAllocation;
                           
-                        const difference = asset.allocation - targetAllocation;
-                        
-                        if (Math.abs(difference) > 2) {
-                          const action = difference > 0 ? 'Reduce' : 'Increase';
-                          const amountToAdjust = Math.abs(difference) * totalValue / 100;
-                          
-                          return (
-                            <Box component="li" key={asset.assetId} sx={{ mb: 1 }}>
-                              <Typography variant="body2">
-                                <strong>{action} {asset.symbol}:</strong> {formatCurrency(amountToAdjust)} ({Math.abs(difference).toFixed(1)}%)
-                              </Typography>
-                            </Box>
-                          );
-                        }
-                        return null;
-                      }).filter(Boolean)}
+                          if (Math.abs(difference) > 2) {
+                            const action = difference > 0 ? 'Reduce' : 'Increase';
+                            const amountToAdjust = Math.abs(difference) * totalValue / 100;
+                            
+                            return (
+                              <Box component="li" key={asset.assetId} sx={{ mb: 1 }}>
+                                <Typography variant="body2">
+                                  <strong>{action} {asset.symbol}:</strong> {formatCurrency(amountToAdjust)} ({Math.abs(difference).toFixed(1)}%)
+                                </Typography>
+                              </Box>
+                            );
+                          }
+                          return null;
+                        }).filter(Boolean)
+                      : (
+                        <Typography variant="body2">No asset data available for rebalancing</Typography>
+                      )}
                     </Box>
                     
                     <Box mt={3}>
