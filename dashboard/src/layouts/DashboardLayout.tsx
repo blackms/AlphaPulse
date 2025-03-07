@@ -32,7 +32,6 @@ import LogoutIcon from '@mui/icons-material/Logout';
 
 // Redux
 import { selectThemeMode, setSidebarSize, selectSidebarSize } from '../store/slices/uiSlice';
-import { selectAllAlerts } from '../store/slices/alertsSlice';
 import { selectSystemOverallStatus, ComponentStatus } from '../store/slices/systemSlice';
 import { logout } from '../store/slices/authSlice';
 
@@ -75,8 +74,8 @@ const DashboardLayout: React.FC = () => {
   const themeMode = useSelector(selectThemeMode);
   const sidebarSize = useSelector(selectSidebarSize);
   const systemStatus = useSelector(selectSystemOverallStatus);
-  // Get unread alerts count (for future use)
-  const unreadAlertsCount = useSelector(selectAllAlerts).filter(alert => !alert.acknowledged).length;
+  // We'll use this in a future update for notification badge
+  // const unreadAlertsCount = useSelector(selectAllAlerts).filter(alert => !alert.acknowledged).length;
   
   // Local state
   const [mobileOpen, setMobileOpen] = useState<boolean>(false);

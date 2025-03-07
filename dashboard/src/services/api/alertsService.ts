@@ -132,7 +132,10 @@ const alertsService = {
         soundEnabled: true,
         rules: []
       };
+    // eslint-disable-next-line no-unreachable
     } catch (error) {
+      // This code is technically unreachable since we're returning a mock object
+      // But we'll keep it for future implementation with real API
       console.error('Error fetching notification preferences:', error);
       throw error;
     }
