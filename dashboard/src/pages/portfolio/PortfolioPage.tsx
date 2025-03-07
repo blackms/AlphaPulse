@@ -35,7 +35,7 @@ import {
   selectPerformance,
   selectHistoricalValues,
   fetchPortfolioStart,
-  Asset,
+  // Asset, // Unused import
 } from '../../store/slices/portfolioSlice';
 import { Line } from 'react-chartjs-2';
 import 'chart.js/auto';
