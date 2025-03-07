@@ -4,6 +4,10 @@ import DashboardLayout from './layouts/DashboardLayout';
 import AuthLayout from './layouts/AuthLayout';
 import LoginPage from './pages/auth/LoginPage';
 import DashboardPage from './pages/dashboard/DashboardPage';
+import PortfolioPage from './pages/portfolio/PortfolioPage';
+import AlertsPage from './pages/alerts/AlertsPage';
+import SystemStatusPage from './pages/system/SystemStatusPage';
+import SettingsPage from './pages/settings/SettingsPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 // Check if user is authenticated
@@ -37,12 +41,11 @@ const Router: React.FC = () => {
         }
       >
         <Route index element={<DashboardPage />} />
-        {/* For now, just use DashboardPage for all routes */}
-        <Route path="portfolio" element={<DashboardPage />} />
-        <Route path="trading" element={<DashboardPage />} />
-        <Route path="alerts" element={<DashboardPage />} />
-        <Route path="system" element={<DashboardPage />} />
-        <Route path="settings" element={<DashboardPage />} />
+        <Route path="portfolio" element={<PortfolioPage />} />
+        <Route path="trading" element={<DashboardPage />} /> {/* No TradingPage yet, using DashboardPage as fallback */}
+        <Route path="alerts" element={<AlertsPage />} />
+        <Route path="system" element={<SystemStatusPage />} />
+        <Route path="settings" element={<SettingsPage />} />
       </Route>
 
       {/* Root redirect */}
