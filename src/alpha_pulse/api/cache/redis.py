@@ -1,7 +1,7 @@
 """Redis cache implementation."""
 import json
 from typing import Any, Optional
-import aioredis
+import redis.asyncio as redis
 
 
 class RedisCache:
@@ -15,7 +15,7 @@ class RedisCache:
     async def connect(self) -> None:
         """Connect to Redis."""
         if not self.redis:
-            self.redis = await aioredis.create_redis_pool(self.redis_url)
+            self.redis = redis.from_url(self.redis_url)
     
     async def get(self, key: str) -> Optional[Any]:
         """Get value from cache."""
