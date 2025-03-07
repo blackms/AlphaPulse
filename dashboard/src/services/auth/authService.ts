@@ -46,7 +46,7 @@ class AuthService {
           role: 'admin' as UserRole,
           permissions: ['*'],
           preferences: {
-            theme: 'dark',
+            theme: 'dark' as 'dark' | 'light' | 'system',
             dashboardLayout: 'default',
             notifications: true,
             alertSounds: true,
