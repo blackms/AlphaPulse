@@ -8,7 +8,7 @@ from decimal import Decimal
 from loguru import logger
 import pandas as pd
 
-from alpha_pulse.exchanges.base import BaseExchange
+from alpha_pulse.exchanges.interfaces import BaseExchange
 from alpha_pulse.portfolio.portfolio_manager import PortfolioManager
 from pathlib import Path
 from alpha_pulse.portfolio.data_models import PortfolioAnalysis, PortfolioMetrics
