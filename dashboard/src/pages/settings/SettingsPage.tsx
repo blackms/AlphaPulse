@@ -110,6 +110,10 @@ const SettingsPage: React.FC = () => {
   // Local state
   const [tabValue, setTabValue] = useState(0);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [quietHours, setQuietHours] = useState({
+    muteStartTime: "22:00",
+    muteEndTime: "08:00"
+  });
   
   // Local form state
   const [userForm, setUserForm] = useState({
@@ -127,7 +131,7 @@ const SettingsPage: React.FC = () => {
   
   // UI settings handlers
   const handleThemeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    dispatch(setThemeMode(event.target.checked ? 'dark' : 'light'));
+    dispatch(setThemeMode(event.target.checked ? ThemeMode.DARK : ThemeMode.LIGHT));
   };
   
   const handleDensityChange = (event: SelectChangeEvent<DisplayDensity>) => {
@@ -310,8 +314,10 @@ const SettingsPage: React.FC = () => {
                     <FormControlLabel
                       control={
                         <Switch 
-                          checked={alertPreferences?.smsNotifications} 
-                          onChange={handleAlertPreferenceChange('smsNotifications')} 
+                          checked={alertPreferences?.channels.sms}
+                          onChange={(e) => dispatch(updatePreferences({
+                            channels: { ...alertPreferences?.channels, sms: e.target.checked }
+                          }))}
                         />
                       }
                       label="SMS Notifications"
@@ -320,8 +326,10 @@ const SettingsPage: React.FC = () => {
                     <FormControlLabel
                       control={
                         <Switch 
-                          checked={alertPreferences?.slackNotifications} 
-                          onChange={handleAlertPreferenceChange('slackNotifications')} 
+                          checked={alertPreferences?.channels.slack}
+                          onChange={(e) => dispatch(updatePreferences({
+                            channels: { ...alertPreferences?.channels, slack: e.target.checked }
+                          }))}
                         />
                       }
                       label="Slack Notifications"
@@ -341,8 +349,19 @@ const SettingsPage: React.FC = () => {
                     <FormControlLabel
                       control={
                         <Switch 
-                          checked={alertPreferences?.criticalAlertsOnly} 
-                          onChange={handleAlertPreferenceChange('criticalAlertsOnly')} 
+                          checked={alertPreferences?.preferences.includeCritical &&
+                                  !alertPreferences?.preferences.includeHigh &&
+                                  !alertPreferences?.preferences.includeMedium &&
+                                  !alertPreferences?.preferences.includeLow}
+                          onChange={(e) => dispatch(updatePreferences({
+                            preferences: {
+                              ...alertPreferences?.preferences,
+                              includeCritical: e.target.checked,
+                              includeHigh: !e.target.checked,
+                              includeMedium: !e.target.checked,
+                              includeLow: !e.target.checked
+                            }
+                          }))}
                         />
                       }
                       label="Critical Alerts Only"
@@ -368,8 +387,8 @@ const SettingsPage: React.FC = () => {
                         <TextField
                           label="Start Time"
                           type="time"
-                          value={alertPreferences?.muteStartTime || "22:00"}
-                          onChange={(e) => dispatch(updatePreferences({ muteStartTime: e.target.value }))}
+                          value={quietHours.muteStartTime}
+                          onChange={(e) => setQuietHours({...quietHours, muteStartTime: e.target.value})}
                           InputLabelProps={{
                             shrink: true,
                           }}
@@ -380,8 +399,8 @@ const SettingsPage: React.FC = () => {
                         <TextField
                           label="End Time"
                           type="time"
-                          value={alertPreferences?.muteEndTime || "08:00"}
-                          onChange={(e) => dispatch(updatePreferences({ muteEndTime: e.target.value }))}
+                          value={quietHours.muteEndTime}
+                          onChange={(e) => setQuietHours({...quietHours, muteEndTime: e.target.value})}
                           InputLabelProps={{
                             shrink: true,
                           }}
