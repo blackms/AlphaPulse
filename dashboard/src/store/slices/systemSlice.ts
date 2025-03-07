@@ -166,6 +166,12 @@ export const selectRecentLogs = (count: number) => (state: RootState) =>
   state.system.logs.slice(0, count);
 export const selectSystemOverallStatus = (state: RootState) => {
   const components = state.system.components;
+  
+  // Check if components array exists and has items
+  if (!components || components.length === 0) {
+    return ComponentStatus.HEALTHY; // Default to healthy if no components
+  }
+  
   if (components.some(c => c.status === ComponentStatus.ERROR)) {
     return ComponentStatus.ERROR;
   } else if (components.some(c => c.status === ComponentStatus.WARNING)) {
