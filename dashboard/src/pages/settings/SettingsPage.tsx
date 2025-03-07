@@ -6,7 +6,7 @@ import {
   CardContent,
   Typography,
   Grid,
-  Divider,
+  // Divider, // Unused import
   Switch,
   FormControlLabel,
   FormGroup,
@@ -55,8 +55,8 @@ import {
   updateUserStart,
   updateUserSuccess,
   updatePreferences as updateUserPreferences,
-  User,
-  UserPreferences
+  // User, // Unused import
+  // UserPreferences // Unused import
 } from '../../store/slices/authSlice';
 
 interface TabPanelProps {
