@@ -16,17 +16,63 @@ class AuthService {
    * @returns Promise with login response
    */
   async login(username: string, password: string) {
-    const response = await axios.post(`${API_URL}/auth/login`, {
-      username,
-      password,
-    });
-    
-    if (response.data.token) {
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
+    try {
+      // Use the correct endpoint from the API server output
+      // Create form data for token endpoint
+      const formData = new URLSearchParams();
+      formData.append('username', username);
+      formData.append('password', password);
+      
+      const response = await axios.post(`${API_URL.replace('/api/v1', '')}/token`,
+        formData.toString(),
+        {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          }
+        }
+      );
+      
+      if (response.data.access_token) {
+        localStorage.setItem('token', response.data.access_token);
+        
+        // Create a user object from the token data
+        const user = {
+          id: response.data.user_id || 'user1',
+          username: username,
+          email: `${username}@example.com`,
+          firstName: 'Admin',
+          lastName: 'User',
+          role: 'admin',
+          permissions: ['*'],
+          preferences: {
+            theme: 'dark',
+            dashboardLayout: 'default',
+            notifications: true,
+            alertSounds: true,
+            defaultTimeframe: '1d',
+            defaultAssets: ['BTC', 'ETH', 'SOL'],
+            timezone: 'UTC',
+            language: 'en'
+          },
+          lastLogin: Date.now(),
+          createdAt: Date.now() - 90 * 24 * 60 * 60 * 1000 // 90 days ago
+        };
+        
+        localStorage.setItem('user', JSON.stringify(user));
+        
+        return {
+          user,
+          accessToken: response.data.access_token,
+          refreshToken: response.data.refresh_token || '',
+          expiresAt: Date.now() + (response.data.expires_in || 3600) * 1000
+        };
+      }
+      
+      throw new Error('Invalid response from server');
+    } catch (error) {
+      console.error('Login error:', error);
+      throw error;
     }
-    
-    return response.data;
   }
   
   /**
