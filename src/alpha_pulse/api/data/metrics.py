@@ -14,10 +14,18 @@ class MetricsDataAccessor:
         """Initialize metrics accessor."""
         self.logger = logging.getLogger("alpha_pulse.api.data.metrics")
         self.storage_manager = get_storage_manager()
+        # Connect to storage asynchronously in the first method call
+        self._connected = False
+        
+    async def _ensure_connected(self):
+        """Ensure storage is connected."""
+        if not self._connected:
+            await self.storage_manager.connect()
+            self._connected = True
     
     async def get_metrics(
-        self, 
-        metric_type: str, 
+        self,
+        metric_type: str,
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None,
         aggregation: Optional[str] = None
@@ -35,6 +43,9 @@ class MetricsDataAccessor:
             List of metric data points
         """
         try:
+            # Ensure storage is connected
+            await self._ensure_connected()
+            
             # Get raw metrics from storage
             raw_metrics = await self.storage_manager.query_metrics(
                 metric_names=[metric_type] if metric_type != "all" else None,
@@ -69,6 +80,9 @@ class MetricsDataAccessor:
             Dictionary of latest metrics
         """
         try:
+            # Ensure storage is connected
+            await self._ensure_connected()
+            
             # Get latest metrics
             latest_metrics = await self.storage_manager.get_latest_metrics(
                 metric_names=[metric_type] if metric_type != "all" else None
