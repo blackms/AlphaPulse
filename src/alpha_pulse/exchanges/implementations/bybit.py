@@ -7,7 +7,8 @@ import hashlib
 import urllib.parse
 import time
 from decimal import Decimal
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
+from datetime import datetime
 import os
 from loguru import logger
 import ccxt.async_support as ccxt
