@@ -26,24 +26,17 @@ async def startup_exchange_sync() -> None:
             logger.warning("Database initialization failed - some features may not work correctly")
         
         # Initialize exchange synchronizer
-        try:
-            await exchange_data_synchronizer.initialize()
-            logger.info("Exchange data synchronizer initialized successfully")
-        except AttributeError:
-            # Handle case where initialize method doesn't exist (older version)
-            logger.warning("ExchangeDataSynchronizer does not have initialize method, continuing without initialization")
-        except Exception as e:
-            # Handle other exceptions that might occur during initialization
-            logger.warning(f"Error initializing exchange data synchronizer: {e}")
-            logger.warning("Continuing without initialization")
+        # Note: ExchangeDataSynchronizer doesn't have an async initialize method
+        # It's initialized in its constructor
         
-        # Start the scheduler
+        # Start the scheduler (non-async method that starts a background thread)
         try:
-            await exchange_data_synchronizer.start()
+            # Call start() without await since it's not an async method
+            exchange_data_synchronizer.start()
             logger.info("Exchange data synchronization scheduler started")
             
             # Initial sync of all data types
-            exchange_data_synchronizer.trigger_sync(data_type=DataType.ALL)
+            exchange_data_synchronizer.trigger_sync(exchange_id="bybit", data_type=DataType.ALL)
             logger.info("Initial data synchronization triggered")
         except Exception as e:
             logger.error(f"Failed to start exchange data synchronizer: {e}")
@@ -61,12 +54,12 @@ async def startup_exchange_sync() -> None:
 async def shutdown_exchange_sync() -> None:
     """Shutdown exchange synchronization."""
     try:
-        # Stop the scheduler
-        await exchange_data_synchronizer.stop()
+        # Stop the scheduler (non-async method)
+        exchange_data_synchronizer.stop()
         logger.info("Exchange data synchronization scheduler stopped")
         
-        # Close exchange connections
-        await exchange_data_synchronizer.close()
+        # ExchangeDataSynchronizer doesn't have a close method
+        # Exchange connections are closed when the synchronizer is stopped
         logger.info("Exchange connections closed")
     except AttributeError as e:
         logger.error(f"Error during exchange synchronization shutdown: {e}")
