@@ -253,17 +253,28 @@ class ExchangeDataSynchronizer:
             
             # Start a new sync task
             logger.info(f"Starting queued sync for {exchange_id}, type: {data_type}")
-            task = asyncio.create_task(self._sync_exchange_data(exchange_id, data_type))
-            self._task_manager.add_active_task(exchange_id, data_type, task)
+            
+            # Use a different approach to avoid event loop issues
+            try:
+                # Run the sync directly instead of creating a task
+                await self._sync_exchange_data(exchange_id, data_type)
+            except Exception as e:
+                logger.error(f"Error syncing {data_type} for {exchange_id}: {str(e)}")
     
     async def _check_scheduled_syncs(self):
         """Check for scheduled syncs that need to run."""
         # Get syncs that need to run
-        to_sync = await self._task_manager.check_scheduled_syncs()
-        
-        # Add them to the queue
-        for exchange_id, data_type in to_sync:
-            self._task_manager.add_to_queue(exchange_id, data_type)
+        try:
+            to_sync = await self._task_manager.check_scheduled_syncs()
+            
+            # Add them to the queue
+            for exchange_id, data_type in to_sync:
+                self._task_manager.add_to_queue(exchange_id, data_type)
+        except RuntimeError as e:
+            if "attached to a different loop" in str(e):
+                logger.warning(f"Event loop issue detected during scheduled sync check, skipping this cycle")
+            else:
+                raise
     
     async def _sync_exchange_data(self, exchange_id: str, data_type: DataType):
         """
@@ -285,20 +296,12 @@ class ExchangeDataSynchronizer:
             except RuntimeError as e:
                 if "attached to a different loop" in str(e):
                     logger.warning(f"Event loop issue detected during status update, using alternative approach")
-                    # Define a coroutine function to update the status
-                    async def update_status_coro():
-                        await self._task_manager.update_sync_status(
-                            exchange_id,
-                            data_type,
-                            SyncStatus.IN_PROGRESS
-                        )
-                    
-                    # Run the coroutine in a new event loop
-                    from alpha_pulse.data_pipeline.scheduler.sync_module.event_loop_manager import EventLoopManager
-                    try:
-                        EventLoopManager.run_coroutine_in_new_loop(update_status_coro)
-                    except Exception as inner_e:
-                        logger.error(f"Error updating sync status with new event loop: {str(inner_e)}")
+                    # Use the direct database approach in task_manager
+                    await self._task_manager.update_sync_status(
+                        exchange_id,
+                        data_type,
+                        SyncStatus.IN_PROGRESS
+                    )
                 else:
                     raise
         except Exception as e:
