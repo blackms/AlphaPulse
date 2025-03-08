@@ -89,6 +89,37 @@ async def test_bybit_connection():
             logger.warning(f"Could not fetch orders: {str(e)}")
             logger.info("This is not critical for basic functionality")
         
+        # Test getting order history
+        logger.info("Testing get_order_history")
+        try:
+            # Test with a specific symbol
+            symbol = "BTC/USDT"
+            logger.info(f"Fetching order history for {symbol}...")
+            
+            # Try to get order history using our custom method
+            order_history = await exchange._get_bybit_order_history(symbol, {})
+            
+            logger.info(f"✅ Successfully retrieved {len(order_history)} order history records for {symbol}")
+            
+            # Print some order history details
+            if order_history:
+                logger.info("Sample order history:")
+                for order in order_history[:5]:  # Show first 5 orders
+                    logger.info(f"  {order}")
+            else:
+                logger.info(f"No order history found for {symbol}")
+                
+            # Test getting average entry price
+            logger.info(f"Testing get_average_entry_price for {symbol}")
+            entry_price = await exchange.get_average_entry_price(symbol)
+            if entry_price:
+                logger.info(f"✅ Successfully retrieved entry price for {symbol}: {entry_price}")
+            else:
+                logger.warning(f"Could not retrieve entry price for {symbol}")
+        except Exception as e:
+            logger.warning(f"Could not fetch order history: {str(e)}")
+            logger.info("This is not critical for basic functionality")
+        
         # Test getting ticker
         logger.info("Testing get_ticker for BTC/USDT")
         try:
