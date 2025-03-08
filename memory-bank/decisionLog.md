@@ -581,3 +581,100 @@ We encountered several event loop issues in the exchange synchronizer:
 4. Consider implementing a supervisor pattern for critical tasks
 5. Add more detailed logging for event loop operations
 
+## 2025-03-08: Implemented Singleton Pattern for ExchangeDataSynchronizer
+
+### Context
+We encountered issues with multiple instances of the ExchangeDataSynchronizer being created in different parts of the application:
+1. Each instance was starting its own background thread and event loop, causing conflicts
+2. Database connections were being created and not properly released
+3. There were event loop conflicts between different instances
+4. The application was showing errors like `Task got Future attached to a different loop`
+
+### Decisions
+
+1. **Implemented Singleton Pattern**
+   - Added a singleton implementation using the `__new__` method
+   - Added thread-safe initialization with a lock to prevent race conditions
+   - Added proper instance tracking to prevent multiple instances
+   - Updated the scheduler's `__init__.py` to work with the singleton pattern
+
+2. **Fixed Database Connection Issues**
+   - Added direct connection pool initialization in the `_sync_exchange_data` method
+   - Implemented proper connection release back to the pool
+   - Added detailed error handling for database connection issues
+   - Added more debug logging for database operations
+
+3. **Enhanced Event Loop Handling**
+   - Added more detailed debugging information for event loop operations
+   - Improved error handling for event loop issues
+   - Added proper cleanup of resources when errors occur
+   - Added thread ID to all log messages for better debugging
+
+4. **Improved API Integration**
+   - Updated the API integration module to work with the singleton pattern
+   - Added more detailed error handling and logging
+   - Added better exception handling for different error types
+
+### Rationale
+
+1. **Singleton Pattern**
+   - The ExchangeDataSynchronizer should have only one instance throughout the application
+   - Multiple instances cause resource conflicts and event loop issues
+   - Thread safety is critical since the synchronizer is accessed from multiple threads
+   - The pattern is well-established and understood by the development team
+
+2. **Database Connection Fixes**
+   - Direct connection pool initialization ensures that each thread has its own connection
+   - Proper connection release prevents resource leaks
+   - Detailed error handling helps diagnose database issues
+   - Debug logging provides visibility into database operations
+
+3. **Event Loop Enhancements**
+   - Detailed debugging information helps diagnose event loop issues
+   - Better error handling improves application stability
+   - Proper resource cleanup prevents memory leaks
+   - Thread ID in log messages makes it easier to trace issues
+
+4. **API Integration Improvements**
+   - The API integration module needs to work with the singleton pattern
+   - Better error handling improves application stability
+   - Detailed logging helps diagnose issues
+
+### Alternatives Considered
+
+1. **Global Instance**
+   - We could have used a global instance without a formal singleton pattern
+   - This would be simpler but less robust
+   - The singleton pattern provides better encapsulation and thread safety
+
+2. **Dependency Injection**
+   - We could have used dependency injection to pass a single instance around
+   - This would require changing the API of many components
+   - The singleton pattern is less invasive and maintains backward compatibility
+
+3. **Stateless Design**
+   - We could have redesigned the synchronizer to be stateless
+   - This would be a major architectural change
+   - The current approach is more practical and focuses on fixing the specific issues
+
+### Impact
+
+1. **Positive**
+   - The application is more stable with only one instance of the synchronizer
+   - Resource conflicts are eliminated
+   - Database connections are properly managed
+   - Event loop issues are reduced
+   - The code is more maintainable with a clear pattern
+
+2. **Negative**
+   - The singleton pattern introduces global state, which can make testing harder
+   - There's still a potential for thread safety issues in other parts of the application
+   - The pattern might hide design issues that should be addressed more fundamentally
+
+### Follow-up Actions
+
+1. Add unit tests for the singleton pattern implementation
+2. Consider implementing similar patterns for other components that should be singletons
+3. Add more comprehensive thread safety measures
+4. Consider a more fundamental redesign of the threading model in the future
+5. Add monitoring for thread-related issues

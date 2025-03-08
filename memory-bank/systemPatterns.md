@@ -14,7 +14,32 @@ The system is organized into four main layers:
 
 This layered approach provides clear separation of concerns and allows each layer to focus on its specific responsibilities.
 
-### 2. Factory Pattern
+### 2. Singleton Pattern
+
+Used for components that should have only one instance throughout the application:
+- `ExchangeDataSynchronizer` ensures a single instance manages all exchange data synchronization
+- Thread-safe implementation with a lock to prevent race conditions
+- Lazy initialization to create the instance only when needed
+- Instance tracking to prevent multiple instances
+
+```python
+class ExchangeDataSynchronizer:
+    _instance = None
+    _lock = threading.Lock()
+    
+    def __new__(cls, *args, **kwargs):
+        with cls._lock:
+            if cls._instance is None:
+                logger.debug(f"Creating new {cls.__name__} instance")
+                cls._instance = super().__new__(cls)
+            else:
+                logger.debug(f"Returning existing {cls.__name__} instance")
+            return cls._instance
+```
+
+This pattern ensures that system-wide components maintain consistent state and avoid resource conflicts.
+
+### 3. Factory Pattern
 
 Used extensively for creating instances of complex objects:
 - `ExchangeFactory` for creating exchange instances

@@ -25,13 +25,14 @@ async def startup_exchange_sync() -> None:
         else:
             logger.warning("Database initialization failed - some features may not work correctly")
         
-        # Initialize exchange synchronizer
-        # Note: ExchangeDataSynchronizer doesn't have an async initialize method
-        # It's initialized in its constructor
+        # Get the singleton instance of the exchange synchronizer
+        # Note: ExchangeDataSynchronizer is a singleton, so this will return the existing instance
+        logger.debug("Getting ExchangeDataSynchronizer singleton instance in startup_exchange_sync")
         
         # Start the scheduler (non-async method that starts a background thread)
         try:
             # Call start() without await since it's not an async method
+            # This is safe to call multiple times due to the singleton pattern
             exchange_data_synchronizer.start()
             logger.info("Exchange data synchronization scheduler started")
             
@@ -40,13 +41,19 @@ async def startup_exchange_sync() -> None:
             logger.info("Initial data synchronization triggered")
         except Exception as e:
             logger.error(f"Failed to start exchange data synchronizer: {e}")
+            logger.error(f"Exception type: {type(e).__name__}")
+            logger.error(f"Exception details: {repr(e)}")
             logger.warning("Exchange data synchronization will not be available")
     except AttributeError as e:
         logger.error(f"Error during exchange synchronization startup: {e}")
+        logger.error(f"Exception type: {type(e).__name__}")
+        logger.error(f"Exception details: {repr(e)}")
         logger.warning("Missing attribute or method - the system will use direct API calls if needed")
         # Allow the application to start anyway - it will use direct API calls if needed
     except Exception as e:
         logger.error(f"Error during exchange synchronization startup: {e}")
+        logger.error(f"Exception type: {type(e).__name__}")
+        logger.error(f"Exception details: {repr(e)}")
         logger.warning("The system will use direct API calls if needed")
         # Allow the application to start anyway - it will use direct API calls if needed
 
@@ -54,7 +61,11 @@ async def startup_exchange_sync() -> None:
 async def shutdown_exchange_sync() -> None:
     """Shutdown exchange synchronization."""
     try:
+        # Get the singleton instance of the exchange synchronizer
+        logger.debug("Getting ExchangeDataSynchronizer singleton instance in shutdown_exchange_sync")
+        
         # Stop the scheduler (non-async method)
+        # This is safe to call multiple times due to the singleton pattern
         exchange_data_synchronizer.stop()
         logger.info("Exchange data synchronization scheduler stopped")
         
@@ -63,9 +74,13 @@ async def shutdown_exchange_sync() -> None:
         logger.info("Exchange connections closed")
     except AttributeError as e:
         logger.error(f"Error during exchange synchronization shutdown: {e}")
+        logger.error(f"Exception type: {type(e).__name__}")
+        logger.error(f"Exception details: {repr(e)}")
         logger.warning("Missing attribute or method during shutdown - some resources may not be properly released")
     except Exception as e:
         logger.error(f"Error during exchange synchronization shutdown: {e}")
+        logger.error(f"Exception type: {type(e).__name__}")
+        logger.error(f"Exception details: {repr(e)}")
         logger.warning("Unexpected error during shutdown - some resources may not be properly released")
 
 

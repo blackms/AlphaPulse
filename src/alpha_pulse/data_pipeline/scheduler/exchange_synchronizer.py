@@ -41,10 +41,25 @@ class ExchangeDataSynchronizer:
     """
     Synchronizes exchange data on a regular schedule.
     
-    This class schedules and executes periodic data synchronization tasks for 
-    exchange data such as balances, positions, orders, and prices. It can also 
+    This class schedules and executes periodic data synchronization tasks for
+    exchange data such as balances, positions, orders, and prices. It can also
     be triggered manually to force a synchronization.
     """
+    
+    # Singleton instance
+    _instance = None
+    _instance_lock = threading.Lock()
+    
+    def __new__(cls, *args, **kwargs):
+        """Implement singleton pattern."""
+        with cls._instance_lock:
+            if cls._instance is None:
+                logger.debug(f"Creating new ExchangeDataSynchronizer instance")
+                cls._instance = super(ExchangeDataSynchronizer, cls).__new__(cls)
+                cls._instance._initialized = False
+            else:
+                logger.debug(f"Returning existing ExchangeDataSynchronizer instance")
+        return cls._instance
     
     def __init__(self, sync_interval: int = 3600):
         """
@@ -53,6 +68,13 @@ class ExchangeDataSynchronizer:
         Args:
             sync_interval: Interval between syncs in seconds (default: 1 hour)
         """
+        # Only initialize once
+        if self._initialized:
+            logger.debug(f"ExchangeDataSynchronizer already initialized, skipping initialization")
+            return
+            
+        thread_id = threading.get_ident()
+        logger.debug(f"[THREAD {thread_id}] Initializing ExchangeDataSynchronizer")
         self._sync_interval = sync_interval
         self._should_stop = threading.Event()
         self._active_tasks: Dict[str, asyncio.Task] = {}
@@ -61,6 +83,7 @@ class ExchangeDataSynchronizer:
         self._running = False
         self._last_sync: Dict[str, Dict[str, datetime]] = {}
         self._sync_queue: Set[tuple] = set()  # (exchange_id, data_type)
+        self._initialized = True
         
         # Start the background task
         self.start()
@@ -68,6 +91,8 @@ class ExchangeDataSynchronizer:
         # Register shutdown handler
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
+        
+        logger.debug(f"[THREAD {thread_id}] ExchangeDataSynchronizer initialization complete")
     
     def _signal_handler(self, signum, frame):
         """Handle shutdown signals."""
@@ -105,88 +130,173 @@ class ExchangeDataSynchronizer:
     def _run_event_loop(self):
         """Run the event loop in a background thread."""
         # Create a new event loop for this thread
+        thread_id = threading.get_ident()
+        logger.debug(f"[THREAD {thread_id}] Creating new event loop for thread")
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
+        logger.debug(f"[THREAD {thread_id}] Set event loop for thread")
         
         try:
             # Start the main task
+            logger.debug(f"[THREAD {thread_id}] Creating main task")
             main_task = loop.create_task(self._main_loop())
+            logger.debug(f"[THREAD {thread_id}] Main task created: {main_task}")
             
             # Run until should_stop is set
+            logger.debug(f"[THREAD {thread_id}] Running main task until completion")
             loop.run_until_complete(main_task)
+            logger.debug(f"[THREAD {thread_id}] Main task completed")
         except Exception as e:
-            logger.error(f"Error in event loop: {str(e)}")
+            logger.error(f"[THREAD {thread_id}] Error in event loop: {str(e)}")
+            logger.error(f"[THREAD {thread_id}] Exception type: {type(e).__name__}")
+            logger.error(f"[THREAD {thread_id}] Exception details: {repr(e)}")
         finally:
             # Clean up
+            logger.debug(f"[THREAD {thread_id}] Cleaning up tasks")
+            active_tasks_count = len(self._active_tasks)
+            logger.debug(f"[THREAD {thread_id}] Active tasks count: {active_tasks_count}")
+            
             for task_name, task in list(self._active_tasks.items()):
                 if not task.done():
-                    logger.warning(f"Cancelling task: {task_name}")
+                    logger.warning(f"[THREAD {thread_id}] Cancelling task: {task_name}")
                     task.cancel()
+                else:
+                    logger.debug(f"[THREAD {thread_id}] Task already done: {task_name}")
             
             # Close the loop
             try:
+                logger.debug(f"[THREAD {thread_id}] Getting all pending tasks")
                 pending = asyncio.all_tasks(loop)
-                if pending:
-                    logger.warning(f"Cancelling {len(pending)} pending tasks")
-                    for task in pending:
-                        task.cancel()
-                    # Give tasks a chance to cancel
-                    loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+                pending_count = len(pending)
+                logger.debug(f"[THREAD {thread_id}] Pending tasks count: {pending_count}")
                 
+                if pending:
+                    logger.warning(f"[THREAD {thread_id}] Cancelling {pending_count} pending tasks")
+                    for i, task in enumerate(pending):
+                        logger.debug(f"[THREAD {thread_id}] Cancelling pending task {i+1}/{pending_count}: {task}")
+                        task.cancel()
+                    
+                    # Give tasks a chance to cancel
+                    logger.debug(f"[THREAD {thread_id}] Waiting for tasks to cancel")
+                    loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+                    logger.debug(f"[THREAD {thread_id}] All tasks cancelled")
+                
+                logger.debug(f"[THREAD {thread_id}] Shutting down async generators")
                 loop.run_until_complete(loop.shutdown_asyncgens())
+                logger.debug(f"[THREAD {thread_id}] Closing event loop")
                 loop.close()
+                logger.debug(f"[THREAD {thread_id}] Event loop closed")
             except Exception as e:
-                logger.error(f"Error closing event loop: {str(e)}")
+                logger.error(f"[THREAD {thread_id}] Error closing event loop: {str(e)}")
+                logger.error(f"[THREAD {thread_id}] Exception type: {type(e).__name__}")
+                logger.error(f"[THREAD {thread_id}] Exception details: {repr(e)}")
     
     async def _main_loop(self):
         """Main loop that checks for tasks to run."""
-        logger.info("Starting main loop for exchange data synchronization")
+        thread_id = threading.get_ident()
+        logger.info(f"[THREAD {thread_id}] Starting main loop for exchange data synchronization")
         
         # Get the current event loop for this thread
-        loop = asyncio.get_running_loop()
+        try:
+            loop = asyncio.get_running_loop()
+            logger.debug(f"[THREAD {thread_id}] Got running loop: {loop}")
+        except RuntimeError as e:
+            logger.error(f"[THREAD {thread_id}] Error getting running loop: {str(e)}")
+            logger.debug(f"[THREAD {thread_id}] Creating new event loop")
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            logger.debug(f"[THREAD {thread_id}] Set new event loop: {loop}")
         
+        iteration = 0
         while not self._should_stop.is_set():
+            iteration += 1
+            logger.debug(f"[THREAD {thread_id}] Main loop iteration {iteration}")
+            
             try:
                 # Process any queued sync requests
+                logger.debug(f"[THREAD {thread_id}] Processing sync queue")
                 await self._process_sync_queue()
                 
                 # Check for scheduled syncs
+                logger.debug(f"[THREAD {thread_id}] Checking scheduled syncs")
                 await self._check_scheduled_syncs()
                 
                 # Sleep for a bit to avoid high CPU usage
+                logger.debug(f"[THREAD {thread_id}] Sleeping for 5 seconds")
                 try:
                     await asyncio.sleep(5)
-                except RuntimeError:
+                    logger.debug(f"[THREAD {thread_id}] Async sleep completed")
+                except RuntimeError as sleep_error:
+                    logger.warning(f"[THREAD {thread_id}] Runtime error during asyncio.sleep: {str(sleep_error)}")
                     # Fallback to regular sleep if asyncio.sleep fails
+                    logger.debug(f"[THREAD {thread_id}] Falling back to regular sleep")
                     time.sleep(5)
+                    logger.debug(f"[THREAD {thread_id}] Regular sleep completed")
             except RuntimeError as e:
-                if "got Future" in str(e) and "attached to a different loop" in str(e):
-                    logger.warning("Event loop issue detected, using thread-specific sleep")
+                error_msg = str(e)
+                logger.warning(f"[THREAD {thread_id}] Runtime error in main loop: {error_msg}")
+                
+                if "got Future" in error_msg and "attached to a different loop" in error_msg:
+                    logger.warning(f"[THREAD {thread_id}] Event loop issue detected, using thread-specific sleep")
                     # Use thread-specific sleep instead of asyncio.sleep
                     time.sleep(5)
                     
                     # Reset the event loop for this thread
                     try:
+                        # Get the current loop
+                        current_loop = None
+                        try:
+                            current_loop = asyncio.get_event_loop()
+                            logger.debug(f"[THREAD {thread_id}] Current event loop: {current_loop}")
+                        except RuntimeError as loop_error:
+                            logger.warning(f"[THREAD {thread_id}] Error getting current event loop: {str(loop_error)}")
+                        
+                        # Close the current loop if it exists
+                        if current_loop:
+                            try:
+                                logger.debug(f"[THREAD {thread_id}] Closing current event loop")
+                                current_loop.close()
+                                logger.debug(f"[THREAD {thread_id}] Current event loop closed")
+                            except Exception as close_error:
+                                logger.warning(f"[THREAD {thread_id}] Error closing current event loop: {str(close_error)}")
+                        
                         # Get a new event loop
+                        logger.debug(f"[THREAD {thread_id}] Creating new event loop")
                         new_loop = asyncio.new_event_loop()
+                        logger.debug(f"[THREAD {thread_id}] Setting new event loop")
                         asyncio.set_event_loop(new_loop)
-                        logger.info("Reset event loop for thread")
+                        logger.info(f"[THREAD {thread_id}] Reset event loop for thread")
+                        
+                        # Update the loop variable
+                        loop = new_loop
+                        logger.debug(f"[THREAD {thread_id}] Updated loop variable: {loop}")
                     except Exception as loop_error:
-                        logger.error(f"Error resetting event loop: {str(loop_error)}")
-                elif "cannot perform operation" in str(e) and "another operation is in progress" in str(e):
-                    logger.warning("Concurrent operation issue detected, using thread-specific sleep")
+                        logger.error(f"[THREAD {thread_id}] Error resetting event loop: {str(loop_error)}")
+                        logger.error(f"[THREAD {thread_id}] Exception type: {type(loop_error).__name__}")
+                        logger.error(f"[THREAD {thread_id}] Exception details: {repr(loop_error)}")
+                elif "cannot perform operation" in error_msg and "another operation is in progress" in error_msg:
+                    logger.warning(f"[THREAD {thread_id}] Concurrent operation issue detected, using thread-specific sleep")
                     time.sleep(5)
                 else:
-                    logger.error(f"Runtime error in main loop: {str(e)}")
+                    logger.error(f"[THREAD {thread_id}] Unexpected runtime error in main loop: {error_msg}")
+                    logger.error(f"[THREAD {thread_id}] Exception type: {type(e).__name__}")
+                    logger.error(f"[THREAD {thread_id}] Exception details: {repr(e)}")
                     time.sleep(10)  # Sleep on error, but not too long
             except Exception as e:
-                logger.error(f"Error in main loop: {str(e)}")
+                logger.error(f"[THREAD {thread_id}] Error in main loop: {str(e)}")
+                logger.error(f"[THREAD {thread_id}] Exception type: {type(e).__name__}")
+                logger.error(f"[THREAD {thread_id}] Exception details: {repr(e)}")
                 try:
+                    logger.debug(f"[THREAD {thread_id}] Attempting async sleep after error")
                     await asyncio.sleep(10)  # Sleep on error, but not too long
-                except Exception:
+                    logger.debug(f"[THREAD {thread_id}] Async sleep after error completed")
+                except Exception as sleep_error:
+                    logger.warning(f"[THREAD {thread_id}] Error during async sleep after error: {str(sleep_error)}")
+                    logger.debug(f"[THREAD {thread_id}] Falling back to regular sleep after error")
                     time.sleep(10)  # Fallback to regular sleep
+                    logger.debug(f"[THREAD {thread_id}] Regular sleep after error completed")
         
-        logger.info("Main loop exited")
+        logger.info(f"[THREAD {thread_id}] Main loop exited after {iteration} iterations")
     
     async def _process_sync_queue(self):
         """Process any queued sync requests."""
@@ -351,31 +461,56 @@ class ExchangeDataSynchronizer:
                     
                     # Add timeout to prevent hanging indefinitely
                     init_timeout = 15  # 15 seconds timeout for initialization (reduced from 30)
+                    thread_id = threading.get_ident()
+                    
+                    logger.debug(f"[THREAD {thread_id}] Initializing {exchange_id} exchange with timeout {init_timeout}s")
                     
                     # Create a task with timeout
                     try:
+                        # Get the current event loop
+                        current_loop = None
+                        try:
+                            current_loop = asyncio.get_event_loop()
+                            logger.debug(f"[THREAD {thread_id}] Got current event loop for initialization: {current_loop}")
+                        except RuntimeError as loop_error:
+                            logger.warning(f"[THREAD {thread_id}] Error getting current event loop for initialization: {str(loop_error)}")
+                            logger.debug(f"[THREAD {thread_id}] Creating new event loop for initialization")
+                            current_loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(current_loop)
+                            logger.debug(f"[THREAD {thread_id}] Set new event loop for initialization: {current_loop}")
+                        
                         # Create a separate task for initialization to better handle cancellation
+                        logger.debug(f"[THREAD {thread_id}] Creating initialization task")
                         init_task = asyncio.create_task(exchange.initialize())
+                        logger.debug(f"[THREAD {thread_id}] Initialization task created: {init_task}")
                         
                         # Wait for the task with timeout
+                        logger.debug(f"[THREAD {thread_id}] Waiting for initialization task with timeout {init_timeout}s")
                         await asyncio.wait_for(init_task, timeout=init_timeout)
-                        logger.info(f"Successfully initialized {exchange_id} exchange")
+                        logger.info(f"[THREAD {thread_id}] Successfully initialized {exchange_id} exchange")
                         break
                     except asyncio.TimeoutError:
-                        logger.warning(f"Initialization timed out after {init_timeout} seconds (attempt {attempt}/{max_retries})")
+                        logger.warning(f"[THREAD {thread_id}] Initialization timed out after {init_timeout} seconds (attempt {attempt}/{max_retries})")
                         
                         # Cancel the task if it's still running
                         if not init_task.done():
-                            logger.warning(f"Cancelling initialization task for {exchange_id}")
+                            logger.warning(f"[THREAD {thread_id}] Cancelling initialization task for {exchange_id}")
                             init_task.cancel()
                             try:
+                                logger.debug(f"[THREAD {thread_id}] Waiting for cancelled task to complete")
                                 await init_task
+                                logger.debug(f"[THREAD {thread_id}] Cancelled task completed without exception")
                             except asyncio.CancelledError:
-                                logger.info(f"Successfully cancelled initialization task for {exchange_id}")
+                                logger.info(f"[THREAD {thread_id}] Successfully cancelled initialization task for {exchange_id}")
                             except Exception as cancel_error:
-                                logger.warning(f"Error while cancelling initialization task: {str(cancel_error)}")
+                                logger.warning(f"[THREAD {thread_id}] Error while cancelling initialization task: {str(cancel_error)}")
+                                logger.warning(f"[THREAD {thread_id}] Exception type: {type(cancel_error).__name__}")
+                                logger.warning(f"[THREAD {thread_id}] Exception details: {repr(cancel_error)}")
+                        else:
+                            logger.debug(f"[THREAD {thread_id}] Task was already done when timeout occurred")
                         
                         # Raise a connection error to trigger retry
+                        logger.debug(f"[THREAD {thread_id}] Raising ConnectionError to trigger retry")
                         raise ConnectionError(f"Initialization timed out after {init_timeout} seconds")
                     
                 except ccxt.NetworkError as e:
@@ -523,10 +658,27 @@ class ExchangeDataSynchronizer:
                     # Continue with the sync even if we can't update the status
                     # Try to get a repository without using async with
                     try:
-                        conn = await get_pg_connection()
-                        repo = ExchangeCacheRepository(conn)
+                        # Use a direct connection instead of async with
+                        thread_id = threading.get_ident()
+                        logger.debug(f"[THREAD {thread_id}] Getting direct database connection")
+                        
+                        # Create a new connection pool for this thread
+                        from alpha_pulse.data_pipeline.database.connection import _init_pg_pool
+                        pool = await _init_pg_pool()
+                        if pool:
+                            # Get a connection from the pool
+                            conn = await pool.acquire()
+                            logger.debug(f"[THREAD {thread_id}] Got direct database connection: {conn}")
+                            repo = ExchangeCacheRepository(conn)
+                            logger.debug(f"[THREAD {thread_id}] Created repository with direct connection")
+                        else:
+                            logger.error(f"[THREAD {thread_id}] Failed to initialize connection pool")
+                            repo = None
                     except Exception as conn_error:
                         logger.error(f"Error getting database connection: {str(conn_error)}")
+                        logger.error(f"Exception type: {type(conn_error).__name__}")
+                        logger.error(f"Exception details: {repr(conn_error)}")
+                        repo = None
                 else:
                     raise
                 
@@ -534,26 +686,57 @@ class ExchangeDataSynchronizer:
             exchange = None
             try:
                 # Set a timeout for the entire exchange initialization process
+                thread_id = threading.get_ident()
                 exchange_init_timeout = 20  # 20 seconds timeout
+                logger.debug(f"[THREAD {thread_id}] Getting exchange with timeout {exchange_init_timeout}s")
+                
+                # Get the current event loop
+                current_loop = None
+                try:
+                    current_loop = asyncio.get_event_loop()
+                    logger.debug(f"[THREAD {thread_id}] Got current event loop for exchange init: {current_loop}")
+                except RuntimeError as loop_error:
+                    logger.warning(f"[THREAD {thread_id}] Error getting current event loop for exchange init: {str(loop_error)}")
+                    logger.debug(f"[THREAD {thread_id}] Creating new event loop for exchange init")
+                    current_loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(current_loop)
+                    logger.debug(f"[THREAD {thread_id}] Set new event loop for exchange init: {current_loop}")
+                
                 try:
                     # Create a task for getting the exchange
+                    logger.debug(f"[THREAD {thread_id}] Creating exchange task")
                     exchange_task = asyncio.create_task(self._get_exchange(exchange_id))
+                    logger.debug(f"[THREAD {thread_id}] Exchange task created: {exchange_task}")
                     
                     # Wait for the task with timeout
+                    logger.debug(f"[THREAD {thread_id}] Waiting for exchange task with timeout {exchange_init_timeout}s")
                     exchange = await asyncio.wait_for(exchange_task, timeout=exchange_init_timeout)
+                    logger.debug(f"[THREAD {thread_id}] Exchange task completed successfully")
                 except asyncio.TimeoutError:
-                    logger.error(f"Timeout getting exchange for {exchange_id} after {exchange_init_timeout} seconds")
+                    logger.error(f"[THREAD {thread_id}] Timeout getting exchange for {exchange_id} after {exchange_init_timeout} seconds")
                     if not exchange_task.done():
-                        logger.warning(f"Cancelling exchange initialization task for {exchange_id}")
+                        logger.warning(f"[THREAD {thread_id}] Cancelling exchange initialization task for {exchange_id}")
                         exchange_task.cancel()
                         try:
+                            logger.debug(f"[THREAD {thread_id}] Waiting for cancelled exchange task to complete")
                             await exchange_task
+                            logger.debug(f"[THREAD {thread_id}] Cancelled exchange task completed without exception")
                         except asyncio.CancelledError:
-                            logger.info(f"Successfully cancelled exchange task for {exchange_id}")
+                            logger.info(f"[THREAD {thread_id}] Successfully cancelled exchange task for {exchange_id}")
                         except Exception as cancel_error:
-                            logger.warning(f"Error while cancelling exchange task: {str(cancel_error)}")
+                            logger.warning(f"[THREAD {thread_id}] Error while cancelling exchange task: {str(cancel_error)}")
+                            logger.warning(f"[THREAD {thread_id}] Exception type: {type(cancel_error).__name__}")
+                            logger.warning(f"[THREAD {thread_id}] Exception details: {repr(cancel_error)}")
+                    else:
+                        logger.debug(f"[THREAD {thread_id}] Exchange task was already done when timeout occurred")
                     
                     # Set exchange to None to trigger the error handling below
+                    logger.debug(f"[THREAD {thread_id}] Setting exchange to None to trigger error handling")
+                    exchange = None
+                except Exception as e:
+                    logger.error(f"[THREAD {thread_id}] Unexpected error getting exchange: {str(e)}")
+                    logger.error(f"[THREAD {thread_id}] Exception type: {type(e).__name__}")
+                    logger.error(f"[THREAD {thread_id}] Exception details: {repr(e)}")
                     exchange = None
                 
                 if not exchange:
@@ -588,6 +771,19 @@ class ExchangeDataSynchronizer:
                             )
                         except Exception as status_error:
                             logger.warning(f"Could not update status for {exchange_id}, {data_type}: {str(status_error)}")
+                        finally:
+                            # Release the connection back to the pool if we acquired it directly
+                            if hasattr(repo, '_conn') and repo._conn:
+                                try:
+                                    thread_id = threading.get_ident()
+                                    logger.debug(f"[THREAD {thread_id}] Releasing database connection back to pool (init failure)")
+                                    # Get the pool from the connection
+                                    pool = getattr(repo._conn, '_pool', None)
+                                    if pool:
+                                        await pool.release(repo._conn)
+                                        logger.debug(f"[THREAD {thread_id}] Released database connection back to pool (init failure)")
+                                except Exception as release_error:
+                                    logger.warning(f"Error releasing database connection: {str(release_error)}")
                     return
                 
                 # Synchronize based on data type
@@ -651,6 +847,19 @@ class ExchangeDataSynchronizer:
                         logger.info(f"Successfully completed sync for {exchange_id}, {data_type}")
                     except Exception as status_error:
                         logger.warning(f"Could not update completion status for {exchange_id}, {data_type}: {str(status_error)}")
+                    finally:
+                        # Release the connection back to the pool if we acquired it directly
+                        if hasattr(repo, '_conn') and repo._conn:
+                            try:
+                                thread_id = threading.get_ident()
+                                logger.debug(f"[THREAD {thread_id}] Releasing database connection back to pool")
+                                # Get the pool from the connection
+                                pool = getattr(repo._conn, '_pool', None)
+                                if pool:
+                                    await pool.release(repo._conn)
+                                    logger.debug(f"[THREAD {thread_id}] Released database connection back to pool")
+                            except Exception as release_error:
+                                logger.warning(f"Error releasing database connection: {str(release_error)}")
             except RuntimeError as e:
                 if "attached to a different loop" in str(e):
                     logger.warning(f"Event loop issue detected during exchange operations, skipping sync for {exchange_id}")
@@ -671,6 +880,19 @@ class ExchangeDataSynchronizer:
                     )
                 except Exception as inner_e:
                     logger.error(f"Error updating sync status: {str(inner_e)}")
+                finally:
+                    # Release the connection back to the pool if we acquired it directly
+                    if hasattr(repo, '_conn') and repo._conn:
+                        try:
+                            thread_id = threading.get_ident()
+                            logger.debug(f"[THREAD {thread_id}] Releasing database connection back to pool (error case)")
+                            # Get the pool from the connection
+                            pool = getattr(repo._conn, '_pool', None)
+                            if pool:
+                                await pool.release(repo._conn)
+                                logger.debug(f"[THREAD {thread_id}] Released database connection back to pool (error case)")
+                        except Exception as release_error:
+                            logger.warning(f"Error releasing database connection: {str(release_error)}")
     
     async def _sync_balances(self, exchange_id: str, exchange: Exchange, repo: ExchangeCacheRepository):
         """Synchronize balance data."""

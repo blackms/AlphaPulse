@@ -119,6 +119,33 @@ The changes have been committed to the repository with the message "Simplify Byb
 
 The changes have been committed to the repository with the message "Fix event loop issues in exchange synchronizer".
 
+**Update (2025-03-08 17:15)**: Implemented singleton pattern and fixed database connection issues:
+
+1. Implemented a singleton pattern for the ExchangeDataSynchronizer:
+   - Added a singleton implementation using the `__new__` method
+   - Added thread-safe initialization with a lock
+   - Added proper instance tracking to prevent multiple instances
+   - Updated the scheduler's `__init__.py` to work with the singleton pattern
+
+2. Fixed database connection issues in the synchronizer:
+   - Added direct connection pool initialization in the `_sync_exchange_data` method
+   - Implemented proper connection release back to the pool
+   - Added detailed error handling for database connection issues
+   - Added more debug logging for database operations
+
+3. Enhanced event loop handling:
+   - Added more detailed debugging information for event loop operations
+   - Improved error handling for event loop issues
+   - Added proper cleanup of resources when errors occur
+   - Added thread ID to all log messages for better debugging
+
+4. Improved API integration:
+   - Updated the API integration module to work with the singleton pattern
+   - Added more detailed error handling and logging
+   - Added better exception handling for different error types
+
+The changes have been committed to the repository with the message "Fix event loop issues with singleton pattern and improved database connection handling".
+
 **Issue Analysis**:
 1. First Error:
    - The error occurs in the `startup_exchange_sync` function in `api_integration.py`
@@ -244,6 +271,20 @@ The changes have been committed to the repository with the message "Fix event lo
    - Improved database connection handling during event loop issues
    - Added more detailed success/failure logging
 
+### Fix 6: Singleton Pattern and Database Connection
+
+1. **Implemented Singleton Pattern**:
+   - Added a singleton implementation for the ExchangeDataSynchronizer
+   - Used thread-safe initialization with a lock
+   - Added proper instance tracking to prevent multiple instances
+   - Updated related modules to work with the singleton pattern
+
+2. **Fixed Database Connection Issues**:
+   - Implemented direct connection pool initialization
+   - Added proper connection release back to the pool
+   - Added detailed error handling for database connection issues
+   - Added more debug logging for database operations
+
 ## Documentation Updates
 
 We've updated the following documentation:
@@ -278,9 +319,9 @@ For the Bybit API connection, we added a retry mechanism with exponential backof
 
 ## Next Steps
 
-1. Consider implementing the missing `initialize` method in the `ExchangeDataSynchronizer` class
-2. Add unit tests to verify the error handling works as expected
-3. Implement similar error handling patterns in other parts of the system
+1. Continue to improve the event loop handling in the exchange synchronizer
+2. Implement a more robust threading model for the exchange synchronizer
+3. Add unit tests to verify the error handling works as expected
 4. Consider adding a circuit breaker pattern for external API calls
 5. Add retry with backoff for network operations in other parts of the system
 6. Create similar diagnostic tools for other exchanges

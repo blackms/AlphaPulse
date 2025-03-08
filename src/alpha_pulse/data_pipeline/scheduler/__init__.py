@@ -12,7 +12,7 @@ from loguru import logger
 
 class DataType(Enum):
     """Types of data that can be synchronized."""
-    BALANCES = "balances" 
+    BALANCES = "balances"
     POSITIONS = "positions"
     ORDERS = "orders"
     PRICES = "prices"
@@ -22,11 +22,12 @@ class DataType(Enum):
         return self.value
 
 
-# This will be initialized by the exchange_data_synchronizer module
-exchange_data_synchronizer = None
-
 # Import at the end to avoid circular imports
 from alpha_pulse.data_pipeline.scheduler.exchange_synchronizer import ExchangeDataSynchronizer
 
-# Create the global instance of the synchronizer
+# Get the singleton instance of the synchronizer
+# Since ExchangeDataSynchronizer is a singleton, this will either create a new instance
+# or return the existing one
+logger.debug("Getting ExchangeDataSynchronizer singleton instance")
 exchange_data_synchronizer = ExchangeDataSynchronizer()
+logger.debug(f"ExchangeDataSynchronizer instance: {exchange_data_synchronizer}")
