@@ -432,9 +432,16 @@ class BybitExchange(CCXTAdapter):
             # This is only for demonstration purposes
             logger.debug(f"Using mock entry price for {symbol}")
             
+            # Make sure we have a proper trading pair symbol
+            trading_pair = symbol
+            if '/' not in symbol:
+                trading_pair = f"{symbol}/USDT"
+                logger.debug(f"Converting {symbol} to trading pair {trading_pair}")
+            
             # Get current price
-            current_price = await self.get_ticker_price(symbol)
+            current_price = await self.get_ticker_price(trading_pair)
             if not current_price:
+                logger.warning(f"Could not get current price for {trading_pair}")
                 return None
                 
             # Generate a mock entry price slightly different from current price
@@ -468,8 +475,11 @@ class BybitExchange(CCXTAdapter):
             # Enhance positions with entry price and unrealized PnL
             for symbol, position in positions.items():
                 try:
+                    # Create trading pair symbol if needed
+                    trading_pair = f"{symbol}/USDT" if '/' not in symbol else symbol
+                    
                     # Get average entry price
-                    entry_price = await self.get_average_entry_price(symbol)
+                    entry_price = await self.get_average_entry_price(trading_pair)
                     position['entry_price'] = float(entry_price) if entry_price else None
                     
                     # Calculate unrealized PnL if we have both entry price and current price
