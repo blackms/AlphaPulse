@@ -47,6 +47,16 @@ class CCXTAdapter(BaseExchange):
             if not self.config.api_key or not self.config.api_secret:
                 logger.warning(f"No API credentials available for {self.exchange_id}. Using read-only mode.")
             
+            # Debug logging for credentials
+            if self.config.api_key:
+                masked_key = self.config.api_key[:4] + '...' + self.config.api_key[-4:] if len(self.config.api_key) > 8 else '***'
+                masked_secret = self.config.api_secret[:4] + '...' + self.config.api_secret[-4:] if len(self.config.api_secret) > 8 else '***'
+                logger.debug(f"CCXT DEBUG - Using API key: {self.config.api_key}")  # Full key for debug
+                logger.debug(f"CCXT DEBUG - Using API secret: {self.config.api_secret}")  # Full secret for debug
+                logger.debug(f"CCXT DEBUG - Testnet mode: {self.config.testnet}")
+            else:
+                logger.debug("CCXT DEBUG - No API credentials available")
+            
             # Create CCXT exchange instance
             exchange_class = getattr(ccxt, self.exchange_id)
             params = {
@@ -61,11 +71,13 @@ class CCXTAdapter(BaseExchange):
             if self.config.api_key and self.config.api_secret:
                 params['apiKey'] = self.config.api_key
                 params['secret'] = self.config.api_secret
+                logger.debug(f"CCXT DEBUG - Added credentials to params: apiKey={params['apiKey']}")
             
             self.exchange = exchange_class(params)
             
             # Configure testnet if enabled
             if self.config.testnet:
+                logger.debug("CCXT DEBUG - Setting sandbox mode to True")
                 self.exchange.set_sandbox_mode(True)
             
             # Load markets

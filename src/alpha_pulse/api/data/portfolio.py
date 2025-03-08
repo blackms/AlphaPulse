@@ -69,6 +69,12 @@ class PortfolioDataAccessor:
                     )
                 elif exchange_type.lower() == 'bybit':
                     logger.info(f"Creating Bybit exchange with testnet={testnet}")
+                    
+                    # Add debug logging to show actual keys being used
+                    logger.debug(f"DEBUG - BYBIT API KEY BEING USED: {api_key}")
+                    logger.debug(f"DEBUG - BYBIT API SECRET BEING USED: {api_secret}")
+                    logger.debug(f"DEBUG - BYBIT TESTNET SETTING: {testnet}")
+                    
                     self._exchange = ExchangeFactory.create_exchange(
                         ExchangeType.BYBIT,
                         api_key=api_key,

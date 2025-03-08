@@ -26,14 +26,29 @@ class BybitExchange(CCXTAdapter):
         Args:
             testnet: Whether to use testnet
         """
+        # Debug the input testnet parameter
+        logger.debug(f"BYBIT DEBUG - Input testnet parameter: {testnet}")
+        
         # Get credentials from manager
+        logger.debug(f"BYBIT DEBUG - Requesting credentials from credentials_manager")
         creds = credentials_manager.get_credentials('bybit')
+        
         if creds:
             api_key = creds.api_key
             api_secret = creds.api_secret
+            creds_testnet = creds.testnet
+            
+            # Debug the credentials obtained from the manager
+            logger.debug(f"BYBIT DEBUG - Credentials obtained from manager:")
+            logger.debug(f"BYBIT DEBUG - API Key: {api_key}")
+            logger.debug(f"BYBIT DEBUG - API Secret: {api_secret}")
+            logger.debug(f"BYBIT DEBUG - Testnet from credentials: {creds_testnet}")
+            
             # Override testnet from credentials if provided
-            testnet = testnet or creds.testnet
+            testnet = testnet or creds_testnet
+            logger.debug(f"BYBIT DEBUG - Final testnet value after override: {testnet}")
         else:
+            logger.debug("BYBIT DEBUG - No credentials found in manager!")
             api_key = ""
             api_secret = ""
         
