@@ -41,6 +41,30 @@ ImportError: cannot import name 'init_db' from 'alpha_pulse.data_pipeline.databa
 
 The changes have been committed to the repository with the message "Enhance Bybit exchange initialization with improved error handling and circuit breaker pattern".
 
+**Update (2025-03-08 16:49)**: Fixed the testnet setting issue in the Bybit exchange implementation:
+
+1. Identified the issue:
+   - The Bybit exchange was failing to initialize because of a mismatch between the testnet setting in the environment variables and the credentials file
+   - The API key in the credentials file is for mainnet (testnet=false), but the environment variable was set to testnet=true
+   - This caused an authentication error when trying to connect to the Bybit API
+
+2. Fixed the issue:
+   - Updated the BybitExchange class to properly handle the testnet setting from the credentials file
+   - Added logic to detect and resolve conflicts between environment variables and credentials file settings
+   - Added more detailed logging to help diagnose similar issues in the future
+   - Prioritized the credentials file setting when there's a conflict, as the API key is only valid for that mode
+
+3. Verified the fix:
+   - Ran the debug_exchange_connection.py script to confirm that the Bybit exchange now correctly uses the testnet setting from the credentials file
+   - Successfully connected to the Bybit API and retrieved balances and portfolio value
+
+4. Remaining issues:
+   - There are still some event loop issues in the application that cause timeouts during initialization
+   - These issues are related to the threading model used by the exchange synchronizer
+   - We'll need to address these issues separately
+
+The changes have been committed to the repository with the message "Fix testnet setting handling in Bybit exchange implementation".
+
 **Issue Analysis**:
 1. First Error:
    - The error occurs in the `startup_exchange_sync` function in `api_integration.py`

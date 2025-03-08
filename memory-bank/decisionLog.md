@@ -321,3 +321,77 @@ This error occurred in the `_get_exchange` method of the `ExchangeDataSynchroniz
 4. Create a more comprehensive troubleshooting guide based on common user issues
 5. Consider implementing a circuit breaker pattern for other external API calls
 
+## 2025-03-08: Fixed Testnet Setting Handling in Bybit Exchange Implementation
+
+### Context
+We encountered an authentication error when trying to connect to the Bybit API:
+```
+Error during exchange test: Failed to initialize bybit: bybit {"retCode":10003,"retMsg":"API key is invalid.","result":{},"retExtInfo":{},"time":1741448820765}
+```
+
+This error occurred because there was a mismatch between the testnet setting in the environment variables and the credentials file. The API key in the credentials file is for mainnet (testnet=false), but the environment variable was set to testnet=true.
+
+### Decisions
+
+1. **Improved Testnet Setting Handling**
+   - Updated the BybitExchange class to properly handle the testnet setting from the credentials file
+   - Added logic to detect and resolve conflicts between environment variables and credentials file settings
+   - Added more detailed logging to help diagnose similar issues in the future
+   - Prioritized the credentials file setting when there's a conflict, as the API key is only valid for that mode
+
+2. **Enhanced Logging**
+   - Added detailed logging about the testnet setting from different sources
+   - Added warning messages when there's a conflict between settings
+   - Improved the clarity of log messages to make it easier to understand the decision-making process
+
+### Rationale
+
+1. **Improved Testnet Setting Handling**
+   - The API key is only valid for a specific mode (mainnet or testnet)
+   - Using the wrong mode will result in authentication errors
+   - Prioritizing the credentials file setting ensures that the API key is used with the correct mode
+   - Detecting and resolving conflicts helps prevent authentication errors
+
+2. **Enhanced Logging**
+   - Detailed logging helps diagnose issues more quickly
+   - Warning messages about conflicts help users understand why certain decisions are made
+   - Clear log messages make it easier to understand the system's behavior
+
+### Alternatives Considered
+
+1. **Always Use Environment Variables**
+   - We could have always used the environment variable setting
+   - This would be simpler but would lead to authentication errors when there's a mismatch
+   - The current approach is more robust and user-friendly
+
+2. **Require Explicit Configuration**
+   - We could have required users to explicitly configure the testnet setting
+   - This would be more explicit but would require more user intervention
+   - The current approach is more convenient and less error-prone
+
+3. **Automatic API Key Validation**
+   - We could have implemented automatic validation of API keys for both mainnet and testnet
+   - This would be more robust but would require additional API calls
+   - The current approach is simpler and more efficient
+
+### Impact
+
+1. **Positive**
+   - The system now correctly handles testnet settings from different sources
+   - Authentication errors due to testnet/mainnet mismatches are prevented
+   - Users can more easily understand and diagnose issues related to testnet settings
+   - The system is more robust and user-friendly
+
+2. **Negative**
+   - The logic for handling testnet settings is more complex
+   - Additional logging might increase log volume
+   - There's still a potential for confusion if users don't understand the priority of settings
+
+### Follow-up Actions
+
+1. Add unit tests for the testnet setting handling logic
+2. Update documentation to explain the testnet setting priority
+3. Consider implementing similar conflict resolution for other configuration settings
+4. Add validation of API keys during initialization to provide more helpful error messages
+5. Consider adding a configuration validation step during application startup
+

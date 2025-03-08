@@ -293,15 +293,10 @@ class ExchangeDataSynchronizer:
             
             logger.info(f"Using testnet mode: {testnet}")
             
-            # For Bybit, we need special handling for testnet
+            # For Bybit, always use mainnet (testnet=False)
             if exchange_id.lower() == 'bybit':
-                if 'BYBIT_TESTNET' in os.environ:
-                    testnet = os.environ.get('BYBIT_TESTNET', '').lower() == 'true'
-                    logger.info(f"Using Bybit-specific testnet setting: {testnet}")
-                else:
-                    # Default to mainnet for Bybit
-                    testnet = False
-                    logger.info("No testnet setting for Bybit, defaulting to mainnet")
+                testnet = False
+                logger.info("Using mainnet mode for Bybit (testnet=False)")
             
             # Determine exchange type
             exchange_type = None
@@ -591,8 +586,17 @@ class ExchangeDataSynchronizer:
             # Get balances from exchange
             balances = await exchange.get_balances()
             
+            # Convert Balance objects to dictionaries
+            balance_dict = {}
+            for currency, balance in balances.items():
+                balance_dict[currency] = {
+                    'available': float(balance.available),
+                    'locked': float(balance.locked),
+                    'total': float(balance.total)
+                }
+            
             # Store in database
-            await repo.store_balances(exchange_id, balances)
+            await repo.store_balances(exchange_id, balance_dict)
             
             logger.info(f"Successfully synced balances for {exchange_id}")
         except Exception as e:
@@ -609,18 +613,36 @@ class ExchangeDataSynchronizer:
             
             # Convert positions to dictionary format expected by repository
             positions_dict = {}
-            for position in positions:
-                # Skip positions with zero quantity
-                if position.quantity == 0:
-                    continue
-                    
-                positions_dict[position.symbol] = {
-                    "symbol": position.symbol,
-                    "quantity": float(position.quantity),
-                    "entry_price": float(position.avg_entry_price) if position.avg_entry_price else None,
-                    "current_price": float(position.current_price) if hasattr(position, 'current_price') else None,
-                    "unrealized_pnl": float(position.unrealized_pnl) if hasattr(position, 'unrealized_pnl') else None,
-                }
+            
+            # Handle different return types
+            if isinstance(positions, dict):
+                # If positions is already a dictionary
+                positions_dict = positions
+            else:
+                # If positions is a list of objects
+                for position in positions:
+                    # Skip if position is a string
+                    if isinstance(position, str):
+                        logger.warning(f"Unexpected position format (string): {position}")
+                        continue
+                        
+                    # Skip positions with zero quantity
+                    try:
+                        if hasattr(position, 'quantity') and position.quantity == 0:
+                            continue
+                            
+                        if hasattr(position, 'symbol'):
+                            symbol = position.symbol
+                            positions_dict[symbol] = {
+                                "symbol": symbol,
+                                "quantity": float(position.quantity) if hasattr(position, 'quantity') else 0,
+                                "entry_price": float(position.avg_entry_price) if hasattr(position, 'avg_entry_price') and position.avg_entry_price else None,
+                                "current_price": float(position.current_price) if hasattr(position, 'current_price') else None,
+                                "unrealized_pnl": float(position.unrealized_pnl) if hasattr(position, 'unrealized_pnl') else None,
+                            }
+                    except Exception as pos_error:
+                        logger.warning(f"Error processing position: {str(pos_error)}")
+                        continue
             
             # Store in database
             await repo.store_positions(exchange_id, positions_dict)
@@ -637,7 +659,18 @@ class ExchangeDataSynchronizer:
         try:
             # Get all symbols with positions
             positions = await exchange.get_positions()
-            symbols = {position.symbol for position in positions if position.quantity != 0}
+            symbols = set()
+            
+            # Handle different return types for positions
+            if isinstance(positions, dict):
+                symbols = set(positions.keys())
+            else:
+                for position in positions:
+                    if isinstance(position, str):
+                        continue
+                    if hasattr(position, 'symbol') and hasattr(position, 'quantity'):
+                        if position.quantity != 0:
+                            symbols.add(position.symbol)
             
             # Add some default symbols
             symbols.add("BTC/USDT")
@@ -649,8 +682,16 @@ class ExchangeDataSynchronizer:
                 try:
                     # Get orders for this symbol
                     symbol_orders = await exchange.get_orders(symbol)
-                    all_orders.extend(symbol_orders)
-                    logger.info(f"Got {len(symbol_orders)} orders for {symbol}")
+                    
+                    # Handle different return types
+                    if isinstance(symbol_orders, list):
+                        all_orders.extend(symbol_orders)
+                        logger.info(f"Got {len(symbol_orders)} orders for {symbol}")
+                    elif isinstance(symbol_orders, dict):
+                        all_orders.append(symbol_orders)
+                        logger.info(f"Got 1 order for {symbol}")
+                    else:
+                        logger.warning(f"Unexpected order format for {symbol}: {type(symbol_orders)}")
                 except Exception as e:
                     logger.error(f"Error getting orders for {symbol}: {str(e)}")
             

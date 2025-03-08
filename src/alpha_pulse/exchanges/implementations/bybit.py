@@ -26,11 +26,8 @@ class BybitExchange(CCXTAdapter):
         Initialize Bybit exchange.
         
         Args:
-            testnet: Whether to use testnet
+            testnet: Ignored - we always use mainnet
         """
-        # Debug the input testnet parameter
-        logger.debug(f"BYBIT DEBUG - Input testnet parameter: {testnet}")
-        
         # Get credentials from manager
         logger.debug(f"BYBIT DEBUG - Requesting credentials from credentials_manager")
         creds = credentials_manager.get_credentials('bybit')
@@ -38,36 +35,23 @@ class BybitExchange(CCXTAdapter):
         if creds:
             api_key = creds.api_key
             api_secret = creds.api_secret
-            creds_testnet = creds.testnet
             
             # Debug the credentials obtained from the manager
             logger.debug(f"BYBIT DEBUG - Credentials obtained from manager:")
             logger.debug(f"BYBIT DEBUG - API Key: {api_key}")
             logger.debug(f"BYBIT DEBUG - API Secret: {api_secret}")
-            logger.debug(f"BYBIT DEBUG - Testnet from credentials: {creds_testnet}")
-            
-            # IMPORTANT: Based on debugging, we know that this API key only works in mainnet mode
-            # So we need to force testnet=False unless explicitly overridden by environment
-            if 'BYBIT_TESTNET' in os.environ or 'EXCHANGE_TESTNET' in os.environ:
-                # Allow environment variables to override
-                testnet = testnet
-                logger.debug(f"BYBIT DEBUG - Using testnet setting from environment: {testnet}")
-            else:
-                # Force mainnet (testnet=False) as the API key only works in mainnet
-                testnet = False
-                logger.debug(f"BYBIT DEBUG - Forcing mainnet mode (testnet=False) for Bybit as the API key is for mainnet")
-            
-            logger.debug(f"BYBIT DEBUG - Final testnet value: {testnet}")
+            logger.info("BYBIT INFO - Always using mainnet mode (testnet=False) for Bybit")
         else:
             logger.debug("BYBIT DEBUG - No credentials found in manager!")
             api_key = ""
             api_secret = ""
         
         # Create configuration with Bybit-specific options
+        # Always use mainnet (testnet=False)
         config = ExchangeConfiguration(
             api_key=api_key,
             api_secret=api_secret,
-            testnet=testnet,
+            testnet=False,  # Always use mainnet
             options={
                 'defaultType': 'spot',
                 'adjustForTimeDifference': True,
@@ -82,14 +66,7 @@ class BybitExchange(CCXTAdapter):
         """Initialize Bybit exchange connection."""
         await super().initialize()
         
-        if self.exchange and self.config.testnet:
-            # Set testnet-specific endpoints
-            self.exchange.urls.update({
-                'test': {
-                    'public': 'https://api-testnet.bybit.com',
-                    'private': 'https://api-testnet.bybit.com',
-                }
-            })
+        # No testnet-specific endpoints needed as we always use mainnet
     
     async def get_balances(self) -> Dict[str, Balance]:
         """Get balances for all assets."""
