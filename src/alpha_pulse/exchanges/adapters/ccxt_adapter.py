@@ -26,16 +26,17 @@ class CCXTAdapter(BaseExchange):
     providing a consistent API while isolating the CCXT dependency.
     """
     
-    def __init__(self, config: ExchangeConfiguration):
+    def __init__(self, config):
         """
         Initialize CCXT adapter.
         
         Args:
             config: Exchange configuration
         """
-        self.exchange_id = config.exchange_id
+        # Get exchange_id from config options if available, otherwise default to 'bybit'
+        self.exchange_id = config.options.get('_exchange_id', 'bybit')
         self.config = config
-        self.exchange: Optional[ccxt.Exchange] = None
+        self.exchange = None
         self._markets = {}
         
     async def initialize(self) -> None:
