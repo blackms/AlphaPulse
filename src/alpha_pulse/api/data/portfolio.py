@@ -45,7 +45,26 @@ class PortfolioDataAccessor:
             # Get API credentials from environment or config
             api_key = os.environ.get('BYBIT_API_KEY', os.environ.get('EXCHANGE_API_KEY', ''))
             api_secret = os.environ.get('BYBIT_API_SECRET', os.environ.get('EXCHANGE_API_SECRET', ''))
-            testnet = os.environ.get('EXCHANGE_TESTNET', 'true').lower() == 'true'
+            
+            # For Bybit, we need to be careful with the testnet setting
+            # Our debug testing showed that the API key only works in mainnet mode
+            if exchange_type.lower() == 'bybit':
+                # Only use testnet if explicitly set in the environment
+                # This matches the logic in the Bybit exchange implementation
+                if 'BYBIT_TESTNET' in os.environ:
+                    testnet = os.environ.get('BYBIT_TESTNET', '').lower() == 'true'
+                    logger.info(f"Using Bybit-specific testnet setting from BYBIT_TESTNET: {testnet}")
+                elif 'EXCHANGE_TESTNET' in os.environ:
+                    testnet = os.environ.get('EXCHANGE_TESTNET', '').lower() == 'true'
+                    logger.info(f"Using generic testnet setting from EXCHANGE_TESTNET: {testnet}")
+                else:
+                    # Default to mainnet (false) for Bybit as that's what works with our API key
+                    testnet = False
+                    logger.info("No testnet environment variable found for Bybit, defaulting to mainnet (testnet=False)")
+            else:
+                # For other exchanges, use the normal behavior
+                testnet = os.environ.get('EXCHANGE_TESTNET', 'true').lower() == 'true'
+                logger.info(f"Using testnet setting for {exchange_type}: {testnet}")
             
             # Log API credentials status (without revealing actual keys)
             if api_key:

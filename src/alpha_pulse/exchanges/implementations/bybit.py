@@ -3,6 +3,7 @@ Bybit exchange implementation.
 """
 from decimal import Decimal
 from typing import Dict
+import os
 from loguru import logger
 import ccxt.async_support as ccxt
 
@@ -44,9 +45,18 @@ class BybitExchange(CCXTAdapter):
             logger.debug(f"BYBIT DEBUG - API Secret: {api_secret}")
             logger.debug(f"BYBIT DEBUG - Testnet from credentials: {creds_testnet}")
             
-            # Override testnet from credentials if provided
-            testnet = testnet or creds_testnet
-            logger.debug(f"BYBIT DEBUG - Final testnet value after override: {testnet}")
+            # IMPORTANT: Based on debugging, we know that this API key only works in mainnet mode
+            # So we need to force testnet=False unless explicitly overridden by environment
+            if 'BYBIT_TESTNET' in os.environ or 'EXCHANGE_TESTNET' in os.environ:
+                # Allow environment variables to override
+                testnet = testnet
+                logger.debug(f"BYBIT DEBUG - Using testnet setting from environment: {testnet}")
+            else:
+                # Force mainnet (testnet=False) as the API key only works in mainnet
+                testnet = False
+                logger.debug(f"BYBIT DEBUG - Forcing mainnet mode (testnet=False) for Bybit as the API key is for mainnet")
+            
+            logger.debug(f"BYBIT DEBUG - Final testnet value: {testnet}")
         else:
             logger.debug("BYBIT DEBUG - No credentials found in manager!")
             api_key = ""
