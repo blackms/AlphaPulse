@@ -176,6 +176,11 @@ class CCXTAdapter(BaseExchange):
             if limit:
                 params['limit'] = limit
             
+            # Special handling for Bybit UTA accounts which don't support fetchOrders
+            if self.exchange_id.lower() == 'bybit':
+                logger.debug("Using Bybit-specific order history fetching for UTA accounts")
+                return await self._get_bybit_order_history(symbol, params)
+            
             if symbol:
                 return await self.exchange.fetch_orders(symbol, **params)
             
@@ -192,6 +197,26 @@ class CCXTAdapter(BaseExchange):
             
         except Exception as e:
             raise OrderError(f"Failed to fetch order history: {str(e)}")
+    
+    async def _get_bybit_order_history(self, symbol: Optional[str], params: Dict) -> List[Dict[str, Any]]:
+        """Get order history for Bybit UTA accounts using supported methods."""
+        try:
+            all_orders = []
+            
+            # Get open orders
+            open_orders = await self.exchange.fetch_open_orders(symbol, **params)
+            all_orders.extend(open_orders)
+            
+            # Get closed orders
+            closed_orders = await self.exchange.fetch_closed_orders(symbol, **params)
+            all_orders.extend(closed_orders)
+            
+            # Note: fetchCanceledOrders is not implemented for some exchanges, so we skip it
+            
+            return all_orders
+        except Exception as e:
+            logger.warning(f"Error fetching Bybit order history: {str(e)}")
+            return []
     
     async def get_balances(self) -> Dict[str, Balance]:
         """Get account balances."""

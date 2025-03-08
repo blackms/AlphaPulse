@@ -520,13 +520,20 @@ class PortfolioManager:
             # Calculate profit/loss
             profit_loss = (current_price - avg_entry_price) * quantity if avg_entry_price else Decimal('0')
             
-            positions.append(Position(
-                asset_id=asset,
-                quantity=quantity,
-                entry_price=avg_entry_price,
-                current_price=current_price,
-                timestamp=datetime.now(timezone.utc)
-            ))
+            # Create Position object with attributes matching the dataclass definition
+            pos = Position(
+                symbol=asset,
+                quantity=float(quantity),
+                avg_entry_price=float(avg_entry_price),
+                unrealized_pnl=float(profit_loss),
+                timestamp=datetime.now(timezone.utc).timestamp()
+            )
+            
+            # Store current_price as an attribute even though it's not in the dataclass definition
+            # This allows the portfolio.py code to access it
+            pos.current_price = float(current_price)
+            
+            positions.append(pos)
 
         # Create portfolio data object
         return PortfolioData(

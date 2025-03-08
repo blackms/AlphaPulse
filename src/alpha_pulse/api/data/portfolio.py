@@ -149,13 +149,13 @@ class PortfolioDataAccessor:
             positions = []
             for position in portfolio_data.positions:
                 positions.append({
-                    "symbol": position.asset_id,
+                    "symbol": position.symbol,
                     "quantity": float(position.quantity),
-                    "entry_price": float(position.entry_price),
-                    "current_price": float(position.current_price),
-                    "value": float(position.quantity * position.current_price),
-                    "pnl": float((position.current_price - position.entry_price) * position.quantity),
-                    "pnl_percentage": float((position.current_price / position.entry_price - 1) * 100) if position.entry_price else 0
+                    "entry_price": float(position.avg_entry_price),
+                    "current_price": float(position.current_price) if hasattr(position, 'current_price') else 0.0,
+                    "value": float(position.quantity * (position.current_price if hasattr(position, 'current_price') else position.avg_entry_price)),
+                    "pnl": float(position.unrealized_pnl),
+                    "pnl_percentage": float((position.unrealized_pnl / (position.avg_entry_price * position.quantity)) * 100) if position.avg_entry_price and position.quantity else 0
                 })
             
             # Create portfolio response
@@ -186,7 +186,7 @@ class PortfolioDataAccessor:
                     # Calculate total value for each day
                     day_value = sum(
                         historical_data.loc[timestamp, asset] *
-                        next((p.quantity for p in portfolio_data.positions if p.asset_id == asset), 0)
+                        next((p.quantity for p in portfolio_data.positions if p.symbol == asset), 0)
                         for asset in assets if asset in historical_data.columns
                     )
                     
