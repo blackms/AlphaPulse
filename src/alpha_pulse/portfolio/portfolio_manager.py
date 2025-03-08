@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 import asyncio
 from functools import lru_cache
 from asyncio import TimeoutError
-import logging
+from loguru import logger
 from contextlib import asynccontextmanager
 
 from .interfaces import IRebalancingStrategy
@@ -25,7 +25,7 @@ from .strategies.black_litterman_strategy import BlackLittermanStrategy
 from .strategies.llm_assisted_strategy import LLMAssistedStrategy
 from .llm_analysis import OpenAILLMAnalyzer, LLMAnalysisResult
 
-logger = logging.getLogger(__name__)
+
 
 
 @lru_cache(maxsize=100)
@@ -300,7 +300,6 @@ class PortfolioManager:
         exchange: Any,
         current_allocation: Optional[Dict[str, Decimal]] = None
     ) -> bool:
-        self._validate_exchange(exchange)
         """
         Check if portfolio needs rebalancing based on time and deviation.
 
@@ -311,6 +310,8 @@ class PortfolioManager:
         Returns:
             Boolean indicating if rebalancing is needed
         """
+        self._validate_exchange(exchange)
+        
         if not self.last_rebalance_time:
             return True
             
@@ -417,11 +418,23 @@ class PortfolioManager:
             raise
 
     async def _retry_with_timeout(self, coro_func, max_retries: int = 3, timeout: float = 30.0):
-        """Execute coroutine with retry and timeout."""
+        """
+        Execute a coroutine-producing function with retry and timeout.
+        
+        Args:
+            coro_func: A function that returns a coroutine when called
+            max_retries: Maximum number of retry attempts
+            timeout: Timeout in seconds
+            
+        Returns:
+            Result from the coroutine
+        """
         for attempt in range(max_retries):
             try:
-                async with self._timeout_context(timeout):
-                    return await asyncio.wait_for(coro_func, timeout=timeout)
+                # We need the function to return a fresh coroutine each time
+                # since coroutines can only be awaited once
+                coro = coro_func()
+                return await asyncio.wait_for(coro, timeout=timeout)
             except (TimeoutError, Exception) as e:
                 if attempt == max_retries - 1:
                     logger.error(f"Operation failed after {max_retries} attempts: {str(e)}")
@@ -429,13 +442,15 @@ class PortfolioManager:
                 logger.warning(f"Attempt {attempt + 1} failed, retrying: {str(e)}")
                 await asyncio.sleep(2 ** attempt)  # Exponential backoff
 
-    async def _gather_with_concurrency(self, n: int, tasks: List[asyncio.Task]) -> List[Any]:
+    async def _gather_with_concurrency(self, n: int, tasks: List) -> List[Any]:
         """Execute tasks with limited concurrency and timeout handling."""
         semaphore = asyncio.Semaphore(n)
         
         async def _wrap_task(task):
             async with semaphore:
-                return await self._retry_with_timeout(task)
+                # Directly await the task instead of passing it through _retry_with_timeout
+                # This is because the task is already a coroutine, not a function returning a coroutine
+                return await task
         
         return await asyncio.gather(*[_wrap_task(task) for task in tasks])
 
@@ -686,4 +701,3 @@ class PortfolioManager:
                     )
                 except Exception as e:
                     logger.error(f"Rollback failed for {trade['asset']}: {str(e)}")
-
