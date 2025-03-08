@@ -395,3 +395,189 @@ This error occurred because there was a mismatch between the testnet setting in 
 4. Add validation of API keys during initialization to provide more helpful error messages
 5. Consider adding a configuration validation step during application startup
 
+## 2025-03-08: Simplified Bybit Exchange Implementation and Fixed Data Format Issues
+
+### Context
+We encountered several issues with the Bybit exchange implementation:
+1. The testnet setting handling was complex and error-prone
+2. The data synchronization methods were failing with errors like `'Balance' object has no attribute 'get'` and `'str' object has no attribute 'quantity'`
+3. The application was still having issues with the Bybit API connection
+
+### Decisions
+
+1. **Removed Testnet Functionality Completely**
+   - Modified the BybitExchange class to always use mainnet mode (testnet=False)
+   - Removed all testnet-related environment variable checks
+   - Added clear logging to indicate that we're always using mainnet mode
+   - Simplified the code by removing conditional logic for testnet settings
+
+2. **Fixed Data Format Issues in Synchronization Methods**
+   - Updated the `_sync_balances` method to convert Balance objects to dictionaries
+   - Enhanced the `_sync_positions` method to handle different return types
+   - Improved the `_sync_orders` method to handle different data formats
+   - Updated the `_sync_prices` method to handle both dictionary and object formats
+
+3. **Added Robust Error Handling**
+   - Added type checking to prevent errors when processing unexpected data formats
+   - Added detailed logging for unexpected data formats
+   - Implemented graceful error recovery to continue processing even when some items fail
+
+### Rationale
+
+1. **Removed Testnet Functionality**
+   - Testnet is only used for development and testing, not in production
+   - The API key is only valid for mainnet, so testnet would never work anyway
+   - Simplifying the code reduces the chance of errors
+   - Clear logging makes it obvious that we're always using mainnet
+
+2. **Fixed Data Format Issues**
+   - Different exchange implementations return data in different formats
+   - Robust type checking and conversion ensures that we can handle all formats
+   - Detailed logging helps diagnose issues with unexpected data formats
+   - Graceful error recovery ensures that the system continues to function even when some items fail
+
+3. **Added Robust Error Handling**
+   - Type checking prevents errors when processing unexpected data formats
+   - Detailed logging helps diagnose issues with unexpected data formats
+   - Graceful error recovery ensures that the system continues to function even when some items fail
+
+### Alternatives Considered
+
+1. **Keep Testnet Functionality**
+   - We could have kept the testnet functionality and just fixed the issues
+   - This would be more flexible but would add unnecessary complexity
+   - Since we're not using testnet in production, removing it simplifies the code
+
+2. **Standardize Data Formats**
+   - We could have standardized the data formats across all exchange implementations
+   - This would be more consistent but would require changes to multiple components
+   - The current approach is more pragmatic and focuses on making the existing code work
+
+3. **Add More Extensive Validation**
+   - We could have added more extensive validation of data formats
+   - This would catch more issues but would add more complexity
+   - The current approach focuses on handling the specific issues we've encountered
+
+### Impact
+
+1. **Positive**
+   - The code is simpler and easier to understand
+   - The system is more robust and can handle different data formats
+   - The application is more likely to continue functioning even when some operations fail
+   - Users will see fewer errors and more helpful error messages
+
+2. **Negative**
+   - Testnet functionality is no longer available (though it wasn't being used anyway)
+   - The code is less flexible but more reliable
+   - There's still a potential for issues with unexpected data formats
+
+### Follow-up Actions
+
+1. Add unit tests for the data format handling logic
+2. Update documentation to explain that testnet is not supported
+3. Consider implementing a more comprehensive data validation system
+4. Address the remaining event loop issues in the exchange synchronizer
+5. Add more detailed logging for data format issues to help diagnose future problems
+
+## 2025-03-08: Fixed Event Loop Issues in Exchange Synchronizer
+
+### Context
+We encountered several event loop issues in the exchange synchronizer:
+1. The application was showing warnings about event loop issues: `Event loop issue detected, using thread-specific sleep`
+2. The exchange initialization was timing out: `Failed to initialize bybit exchange (attempt 1/3): Failed to initialize bybit: bybit GET https://api.bybit.com/v5/asset/coin/query-info?`
+3. There were issues with task cancellation and cleanup when shutting down the application
+4. The synchronization methods were failing due to event loop conflicts
+
+### Decisions
+
+1. **Improved Event Loop Handling in `_run_event_loop` Method**
+   - Added proper cleanup of pending tasks when shutting down
+   - Improved error handling during loop shutdown
+   - Added more detailed logging for event loop operations
+   - Added cancellation of all pending tasks before closing the loop
+
+2. **Enhanced the `_main_loop` Method**
+   - Added logic to reset the event loop when issues are detected
+   - Improved error handling for asyncio operations
+   - Reduced sleep times on errors to prevent long delays
+   - Added more robust fallback mechanisms for asyncio operations
+
+3. **Fixed Timeout Handling in `_get_exchange` Method**
+   - Created a separate task for initialization to better handle cancellation
+   - Added proper cleanup of tasks when timeouts occur
+   - Reduced the initialization timeout from 30 to 15 seconds
+   - Added more detailed logging for timeout scenarios
+
+4. **Completely Rewrote the `_sync_exchange_data` Method**
+   - Added a timeout for the entire exchange initialization process
+   - Implemented proper task cancellation when timeouts occur
+   - Added individual error handling for each data type sync
+   - Improved database connection handling during event loop issues
+   - Added more detailed success/failure logging
+
+### Rationale
+
+1. **Improved Event Loop Handling**
+   - Proper cleanup of pending tasks prevents resource leaks
+   - Better error handling during shutdown improves application stability
+   - Detailed logging helps diagnose issues with the event loop
+   - Cancelling pending tasks ensures clean shutdown
+
+2. **Enhanced Main Loop**
+   - Resetting the event loop when issues are detected helps recover from errors
+   - Better error handling improves application stability
+   - Shorter sleep times on errors prevent long delays
+   - Robust fallback mechanisms ensure the application continues to function
+
+3. **Fixed Timeout Handling**
+   - Separate tasks for initialization allow for better cancellation
+   - Proper cleanup of tasks prevents resource leaks
+   - Shorter timeout periods prevent the application from hanging
+   - Detailed logging helps diagnose timeout issues
+
+4. **Rewrote Sync Method**
+   - Timeout for the entire process prevents hanging
+   - Proper task cancellation ensures clean shutdown
+   - Individual error handling for each data type allows partial success
+   - Better database connection handling improves application stability
+   - Detailed logging helps diagnose synchronization issues
+
+### Alternatives Considered
+
+1. **Use a Different Threading Model**
+   - We could have completely redesigned the threading model
+   - This would be a more comprehensive solution but would require significant changes
+   - The current approach focuses on fixing the specific issues we've encountered
+
+2. **Use a Different Async Library**
+   - We could have switched to a different async library like Trio or Curio
+   - This would potentially provide better error handling but would require significant changes
+   - The current approach focuses on making the existing code work better
+
+3. **Implement a Supervisor Pattern**
+   - We could have implemented a supervisor pattern to monitor and restart tasks
+   - This would be more robust but would add more complexity
+   - The current approach is simpler and focuses on the specific issues we've encountered
+
+### Impact
+
+1. **Positive**
+   - The application is more stable and less likely to hang
+   - Event loop issues are handled gracefully
+   - Timeouts are properly managed
+   - The application provides better error messages
+   - Resource leaks are prevented
+
+2. **Negative**
+   - The code is more complex due to additional error handling
+   - There's still a potential for event loop issues in other parts of the application
+   - The threading model is still not ideal for this type of application
+
+### Follow-up Actions
+
+1. Add unit tests for the event loop handling logic
+2. Consider implementing a more comprehensive threading model
+3. Add monitoring for event loop issues
+4. Consider implementing a supervisor pattern for critical tasks
+5. Add more detailed logging for event loop operations
+

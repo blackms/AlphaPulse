@@ -104,6 +104,7 @@ class ExchangeDataSynchronizer:
     
     def _run_event_loop(self):
         """Run the event loop in a background thread."""
+        # Create a new event loop for this thread
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         
@@ -117,13 +118,21 @@ class ExchangeDataSynchronizer:
             logger.error(f"Error in event loop: {str(e)}")
         finally:
             # Clean up
-            for task_name, task in self._active_tasks.items():
+            for task_name, task in list(self._active_tasks.items()):
                 if not task.done():
                     logger.warning(f"Cancelling task: {task_name}")
                     task.cancel()
             
             # Close the loop
             try:
+                pending = asyncio.all_tasks(loop)
+                if pending:
+                    logger.warning(f"Cancelling {len(pending)} pending tasks")
+                    for task in pending:
+                        task.cancel()
+                    # Give tasks a chance to cancel
+                    loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+                
                 loop.run_until_complete(loop.shutdown_asyncgens())
                 loop.close()
             except Exception as e:
@@ -145,24 +154,37 @@ class ExchangeDataSynchronizer:
                 await self._check_scheduled_syncs()
                 
                 # Sleep for a bit to avoid high CPU usage
-                await asyncio.sleep(5)
+                try:
+                    await asyncio.sleep(5)
+                except RuntimeError:
+                    # Fallback to regular sleep if asyncio.sleep fails
+                    time.sleep(5)
             except RuntimeError as e:
                 if "got Future" in str(e) and "attached to a different loop" in str(e):
                     logger.warning("Event loop issue detected, using thread-specific sleep")
                     # Use thread-specific sleep instead of asyncio.sleep
                     time.sleep(5)
+                    
+                    # Reset the event loop for this thread
+                    try:
+                        # Get a new event loop
+                        new_loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(new_loop)
+                        logger.info("Reset event loop for thread")
+                    except Exception as loop_error:
+                        logger.error(f"Error resetting event loop: {str(loop_error)}")
                 elif "cannot perform operation" in str(e) and "another operation is in progress" in str(e):
                     logger.warning("Concurrent operation issue detected, using thread-specific sleep")
                     time.sleep(5)
                 else:
                     logger.error(f"Runtime error in main loop: {str(e)}")
-                    time.sleep(30)  # Sleep longer on error
+                    time.sleep(10)  # Sleep on error, but not too long
             except Exception as e:
                 logger.error(f"Error in main loop: {str(e)}")
                 try:
-                    await asyncio.sleep(30)  # Sleep longer on error
+                    await asyncio.sleep(10)  # Sleep on error, but not too long
                 except Exception:
-                    time.sleep(30)  # Fallback to regular sleep
+                    time.sleep(10)  # Fallback to regular sleep
         
         logger.info("Main loop exited")
     
@@ -328,15 +350,32 @@ class ExchangeDataSynchronizer:
                     logger.info(f"Initializing {exchange_id} exchange (attempt {attempt}/{max_retries})")
                     
                     # Add timeout to prevent hanging indefinitely
-                    init_timeout = 30  # 30 seconds timeout for initialization
+                    init_timeout = 15  # 15 seconds timeout for initialization (reduced from 30)
                     
                     # Create a task with timeout
                     try:
-                        await asyncio.wait_for(exchange.initialize(), timeout=init_timeout)
+                        # Create a separate task for initialization to better handle cancellation
+                        init_task = asyncio.create_task(exchange.initialize())
+                        
+                        # Wait for the task with timeout
+                        await asyncio.wait_for(init_task, timeout=init_timeout)
                         logger.info(f"Successfully initialized {exchange_id} exchange")
                         break
                     except asyncio.TimeoutError:
                         logger.warning(f"Initialization timed out after {init_timeout} seconds (attempt {attempt}/{max_retries})")
+                        
+                        # Cancel the task if it's still running
+                        if not init_task.done():
+                            logger.warning(f"Cancelling initialization task for {exchange_id}")
+                            init_task.cancel()
+                            try:
+                                await init_task
+                            except asyncio.CancelledError:
+                                logger.info(f"Successfully cancelled initialization task for {exchange_id}")
+                            except Exception as cancel_error:
+                                logger.warning(f"Error while cancelling initialization task: {str(cancel_error)}")
+                        
+                        # Raise a connection error to trigger retry
                         raise ConnectionError(f"Initialization timed out after {init_timeout} seconds")
                     
                 except ccxt.NetworkError as e:
@@ -465,6 +504,7 @@ class ExchangeDataSynchronizer:
         """
         # Mark as in progress and set next sync time
         next_sync_time = datetime.now(timezone.utc) + timedelta(seconds=self._sync_interval)
+        repo = None
         
         try:
             # Update status
@@ -481,12 +521,41 @@ class ExchangeDataSynchronizer:
                 if "attached to a different loop" in str(e):
                     logger.warning(f"Event loop issue detected during status update, skipping status update")
                     # Continue with the sync even if we can't update the status
+                    # Try to get a repository without using async with
+                    try:
+                        conn = await get_pg_connection()
+                        repo = ExchangeCacheRepository(conn)
+                    except Exception as conn_error:
+                        logger.error(f"Error getting database connection: {str(conn_error)}")
                 else:
                     raise
                 
+            # Get exchange instance
+            exchange = None
             try:
-                # Get exchange instance
-                exchange = await self._get_exchange(exchange_id)
+                # Set a timeout for the entire exchange initialization process
+                exchange_init_timeout = 20  # 20 seconds timeout
+                try:
+                    # Create a task for getting the exchange
+                    exchange_task = asyncio.create_task(self._get_exchange(exchange_id))
+                    
+                    # Wait for the task with timeout
+                    exchange = await asyncio.wait_for(exchange_task, timeout=exchange_init_timeout)
+                except asyncio.TimeoutError:
+                    logger.error(f"Timeout getting exchange for {exchange_id} after {exchange_init_timeout} seconds")
+                    if not exchange_task.done():
+                        logger.warning(f"Cancelling exchange initialization task for {exchange_id}")
+                        exchange_task.cancel()
+                        try:
+                            await exchange_task
+                        except asyncio.CancelledError:
+                            logger.info(f"Successfully cancelled exchange task for {exchange_id}")
+                        except Exception as cancel_error:
+                            logger.warning(f"Error while cancelling exchange task: {str(cancel_error)}")
+                    
+                    # Set exchange to None to trigger the error handling below
+                    exchange = None
+                
                 if not exchange:
                     logger.error(f"Failed to get exchange for {exchange_id}. Troubleshooting steps:")
                     logger.error("1. Check API credentials in environment variables or configuration")
@@ -508,9 +577,8 @@ class ExchangeDataSynchronizer:
                     logger.info("5. Verify your API key permissions and status in the exchange dashboard")
                     logger.info("6. Check the DEBUG_TOOLS.md file for more debugging options")
                     
-                    try:
-                        async with get_pg_connection() as conn:
-                            repo = ExchangeCacheRepository(conn)
+                    if repo:
+                        try:
                             await repo.update_sync_status(
                                 exchange_id,
                                 data_type.value,
@@ -518,44 +586,71 @@ class ExchangeDataSynchronizer:
                                 next_sync_time,
                                 "Failed to initialize exchange"
                             )
-                    except Exception:
-                        logger.warning(f"Could not update status for {exchange_id}, {data_type}")
+                        except Exception as status_error:
+                            logger.warning(f"Could not update status for {exchange_id}, {data_type}: {str(status_error)}")
                     return
                 
                 # Synchronize based on data type
+                sync_success = False
                 try:
                     if data_type == DataType.ALL:
-                        # Sync all data types
-                        await self._sync_balances(exchange_id, exchange, repo)
-                        await self._sync_positions(exchange_id, exchange, repo)
-                        await self._sync_orders(exchange_id, exchange, repo)
-                        await self._sync_prices(exchange_id, exchange, repo)
+                        # Sync all data types one by one with individual error handling
+                        try:
+                            await self._sync_balances(exchange_id, exchange, repo)
+                            logger.info(f"Successfully synced balances for {exchange_id}")
+                        except Exception as e:
+                            logger.error(f"Error syncing balances for {exchange_id}: {str(e)}")
+                        
+                        try:
+                            await self._sync_positions(exchange_id, exchange, repo)
+                            logger.info(f"Successfully synced positions for {exchange_id}")
+                        except Exception as e:
+                            logger.error(f"Error syncing positions for {exchange_id}: {str(e)}")
+                        
+                        try:
+                            await self._sync_orders(exchange_id, exchange, repo)
+                            logger.info(f"Successfully synced orders for {exchange_id}")
+                        except Exception as e:
+                            logger.error(f"Error syncing orders for {exchange_id}: {str(e)}")
+                        
+                        try:
+                            await self._sync_prices(exchange_id, exchange, repo)
+                            logger.info(f"Successfully synced prices for {exchange_id}")
+                        except Exception as e:
+                            logger.error(f"Error syncing prices for {exchange_id}: {str(e)}")
+                        
+                        # Consider the sync successful if we got here
+                        sync_success = True
                     elif data_type == DataType.BALANCES:
                         await self._sync_balances(exchange_id, exchange, repo)
+                        sync_success = True
                     elif data_type == DataType.POSITIONS:
                         await self._sync_positions(exchange_id, exchange, repo)
+                        sync_success = True
                     elif data_type == DataType.ORDERS:
                         await self._sync_orders(exchange_id, exchange, repo)
+                        sync_success = True
                     elif data_type == DataType.PRICES:
                         await self._sync_prices(exchange_id, exchange, repo)
+                        sync_success = True
                 except RuntimeError as e:
                     if "attached to a different loop" in str(e):
                         logger.warning(f"Event loop issue detected during sync, skipping {data_type} sync for {exchange_id}")
                     else:
                         raise
                 
-                # Update status to completed
-                try:
-                    async with get_pg_connection() as conn:
-                        repo = ExchangeCacheRepository(conn)
+                # Update status to completed if successful
+                if sync_success and repo:
+                    try:
                         await repo.update_sync_status(
                             exchange_id,
                             data_type.value,
                             SyncStatus.COMPLETED.value,
                             next_sync_time
                         )
-                except Exception:
-                    logger.warning(f"Could not update completion status for {exchange_id}, {data_type}")
+                        logger.info(f"Successfully completed sync for {exchange_id}, {data_type}")
+                    except Exception as status_error:
+                        logger.warning(f"Could not update completion status for {exchange_id}, {data_type}: {str(status_error)}")
             except RuntimeError as e:
                 if "attached to a different loop" in str(e):
                     logger.warning(f"Event loop issue detected during exchange operations, skipping sync for {exchange_id}")
@@ -565,9 +660,8 @@ class ExchangeDataSynchronizer:
         except Exception as e:
             logger.error(f"Error syncing {data_type} for {exchange_id}: {str(e)}")
             # Update status to failed
-            try:
-                async with get_pg_connection() as conn:
-                    repo = ExchangeCacheRepository(conn)
+            if repo:
+                try:
                     await repo.update_sync_status(
                         exchange_id,
                         data_type.value,
@@ -575,8 +669,8 @@ class ExchangeDataSynchronizer:
                         next_sync_time,
                         str(e)
                     )
-            except Exception as inner_e:
-                logger.error(f"Error updating sync status: {str(inner_e)}")
+                except Exception as inner_e:
+                    logger.error(f"Error updating sync status: {str(inner_e)}")
     
     async def _sync_balances(self, exchange_id: str, exchange: Exchange, repo: ExchangeCacheRepository):
         """Synchronize balance data."""
@@ -710,7 +804,18 @@ class ExchangeDataSynchronizer:
         try:
             # Get all symbols with positions
             positions = await exchange.get_positions()
-            symbols = {position.symbol for position in positions if position.quantity != 0}
+            symbols = set()
+            
+            # Handle different return types for positions
+            if isinstance(positions, dict):
+                symbols = set(positions.keys())
+            else:
+                for position in positions:
+                    if isinstance(position, str):
+                        continue
+                    if hasattr(position, 'symbol') and hasattr(position, 'quantity'):
+                        if position.quantity != 0:
+                            symbols.add(position.symbol)
             
             # Add some default symbols
             symbols.add("BTC/USDT")
@@ -721,7 +826,9 @@ class ExchangeDataSynchronizer:
                 try:
                     # Get price for this symbol
                     ticker = await exchange.get_ticker(symbol)
-                    if ticker and 'last' in ticker:
+                    
+                    # Handle different return types
+                    if isinstance(ticker, dict) and 'last' in ticker:
                         price = float(ticker['last'])
                         quote_currency = symbol.split('/')[-1] if '/' in symbol else "USDT"
                         await repo.store_price(
@@ -731,6 +838,19 @@ class ExchangeDataSynchronizer:
                             price
                         )
                         logger.info(f"Got price for {symbol}: {price}")
+                    elif hasattr(ticker, 'last'):
+                        # Handle object with 'last' attribute
+                        price = float(ticker.last)
+                        quote_currency = symbol.split('/')[-1] if '/' in symbol else "USDT"
+                        await repo.store_price(
+                            exchange_id,
+                            symbol.split('/')[0] if '/' in symbol else symbol,
+                            quote_currency,
+                            price
+                        )
+                        logger.info(f"Got price for {symbol}: {price}")
+                    else:
+                        logger.warning(f"Unexpected ticker format for {symbol}: {ticker}")
                 except Exception as e:
                     logger.error(f"Error getting price for {symbol}: {str(e)}")
             

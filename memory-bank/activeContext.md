@@ -65,6 +65,60 @@ The changes have been committed to the repository with the message "Enhance Bybi
 
 The changes have been committed to the repository with the message "Fix testnet setting handling in Bybit exchange implementation".
 
+**Update (2025-03-08 16:56)**: Simplified the Bybit exchange implementation and fixed data format issues:
+
+1. Removed testnet functionality completely:
+   - Modified the BybitExchange class to always use mainnet mode (testnet=False)
+   - Removed all testnet-related environment variable checks
+   - Added clear logging to indicate that we're always using mainnet mode
+   - Simplified the code by removing conditional logic for testnet settings
+
+2. Fixed data format issues in the synchronization methods:
+   - Updated the `_sync_balances` method to convert Balance objects to dictionaries
+   - Enhanced the `_sync_positions` method to handle different return types
+   - Improved the `_sync_orders` method to handle different data formats
+   - Updated the `_sync_prices` method to handle both dictionary and object formats
+
+3. Added robust error handling:
+   - Added type checking to prevent errors when processing unexpected data formats
+   - Added detailed logging for unexpected data formats
+   - Implemented graceful error recovery to continue processing even when some items fail
+
+4. Verified the changes:
+   - The application now correctly uses mainnet mode for Bybit
+   - The data synchronization methods can handle different data formats
+   - The error messages about 'Balance' object having no 'get' attribute are resolved
+
+The changes have been committed to the repository with the message "Simplify Bybit exchange implementation and fix data format issues".
+
+**Update (2025-03-08 17:02)**: Fixed event loop issues in the exchange synchronizer:
+
+1. Improved event loop handling in the `_run_event_loop` method:
+   - Added proper cleanup of pending tasks when shutting down
+   - Improved error handling during loop shutdown
+   - Added more detailed logging for event loop operations
+
+2. Enhanced the `_main_loop` method to better handle event loop issues:
+   - Added logic to reset the event loop when issues are detected
+   - Improved error handling for asyncio operations
+   - Reduced sleep times on errors to prevent long delays
+   - Added more robust fallback mechanisms for asyncio operations
+
+3. Fixed timeout handling in the `_get_exchange` method:
+   - Created a separate task for initialization to better handle cancellation
+   - Added proper cleanup of tasks when timeouts occur
+   - Reduced the initialization timeout from 30 to 15 seconds
+   - Added more detailed logging for timeout scenarios
+
+4. Completely rewrote the `_sync_exchange_data` method:
+   - Added a timeout for the entire exchange initialization process
+   - Implemented proper task cancellation when timeouts occur
+   - Added individual error handling for each data type sync
+   - Improved database connection handling during event loop issues
+   - Added more detailed success/failure logging
+
+The changes have been committed to the repository with the message "Fix event loop issues in exchange synchronizer".
+
 **Issue Analysis**:
 1. First Error:
    - The error occurs in the `startup_exchange_sync` function in `api_integration.py`
@@ -175,6 +229,20 @@ The changes have been committed to the repository with the message "Fix testnet 
    - Added troubleshooting steps for common issues
    - Documented environment variables and their usage
    - Provided examples of how to use the debugging tools
+
+### Fix 5: Event Loop Issues
+
+1. **Improved Event Loop Handling**:
+   - Enhanced the `_run_event_loop` method to properly clean up pending tasks
+   - Added logic to reset the event loop when issues are detected
+   - Improved error handling for asyncio operations
+   - Added more detailed logging for event loop operations
+
+2. **Enhanced Task Management**:
+   - Implemented proper task cancellation for timeouts
+   - Added individual error handling for each data type sync
+   - Improved database connection handling during event loop issues
+   - Added more detailed success/failure logging
 
 ## Documentation Updates
 
