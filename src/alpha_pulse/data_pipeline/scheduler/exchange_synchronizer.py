@@ -310,51 +310,80 @@ class ExchangeDataSynchronizer:
         
         try:
             # Update status
-            async with get_pg_connection() as conn:
-                repo = ExchangeCacheRepository(conn)
-                await repo.update_sync_status(
-                    exchange_id, 
-                    data_type.value, 
-                    SyncStatus.IN_PROGRESS.value,
-                    next_sync_time
-                )
+            try:
+                async with get_pg_connection() as conn:
+                    repo = ExchangeCacheRepository(conn)
+                    await repo.update_sync_status(
+                        exchange_id,
+                        data_type.value,
+                        SyncStatus.IN_PROGRESS.value,
+                        next_sync_time
+                    )
+            except RuntimeError as e:
+                if "attached to a different loop" in str(e):
+                    logger.warning(f"Event loop issue detected during status update, skipping status update")
+                    # Continue with the sync even if we can't update the status
+                else:
+                    raise
                 
+            try:
                 # Get exchange instance
                 exchange = await self._get_exchange(exchange_id)
                 if not exchange:
                     logger.error(f"Failed to get exchange for {exchange_id}")
-                    await repo.update_sync_status(
-                        exchange_id, 
-                        data_type.value, 
-                        SyncStatus.FAILED.value,
-                        next_sync_time,
-                        "Failed to initialize exchange"
-                    )
+                    try:
+                        async with get_pg_connection() as conn:
+                            repo = ExchangeCacheRepository(conn)
+                            await repo.update_sync_status(
+                                exchange_id,
+                                data_type.value,
+                                SyncStatus.FAILED.value,
+                                next_sync_time,
+                                "Failed to initialize exchange"
+                            )
+                    except Exception:
+                        logger.warning(f"Could not update status for {exchange_id}, {data_type}")
                     return
                 
                 # Synchronize based on data type
-                if data_type == DataType.ALL:
-                    # Sync all data types
-                    await self._sync_balances(exchange_id, exchange, repo)
-                    await self._sync_positions(exchange_id, exchange, repo)
-                    await self._sync_orders(exchange_id, exchange, repo)
-                    await self._sync_prices(exchange_id, exchange, repo)
-                elif data_type == DataType.BALANCES:
-                    await self._sync_balances(exchange_id, exchange, repo)
-                elif data_type == DataType.POSITIONS:
-                    await self._sync_positions(exchange_id, exchange, repo)
-                elif data_type == DataType.ORDERS:
-                    await self._sync_orders(exchange_id, exchange, repo)
-                elif data_type == DataType.PRICES:
-                    await self._sync_prices(exchange_id, exchange, repo)
+                try:
+                    if data_type == DataType.ALL:
+                        # Sync all data types
+                        await self._sync_balances(exchange_id, exchange, repo)
+                        await self._sync_positions(exchange_id, exchange, repo)
+                        await self._sync_orders(exchange_id, exchange, repo)
+                        await self._sync_prices(exchange_id, exchange, repo)
+                    elif data_type == DataType.BALANCES:
+                        await self._sync_balances(exchange_id, exchange, repo)
+                    elif data_type == DataType.POSITIONS:
+                        await self._sync_positions(exchange_id, exchange, repo)
+                    elif data_type == DataType.ORDERS:
+                        await self._sync_orders(exchange_id, exchange, repo)
+                    elif data_type == DataType.PRICES:
+                        await self._sync_prices(exchange_id, exchange, repo)
+                except RuntimeError as e:
+                    if "attached to a different loop" in str(e):
+                        logger.warning(f"Event loop issue detected during sync, skipping {data_type} sync for {exchange_id}")
+                    else:
+                        raise
                 
                 # Update status to completed
-                await repo.update_sync_status(
-                    exchange_id, 
-                    data_type.value, 
-                    SyncStatus.COMPLETED.value,
-                    next_sync_time
-                )
+                try:
+                    async with get_pg_connection() as conn:
+                        repo = ExchangeCacheRepository(conn)
+                        await repo.update_sync_status(
+                            exchange_id,
+                            data_type.value,
+                            SyncStatus.COMPLETED.value,
+                            next_sync_time
+                        )
+                except Exception:
+                    logger.warning(f"Could not update completion status for {exchange_id}, {data_type}")
+            except RuntimeError as e:
+                if "attached to a different loop" in str(e):
+                    logger.warning(f"Event loop issue detected during exchange operations, skipping sync for {exchange_id}")
+                else:
+                    raise
                 
         except Exception as e:
             logger.error(f"Error syncing {data_type} for {exchange_id}: {str(e)}")
@@ -363,8 +392,8 @@ class ExchangeDataSynchronizer:
                 async with get_pg_connection() as conn:
                     repo = ExchangeCacheRepository(conn)
                     await repo.update_sync_status(
-                        exchange_id, 
-                        data_type.value, 
+                        exchange_id,
+                        data_type.value,
                         SyncStatus.FAILED.value,
                         next_sync_time,
                         str(e)
