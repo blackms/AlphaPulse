@@ -18,9 +18,12 @@ from loguru import logger
 from alpha_pulse.data_pipeline.database.connection import get_pg_connection
 from alpha_pulse.data_pipeline.database.exchange_cache import ExchangeCacheRepository
 from alpha_pulse.exchanges.factories import ExchangeFactory
-from alpha_pulse.exchanges.interfaces import BaseExchange
+from alpha_pulse.exchanges.interfaces import BaseExchange, ConnectionError, ExchangeError
 from alpha_pulse.exchanges.types import ExchangeType
 from alpha_pulse.data_pipeline.scheduler import DataType
+
+# Import ccxt for AuthenticationError
+import ccxt.async_support as ccxt
 
 # Type alias for backward compatibility
 Exchange = BaseExchange
@@ -246,6 +249,7 @@ class ExchangeDataSynchronizer:
         """
         # Return cached instance if available
         if exchange_id in self._exchange_instances:
+            logger.debug(f"Using cached exchange instance for {exchange_id}")
             return self._exchange_instances[exchange_id]
         
         try:
@@ -256,6 +260,18 @@ class ExchangeDataSynchronizer:
                                        os.environ.get('EXCHANGE_API_SECRET', ''))
             testnet = os.environ.get(f'{exchange_id.upper()}_TESTNET', 
                                     os.environ.get('EXCHANGE_TESTNET', 'true')).lower() == 'true'
+            
+            # Log credential information (masked for security)
+            if api_key:
+                masked_key = api_key[:4] + '...' + api_key[-4:] if len(api_key) > 8 else '***'
+                masked_secret = api_secret[:4] + '...' + api_secret[-4:] if len(api_secret) > 8 else '***'
+                logger.info(f"Initializing {exchange_id} exchange with API key: {masked_key}")
+                logger.debug(f"API secret (masked): {masked_secret}")
+            else:
+                logger.warning(f"No API key found for {exchange_id}. Check your environment variables.")
+                logger.info(f"Expected environment variables: {exchange_id.upper()}_API_KEY or EXCHANGE_API_KEY")
+            
+            logger.info(f"Using testnet mode: {testnet}")
             
             # For Bybit, we need special handling for testnet
             if exchange_id.lower() == 'bybit':
@@ -278,7 +294,7 @@ class ExchangeDataSynchronizer:
                 exchange_type = ExchangeType.BINANCE
             
             # Create exchange instance
-            logger.info(f"Creating exchange of type {exchange_type} with testnet={testnet}")
+            logger.info(f"Creating exchange of type {exchange_type.value} with testnet={testnet}")
             exchange = ExchangeFactory.create_exchange(
                 exchange_type,
                 api_key=api_key,
@@ -286,15 +302,48 @@ class ExchangeDataSynchronizer:
                 testnet=testnet
             )
             
-            # Initialize the exchange
-            await exchange.initialize()
+            # Initialize the exchange with retry logic
+            max_retries = 3
+            retry_delay = 2
+            for attempt in range(1, max_retries + 1):
+                try:
+                    logger.info(f"Initializing {exchange_id} exchange (attempt {attempt}/{max_retries})")
+                    await exchange.initialize()
+                    logger.info(f"Successfully initialized {exchange_id} exchange")
+                    break
+                except Exception as init_error:
+                    if attempt < max_retries:
+                        logger.warning(f"Failed to initialize {exchange_id} exchange (attempt {attempt}/{max_retries}): {str(init_error)}")
+                        logger.info(f"Retrying in {retry_delay} seconds...")
+                        await asyncio.sleep(retry_delay)
+                        retry_delay *= 2  # Exponential backoff
+                    else:
+                        # Last attempt failed, re-raise the exception
+                        logger.error(f"Failed to initialize {exchange_id} exchange after {max_retries} attempts: {str(init_error)}")
+                        raise
             
             # Cache the instance
             self._exchange_instances[exchange_id] = exchange
             
             return exchange
+            
+        except ccxt.AuthenticationError as e:
+            logger.error(f"Authentication error creating exchange {exchange_id}: {str(e)}")
+            logger.info("This may be due to invalid API credentials or insufficient permissions")
+            logger.info("Check your API key and secret, and ensure they have the necessary permissions")
+            return None
+            
+        except ConnectionError as e:
+            logger.error(f"Connection error creating exchange {exchange_id}: {str(e)}")
+            logger.info("This may be due to network connectivity issues or API endpoint problems")
+            logger.info("Check your internet connection and firewall settings")
+            return None
+            
         except Exception as e:
-            logger.error(f"Error creating exchange {exchange_id}: {str(e)}")
+            error_msg = f"Error creating exchange {exchange_id}: {str(e)}"
+            logger.error(error_msg)
+            logger.debug(f"Exception type: {type(e).__name__}")
+            logger.debug(f"Exception details: {repr(e)}")
             return None
     
     async def _sync_exchange_data(self, exchange_id: str, data_type: DataType):
@@ -330,7 +379,13 @@ class ExchangeDataSynchronizer:
                 # Get exchange instance
                 exchange = await self._get_exchange(exchange_id)
                 if not exchange:
-                    logger.error(f"Failed to get exchange for {exchange_id}")
+                    logger.error(f"Failed to get exchange for {exchange_id}. Troubleshooting steps:")
+                    logger.error("1. Check API credentials in environment variables or configuration")
+                    logger.error("2. Verify network connectivity to the exchange API")
+                    logger.error("3. Confirm testnet/mainnet settings are correct")
+                    logger.error("4. Check for any IP restrictions on your API key")
+                    logger.error("5. Run debug_bybit_auth.py or debug_exchange_connection.py for more details")
+                    
                     try:
                         async with get_pg_connection() as conn:
                             repo = ExchangeCacheRepository(conn)
