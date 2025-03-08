@@ -19,8 +19,11 @@ async def startup_exchange_sync() -> None:
     """Initialize database and start exchange synchronization."""
     try:
         # Initialize database (create tables if they don't exist)
-        await init_db()
-        logger.info("Database initialized for exchange data cache")
+        db_init_success = await init_db()
+        if db_init_success:
+            logger.info("Database initialized for exchange data cache")
+        else:
+            logger.warning("Database initialization failed - some features may not work correctly")
         
         # Initialize exchange synchronizer
         try:
@@ -35,12 +38,16 @@ async def startup_exchange_sync() -> None:
             logger.warning("Continuing without initialization")
         
         # Start the scheduler
-        await exchange_data_synchronizer.start()
-        logger.info("Exchange data synchronization scheduler started")
-        
-        # Initial sync of all data types
-        exchange_data_synchronizer.trigger_sync(data_type=DataType.ALL)
-        logger.info("Initial data synchronization triggered")
+        try:
+            await exchange_data_synchronizer.start()
+            logger.info("Exchange data synchronization scheduler started")
+            
+            # Initial sync of all data types
+            exchange_data_synchronizer.trigger_sync(data_type=DataType.ALL)
+            logger.info("Initial data synchronization triggered")
+        except Exception as e:
+            logger.error(f"Failed to start exchange data synchronizer: {e}")
+            logger.warning("Exchange data synchronization will not be available")
     except AttributeError as e:
         logger.error(f"Error during exchange synchronization startup: {e}")
         logger.warning("Missing attribute or method - the system will use direct API calls if needed")
