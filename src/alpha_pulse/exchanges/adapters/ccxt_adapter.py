@@ -178,7 +178,7 @@ class CCXTAdapter(BaseExchange):
             
             # Special handling for Bybit UTA accounts which don't support fetchOrders
             if self.exchange_id.lower() == 'bybit':
-                logger.debug("Using Bybit-specific order history fetching for UTA accounts")
+                logger.debug(f"Using Bybit-specific order history fetching for UTA accounts with symbol: {symbol}")
                 return await self._get_bybit_order_history(symbol, params)
             
             if symbol:
@@ -203,19 +203,30 @@ class CCXTAdapter(BaseExchange):
         try:
             all_orders = []
             
+            # Log the symbol being used for debugging
+            logger.debug(f"Fetching Bybit order history for symbol: {symbol}")
+            
             # Get open orders
-            open_orders = await self.exchange.fetch_open_orders(symbol, **params)
-            all_orders.extend(open_orders)
+            try:
+                open_orders = await self.exchange.fetch_open_orders(symbol, **params)
+                logger.debug(f"Found {len(open_orders)} open orders for {symbol}")
+                all_orders.extend(open_orders)
+            except Exception as e:
+                logger.debug(f"Error fetching open orders for {symbol}: {e}")
             
             # Get closed orders
-            closed_orders = await self.exchange.fetch_closed_orders(symbol, **params)
-            all_orders.extend(closed_orders)
+            try:
+                closed_orders = await self.exchange.fetch_closed_orders(symbol, **params)
+                logger.debug(f"Found {len(closed_orders)} closed orders for {symbol}")
+                all_orders.extend(closed_orders)
+            except Exception as e:
+                logger.debug(f"Error fetching closed orders for {symbol}: {e}")
             
             # Note: fetchCanceledOrders is not implemented for some exchanges, so we skip it
             
             return all_orders
         except Exception as e:
-            logger.warning(f"Error fetching Bybit order history: {str(e)}")
+            logger.warning(f"Error fetching Bybit order history for {symbol}: {str(e)}")
             return []
     
     async def get_balances(self) -> Dict[str, Balance]:
@@ -316,33 +327,160 @@ class CCXTAdapter(BaseExchange):
             logger.warning(f"Failed to fetch trading fees: {str(e)}")
             return {}
     
+    def _normalize_symbol(self, symbol: str) -> Dict[str, str]:
+        """
+        Normalize symbol into different formats that exchanges might expect.
+        
+        Returns a dictionary with different symbol formats:
+        - original: The original symbol as passed
+        - base: The base currency (e.g., "BTC" from "BTC/USDT")
+        - quote: The quote currency (e.g., "USDT" from "BTC/USDT") 
+        - pair: The full trading pair with "/" (e.g., "BTC/USDT")
+        - market: Exchange-specific formatted symbol (e.g., "BTCUSDT" for some exchanges)
+        - spot: Spot market symbol format
+        - linear: Linear contract format
+        """
+        result = {
+            "original": symbol,
+            "base": symbol,
+            "quote": "USDT",  # Default quote currency
+            "pair": symbol,
+            "market": symbol,
+            "spot": symbol,
+            "linear": symbol
+        }
+        
+        # Handle cases where symbol might be None or empty
+        if not symbol:
+            logger.warning("Empty symbol provided to _normalize_symbol")
+            return result
+            
+        # Handle 'BTC/USDT' format
+        if '/' in symbol:
+            base, quote = symbol.split('/')
+            result["base"] = base
+            result["quote"] = quote
+            result["pair"] = f"{base}/{quote}"
+            result["market"] = f"{base}{quote}"
+            result["spot"] = f"{base}/{quote}"
+            result["linear"] = f"{base}{quote}"
+        # Handle 'BTCUSDT' format (no separator)
+        elif len(symbol) > 3:
+            # Try to detect the quote currency
+            for quote in ["USDT", "USD", "BTC", "ETH", "BUSD"]:
+                if symbol.endswith(quote):
+                    base = symbol[:-len(quote)]
+                    result["base"] = base
+                    result["quote"] = quote
+                    result["pair"] = f"{base}/{quote}"
+                    result["market"] = symbol
+                    result["spot"] = f"{base}/{quote}"
+                    result["linear"] = symbol
+                    break
+            else:
+                # If we couldn't find a standard quote currency, assume it's just a base currency
+                result["pair"] = f"{symbol}/USDT"
+                result["market"] = f"{symbol}USDT"
+                result["spot"] = f"{symbol}/USDT"
+                result["linear"] = f"{symbol}USDT"
+        else:
+            # If just 'BTC' is provided, assume USDT as quote currency for trading pairs
+            result["pair"] = f"{symbol}/USDT"
+            result["market"] = f"{symbol}USDT"
+            result["spot"] = f"{symbol}/USDT"
+            result["linear"] = f"{symbol}USDT"
+        
+        # For Bybit specific handling
+        if self.exchange_id.lower() == 'bybit':
+            # Bybit usually expects symbols without the '/'
+            result["market"] = result["pair"].replace("/", "")
+            # Some Bybit endpoints need specific formats
+            result["spot"] = result["pair"]  # Keep the '/' for spot markets
+            result["linear"] = result["market"]  # No '/' for linear contracts
+        
+        logger.debug(f"Normalized symbol formats for {symbol}: {result}")
+        return result
+    
     async def get_average_entry_price(self, symbol: str) -> Optional[Decimal]:
         """Calculate average entry price for symbol."""
         try:
-            # For Bybit UTA accounts, we need special handling
+            # Normalize the symbol to handle different formats
+            symbol_formats = self._normalize_symbol(symbol)
+            
+            # Store all orders we find
+            all_orders = []
+            
+            # Try to get orders using different symbol formats
+            formats_to_try = []
+            
+            # For Bybit, we need to try multiple formats
             if self.exchange_id.lower() == 'bybit':
-                # Direct call to our bybit-specific method to avoid fetchOrders() error
-                orders = await self._get_bybit_order_history(symbol=symbol, params={})
+                formats_to_try = [
+                    ("pair", symbol_formats['pair']),
+                    ("market", symbol_formats['market']),
+                    ("spot", symbol_formats['spot']),
+                    ("linear", symbol_formats['linear']),
+                    ("original", symbol_formats['original'])
+                ]
             else:
-                # Use standard method for other exchanges
-                orders = await self.get_order_history(symbol=symbol)
+                # For other exchanges
+                formats_to_try = [
+                    ("pair", symbol_formats['pair']),
+                    ("base", symbol_formats['base']),
+                    ("market", symbol_formats['market'])
+                ]
+            
+            # Try each format until we find orders
+            for format_name, format_value in formats_to_try:
+                logger.debug(f"Trying to get order history with {format_name} format: '{format_value}'")
                 
-            if not orders:
-                logger.warning(f"No order history found for {symbol}")
+                try:
+                    if self.exchange_id.lower() == 'bybit':
+                        orders = await self._get_bybit_order_history(symbol=format_value, params={})
+                    else:
+                        orders = await self.get_order_history(symbol=format_value)
+                        
+                    if orders:
+                        logger.info(f"Found {len(orders)} orders using {format_name} format: {format_value}")
+                        all_orders.extend(orders)
+                        break  # Stop trying formats if we found orders
+                    else:
+                        logger.debug(f"No orders found with {format_name} format: {format_value}")
+                except Exception as e:
+                    logger.debug(f"Error getting orders with {format_name} format: {format_value} - {str(e)}")
+            
+            if not all_orders:
+                # Attempt one last try with a direct approach for Bybit
+                if self.exchange_id.lower() == 'bybit':
+                    try:
+                        # For Bybit, try one more time with direct market format without any separators
+                        direct_symbol = symbol_formats['base'] + symbol_formats['quote']
+                        logger.debug(f"Last attempt: trying direct format '{direct_symbol}' for Bybit")
+                        all_orders = await self._get_bybit_order_history(symbol=direct_symbol, params={})
+                    except Exception as e:
+                        logger.debug(f"Direct format attempt failed: {str(e)}")
+                
+                if not all_orders:
+                    logger.debug(f"No order history found for {symbol} after trying multiple formats")
+                
                 # Fall back to current price if we can't calculate entry price
                 try:
-                    current_price = await self.get_ticker_price(symbol)
+                    # Try using the pair format for getting current price
+                    current_price = await self.get_ticker_price(symbol_formats['pair'])
                     if current_price:
                         logger.info(f"Using current price {current_price} as fallback for {symbol}")
                         return current_price
                 except Exception as price_error:
-                    logger.warning(f"Failed to get current price for {symbol}: {price_error}")
+                    logger.debug(f"Failed to get current price for {symbol}: {price_error}")
+                
                 return None
             
             total_quantity = Decimal('0')
             total_value = Decimal('0')
             
-            for order in orders:
+            logger.debug(f"Found {len(all_orders)} orders for {symbol}")
+            
+            for order in all_orders:
                 # Only include filled buy orders
                 if order['side'] == 'buy' and order['status'] == 'filled':
                     # Handle cases where price might be None for market orders
@@ -360,7 +498,7 @@ class CCXTAdapter(BaseExchange):
                             total_quantity += quantity
             
             if total_quantity == 0:
-                logger.warning(f"No filled buy orders found for {symbol}")
+                logger.debug(f"No filled buy orders found for {symbol}")
                 return None
             
             average_entry = total_value / total_quantity
