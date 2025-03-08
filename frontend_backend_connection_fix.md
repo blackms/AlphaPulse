@@ -1,7 +1,7 @@
 # Frontend to Backend Connection Configuration
 
 ## Current Setup
-The frontend running on http://localhost:3000 connects to the backend API running on https://platform.aigenconsult.com:9000.
+The frontend running on http://localhost:3000 connects to the backend API running on https://platform.aigenconsult.com.
 
 ### Configuration
 - API requests from the frontend are proxied to the backend to avoid CORS issues
@@ -17,7 +17,7 @@ Browser security policies block requests between different origins (including di
 Updated the proxy configuration in the frontend's `package.json`:
 ```json
 {
-  "proxy": "https://platform.aigenconsult.com:9000"
+  "proxy": "https://platform.aigenconsult.com"
 }
 ```
 

@@ -17,21 +17,21 @@ test_backend() {
   echo -e "${YELLOW}Testing backend connectivity...${NC}"
   
   # Try to reach the backend root
-  if curl -s https://platform.aigenconsult.com:9000/ > /dev/null; then
+  if curl -s https://platform.aigenconsult.com/ > /dev/null; then
     echo -e "${GREEN}✓ Backend root endpoint is accessible${NC}"
   else
     echo -e "${RED}✗ Backend root endpoint is NOT accessible${NC}"
   fi
   
   # Try to reach the docs endpoint
-  if curl -s https://platform.aigenconsult.com:9000/docs > /dev/null; then
+  if curl -s https://platform.aigenconsult.com/docs > /dev/null; then
     echo -e "${GREEN}✓ API documentation is accessible${NC}"
   else
     echo -e "${RED}✗ API documentation is NOT accessible${NC}"
   fi
   
   # Try the token endpoint
-  TOKEN_RESPONSE=$(curl -s -X POST https://platform.aigenconsult.com:9000/token \
+  TOKEN_RESPONSE=$(curl -s -X POST https://platform.aigenconsult.com/token \
     -H "Content-Type: application/x-www-form-urlencoded" \
     -d "username=admin&password=password")
   
@@ -41,7 +41,7 @@ test_backend() {
     echo -e "${BLUE}Token: ${TOKEN:0:20}...${NC}"
     
     # Test a protected endpoint
-    SYSTEM_RESPONSE=$(curl -s -X GET https://platform.aigenconsult.com:9000/api/v1/system \
+    SYSTEM_RESPONSE=$(curl -s -X GET https://platform.aigenconsult.com/api/v1/system \
       -H "Authorization: Bearer $TOKEN")
     
     if [[ "$SYSTEM_RESPONSE" == *"cpu"* ]]; then
@@ -66,7 +66,7 @@ if [ ! -z "$FRONTEND_PID" ]; then
 fi
 
 # We're using a remote backend now, so no need to start a local one
-echo -e "${BLUE}Using remote backend at https://platform.aigenconsult.com:9000${NC}"
+echo -e "${BLUE}Using remote backend at https://platform.aigenconsult.com${NC}"
 echo -e "${YELLOW}Testing backend connectivity...${NC}"
 
 # Test backend connectivity
@@ -88,7 +88,7 @@ echo ""
 echo -e "${BLUE}===============================================${NC}"
 echo -e "${GREEN}  Debugging Information${NC}"
 echo -e "${BLUE}===============================================${NC}"
-echo -e "${YELLOW}Backend URL: ${NC}https://platform.aigenconsult.com:9000"
+echo -e "${YELLOW}Backend URL: ${NC}https://platform.aigenconsult.com"
 echo -e "${YELLOW}Frontend URL: ${NC}http://localhost:3000"
 echo -e "${YELLOW}Backend log: ${NC}backend_debug.log"
 echo -e "${YELLOW}Frontend log: ${NC}frontend_debug.log"

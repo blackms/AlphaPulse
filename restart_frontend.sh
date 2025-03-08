@@ -10,7 +10,7 @@ NC='\033[0m' # No Color
 echo -e "${BLUE}===============================================${NC}"
 echo -e "${GREEN}  RESTARTING FRONTEND WITH PROXY CONFIG${NC}"
 echo -e "${BLUE}===============================================${NC}"
-echo -e "${YELLOW}Backend URL: ${NC}https://platform.aigenconsult.com:9000"
+echo -e "${YELLOW}Backend URL: ${NC}https://platform.aigenconsult.com"
 echo ""
 
 # Kill any existing frontend process on port 3000
