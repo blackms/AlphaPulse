@@ -175,3 +175,17 @@ def _json_default(obj):
     if isinstance(obj, (set, frozenset)):
         return list(obj)
     raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
+
+
+async def init_db():
+    """
+    Initialize the database connection and tables.
+    
+    This function is used during application startup to ensure
+    the database is properly initialized.
+    """
+    if DB_TYPE == "postgres":
+        await _init_pg_pool()
+    else:
+        # For SQLite or other DB types, implement initialization here
+        logger.warning(f"Database initialization for {DB_TYPE} not fully implemented")
