@@ -23,8 +23,12 @@ async def startup_exchange_sync() -> None:
         logger.info("Database initialized for exchange data cache")
         
         # Initialize exchange synchronizer
-        await exchange_data_synchronizer.initialize()
-        logger.info("Exchange data synchronizer initialized")
+        try:
+            await exchange_data_synchronizer.initialize()
+            logger.info("Exchange data synchronizer initialized")
+        except AttributeError:
+            # Handle case where initialize method doesn't exist (older version)
+            logger.warning("Exchange data synchronizer does not have initialize method - using older version")
         
         # Start the scheduler
         await exchange_data_synchronizer.start()
