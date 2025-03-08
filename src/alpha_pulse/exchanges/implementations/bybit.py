@@ -2,8 +2,12 @@
 Bybit exchange implementation.
 """
 import json
+import hmac
+import hashlib
+import urllib.parse
+import time
 from decimal import Decimal
-from typing import Dict
+from typing import Dict, Any
 import os
 from loguru import logger
 import ccxt.async_support as ccxt
@@ -56,17 +60,105 @@ class BybitExchange(CCXTAdapter):
                 'defaultType': 'spot',
                 'adjustForTimeDifference': True,
                 'recvWindow': 60000,
-                'createMarketBuyOrderRequiresPrice': True
+                'createMarketBuyOrderRequiresPrice': True,
+                # Add custom auth handling for Bybit V5 API
+                'auth': {
+                    'v5': {
+                        'sign': self._generate_v5_signature
+                    }
+                }
             }
         )
         
         super().__init__(exchange_id='bybit', config=config)
     
+    def _generate_v5_signature(self, api_key: str, api_secret: str, timestamp: int,
+                              recv_window: int, params: Dict[str, Any] = None) -> str:
+        """
+        Generate signature for Bybit V5 API.
+        
+        Args:
+            api_key: API key
+            api_secret: API secret
+            timestamp: Current timestamp in milliseconds
+            recv_window: Receive window in milliseconds
+            params: Additional parameters to include in signature
+            
+        Returns:
+            Signature string
+        """
+        # For v5 API, the signature is calculated differently
+        param_str = f"{timestamp}{api_key}{recv_window}"
+        
+        # Add query parameters to the signature if provided
+        if params:
+            # Sort parameters alphabetically
+            sorted_params = sorted(params.items())
+            # URL encode parameters
+            encoded_params = urllib.parse.urlencode(sorted_params)
+            # Append to param_str
+            param_str += encoded_params
+        
+        logger.debug(f"Bybit V5 signature param string: {param_str}")
+        
+        signature = hmac.new(
+            bytes(api_secret, "utf-8"),
+            bytes(param_str, "utf-8"),
+            hashlib.sha256
+        ).hexdigest()
+        
+        return signature
+    
     async def initialize(self) -> None:
         """Initialize Bybit exchange connection."""
         await super().initialize()
         
-        # No testnet-specific endpoints needed as we always use mainnet
+        # Override the CCXT sign method to use our custom signature generator for V5 API
+        if hasattr(self.exchange, 'sign'):
+            original_sign = self.exchange.sign
+            
+            def custom_sign(path, api='public', method='GET', params={}, headers=None, body=None):
+                # Check if this is a V5 API call
+                if 'v5' in path:
+                    logger.debug(f"Using custom V5 signature for path: {path}")
+                    # Get the timestamp
+                    timestamp = int(time.time() * 1000)
+                    recv_window = self.config.options.get('recvWindow', 5000)
+                    
+                    # Generate the signature
+                    signature = self._generate_v5_signature(
+                        self.config.api_key,
+                        self.config.api_secret,
+                        timestamp,
+                        recv_window,
+                        params
+                    )
+                    
+                    # Set up headers
+                    if headers is None:
+                        headers = {}
+                    
+                    headers.update({
+                        'X-BAPI-API-KEY': self.config.api_key,
+                        'X-BAPI-SIGN': signature,
+                        'X-BAPI-TIMESTAMP': str(timestamp),
+                        'X-BAPI-RECV-WINDOW': str(recv_window),
+                        'Content-Type': 'application/json'
+                    })
+                    
+                    # For GET requests with params, add them to the URL
+                    if method == 'GET' and params:
+                        path = f"{path}?{urllib.parse.urlencode(params)}"
+                        params = {}
+                    
+                    return {'url': path, 'method': method, 'body': body, 'headers': headers}
+                else:
+                    # Use the original sign method for non-V5 API calls
+                    return original_sign(path, api, method, params, headers, body)
+            
+            # Replace the sign method
+            self.exchange.sign = custom_sign
+            logger.info("Replaced CCXT sign method with custom implementation for Bybit V5 API")
     
     async def get_balances(self) -> Dict[str, Balance]:
         """Get balances for all assets."""

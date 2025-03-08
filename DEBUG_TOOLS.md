@@ -49,6 +49,24 @@ Tests the exchange connection using the current environment variables, attemptin
 python debug_exchange_connection.py
 ```
 
+### 5. `debug_bybit_connection.py`
+
+A more advanced diagnostic tool that performs comprehensive connectivity tests:
+- DNS resolution checks
+- SSL certificate validation
+- Network connectivity tests to multiple endpoints
+- Authentication verification
+- Market data retrieval tests
+- Asset information retrieval tests
+- Detailed troubleshooting steps based on test results
+
+**Usage:**
+```bash
+python debug_bybit_connection.py
+# For more verbose output
+python debug_bybit_connection.py --verbose
+```
+
 ## Common Issues and Solutions
 
 ### 1. Missing or Invalid API Credentials
@@ -95,6 +113,7 @@ python debug_exchange_connection.py
   export BYBIT_TESTNET=true
   ```
 - Verify that you're using the correct API key for the selected network
+- Note: The system now always uses mainnet mode (testnet=false) for simplicity
 
 ### 4. Rate Limiting Issues
 
@@ -107,13 +126,29 @@ python debug_exchange_connection.py
 - Implement exponential backoff for retries
 - Consider using a different API key
 
+### 5. Event Loop Issues
+
+**Symptoms:**
+- "Task got Future attached to a different loop" errors
+- Hanging API requests
+- Timeouts during initialization
+- Database connection errors
+
+**Solutions:**
+- Ensure you're using the singleton instance of ExchangeDataSynchronizer
+- Avoid creating multiple instances of components that use event loops
+- Use proper error handling for asyncio operations
+- Implement timeouts for all API calls
+- Use thread-specific event loops when working with multiple threads
+
 ## Troubleshooting Process
 
 1. Run `debug_bybit_credentials.py` to check which credentials are being used
-2. Run `debug_bybit_api.py` for a comprehensive diagnosis
-3. Fix any issues identified by the diagnostic tools
-4. Run `debug_exchange_connection.py` to verify that the exchange connection works
-5. If issues persist, check the Bybit API documentation and status page
+2. Run `debug_bybit_connection.py` for a comprehensive network and API diagnosis
+3. Run `debug_bybit_api.py` for more detailed API functionality testing
+4. Fix any issues identified by the diagnostic tools
+5. Run `debug_exchange_connection.py` to verify that the exchange connection works with the application code
+6. If issues persist, check the Bybit API documentation and status page
 
 ## Environment Variables
 

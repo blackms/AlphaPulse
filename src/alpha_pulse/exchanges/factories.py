@@ -68,6 +68,7 @@ class ExchangeFactory:
         exchange_type: ExchangeType,
         api_key: str,
         api_secret: str,
+        extra_options: dict = None,
         **kwargs
     ) -> BaseExchange:
         """
@@ -77,6 +78,7 @@ class ExchangeFactory:
             exchange_type: Type of exchange to create
             api_key: API key
             api_secret: API secret
+            extra_options: Additional options to pass directly to the exchange
             **kwargs: Additional exchange-specific parameters
         
         Returns:
@@ -95,6 +97,11 @@ class ExchangeFactory:
             **implementation['defaults'],
             **kwargs
         }
+        
+        # Add extra options if provided
+        if extra_options:
+            options.update(extra_options)
+            logger.debug(f"Added extra options to {exchange_type} exchange: {extra_options}")
         
         # Get implementation details
         adapter_class = implementation['adapter_class']
@@ -133,13 +140,23 @@ class ExchangeFactory:
             "type": "binance",
             "api_key": "your-api-key",
             "api_secret": "your-api-secret",
-            "testnet": true
+            "testnet": true,
+            "extra_options": {
+                "accountType": "UNIFIED",
+                "recvWindow": 60000
+            }
         }
         """
         try:
-            exchange_type = ExchangeType(config.pop("type", "").lower())
-            api_key = config.pop("api_key", None)
-            api_secret = config.pop("api_secret", None)
+            # Make a copy of the config to avoid modifying the original
+            config_copy = config.copy()
+            
+            exchange_type = ExchangeType(config_copy.pop("type", "").lower())
+            api_key = config_copy.pop("api_key", None)
+            api_secret = config_copy.pop("api_secret", None)
+            
+            # Extract extra_options if present
+            extra_options = config_copy.pop("extra_options", None)
             
             if not all([exchange_type, api_key, api_secret]):
                 logger.error("Missing required exchange configuration")
@@ -149,7 +166,8 @@ class ExchangeFactory:
                 exchange_type=exchange_type,
                 api_key=api_key,
                 api_secret=api_secret,
-                **config
+                extra_options=extra_options,
+                **config_copy
             )
             
         except (ValueError, KeyError) as e:

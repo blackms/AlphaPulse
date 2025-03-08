@@ -146,12 +146,26 @@ def check_ssl_certificate(host: str, port: int = 443) -> bool:
         logger.error(f"❌ Failed to check SSL certificate for {host}: {str(e)}")
         return False
 
-def generate_signature(api_key: str, api_secret: str, timestamp: int) -> str:
+def generate_signature(api_key: str, api_secret: str, timestamp: int, recv_window: int = 5000, params: dict = None) -> str:
     """Generate signature for Bybit API authentication."""
     import hmac
     import hashlib
+    import urllib.parse
     
-    param_str = f"api_key={api_key}&timestamp={timestamp}"
+    # For v5 API, the signature is calculated differently
+    param_str = f"{timestamp}{api_key}{recv_window}"
+    
+    # Add query parameters to the signature if provided
+    if params:
+        # Sort parameters alphabetically
+        sorted_params = sorted(params.items())
+        # URL encode parameters
+        encoded_params = urllib.parse.urlencode(sorted_params)
+        # Append to param_str
+        param_str += encoded_params
+    
+    logger.debug(f"Signature param string: {param_str}")
+    
     signature = hmac.new(
         bytes(api_secret, "utf-8"),
         bytes(param_str, "utf-8"),
@@ -171,31 +185,74 @@ def test_authentication(api_key: str, api_secret: str, testnet: bool) -> bool:
     # Determine which endpoint set to use
     endpoints = BYBIT_API_ENDPOINTS["testnet" if testnet else "mainnet"]
     
-    # Generate signature
+    # Try with UNIFIED account type
+    account_type = "UNIFIED"
+    params = {"accountType": account_type}
+    
+    # Generate signature with params
     timestamp = int(time.time() * 1000)
-    signature = generate_signature(api_key, api_secret, timestamp)
+    recv_window = 5000
+    signature = generate_signature(api_key, api_secret, timestamp, recv_window, params)
     
     # Set up headers
     headers = {
         "X-BAPI-API-KEY": api_key,
         "X-BAPI-SIGN": signature,
         "X-BAPI-TIMESTAMP": str(timestamp),
-        "X-BAPI-RECV-WINDOW": "5000"
+        "X-BAPI-RECV-WINDOW": str(recv_window),
+        "Content-Type": "application/json"
     }
     
     # Test authentication with account endpoint
     try:
-        logger.info(f"Testing authentication with account endpoint: {endpoints['account']}")
-        response = requests.get(endpoints['account'], headers=headers, timeout=10)
+        # Add accountType parameter to the URL
+        account_url = f"{endpoints['account']}?accountType={account_type}"
+        logger.info(f"Testing authentication with account endpoint: {account_url}")
+        response = requests.get(account_url, headers=headers, timeout=10)
         
         if response.status_code == 200:
             data = response.json()
             if data.get("retCode") == 0:
                 logger.info("✅ Authentication successful")
+                # Print some account info
+                result = data.get("result", {})
+                if result:
+                    logger.info(f"Account info: {json.dumps(result, indent=2)}")
                 return True
             else:
                 logger.error(f"❌ Authentication failed: {data.get('retMsg', 'Unknown error')}")
                 logger.error(f"Response: {json.dumps(data, indent=2)}")
+                # Print the headers for debugging (masking the signature)
+                debug_headers = headers.copy()
+                if "X-BAPI-SIGN" in debug_headers:
+                    debug_headers["X-BAPI-SIGN"] = debug_headers["X-BAPI-SIGN"][:10] + "..."
+                logger.debug(f"Request headers: {json.dumps(debug_headers, indent=2)}")
+                
+                # Try with different account types if UNIFIED fails
+                if "accountType is null" in data.get("retMsg", "") or "accountType" in data.get("retMsg", ""):
+                    # Try with SPOT account type
+                    account_type = "SPOT"
+                    params = {"accountType": account_type}
+                    
+                    # Generate new signature with updated params
+                    timestamp = int(time.time() * 1000)
+                    signature = generate_signature(api_key, api_secret, timestamp, recv_window, params)
+                    
+                    # Update headers with new signature and timestamp
+                    headers["X-BAPI-SIGN"] = signature
+                    headers["X-BAPI-TIMESTAMP"] = str(timestamp)
+                    
+                    logger.info(f"Trying with different account type: {account_type}")
+                    account_url = f"{endpoints['account']}?accountType={account_type}"
+                    logger.info(f"Testing authentication with account endpoint: {account_url}")
+                    response = requests.get(account_url, headers=headers, timeout=10)
+                    data = response.json()
+                    if data.get("retCode") == 0:
+                        logger.info(f"✅ Authentication successful with {account_type} account type")
+                        return True
+                    else:
+                        logger.error(f"❌ Authentication also failed with {account_type} account type: {data.get('retMsg', 'Unknown error')}")
+                
                 return False
         else:
             logger.error(f"❌ Authentication failed: HTTP {response.status_code}")
@@ -203,6 +260,8 @@ def test_authentication(api_key: str, api_secret: str, testnet: bool) -> bool:
             return False
     except Exception as e:
         logger.error(f"❌ Authentication test failed: {str(e)}")
+        logger.error(f"Exception type: {type(e).__name__}")
+        logger.error(f"Exception details: {repr(e)}")
         return False
 
 def test_market_data(testnet: bool) -> bool:
@@ -241,17 +300,36 @@ def test_market_data(testnet: bool) -> bool:
         logger.error(f"❌ Market data test failed: {str(e)}")
         return False
 
-def test_asset_info(testnet: bool) -> bool:
+def test_asset_info(api_key: str, api_secret: str, testnet: bool) -> bool:
     """Test fetching asset info from Bybit API."""
     logger.info("Testing asset info from Bybit API...")
+    
+    if not api_key or not api_secret:
+        logger.error("❌ API key or secret is missing")
+        return False
     
     # Determine which endpoint set to use
     endpoints = BYBIT_API_ENDPOINTS["testnet" if testnet else "mainnet"]
     
+    # Generate signature
+    timestamp = int(time.time() * 1000)
+    recv_window = 5000
+    # No query parameters for this endpoint
+    signature = generate_signature(api_key, api_secret, timestamp, recv_window)
+    
+    # Set up headers
+    headers = {
+        "X-BAPI-API-KEY": api_key,
+        "X-BAPI-SIGN": signature,
+        "X-BAPI-TIMESTAMP": str(timestamp),
+        "X-BAPI-RECV-WINDOW": str(recv_window),
+        "Content-Type": "application/json"
+    }
+    
     # Test asset info endpoint
     try:
         logger.info(f"Testing asset info endpoint: {endpoints['asset']}")
-        response = requests.get(endpoints['asset'], timeout=10)
+        response = requests.get(endpoints['asset'], headers=headers, timeout=10)
         
         if response.status_code == 200:
             data = response.json()
@@ -268,6 +346,13 @@ def test_asset_info(testnet: bool) -> bool:
             else:
                 logger.error(f"❌ Asset info fetch failed: {data.get('retMsg', 'Unknown error')}")
                 logger.error(f"Response: {json.dumps(data, indent=2)}")
+                # Try without authentication headers if authentication fails
+                logger.info("Trying without authentication headers")
+                response = requests.get(endpoints['asset'], timeout=10)
+                data = response.json()
+                if data.get("retCode") == 0:
+                    logger.info("✅ Successfully fetched asset info without authentication")
+                    return True
                 return False
         else:
             logger.error(f"❌ Asset info fetch failed: HTTP {response.status_code}")
@@ -275,6 +360,8 @@ def test_asset_info(testnet: bool) -> bool:
             return False
     except Exception as e:
         logger.error(f"❌ Asset info test failed: {str(e)}")
+        logger.error(f"Exception type: {type(e).__name__}")
+        logger.error(f"Exception details: {repr(e)}")
         return False
 
 def print_troubleshooting_steps(network_ok: bool, dns_ok: bool, ssl_ok: bool, auth_ok: bool, market_ok: bool, asset_ok: bool) -> None:
@@ -366,7 +453,7 @@ def main():
     # Test asset info if network connectivity is OK
     asset_ok = False
     if network_ok:
-        asset_ok = test_asset_info(testnet)
+        asset_ok = test_asset_info(api_key, api_secret, testnet)
     
     # Print summary
     logger.info("\n=== Diagnostic Summary ===")

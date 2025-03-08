@@ -4,7 +4,7 @@ Scheduler module for periodic data synchronization.
 This module provides the infrastructure for scheduling and executing
 periodic data synchronization tasks.
 """
-from enum import Enum, auto
+from enum import Enum
 from typing import Optional, Dict, Any, List
 
 from loguru import logger
@@ -22,8 +22,8 @@ class DataType(Enum):
         return self.value
 
 
-# Import at the end to avoid circular imports
-from alpha_pulse.data_pipeline.scheduler.exchange_synchronizer import ExchangeDataSynchronizer
+# Import from the new module structure
+from alpha_pulse.data_pipeline.scheduler.sync_module import ExchangeDataSynchronizer
 
 # Get the singleton instance of the synchronizer
 # Since ExchangeDataSynchronizer is a singleton, this will either create a new instance
@@ -31,3 +31,10 @@ from alpha_pulse.data_pipeline.scheduler.exchange_synchronizer import ExchangeDa
 logger.debug("Getting ExchangeDataSynchronizer singleton instance")
 exchange_data_synchronizer = ExchangeDataSynchronizer()
 logger.debug(f"ExchangeDataSynchronizer instance: {exchange_data_synchronizer}")
+
+# Export classes and instances to be used in other modules
+__all__ = [
+    "DataType",
+    "ExchangeDataSynchronizer",
+    "exchange_data_synchronizer"
+]

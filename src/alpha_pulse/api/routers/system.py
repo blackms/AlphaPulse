@@ -14,7 +14,7 @@ from ..dependencies import (
     get_portfolio_accessor
 )
 from ..data import SystemDataAccessor, PortfolioDataAccessor
-from ...data_pipeline.scheduler.exchange_synchronizer import ExchangeDataSynchronizer
+from ...data_pipeline.scheduler import ExchangeDataSynchronizer
 
 logger = logging.getLogger(__name__)
 
