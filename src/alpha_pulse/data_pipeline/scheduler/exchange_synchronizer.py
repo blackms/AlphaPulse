@@ -145,8 +145,11 @@ class ExchangeDataSynchronizer:
                 await asyncio.sleep(5)
             except RuntimeError as e:
                 if "got Future" in str(e) and "attached to a different loop" in str(e):
-                    logger.warning("Event loop issue detected, using thread-specific event loop")
+                    logger.warning("Event loop issue detected, using thread-specific sleep")
                     # Use thread-specific sleep instead of asyncio.sleep
+                    time.sleep(5)
+                elif "cannot perform operation" in str(e) and "another operation is in progress" in str(e):
+                    logger.warning("Concurrent operation issue detected, using thread-specific sleep")
                     time.sleep(5)
                 else:
                     logger.error(f"Runtime error in main loop: {str(e)}")
