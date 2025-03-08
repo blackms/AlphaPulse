@@ -16,7 +16,7 @@ from loguru import logger
 # Default connection parameters
 DEFAULT_DB_HOST = "localhost"
 DEFAULT_DB_PORT = 5432
-DEFAULT_DB_NAME = "alpha_pulse"
+DEFAULT_DB_NAME = "alphapulse"  # Changed from alpha_pulse to alphapulse
 DEFAULT_DB_USER = "testuser"
 DEFAULT_DB_PASS = "testpassword"
 
@@ -134,21 +134,40 @@ async def _init_pg_pool():
     db_user = os.environ.get("DB_USER", DEFAULT_DB_USER)
     db_pass = os.environ.get("DB_PASS", DEFAULT_DB_PASS)
     
-    # Create connection pool
-    logger.info(f"Creating PostgreSQL connection pool to {db_host}:{db_port}/{db_name}")
-    _pg_pool = await asyncpg.create_pool(
-        host=db_host,
-        port=db_port,
-        database=db_name,
-        user=db_user,
-        password=db_pass,
-        min_size=1,
-        max_size=10
-    )
-    
-    # Initialize tables
-    async with _pg_pool.acquire() as conn:
-        await _initialize_tables(conn)
+    try:
+        # Create connection pool
+        logger.info(f"Creating PostgreSQL connection pool to {db_host}:{db_port}/{db_name}")
+        _pg_pool = await asyncpg.create_pool(
+            host=db_host,
+            port=db_port,
+            database=db_name,
+            user=db_user,
+            password=db_pass,
+            min_size=1,
+            max_size=10
+        )
+        
+        # Initialize tables
+        async with _pg_pool.acquire() as conn:
+            await _initialize_tables(conn)
+            
+        logger.info(f"Successfully connected to PostgreSQL database: {db_name}")
+    except asyncpg.InvalidCatalogNameError:
+        logger.error(f"Database '{db_name}' does not exist. Please create it first.")
+        raise
+    except asyncpg.InvalidPasswordError:
+        logger.error(f"Authentication failed for user '{db_user}'. Check your credentials.")
+        raise
+    except asyncpg.CannotConnectNowError:
+        logger.error(f"Cannot connect to PostgreSQL server at {db_host}:{db_port}. The server may be busy.")
+        raise
+    except asyncpg.PostgresConnectionError as e:
+        logger.error(f"Connection error: {str(e)}")
+        logger.error(f"Check if PostgreSQL is running at {db_host}:{db_port} and the network is configured correctly.")
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error initializing database connection: {str(e)}")
+        raise
 
 
 @asynccontextmanager
@@ -183,9 +202,26 @@ async def init_db():
     
     This function is used during application startup to ensure
     the database is properly initialized.
+    
+    Returns:
+        bool: True if initialization was successful, False otherwise
     """
-    if DB_TYPE == "postgres":
-        await _init_pg_pool()
-    else:
-        # For SQLite or other DB types, implement initialization here
-        logger.warning(f"Database initialization for {DB_TYPE} not fully implemented")
+    try:
+        if DB_TYPE == "postgres":
+            await _init_pg_pool()
+            return True
+        elif DB_TYPE == "sqlite":
+            # For SQLite, implement initialization here
+            logger.warning(f"Database initialization for {DB_TYPE} not fully implemented")
+            # TODO: Implement SQLite initialization
+            return True
+        else:
+            logger.warning(f"Unknown database type: {DB_TYPE}")
+            logger.warning(f"Supported types are: postgres, sqlite")
+            return False
+    except Exception as e:
+        logger.error(f"Failed to initialize database: {str(e)}")
+        logger.error("The application may not function correctly without database access")
+        # Return False but don't re-raise the exception to allow the application to start
+        # with degraded functionality
+        return False
