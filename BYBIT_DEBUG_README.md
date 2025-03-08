@@ -31,8 +31,10 @@ This document explains the changes made to the `debug_bybit_connection.py` scrip
 3. **What the Script Does**
    - Initializes the Bybit exchange connection
    - Tests getting balances
-   - Tests getting positions
+   - Tests getting positions with entry prices and unrealized PnL
    - Tests getting orders (open and closed)
+   - Tests getting order history
+   - Tests getting average entry price
    - Tests getting ticker price for BTC/USDT
    - Saves test results to a JSON file
 
