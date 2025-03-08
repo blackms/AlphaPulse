@@ -12,6 +12,11 @@ This document explains the changes made to the `debug_bybit_connection.py` scrip
    - Modified the script to use our custom exchange methods instead of direct CCXT access
    - This ensures consistency with our application's exchange abstraction layer
 
+3. **Enhanced Position Data**
+   - Implemented calculation of entry price and unrealized PnL for positions
+   - Added percentage PnL calculation for better position analysis
+   - This provides more comprehensive position information for trading decisions
+
 ## How to Use
 
 1. **Prerequisites**
