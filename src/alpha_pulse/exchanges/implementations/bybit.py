@@ -11,6 +11,7 @@ from typing import Dict, Any
 import os
 from loguru import logger
 import ccxt.async_support as ccxt
+import asyncio
 
 from ..adapters.ccxt_adapter import CCXTAdapter
 from ..interfaces import Balance, ExchangeConfiguration
@@ -111,54 +112,106 @@ class BybitExchange(CCXTAdapter):
     
     async def initialize(self) -> None:
         """Initialize Bybit exchange connection."""
-        await super().initialize()
-        
-        # Override the CCXT sign method to use our custom signature generator for V5 API
-        if hasattr(self.exchange, 'sign'):
-            original_sign = self.exchange.sign
+        try:
+            # Add a retry mechanism for initialization
+            max_retries = 3
+            retry_count = 0
+            last_error = None
             
-            def custom_sign(path, api='public', method='GET', params={}, headers=None, body=None):
-                # Check if this is a V5 API call
-                if 'v5' in path:
-                    logger.debug(f"Using custom V5 signature for path: {path}")
-                    # Get the timestamp
-                    timestamp = int(time.time() * 1000)
-                    recv_window = self.config.options.get('recvWindow', 5000)
-                    
-                    # Generate the signature
-                    signature = self._generate_v5_signature(
-                        self.config.api_key,
-                        self.config.api_secret,
-                        timestamp,
-                        recv_window,
-                        params
-                    )
-                    
-                    # Set up headers
-                    if headers is None:
-                        headers = {}
-                    
-                    headers.update({
-                        'X-BAPI-API-KEY': self.config.api_key,
-                        'X-BAPI-SIGN': signature,
-                        'X-BAPI-TIMESTAMP': str(timestamp),
-                        'X-BAPI-RECV-WINDOW': str(recv_window),
-                        'Content-Type': 'application/json'
-                    })
-                    
-                    # For GET requests with params, add them to the URL
-                    if method == 'GET' and params:
-                        path = f"{path}?{urllib.parse.urlencode(params)}"
-                        params = {}
-                    
-                    return {'url': path, 'method': method, 'body': body, 'headers': headers}
-                else:
-                    # Use the original sign method for non-V5 API calls
-                    return original_sign(path, api, method, params, headers, body)
+            while retry_count < max_retries:
+                try:
+                    # Try to initialize with a timeout
+                    await asyncio.wait_for(self._initialize_with_fallback(), timeout=15)
+                    # If we get here, initialization was successful
+                    logger.info("Successfully initialized Bybit exchange")
+                    return
+                except asyncio.TimeoutError:
+                    retry_count += 1
+                    logger.warning(f"Timeout initializing Bybit exchange (attempt {retry_count}/{max_retries})")
+                    if retry_count >= max_retries:
+                        raise TimeoutError(f"Failed to initialize Bybit exchange after {max_retries} attempts due to timeout")
+                except Exception as e:
+                    retry_count += 1
+                    last_error = e
+                    logger.warning(f"Error initializing Bybit exchange (attempt {retry_count}/{max_retries}): {str(e)}")
+                    if retry_count >= max_retries:
+                        raise
+                
+                # Wait before retrying
+                await asyncio.sleep(2 * retry_count)  # Exponential backoff
             
-            # Replace the sign method
-            self.exchange.sign = custom_sign
-            logger.info("Replaced CCXT sign method with custom implementation for Bybit V5 API")
+            # If we get here, all retries failed
+            if last_error:
+                raise last_error
+        except Exception as e:
+            logger.error(f"Failed to initialize Bybit exchange: {str(e)}")
+            raise
+    
+    async def _initialize_with_fallback(self) -> None:
+        """Initialize with fallback for problematic endpoints."""
+        try:
+            # First try the standard initialization
+            await super().initialize()
+        except Exception as e:
+            error_str = str(e)
+            
+            # Check if it's the specific query-info endpoint issue
+            if "query-info" in error_str:
+                logger.warning("Detected query-info endpoint issue, using fallback initialization")
+                
+                # Override the CCXT sign method to use our custom signature generator for V5 API
+                if hasattr(self.exchange, 'sign'):
+                    original_sign = self.exchange.sign
+                    
+                    def custom_sign(path, api='public', method='GET', params={}, headers=None, body=None):
+                        # Check if this is a V5 API call
+                        if 'v5' in path:
+                            logger.debug(f"Using custom V5 signature for path: {path}")
+                            # Get the timestamp
+                            timestamp = int(time.time() * 1000)
+                            recv_window = self.config.options.get('recvWindow', 5000)
+                            
+                            # Generate the signature
+                            signature = self._generate_v5_signature(
+                                self.config.api_key,
+                                self.config.api_secret,
+                                timestamp,
+                                recv_window,
+                                params
+                            )
+                            
+                            # Set up headers
+                            if headers is None:
+                                headers = {}
+                            
+                            headers.update({
+                                'X-BAPI-API-KEY': self.config.api_key,
+                                'X-BAPI-SIGN': signature,
+                                'X-BAPI-TIMESTAMP': str(timestamp),
+                                'X-BAPI-RECV-WINDOW': str(recv_window),
+                                'Content-Type': 'application/json'
+                            })
+                            
+                            # For GET requests with params, add them to the URL
+                            if method == 'GET' and params:
+                                path = f"{path}?{urllib.parse.urlencode(params)}"
+                                params = {}
+                            
+                            return {'url': path, 'method': method, 'body': body, 'headers': headers}
+                        else:
+                            # Use the original sign method for non-V5 API calls
+                            return original_sign(path, api, method, params, headers, body)
+                    
+                    # Replace the sign method
+                    self.exchange.sign = custom_sign
+                    logger.info("Replaced CCXT sign method with custom implementation for Bybit V5 API")
+                
+                # Load markets directly instead of using the problematic endpoint
+                logger.info("Loading markets directly as part of fallback initialization")
+                await self.exchange.load_markets()
+            else:
+                # If it's not the specific issue we're handling, re-raise
+                raise
     
     async def get_balances(self) -> Dict[str, Balance]:
         """Get balances for all assets."""
@@ -253,3 +306,46 @@ class BybitExchange(CCXTAdapter):
         except Exception as e:
             logger.error(f"Error creating default fees: {e}")
             return {'DEFAULT': Decimal('0.001')}
+            
+    async def get_positions(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Get current positions with entry price and unrealized PnL.
+        
+        Overrides the base implementation to add Bybit-specific position data.
+        """
+        try:
+            # Get base positions from parent class
+            positions = await super().get_positions()
+            
+            # If no positions are available, return empty dict
+            if not positions:
+                logger.warning("No positions available to enhance")
+                return positions
+                
+            # Enhance positions with entry price and unrealized PnL
+            for symbol, position in positions.items():
+                try:
+                    # Get average entry price
+                    entry_price = await self.get_average_entry_price(symbol)
+                    position['entry_price'] = float(entry_price) if entry_price else None
+                    
+                    # Calculate unrealized PnL if we have both entry price and current price
+                    if entry_price and position['current_price']:
+                        quantity = Decimal(str(position['quantity']))
+                        current_price = Decimal(str(position['current_price']))
+                        unrealized_pnl = quantity * (current_price - entry_price)
+                        position['unrealized_pnl'] = float(unrealized_pnl)
+                        
+                        # Add percentage PnL for convenience
+                        if entry_price > 0:
+                            pnl_percentage = ((current_price / entry_price) - 1) * 100
+                            position['pnl_percentage'] = float(pnl_percentage)
+                except Exception as e:
+                    logger.warning(f"Error enhancing position data for {symbol}: {str(e)}")
+                    # Keep the position but without the enhanced data
+            
+            return positions
+            
+        except Exception as e:
+            logger.error(f"Failed to fetch enhanced positions: {str(e)}")
+            return {}
