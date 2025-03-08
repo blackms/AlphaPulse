@@ -130,6 +130,9 @@ class ExchangeDataSynchronizer:
         """Main loop that checks for tasks to run."""
         logger.info("Starting main loop for exchange data synchronization")
         
+        # Get the current event loop for this thread
+        loop = asyncio.get_running_loop()
+        
         while not self._should_stop.is_set():
             try:
                 # Process any queued sync requests
@@ -140,9 +143,20 @@ class ExchangeDataSynchronizer:
                 
                 # Sleep for a bit to avoid high CPU usage
                 await asyncio.sleep(5)
+            except RuntimeError as e:
+                if "got Future" in str(e) and "attached to a different loop" in str(e):
+                    logger.warning("Event loop issue detected, using thread-specific event loop")
+                    # Use thread-specific sleep instead of asyncio.sleep
+                    time.sleep(5)
+                else:
+                    logger.error(f"Runtime error in main loop: {str(e)}")
+                    time.sleep(30)  # Sleep longer on error
             except Exception as e:
                 logger.error(f"Error in main loop: {str(e)}")
-                await asyncio.sleep(30)  # Sleep longer on error
+                try:
+                    await asyncio.sleep(30)  # Sleep longer on error
+                except Exception:
+                    time.sleep(30)  # Fallback to regular sleep
         
         logger.info("Main loop exited")
     
