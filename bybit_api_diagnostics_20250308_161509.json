@@ -1,0 +1,65 @@
+{
+  "credentials_check": {
+    "api_key_found": true,
+    "api_secret_found": true,
+    "testnet": false
+  },
+  "network_check": {
+    "endpoints_tested": 3,
+    "successful_connections": 3,
+    "details": [
+      {
+        "endpoint": "https://api.bybit.com/v5/market/tickers?category=spot",
+        "status": 200,
+        "time": 0.19519472122192383,
+        "success": true
+      },
+      {
+        "endpoint": "https://api.bybit.com/v5/asset/coin/query-info",
+        "status": 200,
+        "time": 0.18387126922607422,
+        "success": true
+      },
+      {
+        "endpoint": "https://api.bybit.com/v5/market/time",
+        "status": 200,
+        "time": 0.1846766471862793,
+        "success": true
+      }
+    ]
+  },
+  "api_operations": {
+    "operations_tested": 4,
+    "successful_operations": 4,
+    "details": [
+      {
+        "operation": "load_markets",
+        "success": true,
+        "time": 4.350223541259766,
+        "details": "Loaded 2744 markets"
+      },
+      {
+        "operation": "fetch_balance",
+        "success": true,
+        "time": 0.6835970878601074,
+        "details": "Found 6 non-zero assets"
+      },
+      {
+        "operation": "fetch_ticker",
+        "success": true,
+        "time": 0.20498132705688477,
+        "details": "BTC/USDT price: 86411.0"
+      },
+      {
+        "operation": "fetch_closed_orders",
+        "success": true,
+        "time": 0.2897350788116455,
+        "details": "Found 0 orders"
+      }
+    ]
+  },
+  "issues_found": [],
+  "recommendations": [
+    "No issues detected! Your Bybit API connection is working correctly."
+  ]
+}

@@ -134,3 +134,90 @@ This is a common issue when using threading with asyncio, where tasks created in
 2. Add more robust error handling for other potential event loop issues
 3. Add monitoring for thread-related issues
 4. Consider using a more modern concurrency model in future versions
+
+## 2025-03-08: Bybit Exchange API Connection Improvements
+
+### Context
+We encountered an error with the Bybit exchange API connection:
+```
+Error creating exchange bybit: Failed to initialize bybit: bybit GET https://api.bybit.com/v5/asset/coin/query-info?
+```
+
+This error occurred in the `_get_exchange` method of the `ExchangeDataSynchronizer` class when trying to initialize the Bybit exchange.
+
+### Decisions
+
+1. **Enhanced Error Handling in Exchange Synchronizer**
+   - Added more detailed logging for API credentials and configuration
+   - Implemented specific exception handling for different types of errors (ConnectionError, AuthenticationError)
+   - Added a retry mechanism with exponential backoff for API initialization
+   - Improved error messages with troubleshooting steps
+
+2. **Created Comprehensive Diagnostic Tools**
+   - Developed `debug_bybit_api.py` to diagnose Bybit API connection issues
+   - Added network connectivity testing to API endpoints
+   - Implemented credential validation
+   - Added detailed error reporting and recommendations
+
+3. **Improved Documentation**
+   - Created `DEBUG_TOOLS.md` to document available debugging tools
+   - Added troubleshooting steps for common issues
+   - Documented environment variables and their usage
+   - Provided examples of how to use the debugging tools
+
+### Rationale
+
+1. **Enhanced Error Handling**
+   - Better error handling helps users identify and fix issues more quickly
+   - Specific exception types provide more targeted error messages
+   - Retry with backoff helps handle transient network issues
+   - Detailed logging makes it easier to diagnose problems
+
+2. **Diagnostic Tools**
+   - Dedicated diagnostic tools make it easier to isolate and fix specific issues
+   - Network connectivity testing helps identify firewall or DNS issues
+   - Credential validation ensures API keys are correct and have proper permissions
+   - Recommendations guide users to the most likely solutions
+
+3. **Documentation**
+   - Clear documentation helps users understand how to use the debugging tools
+   - Troubleshooting steps provide a systematic approach to fixing issues
+   - Environment variable documentation ensures proper configuration
+
+### Alternatives Considered
+
+1. **Automatic Credential Discovery**
+   - We could have implemented automatic discovery of credentials from various sources
+   - This would add complexity and might lead to unexpected behavior
+   - The current approach with explicit environment variables is more transparent
+
+2. **Web-based Diagnostic Interface**
+   - We could have created a web interface for diagnostics
+   - This would require additional dependencies and complexity
+   - Command-line tools are simpler and more appropriate for this use case
+
+3. **Completely Rewriting the Exchange Integration**
+   - We could have rewritten the exchange integration from scratch
+   - This would be a major undertaking with significant risk
+   - The current approach of incremental improvement is more practical
+
+### Impact
+
+1. **Positive**
+   - Users can more easily diagnose and fix Bybit API connection issues
+   - The system is more resilient to transient network issues
+   - Error messages are more informative and actionable
+   - The diagnostic tools provide a systematic approach to troubleshooting
+
+2. **Negative**
+   - The retry mechanism might delay error reporting
+   - Additional logging might increase log volume
+   - Users still need to understand API concepts to troubleshoot effectively
+
+### Follow-up Actions
+
+1. Add unit tests for the enhanced error handling
+2. Consider implementing similar diagnostic tools for other exchanges
+3. Add telemetry to track common error patterns
+4. Create a more comprehensive troubleshooting guide based on common user issues
+5. Consider implementing a circuit breaker pattern for API calls
