@@ -41,8 +41,13 @@ async def startup_exchange_sync() -> None:
         # Initial sync of all data types
         exchange_data_synchronizer.trigger_sync(data_type=DataType.ALL)
         logger.info("Initial data synchronization triggered")
+    except AttributeError as e:
+        logger.error(f"Error during exchange synchronization startup: {e}")
+        logger.warning("Missing attribute or method - the system will use direct API calls if needed")
+        # Allow the application to start anyway - it will use direct API calls if needed
     except Exception as e:
         logger.error(f"Error during exchange synchronization startup: {e}")
+        logger.warning("The system will use direct API calls if needed")
         # Allow the application to start anyway - it will use direct API calls if needed
 
 
@@ -56,8 +61,12 @@ async def shutdown_exchange_sync() -> None:
         # Close exchange connections
         await exchange_data_synchronizer.close()
         logger.info("Exchange connections closed")
+    except AttributeError as e:
+        logger.error(f"Error during exchange synchronization shutdown: {e}")
+        logger.warning("Missing attribute or method during shutdown - some resources may not be properly released")
     except Exception as e:
         logger.error(f"Error during exchange synchronization shutdown: {e}")
+        logger.warning("Unexpected error during shutdown - some resources may not be properly released")
 
 
 @asynccontextmanager
