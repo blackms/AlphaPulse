@@ -247,6 +247,26 @@ class ExchangeDataSynchronizer:
         Returns:
             Exchange instance or None if failed
         """
+        # Check if circuit breaker is active
+        circuit_breaker_key = f"{exchange_id}_circuit_breaker"
+        circuit_breaker_count = getattr(self, circuit_breaker_key, 0)
+        circuit_breaker_time_key = f"{circuit_breaker_key}_time"
+        circuit_breaker_time = getattr(self, circuit_breaker_time_key, 0)
+        
+        # If circuit breaker is active and cooldown period hasn't expired, return None
+        if circuit_breaker_count >= 5 and circuit_breaker_time > 0:
+            cooldown_period = 600  # 10 minutes in seconds
+            current_time = time.time()
+            if current_time - circuit_breaker_time < cooldown_period:
+                remaining_time = int(cooldown_period - (current_time - circuit_breaker_time))
+                logger.warning(f"Circuit breaker active for {exchange_id}. Will not attempt initialization for {remaining_time} more seconds.")
+                return None
+            else:
+                # Reset circuit breaker after cooldown period
+                logger.info(f"Circuit breaker cooldown period expired for {exchange_id}. Resetting circuit breaker.")
+                setattr(self, circuit_breaker_key, 0)
+                setattr(self, circuit_breaker_time_key, 0)
+        
         # Return cached instance if available
         if exchange_id in self._exchange_instances:
             logger.debug(f"Using cached exchange instance for {exchange_id}")
@@ -304,23 +324,59 @@ class ExchangeDataSynchronizer:
             
             # Initialize the exchange with retry logic
             max_retries = 3
-            retry_delay = 2
+            base_retry_delay = 2
+            retry_delay = base_retry_delay
+            last_error = None
+            
             for attempt in range(1, max_retries + 1):
                 try:
                     logger.info(f"Initializing {exchange_id} exchange (attempt {attempt}/{max_retries})")
-                    await exchange.initialize()
-                    logger.info(f"Successfully initialized {exchange_id} exchange")
-                    break
+                    
+                    # Add timeout to prevent hanging indefinitely
+                    init_timeout = 30  # 30 seconds timeout for initialization
+                    
+                    # Create a task with timeout
+                    try:
+                        await asyncio.wait_for(exchange.initialize(), timeout=init_timeout)
+                        logger.info(f"Successfully initialized {exchange_id} exchange")
+                        break
+                    except asyncio.TimeoutError:
+                        logger.warning(f"Initialization timed out after {init_timeout} seconds (attempt {attempt}/{max_retries})")
+                        raise ConnectionError(f"Initialization timed out after {init_timeout} seconds")
+                    
+                except ccxt.NetworkError as e:
+                    last_error = e
+                    if attempt < max_retries:
+                        logger.warning(f"Network error initializing {exchange_id} exchange (attempt {attempt}/{max_retries}): {str(e)}")
+                        logger.info(f"Retrying in {retry_delay} seconds...")
+                        await asyncio.sleep(retry_delay)
+                        retry_delay *= 2  # Exponential backoff
+                except ccxt.ExchangeNotAvailable as e:
+                    last_error = e
+                    if attempt < max_retries:
+                        logger.warning(f"Exchange not available error initializing {exchange_id} exchange (attempt {attempt}/{max_retries}): {str(e)}")
+                        logger.info(f"Retrying in {retry_delay} seconds...")
+                        await asyncio.sleep(retry_delay)
+                        retry_delay *= 2  # Exponential backoff
+                except ccxt.RequestTimeout as e:
+                    last_error = e
+                    if attempt < max_retries:
+                        logger.warning(f"Request timeout initializing {exchange_id} exchange (attempt {attempt}/{max_retries}): {str(e)}")
+                        logger.info(f"Retrying in {retry_delay} seconds...")
+                        await asyncio.sleep(retry_delay)
+                        retry_delay *= 2  # Exponential backoff
                 except Exception as init_error:
+                    last_error = init_error
                     if attempt < max_retries:
                         logger.warning(f"Failed to initialize {exchange_id} exchange (attempt {attempt}/{max_retries}): {str(init_error)}")
                         logger.info(f"Retrying in {retry_delay} seconds...")
                         await asyncio.sleep(retry_delay)
                         retry_delay *= 2  # Exponential backoff
-                    else:
-                        # Last attempt failed, re-raise the exception
-                        logger.error(f"Failed to initialize {exchange_id} exchange after {max_retries} attempts: {str(init_error)}")
-                        raise
+            
+            # Check if all attempts failed
+            if last_error is not None and attempt == max_retries:
+                logger.error(f"Failed to initialize {exchange_id} exchange after {max_retries} attempts: {str(last_error)}")
+                raise last_error
             
             # Cache the instance
             self._exchange_instances[exchange_id] = exchange
@@ -331,12 +387,42 @@ class ExchangeDataSynchronizer:
             logger.error(f"Authentication error creating exchange {exchange_id}: {str(e)}")
             logger.info("This may be due to invalid API credentials or insufficient permissions")
             logger.info("Check your API key and secret, and ensure they have the necessary permissions")
+            
+            # Add more detailed troubleshooting information
+            logger.info("Troubleshooting steps for authentication issues:")
+            logger.info("1. Verify that your API key and secret are correct")
+            logger.info("2. Check if your API key has expired or been revoked")
+            logger.info("3. Ensure your API key has the necessary permissions (read access at minimum)")
+            logger.info("4. Verify that you're using the correct testnet/mainnet setting")
+            logger.info("5. Check if there are IP restrictions on your API key")
+            logger.info(f"6. Run 'python debug_bybit_auth.py' to test authentication specifically")
+            
+            # Add information about environment variables
+            logger.info("Environment variables to check:")
+            logger.info(f"- {exchange_id.upper()}_API_KEY or EXCHANGE_API_KEY")
+            logger.info(f"- {exchange_id.upper()}_API_SECRET or EXCHANGE_API_SECRET")
+            logger.info(f"- {exchange_id.upper()}_TESTNET or EXCHANGE_TESTNET")
+            
             return None
             
         except ConnectionError as e:
             logger.error(f"Connection error creating exchange {exchange_id}: {str(e)}")
             logger.info("This may be due to network connectivity issues or API endpoint problems")
             logger.info("Check your internet connection and firewall settings")
+            
+            # Add more detailed troubleshooting information
+            logger.info("Troubleshooting steps for connection issues:")
+            logger.info("1. Verify that you can access the exchange API in your browser")
+            logger.info("2. Check if your network has any firewall rules blocking the exchange API")
+            logger.info("3. Try using a different network connection")
+            logger.info("4. Check if the exchange API status page reports any outages")
+            logger.info(f"5. Run 'python debug_bybit_api.py' to diagnose API connectivity issues")
+            
+            # Add information about the specific endpoint that failed
+            if "query-info" in str(e):
+                logger.info("The asset/coin/query-info endpoint is failing, which is used during initialization")
+                logger.info("This endpoint may be temporarily unavailable or rate-limited")
+            
             return None
             
         except Exception as e:
@@ -344,6 +430,34 @@ class ExchangeDataSynchronizer:
             logger.error(error_msg)
             logger.debug(f"Exception type: {type(e).__name__}")
             logger.debug(f"Exception details: {repr(e)}")
+            
+            # Implement circuit breaker pattern
+            circuit_breaker_key = f"{exchange_id}_circuit_breaker"
+            circuit_breaker_count = getattr(self, circuit_breaker_key, 0) + 1
+            setattr(self, circuit_breaker_key, circuit_breaker_count)
+            
+            # If we've failed too many times, implement a circuit breaker
+            max_failures = 5
+            if circuit_breaker_count >= max_failures:
+                circuit_breaker_time = time.time()
+                setattr(self, f"{circuit_breaker_key}_time", circuit_breaker_time)
+                logger.warning(f"Circuit breaker activated for {exchange_id} after {circuit_breaker_count} failures")
+                logger.warning(f"Will not attempt to initialize {exchange_id} for 10 minutes")
+                
+                # Add detailed troubleshooting information
+                logger.info("Troubleshooting steps for persistent exchange errors:")
+                logger.info("1. Check the exchange status page for any reported issues")
+                logger.info("2. Verify all API credentials and permissions")
+                logger.info("3. Check your network connectivity to the exchange API")
+                logger.info("4. Run the diagnostic tools in the DEBUG_TOOLS.md file")
+                logger.info("5. Consider creating new API credentials if issues persist")
+            else:
+                # Add general troubleshooting information
+                logger.info("General troubleshooting steps:")
+                logger.info("1. Check the logs for specific error details")
+                logger.info("2. Verify your exchange configuration")
+                logger.info("3. Run 'python debug_exchange_connection.py' for more diagnostics")
+            
             return None
     
     async def _sync_exchange_data(self, exchange_id: str, data_type: DataType):
@@ -385,6 +499,19 @@ class ExchangeDataSynchronizer:
                     logger.error("3. Confirm testnet/mainnet settings are correct")
                     logger.error("4. Check for any IP restrictions on your API key")
                     logger.error("5. Run debug_bybit_auth.py or debug_exchange_connection.py for more details")
+                    
+                    # Add more detailed troubleshooting information
+                    logger.info("Detailed troubleshooting guide:")
+                    logger.info(f"1. For {exchange_id.upper()}_API_KEY, ensure it's set correctly:")
+                    logger.info(f"   export {exchange_id.upper()}_API_KEY=your_api_key")
+                    logger.info(f"2. For {exchange_id.upper()}_API_SECRET, ensure it's set correctly:")
+                    logger.info(f"   export {exchange_id.upper()}_API_SECRET=your_api_secret")
+                    logger.info(f"3. For {exchange_id.upper()}_TESTNET, set to 'true' for testnet or 'false' for mainnet:")
+                    logger.info(f"   export {exchange_id.upper()}_TESTNET=false")
+                    logger.info("4. Check if the exchange API is accessible from your network:")
+                    logger.info("   python debug_bybit_api.py")
+                    logger.info("5. Verify your API key permissions and status in the exchange dashboard")
+                    logger.info("6. Check the DEBUG_TOOLS.md file for more debugging options")
                     
                     try:
                         async with get_pg_connection() as conn:
