@@ -26,15 +26,16 @@ class CCXTAdapter(BaseExchange):
     providing a consistent API while isolating the CCXT dependency.
     """
     
-    def __init__(self, config):
+    def __init__(self, config, exchange_id=None):
         """
         Initialize CCXT adapter.
         
         Args:
             config: Exchange configuration
+            exchange_id: Exchange identifier (optional, can be extracted from config)
         """
-        # Get exchange_id from config options if available, otherwise default to 'bybit'
-        self.exchange_id = config.options.get('_exchange_id', 'bybit')
+        # Use provided exchange_id if given, otherwise extract from config
+        self.exchange_id = exchange_id or config.options.get('_exchange_id', 'bybit')
         self.config = config
         self.exchange = None
         self._markets = {}
@@ -42,17 +43,26 @@ class CCXTAdapter(BaseExchange):
     async def initialize(self) -> None:
         """Initialize exchange connection."""
         try:
+            # Check if API credentials are available
+            if not self.config.api_key or not self.config.api_secret:
+                logger.warning(f"No API credentials available for {self.exchange_id}. Using read-only mode.")
+            
             # Create CCXT exchange instance
             exchange_class = getattr(ccxt, self.exchange_id)
-            self.exchange = exchange_class({
-                'apiKey': self.config.api_key,
-                'secret': self.config.api_secret,
+            params = {
                 'enableRateLimit': True,
                 'options': {
                     'defaultType': 'spot',
                     **self.config.options
                 }
-            })
+            }
+            
+            # Only add API credentials if they are available
+            if self.config.api_key and self.config.api_secret:
+                params['apiKey'] = self.config.api_key
+                params['secret'] = self.config.api_secret
+            
+            self.exchange = exchange_class(params)
             
             # Configure testnet if enabled
             if self.config.testnet:
@@ -173,6 +183,11 @@ class CCXTAdapter(BaseExchange):
     
     async def get_balances(self) -> Dict[str, Balance]:
         """Get account balances."""
+        # Check if API credentials are available
+        if not self.config.api_key or not self.config.api_secret:
+            logger.warning(f"No API credentials available for {self.exchange_id}. Returning empty balances.")
+            return {}
+            
         try:
             response = await self.exchange.fetch_balance()
             balances = {}
@@ -187,6 +202,10 @@ class CCXTAdapter(BaseExchange):
             
             return balances
             
+        except ccxt.AuthenticationError as e:
+            logger.error(f"Authentication error fetching balances: {str(e)}")
+            logger.warning("Returning empty balances due to authentication error")
+            return {}
         except Exception as e:
             raise ExchangeError(f"Failed to fetch balances: {str(e)}")
     
@@ -194,6 +213,11 @@ class CCXTAdapter(BaseExchange):
         """Get total portfolio value in base currency."""
         try:
             balances = await self.get_balances()
+            # If no balances are available, return zero
+            if not balances:
+                logger.warning("No balances available to calculate portfolio value")
+                return Decimal('0')
+                
             total_value = Decimal('0')
             
             for asset, balance in balances.items():
@@ -207,7 +231,8 @@ class CCXTAdapter(BaseExchange):
             return total_value
             
         except Exception as e:
-            raise ExchangeError(f"Failed to calculate portfolio value: {str(e)}")
+            logger.error(f"Failed to calculate portfolio value: {str(e)}")
+            return Decimal('0')
     
     async def get_positions(self) -> Dict[str, Dict[str, Any]]:
         """Get current positions."""
@@ -215,23 +240,32 @@ class CCXTAdapter(BaseExchange):
             positions = {}
             balances = await self.get_balances()
             
+            # If no balances are available, return empty positions
+            if not balances:
+                logger.warning("No balances available to determine positions")
+                return positions
+                
             for asset, balance in balances.items():
                 if balance.total > 0:
-                    price = await self.get_ticker_price(f"{asset}/USDT")
-                    if price:
-                        positions[asset] = {
-                            'symbol': asset,
-                            'quantity': float(balance.total),
-                            'entry_price': None,  # Not available in spot
-                            'current_price': float(price),
-                            'unrealized_pnl': None,  # Not available in spot
-                            'liquidation_price': None  # Not available in spot
-                        }
+                    try:
+                        price = await self.get_ticker_price(f"{asset}/USDT")
+                        if price:
+                            positions[asset] = {
+                                'symbol': asset,
+                                'quantity': float(balance.total),
+                                'entry_price': None,  # Not available in spot
+                                'current_price': float(price),
+                                'unrealized_pnl': None,  # Not available in spot
+                                'liquidation_price': None  # Not available in spot
+                            }
+                    except MarketDataError as e:
+                        logger.warning(f"Could not get price for {asset}: {str(e)}")
             
             return positions
             
         except Exception as e:
-            raise ExchangeError(f"Failed to fetch positions: {str(e)}")
+            logger.error(f"Failed to fetch positions: {str(e)}")
+            return {}
     
     async def get_trading_fees(self) -> Dict[str, Decimal]:
         """Get trading fees."""
