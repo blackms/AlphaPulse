@@ -92,9 +92,9 @@ async def test_bybit_connection():
         # Test getting ticker
         logger.info("Testing get_ticker for BTC/USDT")
         try:
-            # Use the CCXT method directly
-            ticker = await exchange.exchange.fetch_ticker("BTC/USDT")
-            logger.info(f"✅ Successfully retrieved ticker for BTC/USDT: {ticker['last']}")
+            # Use our custom method instead of direct CCXT access
+            price = await exchange.get_ticker_price("BTC/USDT")
+            logger.info(f"✅ Successfully retrieved ticker for BTC/USDT: {price}")
         except Exception as e:
             logger.warning(f"Could not fetch ticker: {str(e)}")
             logger.info("This is not critical for basic functionality")
