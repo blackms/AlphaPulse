@@ -201,28 +201,101 @@ class CCXTAdapter(BaseExchange):
     async def _get_bybit_order_history(self, symbol: Optional[str], params: Dict) -> List[Dict[str, Any]]:
         """Get order history for Bybit UTA accounts using supported methods."""
         try:
+            from datetime import datetime, timedelta
+            
             all_orders = []
             
             # Log the symbol being used for debugging
             logger.debug(f"Fetching Bybit order history for symbol: {symbol}")
+            logger.debug(f"Input params: {params}")
             
-            # Get open orders
-            try:
-                open_orders = await self.exchange.fetch_open_orders(symbol, **params)
-                logger.debug(f"Found {len(open_orders)} open orders for {symbol}")
-                all_orders.extend(open_orders)
-            except Exception as e:
-                logger.debug(f"Error fetching open orders for {symbol}: {e}")
+            # Create Bybit-specific parameters with category and time range
+            # Bybit requires these parameters for its Unified Trading Account (UTA)
+            bybit_params = {
+                **params,  # Keep original params
+                # Set limit higher to ensure we get all orders
+                'limit': params.get('limit', 50)
+            }
             
-            # Get closed orders
-            try:
-                closed_orders = await self.exchange.fetch_closed_orders(symbol, **params)
-                logger.debug(f"Found {len(closed_orders)} closed orders for {symbol}")
-                all_orders.extend(closed_orders)
-            except Exception as e:
-                logger.debug(f"Error fetching closed orders for {symbol}: {e}")
+            # Add time range if not provided (last 90 days by default)
+            if 'since' not in bybit_params and 'startTime' not in bybit_params:
+                # Use last 90 days as default time range
+                start_time = int((datetime.now() - timedelta(days=90)).timestamp() * 1000)
+                bybit_params['since'] = start_time
+                logger.debug(f"Added time range parameter: since={start_time} (90 days ago)")
             
-            # Note: fetchCanceledOrders is not implemented for some exchanges, so we skip it
+            # Categories to try in order (for Bybit UTA accounts)
+            categories = ['spot', 'linear']
+            
+            for category in categories:
+                # Set category parameter for this attempt
+                category_params = {
+                    **bybit_params,
+                    'category': category,
+                    'orderFilter': 'all'  # Make sure to get all orders, including history
+                }
+                
+                logger.debug(f"Trying to fetch orders with category: {category}, params: {category_params}")
+                
+                # Get open orders with this category
+                try:
+                    logger.debug(f"Fetching open orders for {symbol} with category {category}")
+                    open_orders = await self.exchange.fetch_open_orders(symbol, **category_params)
+                    if open_orders:
+                        logger.info(f"Found {len(open_orders)} open orders for {symbol} in {category} category")
+                        logger.debug(f"Sample open order: {open_orders[0] if open_orders else 'None'}")
+                        all_orders.extend(open_orders)
+                except Exception as e:
+                    logger.debug(f"Error fetching open orders for {symbol} in {category} category: {str(e)}")
+                
+                # Get closed orders with this category
+                try:
+                    logger.debug(f"Fetching closed orders for {symbol} with category {category}")
+                    closed_orders = await self.exchange.fetch_closed_orders(symbol, **category_params)
+                    if closed_orders:
+                        logger.info(f"Found {len(closed_orders)} closed orders for {symbol} in {category} category")
+                        logger.debug(f"Sample closed order: {closed_orders[0] if closed_orders else 'None'}")
+                        all_orders.extend(closed_orders)
+                except Exception as e:
+                    logger.debug(f"Error fetching closed orders for {symbol} in {category} category: {str(e)}")
+                
+                # If we found orders in this category, no need to try others
+            
+            # If we still don't have orders, try one more approach with direct API call
+            if not all_orders and symbol:
+                logger.debug("No orders found with standard methods, trying direct API call")
+                try:
+                    # For Bybit V5 API direct access
+                    direct_symbol = symbol.replace('/', '') if '/' in symbol else symbol
+                    direct_params = {
+                        'category': 'spot',  # Try spot first
+                        'symbol': direct_symbol,
+                        'limit': 50,
+                        'orderStatus': 'all',  # Get all possible statuses
+                    }
+                    logger.debug(f"Making direct API call with params: {direct_params}")
+                    
+                    # Direct CCXT call to Bybit's API endpoint
+                    response = await self.exchange.privateGetV5OrderHistory(direct_params)
+                    logger.debug(f"Direct API response structure: {list(response.keys()) if response else 'None'}")
+                    
+                    # Extract orders from response if available
+                    if response and 'result' in response and 'list' in response['result']:
+                        direct_orders = response['result']['list']
+                        logger.info(f"Found {len(direct_orders)} orders with direct API call for {direct_symbol}")
+                        # TODO: Convert to CCXT format if needed
+                        # For now we just log that we found some orders
+                        if direct_orders:
+                            logger.info(f"Sample direct order: {direct_orders[0]}")
+                except Exception as e:
+                    logger.debug(f"Error with direct API call: {str(e)}")
+            
+            if all_orders:
+                logger.info(f"Total orders found for {symbol}: {len(all_orders)}")
+            else:
+                # Change from warning to debug level since this is not an error condition
+                # and is properly handled by the caller
+                logger.debug(f"No orders found for {symbol} after trying multiple approaches")
             
             return all_orders
         except Exception as e:
@@ -436,7 +509,13 @@ class CCXTAdapter(BaseExchange):
                 
                 try:
                     if self.exchange_id.lower() == 'bybit':
-                        orders = await self._get_bybit_order_history(symbol=format_value, params={})
+                        # Add time parameters for bybit (last 90 days)
+                        from datetime import datetime, timedelta
+                        time_params = {
+                            'since': int((datetime.now() - timedelta(days=90)).timestamp() * 1000),
+                            'limit': 100
+                        }
+                        orders = await self._get_bybit_order_history(symbol=format_value, params=time_params)
                     else:
                         orders = await self.get_order_history(symbol=format_value)
                         
@@ -456,14 +535,47 @@ class CCXTAdapter(BaseExchange):
                         # For Bybit, try one more time with direct market format without any separators
                         direct_symbol = symbol_formats['base'] + symbol_formats['quote']
                         logger.debug(f"Last attempt: trying direct format '{direct_symbol}' for Bybit")
-                        all_orders = await self._get_bybit_order_history(symbol=direct_symbol, params={})
+                        
+                        # Add time parameters for direct call too
+                        from datetime import datetime, timedelta
+                        direct_time_params = {
+                            'since': int((datetime.now() - timedelta(days=90)).timestamp() * 1000),
+                            'limit': 100,
+                            'category': 'spot'  # Try spot market first
+                        }
+                        all_orders = await self._get_bybit_order_history(symbol=direct_symbol, params=direct_time_params)
                     except Exception as e:
                         logger.debug(f"Direct format attempt failed: {str(e)}")
-                
                 if not all_orders:
+                    # Use debug level to avoid false alarms in the logs
+                    # This is not an error condition, just informational for troubleshooting
                     logger.debug(f"No order history found for {symbol} after trying multiple formats")
-                
-                # Fall back to current price if we can't calculate entry price
+                    
+                    # Check if we have direct access to trades (might provide better entry price data)
+                    try:
+                        logger.debug(f"Attempting to fetch trades for {symbol}")
+                        trades = await self.exchange.fetch_my_trades(symbol_formats['pair'])
+                        if trades:
+                            logger.info(f"Found {len(trades)} trades for {symbol}")
+                            # Process trades to calculate entry price
+                            buy_trades = [t for t in trades if t['side'] == 'buy']
+                            if buy_trades:
+                                total_quantity = Decimal('0')
+                                total_value = Decimal('0')
+                                for trade in buy_trades:
+                                    quantity = Decimal(str(trade['amount']))
+                                    price = Decimal(str(trade['price']))
+                                    total_quantity += quantity
+                                    total_value += quantity * price
+                                
+                                if total_quantity > 0:
+                                    average_entry = total_value / total_quantity
+                                    logger.info(f"Calculated average entry price from trades for {symbol}: {average_entry}")
+                                    return average_entry
+                    except Exception as trade_error:
+                        logger.debug(f"Failed to fetch trades for {symbol}: {trade_error}")
+                    
+                    # Fall back to current price if we can't calculate entry price
                 try:
                     # Try using the pair format for getting current price
                     current_price = await self.get_ticker_price(symbol_formats['pair'])
@@ -498,7 +610,7 @@ class CCXTAdapter(BaseExchange):
                             total_quantity += quantity
             
             if total_quantity == 0:
-                logger.debug(f"No filled buy orders found for {symbol}")
+                logger.info(f"No filled buy orders found for {symbol}, falling back to current price")
                 return None
             
             average_entry = total_value / total_quantity
