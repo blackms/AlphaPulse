@@ -8,7 +8,7 @@ const client: AxiosInstance = axios.create({
     'Content-Type': 'application/json',
     'Accept': 'application/json'
   },
-  timeout: 10000 // 10 seconds
+  timeout: 30000 // 30 seconds - increased from 10 seconds to allow more time for backend operations
 });
 
 // For testing purposes, get a token and store it
