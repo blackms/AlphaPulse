@@ -148,14 +148,41 @@ class PortfolioDataAccessor:
             # Format positions for API response
             positions = []
             for position in portfolio_data.positions:
+                # Handle both Position and PortfolioPosition types
+                if hasattr(position, 'symbol'):
+                    # It's a Position object
+                    symbol = position.symbol
+                    quantity = float(position.quantity)
+                    entry_price = float(position.avg_entry_price)
+                    current_price = float(position.current_price) if hasattr(position, 'current_price') else float(position.avg_entry_price)
+                    unrealized_pnl = float(position.unrealized_pnl) if hasattr(position, 'unrealized_pnl') else 0.0
+                    
+                    value = float(quantity * current_price)
+                    pnl = unrealized_pnl
+                    pnl_percentage = float((pnl / (entry_price * quantity)) * 100) if entry_price and quantity else 0
+                elif hasattr(position, 'asset_id'):
+                    # It's a PortfolioPosition object
+                    symbol = position.asset_id
+                    quantity = float(position.quantity)
+                    entry_price = float(position.current_price) - (float(position.profit_loss) / quantity) if quantity else 0.0
+                    current_price = float(position.current_price)
+                    
+                    value = float(position.market_value)
+                    pnl = float(position.profit_loss)
+                    pnl_percentage = (pnl / (value - pnl)) * 100 if (value - pnl) else 0
+                else:
+                    # Unknown position type, skip
+                    logger.warning(f"Unknown position type encountered: {type(position)}")
+                    continue
+                
                 positions.append({
-                    "symbol": position.symbol,
-                    "quantity": float(position.quantity),
-                    "entry_price": float(position.avg_entry_price),
-                    "current_price": float(position.current_price) if hasattr(position, 'current_price') else 0.0,
-                    "value": float(position.quantity * (position.current_price if hasattr(position, 'current_price') else position.avg_entry_price)),
-                    "pnl": float(position.unrealized_pnl),
-                    "pnl_percentage": float((position.unrealized_pnl / (position.avg_entry_price * position.quantity)) * 100) if position.avg_entry_price and position.quantity else 0
+                    "symbol": symbol,
+                    "quantity": quantity,
+                    "entry_price": entry_price,
+                    "current_price": current_price,
+                    "value": value,
+                    "pnl": pnl,
+                    "pnl_percentage": pnl_percentage
                 })
             
             # Create portfolio response

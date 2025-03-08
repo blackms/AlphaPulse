@@ -1,35 +1,35 @@
 """
-System router.
+System endpoints for the API.
 
-This module defines the API endpoints for system data.
+This module provides endpoints for system metrics and status.
 """
-import logging
 from typing import Dict, Any
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from ..dependencies import (
-    require_view_system,
     get_system_accessor,
-    get_alert_manager
+    get_alert_manager,
+    require_view_system
 )
-from ..data import SystemDataAccessor
 
-logger = logging.getLogger(__name__)
+# Create router
+router = APIRouter(
+    prefix="/system",
+    tags=["system"],
+    dependencies=[Depends(require_view_system)],
+)
 
-router = APIRouter()
 
-
-@router.get("/system")
+@router.get("", response_model=Dict[str, Any])
 async def get_system_metrics(
-    _: Dict[str, Any] = Depends(require_view_system),
-    system_accessor: SystemDataAccessor = Depends(get_system_accessor),
-    alert_manager = Depends(get_alert_manager)
-) -> Dict[str, Any]:
+    system_accessor=Depends(get_system_accessor),
+    alert_manager=Depends(get_alert_manager)
+):
     """
     Get system metrics.
     
     Returns:
-        System metrics data
+        System metrics including CPU, memory, and disk usage
     """
     # Get system metrics
     metrics = await system_accessor.get_system_metrics()
@@ -53,12 +53,11 @@ async def get_system_metrics(
                         "id": alert.alert_id,
                         "message": alert.message,
                         "severity": alert.severity.value
-                    }
+                    } 
                     for alert in alerts
                 ]
         except Exception as e:
             # Log error but continue to return metrics
-            logger.error(f"Error processing alerts: {str(e)}")
             metrics["alert_processing_error"] = str(e)
     
     return metrics

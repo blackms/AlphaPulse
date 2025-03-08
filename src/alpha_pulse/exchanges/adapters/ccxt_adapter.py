@@ -319,25 +319,55 @@ class CCXTAdapter(BaseExchange):
     async def get_average_entry_price(self, symbol: str) -> Optional[Decimal]:
         """Calculate average entry price for symbol."""
         try:
-            orders = await self.get_order_history(symbol=symbol)
+            # For Bybit UTA accounts, we need special handling
+            if self.exchange_id.lower() == 'bybit':
+                # Direct call to our bybit-specific method to avoid fetchOrders() error
+                orders = await self._get_bybit_order_history(symbol=symbol, params={})
+            else:
+                # Use standard method for other exchanges
+                orders = await self.get_order_history(symbol=symbol)
+                
             if not orders:
+                logger.warning(f"No order history found for {symbol}")
+                # Fall back to current price if we can't calculate entry price
+                try:
+                    current_price = await self.get_ticker_price(symbol)
+                    if current_price:
+                        logger.info(f"Using current price {current_price} as fallback for {symbol}")
+                        return current_price
+                except Exception as price_error:
+                    logger.warning(f"Failed to get current price for {symbol}: {price_error}")
                 return None
             
             total_quantity = Decimal('0')
             total_value = Decimal('0')
             
             for order in orders:
+                # Only include filled buy orders
                 if order['side'] == 'buy' and order['status'] == 'filled':
+                    # Handle cases where price might be None for market orders
                     quantity = Decimal(str(order['amount']))
-                    price = Decimal(str(order['price']))
-                    total_quantity += quantity
-                    total_value += quantity * price
+                    price = Decimal(str(order['price'] if order['price'] else order.get('average', 0)))
+                    
+                    if price > 0:
+                        total_quantity += quantity
+                        total_value += quantity * price
+                    else:
+                        # For market orders, try to use average or cost
+                        cost = Decimal(str(order.get('cost', 0)))
+                        if cost > 0:
+                            total_value += cost
+                            total_quantity += quantity
             
             if total_quantity == 0:
+                logger.warning(f"No filled buy orders found for {symbol}")
                 return None
             
-            return total_value / total_quantity
+            average_entry = total_value / total_quantity
+            logger.info(f"Calculated average entry price for {symbol}: {average_entry}")
+            return average_entry
             
         except Exception as e:
             logger.error(f"Error calculating average entry price for {symbol}: {str(e)}")
+            # Don't crash - return None and let the caller handle it
             return None
