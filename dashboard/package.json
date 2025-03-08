@@ -57,6 +57,7 @@
       "react-app/jest"
     ]
   },
+  "proxy": "https://platform.aigenconsult.com:9000",
   "browserslist": {
     "production": [
       ">0.2%",
