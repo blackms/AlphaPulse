@@ -38,8 +38,10 @@ class ExchangeRegistry:
         """
         cls._registry[exchange_type] = {
             'adapter_class': adapter_class,
-            'exchange_id': exchange_id,
-            'defaults': defaults
+            'defaults': {
+                **defaults,
+                '_exchange_id': exchange_id  # Store exchange_id in defaults with a different name
+            }
         }
         logger.info(f"Registered exchange type: {exchange_type}")
     
@@ -96,19 +98,20 @@ class ExchangeFactory:
         
         # Get implementation details
         adapter_class = implementation['adapter_class']
-        exchange_id = implementation['exchange_id']
         
         logger.info(f"Creating {exchange_type} exchange instance")
         
         # Handle different adapter types
         if adapter_class == CCXTAdapter:
+            # Create configuration without exchange_id
             config = ExchangeConfiguration(
                 api_key=api_key,
                 api_secret=api_secret,
-                exchange_id=exchange_id,
                 testnet=options.pop('testnet', False),
                 options=options
             )
+            
+            # Create adapter instance
             return adapter_class(config)
         else:
             # For BinanceExchange and other specialized adapters

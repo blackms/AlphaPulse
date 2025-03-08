@@ -3,7 +3,8 @@ import authService from '../auth/authService';
 
 // Create a base axios instance
 const client: AxiosInstance = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8000',
+  // When using the proxy in package.json, we should use relative URLs
+  baseURL: '',
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json'
@@ -16,7 +17,7 @@ const getAndStoreToken = async () => {
   try {
     console.log('Getting token for API requests...');
     const response = await axios.post(
-      `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/token`,
+      '/token',
       new URLSearchParams({
         username: 'admin',
         password: 'password'

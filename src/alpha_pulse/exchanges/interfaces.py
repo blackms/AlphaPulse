@@ -6,6 +6,7 @@ from decimal import Decimal
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
+
 from .base import Balance, OHLCV
 
 
@@ -115,15 +116,14 @@ class ExchangeConfiguration:
         self,
         api_key: str,
         api_secret: str,
-        exchange_id: str,
         testnet: bool = False,
         options: Optional[Dict[str, Any]] = None
     ):
         self.api_key = api_key
         self.api_secret = api_secret
-        self.exchange_id = exchange_id
         self.testnet = testnet
         self.options = options or {}
+        
 
 
 class ExchangeError(Exception):
