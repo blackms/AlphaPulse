@@ -22,7 +22,7 @@ DEFAULT_DB_PASS = "testpassword"
 
 # Database type
 DB_TYPE = os.environ.get("DB_TYPE", "postgres").lower()
-SQLITE_DB_PATH = os.environ.get("SQLITE_DB_PATH", "alpha_pulse.db")
+SQLITE_DB_PATH = os.environ.get("SQLITE_DB_PATH", "alphapulse.db")
 
 # Connection pool
 _pg_pool = None
