@@ -153,7 +153,8 @@ class PortfolioDataAccessor:
                 data_type = DataType.ALL
                 
             # Trigger the synchronizer to reload data
-            exchange_data_synchronizer.trigger_sync(self._exchange_id, data_type)
+            if exchange_data_synchronizer:
+                exchange_data_synchronizer.trigger_sync(self._exchange_id, data_type)
             
             return {
                 "status": "success", 
