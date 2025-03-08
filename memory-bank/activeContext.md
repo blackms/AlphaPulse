@@ -9,6 +9,8 @@
 2025-03-08 15:11:38.535 | ERROR    | alpha_pulse.data_pipeline.api_integration:startup_exchange_sync:37 - Error during exchange synchronization startup: 'ExchangeDataSynchronizer' object has no attribute 'initialize'
 
 ImportError: cannot import name 'init_db' from 'alpha_pulse.data_pipeline.database.connection'
+
+2025-03-08 15:40:52.553 | ERROR    | alpha_pulse.data_pipeline.scheduler.exchange_synchronizer:_main_loop:144 - Error in main loop: database "alpha_pulse.db" does not exist
 ```
 
 **Issue Analysis**:
@@ -22,6 +24,11 @@ ImportError: cannot import name 'init_db' from 'alpha_pulse.data_pipeline.databa
    - This function doesn't exist in the connection module
    - This causes an ImportError when starting the application
 
+3. Third Error:
+   - The database name in the connection string is incorrect
+   - The system is trying to connect to "alpha_pulse.db" instead of "alphapulse"
+   - This causes a database connection error
+
 **Solution Approach**:
 1. For the first error:
    - Implement graceful degradation to handle the missing method
@@ -32,6 +39,11 @@ ImportError: cannot import name 'init_db' from 'alpha_pulse.data_pipeline.databa
    - Add the missing `init_db` function to the database connection module
    - Ensure it properly initializes the database based on the database type
    - Make it call the existing `_init_pg_pool` function for PostgreSQL
+
+3. For the third error:
+   - Fix the database name in the connection parameters
+   - Add comprehensive error handling for database connection issues
+   - Improve the error messages to help with troubleshooting
 
 **Implementation Status**: Completed
 
@@ -62,16 +74,34 @@ ImportError: cannot import name 'init_db' from 'alpha_pulse.data_pipeline.databa
    - Made it call the existing `_init_pg_pool` function for PostgreSQL
    - Added support for different database types
    - Added appropriate logging
+   - Implemented return value to indicate success or failure
+
+2. **Improved API Integration**:
+   - Updated `startup_exchange_sync` to handle the return value from `init_db`
+   - Added additional error handling for database initialization failures
+   - Added nested try-except blocks for better error isolation
+
+### Fix 3: Database Connection Issues
+
+1. **Fixed Database Name**:
+   - Changed the default database name from "alpha_pulse" to "alphapulse"
+   - Updated the connection string to use the correct database name
+
+2. **Enhanced Database Connection Error Handling**:
+   - Added specific exception handling for different database connection errors
+   - Improved error messages with detailed information about what went wrong
+   - Added suggestions for how to fix common database connection issues
+   - Implemented graceful degradation to allow the application to start with limited functionality
 
 ## Documentation Updates
 
 We've updated the following documentation:
-- `decisionLog.md`: Added our decision about the error handling approach
+- `decisionLog.md`: Added our decision about the error handling approach and database connection implementation
 - `systemPatterns.md`: Updated with the error handling patterns we used
 - `productContext.md`: Added information about our error handling approach
 - `error_handling_patterns.md`: Created a new document detailing our error handling patterns
 - `progress.md`: Updated to reflect the completed work
-- `activeContext.md`: Updated with details about both fixes
+- `activeContext.md`: Updated with details about all fixes
 
 ## Error Handling Approach
 

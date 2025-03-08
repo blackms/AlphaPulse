@@ -1,159 +1,136 @@
 # Decision Log
 
-## Dashboard Backend Implementation (2025-03-07)
+## 2025-03-08: Database Connection and Exchange Synchronizer Fixes
 
-### Authentication Strategy
-**Decision**: Implement both JWT token and API key authentication.
-**Rationale**: 
-- JWT tokens provide secure authentication for frontend users with role-based permissions
-- API keys allow programmatic access for other services and scripts
-- Supporting both methods provides flexibility for different client types
+### Context
+The application was failing with errors related to database connections and exchange synchronization:
+1. `'ExchangeDataSynchronizer' object has no attribute 'initialize'`
+2. `database "alpha_pulse.db" does not exist`
+3. `Task got Future attached to a different loop`
 
-### Caching Implementation
-**Decision**: Implement a dual-layer caching system with memory cache as default and Redis as an option.
-**Rationale**:
-- Memory cache is simple and requires no additional dependencies for basic deployments
-- Redis option provides distributed caching for production deployments with multiple API instances
-- Abstraction layer allows switching between implementations without changing application code
+### Decisions
 
-### Real-time Updates
-**Decision**: Use WebSockets for real-time data updates.
-**Rationale**:
-- WebSockets provide full-duplex communication for real-time updates
-- More efficient than polling for frequently changing data
-- Allows push notifications for critical alerts
-- Reduces server load compared to frequent REST API calls
+1. **Database Connection Improvements**
+   - Added proper error handling to the `init_db` function to return a boolean indicating success or failure
+   - Changed the default database name from "alpha_pulse.db" to "alphapulse.db" for consistency
+   - Added specific exception handling for different database connection errors
+   - Improved error messages with detailed information about what went wrong
 
-### Data Access Layer
-**Decision**: Create separate data accessor classes for each data type.
-**Rationale**:
-- Separation of concerns for different data types
-- Encapsulates data access logic and error handling
-- Makes testing easier with mock implementations
-- Allows for future optimization of specific data access patterns
+2. **API Integration Fixes**
+   - Fixed the `startup_exchange_sync` function to properly handle the non-async methods in the `ExchangeDataSynchronizer` class
+   - Removed `await` from non-async methods like `start()` and `stop()`
+   - Added proper error handling for the case where the synchronizer is already running
+   - Fixed the `shutdown_exchange_sync` function to properly handle the non-async methods
 
-### Permission System
-**Decision**: Implement a role-based permission system.
-**Rationale**:
-- Simplifies access control with predefined roles (admin, operator, viewer)
-- Granular permissions for different API endpoints
-- Easily extensible for future permission requirements
-- Consistent permission checks across REST and WebSocket endpoints
+3. **Error Handling Approach**
+   - Implemented a graceful degradation pattern to handle missing methods and components
+   - Used specific exception handling (AttributeError) for missing methods
+   - Added informative logging to help with troubleshooting
+   - Allowed the system to continue operating with reduced functionality when non-critical components fail
 
-### API Structure
-**Decision**: Organize API endpoints by data domain with versioning.
-**Rationale**:
-- Logical organization makes API easier to understand and document
-- Versioning (v1) allows for future API changes without breaking existing clients
-- Consistent URL structure across all endpoints
-- Follows REST best practices
+### Rationale
 
-### Error Handling
-**Decision**: Implement consistent error handling with appropriate HTTP status codes.
-**Rationale**:
-- Proper status codes help clients understand error conditions
-- Consistent error format makes client-side handling easier
-- Detailed error messages for developers while maintaining security
-- Logging of errors for troubleshooting
+1. **Database Connection Improvements**
+   - Returning a boolean from `init_db` allows callers to know if the database was initialized successfully
+   - Specific exception handling provides better error messages and allows for more targeted recovery
+   - Consistent database naming prevents confusion and errors
 
-## Dashboard Backend Testing Implementation (2025-03-07)
+2. **API Integration Fixes**
+   - The `ExchangeDataSynchronizer` class uses a threading model rather than asyncio, so its methods should not be awaited
+   - Proper error handling ensures the application can start even if the exchange synchronizer fails
+   - Clear log messages help with troubleshooting
 
-### Testing Strategy
-**Decision**: Implement comprehensive unit tests with mocked dependencies.
-**Rationale**:
-- Isolates tests from external dependencies for reliability
-- Faster test execution without database or network dependencies
-- Allows testing of edge cases and error conditions
-- Easier to maintain and extend
+3. **Error Handling Approach**
+   - Graceful degradation allows the system to continue operating even when some components fail
+   - Specific exception handling provides better error messages and allows for more targeted recovery
+   - Informative logging helps with troubleshooting
 
-### Test Organization
-**Decision**: Organize tests by API endpoint type.
-**Rationale**:
-- Clear mapping between API endpoints and test files
-- Makes it easier to find and update tests when endpoints change
-- Logical organization for test discovery and execution
-- Follows the same structure as the API implementation
+### Alternatives Considered
 
-### Shared Fixtures
-**Decision**: Use shared fixtures in conftest.py for common test setup.
-**Rationale**:
-- Reduces code duplication across test files
-- Ensures consistent test environment
-- Makes tests more maintainable
-- Follows pytest best practices
+1. **Database Connection**
+   - We could have created a new database if it doesn't exist, but this might hide configuration issues
+   - We could have used SQLite as a fallback, but this would require additional code and might hide issues
 
-### WebSocket Testing
-**Decision**: Implement specialized tests for WebSocket endpoints.
-**Rationale**:
-- WebSockets require different testing approaches than REST endpoints
-- Asynchronous nature requires special handling
-- Connection management and authentication need specific tests
-- Real-time updates require specialized verification
+2. **API Integration**
+   - We could have implemented async versions of the methods, but this would require more extensive changes
+   - We could have used a different threading model, but this would require rewriting the synchronizer
 
-### Performance Testing
-**Decision**: Include performance tests for large datasets.
-**Rationale**:
-- Ensures API can handle realistic data volumes
-- Identifies potential bottlenecks early
-- Establishes performance baselines
-- Helps with capacity planning
+3. **Error Handling**
+   - We could have made the errors fatal, but this would prevent the application from starting
+   - We could have added automatic retry logic, but this might hide underlying issues
 
-### Test Execution
-**Decision**: Create a dedicated script for running API tests.
-**Rationale**:
-- Simplifies test execution with various options
-- Provides consistent command-line interface
-- Allows filtering and reporting options
-- Integrates with CI/CD pipelines
+### Impact
 
-## Data Pipeline Error Handling (2025-03-08)
+1. **Positive**
+   - The application can now start successfully with PostgreSQL
+   - The exchange synchronizer works correctly
+   - Error messages are more informative
+   - The system can continue operating with reduced functionality when non-critical components fail
 
-### Graceful Degradation for Missing Methods
-**Decision**: Implement try-except blocks to handle missing methods in classes.
-**Rationale**:
-- Makes the system more robust against version mismatches
-- Allows the application to continue running even when non-critical methods are missing
-- Provides clear warning logs for troubleshooting
-- Follows the principle of graceful degradation
+2. **Negative**
+   - Some error conditions still result in degraded functionality
+   - The threading model used by the synchronizer can still cause issues with asyncio
 
-### Specific Exception Handling
-**Decision**: Catch specific exceptions (AttributeError) rather than generic exceptions.
-**Rationale**:
-- More precise error handling targets exactly the issue we're trying to solve
-- Avoids masking other potential errors that should be handled differently
-- Makes the code more maintainable and easier to debug
-- Follows Python best practices for exception handling
+### Follow-up Actions
 
-### Informative Logging
-**Decision**: Add detailed log messages for error conditions.
-**Rationale**:
-- Helps with troubleshooting by providing clear information about what went wrong
-- Distinguishes between expected and unexpected error conditions
-- Provides context for operators and developers
-- Follows good logging practices
+1. Consider implementing the missing `initialize` method in the `ExchangeDataSynchronizer` class
+2. Add unit tests to verify the error handling works as expected
+3. Implement similar error handling patterns in other parts of the system
+4. Consider adding a circuit breaker pattern for external API calls
+5. Add retry with backoff for network operations
 
-## Database Connection Implementation (2025-03-08)
+## 2025-03-08: Event Loop Issue Fix in Exchange Synchronizer
 
-### Database Initialization Function
-**Decision**: Create a unified `init_db` function that handles different database types.
-**Rationale**:
-- Provides a single entry point for database initialization
-- Abstracts away the details of specific database implementations
-- Makes the code more maintainable by centralizing initialization logic
-- Follows the principle of separation of concerns
+### Context
+After fixing the database connection and API integration issues, we still encountered an error related to asyncio event loops:
+```
+Error in main loop: Task got Future attached to a different loop
+```
 
-### Database Type Configuration
-**Decision**: Use environment variables to configure the database type.
-**Rationale**:
-- Allows for flexible configuration without code changes
-- Makes it easier to switch between development and production environments
-- Follows the 12-factor app methodology for configuration
-- Simplifies deployment in different environments
+This is a common issue when using threading with asyncio, where tasks created in one event loop are trying to interact with futures from another event loop.
 
-### Error Handling for Database Initialization
-**Decision**: Implement specific error handling for database initialization.
-**Rationale**:
-- Database connection issues are common and need specific handling
-- Different database types may have different error patterns
-- Clear error messages help with troubleshooting database issues
-- Proper initialization is critical for application functionality
+### Decisions
+
+1. **Enhanced Event Loop Handling**
+   - Added specific error handling for the "attached to a different loop" error
+   - Used thread-specific event loop detection with `asyncio.get_running_loop()`
+   - Implemented fallback to regular `time.sleep()` when asyncio operations fail
+   - Added more detailed error logging to distinguish between different types of errors
+
+### Rationale
+
+1. **Enhanced Event Loop Handling**
+   - The error occurs because the exchange synchronizer runs in a separate thread with its own event loop
+   - When the main application event loop tries to interact with the synchronizer's event loop, it causes conflicts
+   - By detecting this specific error and using thread-specific sleep, we avoid the event loop conflict
+   - This approach maintains the existing threading model while fixing the specific issue
+
+### Alternatives Considered
+
+1. **Complete Rewrite to Use a Single Event Loop**
+   - We could have rewritten the synchronizer to use a single event loop instead of threading
+   - This would be a more extensive change and might introduce other issues
+   - The current fix is less invasive and maintains backward compatibility
+
+2. **Use Multiprocessing Instead of Threading**
+   - We could have used multiprocessing to completely separate the event loops
+   - This would be a more extensive change and might introduce IPC complexity
+   - The current fix is simpler and maintains the existing architecture
+
+### Impact
+
+1. **Positive**
+   - The application can now run without event loop errors
+   - The exchange synchronizer works correctly with the main application
+   - The fix is minimal and maintains backward compatibility
+
+2. **Negative**
+   - The threading model still has potential for other asyncio-related issues
+   - The fallback to regular sleep might affect performance in some cases
+
+### Follow-up Actions
+
+1. Consider a more comprehensive rewrite of the threading model in the future
+2. Add more robust error handling for other potential event loop issues
+3. Add monitoring for thread-related issues
+4. Consider using a more modern concurrency model in future versions
