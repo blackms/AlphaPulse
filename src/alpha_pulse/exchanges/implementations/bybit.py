@@ -1,6 +1,7 @@
 """
 Bybit exchange implementation.
 """
+import json
 from decimal import Decimal
 from typing import Dict
 import os
@@ -110,9 +111,20 @@ class BybitExchange(CCXTAdapter):
                 # For example, handle wallet types
                 account = await self.exchange.fetch_balance()
                 if 'info' in account:
-                    for wallet in account['info'].get('result', []):
-                        asset = wallet.get('coin')
-                        if asset in balances:
+                    info = account['info']
+                    # Handle the case where info might be a string instead of a dict
+                    if isinstance(info, str):
+                        try:
+                            info = json.loads(info)
+                        except json.JSONDecodeError:
+                            logger.debug(f"Could not parse Bybit info as JSON: {info}")
+                            info = {}
+                    
+                    # Now safely get results, handling both dict and parsed JSON cases
+                    result = info.get('result', []) if isinstance(info, dict) else []
+                    for wallet in result:
+                        asset = wallet.get('coin') if isinstance(wallet, dict) else None
+                        if asset and asset in balances:
                             # Add wallet-specific balances
                             locked = Decimal(str(wallet.get('locked', '0')))
                             balances[asset].locked += locked
