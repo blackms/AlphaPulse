@@ -221,3 +221,103 @@ This error occurred in the `_get_exchange` method of the `ExchangeDataSynchroniz
 3. Add telemetry to track common error patterns
 4. Create a more comprehensive troubleshooting guide based on common user issues
 5. Consider implementing a circuit breaker pattern for API calls
+## 2025-03-08: Enhanced Bybit Exchange Initialization with Circuit Breaker Pattern
+
+### Context
+We encountered an error with the Bybit exchange API connection:
+```
+Failed to initialize bybit exchange after 3 attempts: Failed to initialize bybit: bybit GET https://api.bybit.com/v5/asset/coin/query-info\?
+```
+
+This error occurred in the `_get_exchange` method of the `ExchangeDataSynchronizer` class when trying to initialize the Bybit exchange.
+
+### Decisions
+
+1. **Enhanced Retry Mechanism**
+   - Added a timeout to prevent hanging indefinitely during initialization
+   - Implemented specific exception handling for different types of network errors
+   - Added more detailed logging for each type of error
+   - Improved the exponential backoff mechanism
+
+2. **Implemented Circuit Breaker Pattern**
+   - Added a circuit breaker to prevent repeated failures
+   - Implemented a cooldown period of 10 minutes after multiple failures
+   - Added detailed logging when the circuit breaker is activated
+   - Added a check at the beginning of the method to respect the circuit breaker
+
+3. **Enhanced Error Handling**
+   - Added more detailed troubleshooting information for each type of error
+   - Provided specific steps to resolve connection issues
+   - Added references to the diagnostic tools
+   - Improved error messages with more context
+
+4. **Improved Diagnostics**
+   - Added detailed logging about API credentials and configuration
+   - Provided specific troubleshooting steps for each type of error
+   - Added references to the debug_bybit_api.py and debug_bybit_auth.py tools
+   - Added environment variable information to help with configuration
+
+### Rationale
+
+1. **Enhanced Retry Mechanism**
+   - Intermittent network issues are common when dealing with external APIs
+   - Specific exception handling allows for more targeted recovery strategies
+   - Detailed logging helps diagnose issues more quickly
+   - Exponential backoff prevents overwhelming the API during issues
+
+2. **Circuit Breaker Pattern**
+   - Prevents repeated failures from affecting system performance
+   - Gives the external API time to recover
+   - Provides a clear indication of when the system is in a degraded state
+   - Automatically recovers after a cooldown period
+
+3. **Enhanced Error Handling**
+   - Detailed error messages help users diagnose and fix issues
+   - Specific troubleshooting steps reduce support burden
+   - References to diagnostic tools guide users to the right resources
+   - Context-specific error messages make it easier to understand the problem
+
+4. **Improved Diagnostics**
+   - Detailed logging helps diagnose issues more quickly
+   - Specific troubleshooting steps reduce support burden
+   - References to diagnostic tools guide users to the right resources
+   - Environment variable information helps with configuration
+
+### Alternatives Considered
+
+1. **Completely Rewriting the Exchange Integration**
+   - We could have rewritten the exchange integration from scratch
+   - This would be a major undertaking with significant risk
+   - The current approach of incremental improvement is more practical
+
+2. **Using a Different Exchange Library**
+   - We could have switched to a different exchange library
+   - This would require significant changes to the codebase
+   - The current CCXT library is widely used and well-maintained
+
+3. **Implementing a Web-based Diagnostic Interface**
+   - We could have created a web interface for diagnostics
+   - This would require additional dependencies and complexity
+   - Command-line tools are simpler and more appropriate for this use case
+
+### Impact
+
+1. **Positive**
+   - The system is more resilient to intermittent network issues
+   - Users can more easily diagnose and fix issues
+   - The system degrades gracefully when external APIs are unavailable
+   - Detailed error messages reduce support burden
+
+2. **Negative**
+   - The circuit breaker might delay error reporting
+   - Additional logging might increase log volume
+   - Users still need to understand API concepts to troubleshoot effectively
+
+### Follow-up Actions
+
+1. Add unit tests for the enhanced error handling
+2. Consider implementing similar diagnostic tools for other exchanges
+3. Add telemetry to track common error patterns
+4. Create a more comprehensive troubleshooting guide based on common user issues
+5. Consider implementing a circuit breaker pattern for other external API calls
+

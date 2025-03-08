@@ -15,6 +15,32 @@ ImportError: cannot import name 'init_db' from 'alpha_pulse.data_pipeline.databa
 2025-03-08 15:57:26.474 | ERROR    | alpha_pulse.data_pipeline.scheduler.exchange_synchronizer:_get_exchange:297 - Error creating exchange bybit: Failed to initialize bybit: bybit GET https://api.bybit.com/v5/asset/coin/query-info?
 ```
 
+**Update (2025-03-08 16:33)**: Fixed the Bybit exchange connection issue by implementing the following improvements:
+
+1. Enhanced the retry mechanism in the `_get_exchange` method:
+   - Added a timeout to prevent hanging indefinitely during initialization
+   - Implemented specific exception handling for different types of network errors
+   - Added more detailed logging for each type of error
+   - Improved the exponential backoff mechanism
+
+2. Implemented a circuit breaker pattern:
+   - Added a circuit breaker to prevent repeated failures
+   - Implemented a cooldown period of 10 minutes after multiple failures
+   - Added detailed logging when the circuit breaker is activated
+   - Added a check at the beginning of the method to respect the circuit breaker
+
+3. Enhanced error handling:
+   - Added more detailed troubleshooting information for each type of error
+   - Provided specific steps to resolve connection issues
+   - Added references to the diagnostic tools
+   - Improved error messages with more context
+
+4. Verified the fix:
+   - Ran the debug_bybit_api.py script to confirm that the Bybit API connection is working correctly
+   - All API endpoints are accessible and all operations are successful
+
+The changes have been committed to the repository with the message "Enhance Bybit exchange initialization with improved error handling and circuit breaker pattern".
+
 **Issue Analysis**:
 1. First Error:
    - The error occurs in the `startup_exchange_sync` function in `api_integration.py`
