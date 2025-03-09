@@ -34,7 +34,8 @@ class Settings:
     ))
     database: DatabaseConfig = field(default_factory=DatabaseConfig)
     paths: PathConfig = field(default_factory=PathConfig)
-    DATABASE_URL: str = field(default_factory=lambda: "sqlite:///data.db")
+    # Default to PostgreSQL URL - sync with database.py and connection.py
+    DATABASE_URL: str = field(default_factory=lambda: "postgresql+asyncpg://testuser:testpassword@localhost:5432/alphapulse")
 
     def update_exchange(self, exchange_id: str, api_key: str = "", api_secret: str = "") -> None:
         """
