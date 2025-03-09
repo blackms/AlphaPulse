@@ -3,7 +3,7 @@
 
 # Display header
 echo "==============================================="
-echo "  AI HEDGE FUND - API SERVER ONLY"
+echo "  AI HEDGE FUND - API SERVER (PostgreSQL)"
 echo "==============================================="
 echo ""
 
@@ -24,17 +24,23 @@ fi
 echo "Setting up environment..."
 export PYTHONPATH=./src:$PYTHONPATH
 
-# Check for database
-if [ ! -f "data/hedge_fund.db" ]; then
-  echo "Creating database directory..."
-  mkdir -p data
-  
-  echo "Initializing database..."
-  python src/scripts/init_db.py
-  if [ $? -ne 0 ]; then
-    echo "Database initialization failed! Check the error above."
-    exit 1
-  fi
+# Ensure data directory exists
+echo "Creating data directory..."
+mkdir -p data
+
+# Set up PostgreSQL connection
+echo "Configuring PostgreSQL connection..."
+# Use environment variables or config defaults
+export ALPHA_PULSE_DB_TYPE=postgres
+# Note: Additional PostgreSQL connection parameters can be set in config/database_config.yaml
+
+# Initialize database if needed
+echo "Checking database connection..."
+python -c "from src.alpha_pulse.data_pipeline.database.connection import init_db; import asyncio; asyncio.run(init_db())"
+if [ $? -ne 0 ]; then
+  echo "Database connection failed! Please check your PostgreSQL configuration."
+  echo "Make sure PostgreSQL is running and accessible with the credentials in config/database_config.yaml"
+  exit 1
 fi
 
 # Start the API server
