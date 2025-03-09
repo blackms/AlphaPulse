@@ -1,17 +1,16 @@
 """
-Enhanced database connection manager.
+PostgreSQL connection manager.
 
-This module provides improved connection pooling and transaction management
-specifically designed to handle multiple async event loops and threads.
+This module provides robust connection pooling and transaction management
+specifically designed to handle multiple async event loops and threads with
+PostgreSQL databases.
 """
 import asyncio
 import os
 import threading
 import random
 import time
-import sqlite3
-import aiosqlite
-from typing import Dict, Optional, Any, Callable, Coroutine, Union
+from typing import Dict, Optional, Any, Callable, Coroutine
 from contextlib import asynccontextmanager
 
 import asyncpg
@@ -24,9 +23,7 @@ from alpha_pulse.data_pipeline.database.connection import (
     DEFAULT_DB_NAME,
     DEFAULT_DB_USER,
     DEFAULT_DB_PASS,
-    _initialize_tables,
-    DB_TYPE,
-    SQLITE_DB_PATH
+    _initialize_tables
 )
 
 # Maximum retry attempts for database operations
@@ -34,11 +31,10 @@ MAX_RETRY_ATTEMPTS = 3
 # Base delay for exponential backoff (in seconds)
 BASE_RETRY_DELAY = 0.5
 
-# Store pools by event loop ID and thread ID
-_connection_pools: Dict[str, Union[asyncpg.Pool, aiosqlite.Connection]] = {}
+# Store PostgreSQL pools by event loop ID and thread ID
+_connection_pools: Dict[str, asyncpg.Pool] = {}
 _pool_creation_locks: Dict[str, asyncio.Lock] = {}
 _global_lock = threading.RLock()  # Global lock for thread-safe dictionary access
-_sqlite_pools = {}  # Special storage for SQLite connections
 
 def get_loop_thread_key() -> str:
     """
@@ -112,20 +108,24 @@ async def get_connection_pool() -> asyncpg.Pool:
         
         while retry_count < MAX_RETRY_ATTEMPTS:
             try:
-                # Create the pool with optimized settings
+                # Create the pool with enhanced PostgreSQL-specific optimized settings
                 pool = await asyncpg.create_pool(
                     host=db_host,
                     port=db_port,
                     database=db_name,
                     user=db_user,
                     password=db_pass,
-                    min_size=3,           # Ensure we have enough connections ready
-                    max_size=20,          # Handle more concurrent operations
+                    min_size=5,           # Increased from 3 for better performance
+                    max_size=30,          # Increased from 20 for higher concurrency
                     command_timeout=60.0, # Set command timeout to 60 seconds
                     max_inactive_connection_lifetime=300.0,  # 5 minutes max idle time
-                    # Use server-side statement cache to improve performance
-                    server_settings={'statement_timeout': '30s',  # 30 second statement timeout
-                                    'idle_in_transaction_session_timeout': '60s'}  # Prevent hung transactions
+                    # Enhanced server-side PostgreSQL-specific optimizations
+                    server_settings={
+                        'statement_timeout': '30s',          # 30 second statement timeout
+                        'idle_in_transaction_session_timeout': '60s',  # Prevent hung transactions
+                        'application_name': 'AlphaPulse',    # Identify app in pg_stat_activity
+                        'client_min_messages': 'notice'      # Reduce log noise
+                    }
                 )
                 
                 # Initialize tables using the first connection from the pool
@@ -250,17 +250,33 @@ async def execute_with_retry(operation: Callable[[], Coroutine], max_retries: in
             # Execute the operation
             return await operation()
             
-        except (asyncpg.InterfaceError, asyncpg.ConnectionDoesNotExistError) as e:
+        except (asyncpg.InterfaceError, asyncpg.ConnectionDoesNotExistError,
+                asyncpg.PostgresConnectionError, asyncpg.CannotConnectNowError,
+                asyncpg.TooManyConnectionsError) as e:
             last_error = e
             retry_count += 1
             
             error_msg = str(e)
             error_type = type(e).__name__
             
-            # Handle specific database connection errors
+            # Check for PostgreSQL-specific error code
+            error_code = getattr(e, 'sqlstate', None)
+            if error_code:
+                logger.warning(f"[{loop_thread_key}] PostgreSQL error code: {error_code}")
+                
+                # Handle specific PostgreSQL error conditions
+                if error_code == '57P01':  # admin_shutdown
+                    logger.warning(f"[{loop_thread_key}] Database server is shutting down, retrying...")
+                elif error_code == '53300':  # too_many_connections
+                    logger.warning(f"[{loop_thread_key}] Too many database connections, waiting for availability...")
+                elif error_code in ('08006', '08001', '08004'):  # connection errors
+                    logger.warning(f"[{loop_thread_key}] Connection problem detected: {error_msg}")
+            
+            # Handle specific database connection errors (for backward compatibility)
             if ("another operation is in progress" in error_msg or
                 "connection was closed" in error_msg or
-                "connection is closed" in error_msg):
+                "connection is closed" in error_msg or
+                "canceling statement due to statement timeout" in error_msg):
                 
                 if retry_count < max_retries:
                     # Calculate backoff time with jitter
@@ -544,3 +560,68 @@ async def get_db_connection():
                         logger.info(f"[{loop_thread_key}] Closed bad connection pool due to errors")
                 except Exception as close_error:
                     logger.error(f"[{loop_thread_key}] Error closing bad pool: {str(close_error)}")
+
+
+async def get_db_stats():
+    """
+    Get PostgreSQL database statistics for monitoring.
+    
+    This function queries PostgreSQL system views to provide insight into
+    database performance, connections, and table statistics.
+    
+    Returns:
+        dict: Various PostgreSQL statistics for monitoring
+    """
+    stats = {}
+    
+    try:
+        async with get_db_connection() as conn:
+            # Query for active connections
+            connections = await conn.fetch("""
+                SELECT datname, usename, application_name, state, query,
+                       query_start, backend_start
+                FROM pg_stat_activity
+                WHERE datname = $1
+            """, os.environ.get("DB_NAME", DEFAULT_DB_NAME))
+            
+            # Query for table statistics
+            table_stats = await conn.fetch("""
+                SELECT relname, n_live_tup, n_dead_tup, last_vacuum, last_analyze
+                FROM pg_stat_user_tables
+            """)
+            
+            # Query for database size
+            db_size = await conn.fetchval("""
+                SELECT pg_size_pretty(pg_database_size($1))
+            """, os.environ.get("DB_NAME", DEFAULT_DB_NAME))
+            
+            # Query for index usage statistics
+            index_stats = await conn.fetch("""
+                SELECT
+                    relname as table_name,
+                    indexrelname as index_name,
+                    idx_scan as index_scans,
+                    idx_tup_read as tuples_read,
+                    idx_tup_fetch as tuples_fetched
+                FROM pg_stat_user_indexes
+                ORDER BY idx_scan DESC
+                LIMIT 10
+            """)
+            
+            # Return formatted stats
+            stats = {
+                "connections": [dict(conn) for conn in connections],
+                "tables": [dict(row) for row in table_stats],
+                "db_size": db_size,
+                "index_usage": [dict(idx) for idx in index_stats],
+                "pool_info": {
+                    "active_pools": len(_connection_pools),
+                    "connection_status": "healthy" if len(_connection_pools) > 0 else "no pools"
+                }
+            }
+            logger.info(f"Successfully retrieved PostgreSQL database stats - DB Size: {db_size}")
+    except Exception as e:
+        logger.error(f"Error retrieving database stats: {str(e)}")
+        stats = {"error": str(e), "status": "failed to retrieve stats"}
+    
+    return stats
