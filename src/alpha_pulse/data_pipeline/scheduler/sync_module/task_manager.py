@@ -128,63 +128,63 @@ class TaskManager:
         Returns:
             List of (exchange_id, data_type) tuples that need to be synced
         """
+        thread_id = threading.get_ident()
         now = datetime.now(timezone.utc)
         to_sync = []
         
         # Get all exchanges from environment or config
         exchanges = self.get_configured_exchanges()
         
+        # Define the operation to get sync statuses
+        async def get_sync_statuses():
+            async with get_pg_connection() as conn:
+                repo = ExchangeCacheRepository(conn)
+                return await repo.get_all_sync_status()
+        
         try:
-            # First try with the normal approach
-            try:
-                async with get_pg_connection() as conn:
-                    repo = ExchangeCacheRepository(conn)
-                    sync_statuses = await repo.get_all_sync_status()
+            # Use the execute_with_retry function from connection.py
+            from alpha_pulse.data_pipeline.database.connection import _execute_with_retry
+            sync_statuses = await _execute_with_retry(get_sync_statuses)
+            
+            # Create a dict of sync statuses by exchange and data type
+            status_dict = {}
+            for status in sync_statuses:
+                if status["exchange_id"] not in status_dict:
+                    status_dict[status["exchange_id"]] = {}
+                status_dict[status["exchange_id"]][status["data_type"]] = status
+            
+            # Check each exchange and data type
+            for exchange_id in exchanges:
+                for data_type in [dt for dt in DataType if dt != DataType.ALL]:
+                    # Skip if already in queue
+                    if (exchange_id, data_type) in self._sync_queue:
+                        continue
                     
-                    # Create a dict of sync statuses by exchange and data type
-                    status_dict = {}
-                    for status in sync_statuses:
-                        if status["exchange_id"] not in status_dict:
-                            status_dict[status["exchange_id"]] = {}
-                        status_dict[status["exchange_id"]][status["data_type"]] = status
+                    # Get the last sync time and next sync time
+                    last_sync_time = None
+                    next_sync_time = None
                     
-                    # Check each exchange and data type
-                    for exchange_id in exchanges:
-                        for data_type in [dt for dt in DataType if dt != DataType.ALL]:
-                            # Skip if already in queue
-                            if (exchange_id, data_type) in self._sync_queue:
-                                continue
-                            
-                            # Get the last sync time and next sync time
-                            last_sync_time = None
-                            next_sync_time = None
-                            
-                            # Check if we have a status record
-                            if (exchange_id in status_dict and 
-                                    data_type.value in status_dict[exchange_id]):
-                                status = status_dict[exchange_id][data_type.value]
-                                last_sync_time = status["last_sync"]
-                                next_sync_time = status["next_sync"]
-                            
-                            # If no status record, or next_sync_time is in the past
-                            if (next_sync_time is None or 
-                                    now >= next_sync_time):
-                                # Add to sync queue
-                                logger.info(f"Scheduling sync for {exchange_id}, type: {data_type}")
-                                to_sync.append((exchange_id, data_type))
-            except RuntimeError as e:
-                if "attached to a different loop" in str(e):
-                    logger.warning(f"Event loop issue detected during scheduled sync check, skipping this cycle")
-                else:
-                    raise
+                    # Check if we have a status record
+                    if (exchange_id in status_dict and
+                            data_type.value in status_dict[exchange_id]):
+                        status = status_dict[exchange_id][data_type.value]
+                        last_sync_time = status["last_sync"]
+                        next_sync_time = status["next_sync"]
+                    
+                    # If no status record, or next_sync_time is in the past
+                    if (next_sync_time is None or
+                            now >= next_sync_time):
+                        # Add to sync queue
+                        logger.info(f"[THREAD {thread_id}] Scheduling sync for {exchange_id}, type: {data_type}")
+                        to_sync.append((exchange_id, data_type))
         except Exception as e:
-            logger.error(f"Error checking scheduled syncs: {str(e)}")
-            logger.error(f"Exception type: {type(e).__name__}")
-            logger.error(f"Exception details: {repr(e)}")
+            logger.error(f"[THREAD {thread_id}] Error checking scheduled syncs: {str(e)}")
+            logger.error(f"[THREAD {thread_id}] Exception type: {type(e).__name__}")
+            logger.error(f"[THREAD {thread_id}] Exception details: {repr(e)}")
         
         return to_sync
     
-    async def update_sync_status(self, exchange_id: str, data_type: DataType, 
+    async def update_sync_status(self, exchange_id: str, data_type: DataType,
                                 status: SyncStatus, error_message: Optional[str] = None) -> None:
         """
         Update the sync status in the database.
@@ -195,88 +195,27 @@ class TaskManager:
             status: New status
             error_message: Optional error message
         """
+        thread_id = threading.get_ident()
         next_sync_time = datetime.now(timezone.utc) + timedelta(seconds=self._sync_interval)
         
-        # Use a direct connection approach to avoid event loop issues
-        try:
-            # First try with the normal approach
-            try:
-                async with get_pg_connection() as conn:
-                    repo = ExchangeCacheRepository(conn)
-                    await repo.update_sync_status(
-                        exchange_id,
-                        data_type.value,
-                        status.value,
-                        next_sync_time,
-                        error_message
-                    )
-                return  # If we get here, we succeeded
-            except RuntimeError as e:
-                if "attached to a different loop" in str(e):
-                    logger.warning(f"Event loop issue detected during status update, trying alternative approach")
-                else:
-                    raise
-            
-            # If we get here, we had an event loop issue
-            # Instead of creating a new event loop, we'll use a synchronous approach
-            # to update the database directly
-            thread_id = threading.get_ident()
-            logger.debug(f"[THREAD {thread_id}] Using synchronous approach for status update")
-            
-            import psycopg2
-            from psycopg2.extras import Json
-            
-            # Get database connection info from environment variables
-            # Use the same defaults as in the connection.py file
-            db_host = os.environ.get("DB_HOST", DEFAULT_DB_HOST)
-            db_port = os.environ.get("DB_PORT", str(DEFAULT_DB_PORT))
-            db_name = os.environ.get("DB_NAME", DEFAULT_DB_NAME)
-            db_user = os.environ.get("DB_USER", DEFAULT_DB_USER)
-            db_pass = os.environ.get("DB_PASS", DEFAULT_DB_PASS)
-            
-            # Create a direct connection
-            try:
-                # Create connection
-                logger.debug(f"[THREAD {thread_id}] Connecting to PostgreSQL: {db_host}:{db_port}/{db_name} as {db_user}")
-                conn = psycopg2.connect(
-                    host=db_host,
-                    port=db_port,
-                    dbname=db_name,
-                    user=db_user,
-                    password=db_pass
+        # Define the operation to update sync status
+        async def update_operation():
+            async with get_pg_connection() as conn:
+                repo = ExchangeCacheRepository(conn)
+                await repo.update_sync_status(
+                    exchange_id,
+                    data_type.value,
+                    status.value,
+                    next_sync_time,
+                    error_message
                 )
-                
-                try:
-                    # Create a cursor
-                    with conn.cursor() as cur:
-                        # Update the sync status
-                        cur.execute(
-                            """
-                            INSERT INTO sync_status 
-                            (exchange_id, data_type, status, last_sync, next_sync, error_message)
-                            VALUES (%s, %s, %s, %s, %s, %s)
-                            ON CONFLICT (exchange_id, data_type) DO UPDATE
-                            SET status = %s, last_sync = %s, next_sync = %s, error_message = %s
-                            """,
-                            (
-                                exchange_id, data_type.value, status.value, 
-                                datetime.now(timezone.utc), next_sync_time, error_message,
-                                status.value, datetime.now(timezone.utc), next_sync_time, error_message
-                            )
-                        )
-                        
-                        # Commit the transaction
-                        conn.commit()
-                        
-                        logger.debug(f"[THREAD {thread_id}] Successfully updated sync status with direct connection")
-                finally:
-                    # Close the connection
-                    conn.close()
-            except Exception as db_error:
-                logger.error(f"Error updating sync status: {str(db_error)}")
-                logger.error(f"Exception type: {type(db_error).__name__}")
-                logger.error(f"Exception details: {repr(db_error)}")
+        
+        try:
+            # Use the execute_with_retry function from connection.py
+            from alpha_pulse.data_pipeline.database.connection import _execute_with_retry
+            await _execute_with_retry(update_operation)
+            logger.debug(f"[THREAD {thread_id}] Successfully updated sync status for {exchange_id}, {data_type}")
         except Exception as e:
-            logger.error(f"Error updating sync status: {str(e)}")
-            logger.error(f"Exception type: {type(e).__name__}")
-            logger.error(f"Exception details: {repr(e)}")
+            logger.error(f"[THREAD {thread_id}] Error updating sync status: {str(e)}")
+            logger.error(f"[THREAD {thread_id}] Exception type: {type(e).__name__}")
+            logger.error(f"[THREAD {thread_id}] Exception details: {repr(e)}")
