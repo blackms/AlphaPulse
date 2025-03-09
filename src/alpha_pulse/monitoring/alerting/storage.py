@@ -1,30 +1,34 @@
 """
 Database-based alert history storage for the alerting system.
+
+This module provides PostgreSQL-based alert history storage for the alerting system.
 """
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 import logging
 import json
 import asyncio
-import aiosqlite
+import os
+import asyncpg
 
 from .models import Alert, AlertSeverity
 from .history import AlertHistoryStorage
 
 
 class DatabaseAlertHistory(AlertHistoryStorage):
-    """SQLite-based alert history storage."""
+    """PostgreSQL-based alert history storage."""
     
-    def __init__(self, db_path: str):
-        """Initialize with database path.
+    def __init__(self, connection_params: Dict[str, Any]):
+        """Initialize with PostgreSQL connection parameters.
         
         Args:
-            db_path: Path to the SQLite database file
+            connection_params: PostgreSQL connection parameters
         """
-        self.db_path = db_path
+        self.connection_params = connection_params
         self.logger = logging.getLogger("alpha_pulse.alerting.history.database")
         self.lock = asyncio.Lock()
         self.initialized = False
+        self.pool = None
     
     async def initialize(self) -> bool:
         """Initialize the database.
@@ -34,9 +38,12 @@ class DatabaseAlertHistory(AlertHistoryStorage):
         """
         try:
             async with self.lock:
-                async with aiosqlite.connect(self.db_path) as db:
-                    # Create alerts table if it doesn't exist
-                    await db.execute('''
+                # Create a connection pool
+                self.pool = await asyncpg.create_pool(**self.connection_params)
+                
+                # Create alerts table if it doesn't exist
+                async with self.pool.acquire() as conn:
+                    await conn.execute('''
                         CREATE TABLE IF NOT EXISTS alerts (
                             alert_id TEXT PRIMARY KEY,
                             rule_id TEXT NOT NULL,
@@ -44,16 +51,15 @@ class DatabaseAlertHistory(AlertHistoryStorage):
                             metric_value TEXT NOT NULL,
                             severity TEXT NOT NULL,
                             message TEXT NOT NULL,
-                            timestamp TEXT NOT NULL,
-                            acknowledged INTEGER NOT NULL DEFAULT 0,
+                            timestamp TIMESTAMP NOT NULL,
+                            acknowledged BOOLEAN NOT NULL DEFAULT FALSE,
                             acknowledged_by TEXT,
-                            acknowledged_at TEXT
+                            acknowledged_at TIMESTAMP
                         )
                     ''')
-                    await db.commit()
             
             self.initialized = True
-            self.logger.info(f"Database alert history initialized: {self.db_path}")
+            self.logger.info("PostgreSQL database alert history initialized")
             return True
             
         except Exception as e:
@@ -71,25 +77,24 @@ class DatabaseAlertHistory(AlertHistoryStorage):
             
         async with self.lock:
             try:
-                async with aiosqlite.connect(self.db_path) as db:
-                    await db.execute('''
+                async with self.pool.acquire() as conn:
+                    await conn.execute('''
                         INSERT INTO alerts (
                             alert_id, rule_id, metric_name, metric_value, severity,
                             message, timestamp, acknowledged, acknowledged_by, acknowledged_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ''', (
+                        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                    ''',
                         alert.alert_id,
                         alert.rule_id,
                         alert.metric_name,
                         json.dumps(alert.metric_value),
                         alert.severity.value,
                         alert.message,
-                        alert.timestamp.isoformat(),
-                        1 if alert.acknowledged else 0,
+                        alert.timestamp,
+                        alert.acknowledged,
                         alert.acknowledged_by,
-                        alert.acknowledged_at.isoformat() if alert.acknowledged_at else None
-                    ))
-                    await db.commit()
+                        alert.acknowledged_at
+                    )
                     
                 self.logger.debug(f"Stored alert in database: {alert.alert_id}")
                 
@@ -118,55 +123,61 @@ class DatabaseAlertHistory(AlertHistoryStorage):
         alerts = []
         query = "SELECT * FROM alerts WHERE 1=1"
         params = []
+        param_index = 1
         
         # Apply time filters
         if start_time:
-            query += " AND timestamp >= ?"
-            params.append(start_time.isoformat())
+            query += f" AND timestamp >= ${param_index}"
+            params.append(start_time)
+            param_index += 1
         if end_time:
-            query += " AND timestamp <= ?"
-            params.append(end_time.isoformat())
+            query += f" AND timestamp <= ${param_index}"
+            params.append(end_time)
+            param_index += 1
         
         # Apply additional filters
         if filters:
             if "severity" in filters:
-                query += " AND severity = ?"
+                query += f" AND severity = ${param_index}"
                 params.append(filters["severity"])
+                param_index += 1
             if "acknowledged" in filters:
-                query += " AND acknowledged = ?"
-                params.append(1 if filters["acknowledged"] else 0)
+                query += f" AND acknowledged = ${param_index}"
+                params.append(filters["acknowledged"])
+                param_index += 1
             if "rule_id" in filters:
-                query += " AND rule_id = ?"
+                query += f" AND rule_id = ${param_index}"
                 params.append(filters["rule_id"])
+                param_index += 1
             if "metric_name" in filters:
-                query += " AND metric_name = ?"
+                query += f" AND metric_name = ${param_index}"
                 params.append(filters["metric_name"])
+                param_index += 1
         
         # Order by timestamp (newest first)
         query += " ORDER BY timestamp DESC"
         
         try:
-            async with aiosqlite.connect(self.db_path) as db:
-                db.row_factory = aiosqlite.Row
-                async with db.execute(query, params) as cursor:
-                    async for row in cursor:
-                        try:
-                            # Convert row to Alert object
-                            alert = Alert(
-                                alert_id=row["alert_id"],
-                                rule_id=row["rule_id"],
-                                metric_name=row["metric_name"],
-                                metric_value=json.loads(row["metric_value"]),
-                                severity=row["severity"],
-                                message=row["message"],
-                                timestamp=datetime.fromisoformat(row["timestamp"]),
-                                acknowledged=bool(row["acknowledged"]),
-                                acknowledged_by=row["acknowledged_by"],
-                                acknowledged_at=datetime.fromisoformat(row["acknowledged_at"]) if row["acknowledged_at"] else None
-                            )
-                            alerts.append(alert)
-                        except (json.JSONDecodeError, ValueError) as e:
-                            self.logger.error(f"Failed to parse alert from database: {str(e)}")
+            async with self.pool.acquire() as conn:
+                rows = await conn.fetch(query, *params)
+                for row in rows:
+                    try:
+                        # Convert row to Alert object
+                        alert = Alert(
+                            alert_id=row["alert_id"],
+                            rule_id=row["rule_id"],
+                            metric_name=row["metric_name"],
+                            metric_value=json.loads(row["metric_value"]),
+                            severity=row["severity"],
+                            message=row["message"],
+                            timestamp=row["timestamp"],
+                            acknowledged=row["acknowledged"],
+                            acknowledged_by=row["acknowledged_by"],
+                            acknowledged_at=row["acknowledged_at"]
+                        )
+                        alerts.append(alert)
+                    except (json.JSONDecodeError, ValueError) as e:
+                        self.logger.error(f"Failed to parse alert from database: {str(e)}")
                 
         except Exception as e:
             self.logger.error(f"Failed to retrieve alerts from database: {str(e)}")
@@ -191,17 +202,21 @@ class DatabaseAlertHistory(AlertHistoryStorage):
                 # Build update query
                 set_clauses = []
                 params = []
+                param_index = 1
                 
                 for key, value in updates.items():
                     if key == "acknowledged":
-                        set_clauses.append("acknowledged = ?")
-                        params.append(1 if value else 0)
-                    elif key == "acknowledged_by":
-                        set_clauses.append("acknowledged_by = ?")
+                        set_clauses.append(f"acknowledged = ${param_index}")
                         params.append(value)
+                        param_index += 1
+                    elif key == "acknowledged_by":
+                        set_clauses.append(f"acknowledged_by = ${param_index}")
+                        params.append(value)
+                        param_index += 1
                     elif key == "acknowledged_at":
-                        set_clauses.append("acknowledged_at = ?")
-                        params.append(value.isoformat() if value else None)
+                        set_clauses.append(f"acknowledged_at = ${param_index}")
+                        params.append(value)
+                        param_index += 1
                     # Add other fields as needed
                 
                 if not set_clauses:
@@ -211,19 +226,18 @@ class DatabaseAlertHistory(AlertHistoryStorage):
                 params.append(alert_id)
                 
                 # Execute update
-                async with aiosqlite.connect(self.db_path) as db:
-                    cursor = await db.execute(
-                        f"UPDATE alerts SET {', '.join(set_clauses)} WHERE alert_id = ?",
-                        params
+                async with self.pool.acquire() as conn:
+                    status = await conn.execute(
+                        f"UPDATE alerts SET {', '.join(set_clauses)} WHERE alert_id = ${param_index}",
+                        *params
                     )
-                    await db.commit()
                     
-                    if cursor.rowcount > 0:
-                        self.logger.debug(f"Updated alert in database: {alert_id}")
-                        return True
-                    else:
+                    if status.endswith("0"):
                         self.logger.warning(f"Alert not found for update: {alert_id}")
                         return False
+                    else:
+                        self.logger.debug(f"Updated alert in database: {alert_id}")
+                        return True
                 
             except Exception as e:
                 self.logger.error(f"Failed to update alert in database: {str(e)}")
@@ -240,7 +254,15 @@ def create_database_alert_history(config: Dict[str, Any]) -> AlertHistoryStorage
     Returns:
         AlertHistoryStorage: Database alert history storage instance
     """
-    db_path = config.get("db_path", "alerts.db")
-    storage = DatabaseAlertHistory(db_path=db_path)
+    # Build PostgreSQL connection params from config
+    connection_params = {
+        "host": config.get("host", "localhost"),
+        "port": config.get("port", 5432),
+        "user": config.get("user", "postgres"),
+        "password": config.get("password", "postgres"),
+        "database": config.get("database", "alphapulse"),
+    }
+    
+    storage = DatabaseAlertHistory(connection_params=connection_params)
     asyncio.create_task(storage.initialize())
     return storage
