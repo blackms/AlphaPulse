@@ -273,12 +273,46 @@ class ExchangeDataSynchronizer:
             logger.info(f"[{loop_thread_key}] Starting queued sync for {exchange_id}, type: {data_type}")
             
             try:
-                # Run the sync directly instead of creating a task
-                await self._sync_exchange_data(exchange_id, data_type)
+                # Ensure we're using the correct event loop
+                current_loop = asyncio.get_running_loop()
+                loop_id = id(current_loop)
+                logger.debug(f"[{loop_thread_key}] Using event loop {loop_id} for sync operation")
+                
+                # Define a function that will be executed with retry logic
+                async def run_sync():
+                    try:
+                        return await self._sync_exchange_data(exchange_id, data_type)
+                    except Exception as sync_error:
+                        error_msg = str(sync_error)
+                        # Check for event loop conflicts
+                        if isinstance(sync_error, RuntimeError) and "attached to a different loop" in error_msg:
+                            logger.error(f"[{loop_thread_key}] Event loop conflict detected: {error_msg}")
+                            raise sync_error
+                        elif "connection was closed" in error_msg or "cannot perform operation" in error_msg:
+                            logger.error(f"[{loop_thread_key}] Database connection error: {error_msg}")
+                            raise sync_error
+                        else:
+                            logger.error(f"[{loop_thread_key}] Error in sync operation: {error_msg}")
+                            raise sync_error
+                
+                # Execute the sync with retry logic
+                await execute_with_retry(run_sync)
+                
             except Exception as e:
                 logger.error(f"[{loop_thread_key}] Error syncing {data_type} for {exchange_id}: {str(e)}")
                 logger.error(f"[{loop_thread_key}] Exception type: {type(e).__name__}")
                 logger.error(f"[{loop_thread_key}] Exception details: {repr(e)}")
+                
+                # Update sync status to failed if possible
+                try:
+                    await self._task_manager.update_sync_status(
+                        exchange_id,
+                        data_type,
+                        SyncStatus.FAILED,
+                        f"Sync failed: {str(e)}"
+                    )
+                except Exception as update_error:
+                    logger.error(f"[{loop_thread_key}] Could not update sync status after failure: {str(update_error)}")
     
     async def _check_scheduled_syncs(self):
         """Check for scheduled syncs that need to run."""
@@ -302,31 +336,47 @@ class ExchangeDataSynchronizer:
         """
         Synchronize data for a specific exchange and data type.
         
+        This method has been enhanced to handle event loop conflicts and database connection
+        issues by using isolated connections for each operation and proper retry logic.
+        
         Args:
             exchange_id: Exchange identifier
             data_type: Type of data to synchronize
         """
+        # Get loop information for debugging
         loop_thread_key = get_loop_thread_key()
-        logger.debug(f"[{loop_thread_key}] Starting sync for {exchange_id}, type: {data_type}")
+        current_loop = asyncio.get_running_loop()
+        loop_id = id(current_loop)
         
-        # Mark as in progress and set next sync time
-        try:
-            await self._task_manager.update_sync_status(
-                exchange_id,
-                data_type,
-                SyncStatus.IN_PROGRESS
-            )
-        except Exception as e:
-            logger.error(f"[{loop_thread_key}] Error updating initial sync status: {str(e)}")
+        logger.debug(f"[{loop_thread_key}] Starting sync for {exchange_id}, type: {data_type}, loop: {loop_id}")
         
-        # Define a function to get a repository with a new connection
-        async def get_repository():
+        # Define a function to get a repository with isolated connection
+        # This is crucial to prevent database conflicts
+        async def get_fresh_repository():
             async with get_db_connection() as conn:
                 return ExchangeCacheRepository(conn)
         
+        # Mark as in progress with proper retry logic
         try:
-            # Get exchange instance
-            exchange = await self._exchange_manager.get_exchange(exchange_id)
+            async def update_status_op():
+                await self._task_manager.update_sync_status(
+                    exchange_id,
+                    data_type,
+                    SyncStatus.IN_PROGRESS
+                )
+            # Use retry logic for database operations
+            await execute_with_retry(update_status_op)
+        except Exception as e:
+            logger.error(f"[{loop_thread_key}] Error updating initial sync status: {str(e)}")
+            logger.error(f"[{loop_thread_key}] Exception type: {type(e).__name__}")
+            # Continue with the sync despite the status update failure
+        
+        try:
+            # Get exchange instance with retry logic
+            async def get_exchange_op():
+                return await self._exchange_manager.get_exchange(exchange_id)
+            
+            exchange = await execute_with_retry(get_exchange_op)
             
             if not exchange:
                 logger.error(f"[{loop_thread_key}] Failed to get exchange for {exchange_id}. Troubleshooting steps:")
@@ -336,113 +386,143 @@ class ExchangeDataSynchronizer:
                 logger.error("4. Check for any IP restrictions on your API key")
                 logger.error("5. Run debug_bybit_auth.py or debug_exchange_connection.py for more details")
                 
-                # Update status to failed
+                # Update status to failed with retry logic
                 try:
-                    await self._task_manager.update_sync_status(
-                        exchange_id,
-                        data_type,
-                        SyncStatus.FAILED,
-                        "Failed to initialize exchange"
-                    )
+                    async def update_failed_status_op():
+                        await self._task_manager.update_sync_status(
+                            exchange_id,
+                            data_type,
+                            SyncStatus.FAILED,
+                            "Failed to initialize exchange"
+                        )
+                    await execute_with_retry(update_failed_status_op)
                 except Exception as status_error:
                     logger.error(f"[{loop_thread_key}] Error updating sync status to failed: {str(status_error)}")
                 return
             
-            # Use execute_with_retry from our connection manager
-            # Synchronize based on data type
+            # Track sync success
             sync_success = False
+            
             try:
+                # Handle different data types
                 if data_type == DataType.ALL:
-                    # Sync all data types one by one with individual error handling
-                    # Use the same pattern as the individual types with proper isolation
+                    # Sync all data types individually with separate connections
+                    # This prevents "another operation is in progress" errors
+                    results = {
+                        "balances": False,
+                        "positions": False,
+                        "orders": False,
+                        "prices": False
+                    }
                     
-                    # Sync balances
+                    # Sync balances with proper isolation
                     try:
                         async def sync_balances_op():
-                            repo = await get_repository()
+                            # Get a fresh repository for this specific operation
+                            repo = await get_fresh_repository()
                             await self._data_synchronizer.sync_balances(exchange_id, exchange, repo)
                             return True
                         
-                        balances_success = await execute_with_retry(sync_balances_op)
+                        results["balances"] = await execute_with_retry(sync_balances_op)
                         logger.info(f"[{loop_thread_key}] Successfully synced balances for {exchange_id}")
+                        # Small delay to ensure connections are properly released
+                        await asyncio.sleep(0.5)
                     except Exception as e:
                         logger.error(f"[{loop_thread_key}] Error syncing balances for {exchange_id}: {str(e)}")
-                        balances_success = False
+                        logger.error(f"[{loop_thread_key}] Exception type: {type(e).__name__}")
                     
-                    # Sync positions
+                    # Sync positions with proper isolation
                     try:
                         async def sync_positions_op():
-                            repo = await get_repository()
+                            # Get a fresh repository for this specific operation
+                            repo = await get_fresh_repository()
                             await self._data_synchronizer.sync_positions(exchange_id, exchange, repo)
                             return True
                         
-                        positions_success = await execute_with_retry(sync_positions_op)
+                        results["positions"] = await execute_with_retry(sync_positions_op)
                         logger.info(f"[{loop_thread_key}] Successfully synced positions for {exchange_id}")
+                        # Small delay to ensure connections are properly released
+                        await asyncio.sleep(0.5)
                     except Exception as e:
                         logger.error(f"[{loop_thread_key}] Error syncing positions for {exchange_id}: {str(e)}")
-                        positions_success = False
+                        logger.error(f"[{loop_thread_key}] Exception type: {type(e).__name__}")
                     
-                    # Sync orders
+                    # Sync orders with proper isolation
                     try:
                         async def sync_orders_op():
-                            repo = await get_repository()
+                            # Get a fresh repository for this specific operation
+                            repo = await get_fresh_repository()
                             await self._data_synchronizer.sync_orders(exchange_id, exchange, repo)
                             return True
                         
-                        orders_success = await execute_with_retry(sync_orders_op)
+                        results["orders"] = await execute_with_retry(sync_orders_op)
                         logger.info(f"[{loop_thread_key}] Successfully synced orders for {exchange_id}")
+                        # Small delay to ensure connections are properly released
+                        await asyncio.sleep(0.5)
                     except Exception as e:
                         logger.error(f"[{loop_thread_key}] Error syncing orders for {exchange_id}: {str(e)}")
-                        orders_success = False
+                        logger.error(f"[{loop_thread_key}] Exception type: {type(e).__name__}")
                     
-                    # Sync prices
+                    # Sync prices with proper isolation
                     try:
                         async def sync_prices_op():
-                            repo = await get_repository()
+                            # Get a fresh repository for this specific operation
+                            repo = await get_fresh_repository()
                             await self._data_synchronizer.sync_prices(exchange_id, exchange, repo)
                             return True
                         
-                        prices_success = await execute_with_retry(sync_prices_op)
+                        results["prices"] = await execute_with_retry(sync_prices_op)
                         logger.info(f"[{loop_thread_key}] Successfully synced prices for {exchange_id}")
                     except Exception as e:
                         logger.error(f"[{loop_thread_key}] Error syncing prices for {exchange_id}: {str(e)}")
-                        prices_success = False
+                        logger.error(f"[{loop_thread_key}] Exception type: {type(e).__name__}")
                     
-                    # Consider the sync partially successful if at least one type succeeded
-                    sync_success = balances_success or positions_success or orders_success or prices_success
+                    # Consider success if at least one type succeeded
+                    sync_success = any(results.values())
                     
                     if sync_success:
-                        logger.info(f"[{loop_thread_key}] ALL sync completed with at least partial success for {exchange_id}")
+                        success_count = sum(1 for result in results.values() if result)
+                        logger.info(f"[{loop_thread_key}] ALL sync completed with {success_count}/4 successful operations for {exchange_id}")
                     else:
                         logger.error(f"[{loop_thread_key}] ALL sync failed completely for {exchange_id}")
+                
+                # Handle individual data types with proper isolation
                 elif data_type == DataType.BALANCES:
                     async def sync_balances_op():
-                        repo = await get_repository()
+                        repo = await get_fresh_repository()
                         await self._data_synchronizer.sync_balances(exchange_id, exchange, repo)
+                        return True
                     
-                    await execute_with_retry(sync_balances_op)
-                    sync_success = True
+                    sync_success = await execute_with_retry(sync_balances_op)
+                    logger.info(f"[{loop_thread_key}] Successfully synced balances for {exchange_id}")
+                
                 elif data_type == DataType.POSITIONS:
                     async def sync_positions_op():
-                        repo = await get_repository()
+                        repo = await get_fresh_repository()
                         await self._data_synchronizer.sync_positions(exchange_id, exchange, repo)
+                        return True
                     
-                    await execute_with_retry(sync_positions_op)
-                    sync_success = True
+                    sync_success = await execute_with_retry(sync_positions_op)
+                    logger.info(f"[{loop_thread_key}] Successfully synced positions for {exchange_id}")
+                
                 elif data_type == DataType.ORDERS:
                     async def sync_orders_op():
-                        repo = await get_repository()
+                        repo = await get_fresh_repository()
                         await self._data_synchronizer.sync_orders(exchange_id, exchange, repo)
+                        return True
                     
-                    await execute_with_retry(sync_orders_op)
-                    sync_success = True
+                    sync_success = await execute_with_retry(sync_orders_op)
+                    logger.info(f"[{loop_thread_key}] Successfully synced orders for {exchange_id}")
+                
                 elif data_type == DataType.PRICES:
                     async def sync_prices_op():
-                        repo = await get_repository()
+                        repo = await get_fresh_repository()
                         await self._data_synchronizer.sync_prices(exchange_id, exchange, repo)
+                        return True
                     
-                    await execute_with_retry(sync_prices_op)
-                    sync_success = True
+                    sync_success = await execute_with_retry(sync_prices_op)
+                    logger.info(f"[{loop_thread_key}] Successfully synced prices for {exchange_id}")
+            
             except Exception as sync_error:
                 logger.error(f"[{loop_thread_key}] Error during sync operation: {str(sync_error)}")
                 logger.error(f"[{loop_thread_key}] Exception type: {type(sync_error).__name__}")
@@ -451,24 +531,49 @@ class ExchangeDataSynchronizer:
             # Update status to completed if successful
             if sync_success:
                 try:
-                    await self._task_manager.update_sync_status(
-                        exchange_id,
-                        data_type,
-                        SyncStatus.COMPLETED
-                    )
+                    async def update_completed_status_op():
+                        await self._task_manager.update_sync_status(
+                            exchange_id,
+                            data_type,
+                            SyncStatus.COMPLETED
+                        )
+                    await execute_with_retry(update_completed_status_op)
                     logger.info(f"[{loop_thread_key}] Successfully completed sync for {exchange_id}, {data_type}")
                 except Exception as status_error:
                     logger.error(f"[{loop_thread_key}] Error updating sync status to completed: {str(status_error)}")
+            else:
+                # Update status to failed
+                try:
+                    async def update_failed_status_op():
+                        await self._task_manager.update_sync_status(
+                            exchange_id,
+                            data_type,
+                            SyncStatus.FAILED,
+                            "Sync operation failed - check logs for details"
+                        )
+                    await execute_with_retry(update_failed_status_op)
+                    logger.warning(f"[{loop_thread_key}] Updated sync status to FAILED for {exchange_id}, {data_type}")
+                except Exception as status_error:
+                    logger.error(f"[{loop_thread_key}] Error updating sync status to failed: {str(status_error)}")
+                    
         except Exception as e:
-            logger.error(f"[{loop_thread_key}] Error syncing {data_type} for {exchange_id}: {str(e)}")
+            logger.error(f"[{loop_thread_key}] Error in _sync_exchange_data for {exchange_id}, {data_type}: {str(e)}")
+            logger.error(f"[{loop_thread_key}] Exception type: {type(e).__name__}")
+            
+            # Check for event loop related errors
+            if isinstance(e, RuntimeError) and "attached to a different loop" in str(e):
+                logger.error(f"[{loop_thread_key}] Event loop conflict detected in sync operation. This needs to be handled by the caller.")
+            
             # Update status to failed
             try:
-                await self._task_manager.update_sync_status(
-                    exchange_id,
-                    data_type,
-                    SyncStatus.FAILED,
-                    str(e)
-                )
+                async def update_error_status_op():
+                    await self._task_manager.update_sync_status(
+                        exchange_id,
+                        data_type,
+                        SyncStatus.FAILED,
+                        f"Error: {type(e).__name__}: {str(e)}"
+                    )
+                await execute_with_retry(update_error_status_op)
             except Exception as inner_e:
                 logger.error(f"[{loop_thread_key}] Error updating sync status to failed: {str(inner_e)}")
     

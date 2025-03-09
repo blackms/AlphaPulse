@@ -1,101 +1,129 @@
 #!/usr/bin/env python3
 """
-Test script to verify the database connection pool fixes in the AlphaPulse data pipeline synchronizer.
-This script simulates multiple concurrent Bybit exchange synchronization operations to test the robustness
-of the new connection pool implementation.
+Test script for Bybit synchronization with improved connection handling.
+
+This script tests concurrent synchronization operations to verify
+the robustness of the connection handling improvements.
 """
 import asyncio
-import time
-import random
-from datetime import datetime, timezone
+import os
 import sys
+import time
+from datetime import datetime
+import threading
+
 from loguru import logger
 
-from alpha_pulse.data_pipeline.scheduler import DataType
-from alpha_pulse.data_pipeline.scheduler.sync_module.synchronizer import ExchangeDataSynchronizer
-from alpha_pulse.data_pipeline.database.connection_manager import initialize_connection_pools, close_all_pools, get_loop_thread_key
-
-# Configure logging
+# Set up logging
 logger.remove()
-logger.add(
-    sys.stdout, 
-    format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
-    level="INFO"
-)
-logger.add("bybit_sync_test.log", rotation="50 MB", level="DEBUG")
+logger.add(sys.stderr, level="INFO")
+logger.add("bybit_sync_test_{time}.log", level="DEBUG", rotation="100 MB")
 
-async def trigger_sync(synchronizer, exchange_id, data_type, delay=0):
-    """Trigger a sync operation with optional delay."""
-    if delay > 0:
-        await asyncio.sleep(delay)
-    
-    loop_thread_key = get_loop_thread_key()
-    logger.info(f"[{loop_thread_key}] Triggering sync for {exchange_id}, type: {data_type}")
-    synchronizer.trigger_sync(exchange_id, data_type)
-    logger.info(f"[{loop_thread_key}] Sync triggered for {exchange_id}, type: {data_type}")
+# Configure environment
+os.environ["EXCHANGE_TYPE"] = "bybit"
+
+# Import after setting environment
+from alpha_pulse.data_pipeline.scheduler.sync_module.synchronizer import ExchangeDataSynchronizer
+from alpha_pulse.data_pipeline.scheduler import DataType
+from alpha_pulse.data_pipeline.database.connection_manager import close_all_pools
+
 
 async def run_concurrent_syncs():
-    """Run multiple concurrent sync operations to test connection pool handling."""
-    # Initialize connection pools
-    await initialize_connection_pools()
+    """Run multiple concurrent sync operations to test connection handling."""
+    logger.info(f"[Thread {threading.get_ident()}] Starting concurrent sync test")
     
     # Create synchronizer
-    synchronizer = ExchangeDataSynchronizer(sync_interval=60)  # Short interval for testing
+    logger.info(f"[Thread {threading.get_ident()}] Creating synchronizer")
+    synchronizer = ExchangeDataSynchronizer()
     
-    start_time = datetime.now(timezone.utc)
-    logger.info(f"Starting concurrent sync test at: {start_time}")
+    # Trigger multiple syncs concurrently
+    logger.info(f"[Thread {threading.get_ident()}] Triggering multiple concurrent syncs")
+    
+    # Trigger sync for different data types
+    for data_type in [DataType.BALANCES, DataType.POSITIONS, DataType.ORDERS, DataType.PRICES]:
+        synchronizer.trigger_sync("bybit", data_type)
+        logger.info(f"[Thread {threading.get_ident()}] Triggered sync for {data_type}")
+    
+    # Also trigger an ALL sync
+    synchronizer.trigger_sync("bybit", DataType.ALL)
+    logger.info(f"[Thread {threading.get_ident()}] Triggered ALL sync")
+    
+    # Wait for syncs to complete
+    logger.info(f"[Thread {threading.get_ident()}] Waiting for syncs to complete (up to 2 minutes)")
+    for i in range(24):  # 2 minutes (24 * 5 seconds)
+        await asyncio.sleep(5)
+        logger.info(f"[Thread {threading.get_ident()}] Still waiting... ({i+1}/24)")
+    
+    logger.info(f"[Thread {threading.get_ident()}] Test completed")
+
+
+async def run_in_new_thread():
+    """Run an additional sync in a new thread to test thread isolation."""
+    thread = threading.Thread(target=lambda: asyncio.run(thread_sync()))
+    thread.start()
+    thread.join()
+
+
+async def thread_sync():
+    """Run a sync operation in a separate thread."""
+    thread_id = threading.get_ident()
+    logger.info(f"[Thread {thread_id}] Starting sync in separate thread")
+    
+    # Create a new synchronizer instance in this thread
+    synchronizer = ExchangeDataSynchronizer()
+    
+    # Trigger a sync
+    synchronizer.trigger_sync("bybit", DataType.ALL)
+    logger.info(f"[Thread {thread_id}] Triggered ALL sync in separate thread")
+    
+    # Wait for sync to complete
+    for i in range(12):  # 1 minute
+        await asyncio.sleep(5)
+        logger.info(f"[Thread {thread_id}] Thread sync waiting... ({i+1}/12)")
+    
+    logger.info(f"[Thread {thread_id}] Thread sync completed")
+
+
+async def main():
+    """Main test function."""
+    logger.info("=== Starting Bybit Sync Connection Test ===")
+    logger.info(f"Test started at: {datetime.now().isoformat()}")
+    logger.info(f"Main thread ID: {threading.get_ident()}")
     
     try:
-        # Create tasks for different data types with slightly staggered starts
-        tasks = [
-            asyncio.create_task(trigger_sync(synchronizer, "bybit", DataType.BALANCES, delay=0.1)),
-            asyncio.create_task(trigger_sync(synchronizer, "bybit", DataType.POSITIONS, delay=0.2)),
-            asyncio.create_task(trigger_sync(synchronizer, "bybit", DataType.ORDERS, delay=0.3)),
-            asyncio.create_task(trigger_sync(synchronizer, "bybit", DataType.PRICES, delay=0.4)),
-            # Trigger ALL sync which will test handling multiple operations
-            asyncio.create_task(trigger_sync(synchronizer, "bybit", DataType.ALL, delay=0.5)),
-        ]
+        # Run a sync in the main thread
+        task1 = asyncio.create_task(run_concurrent_syncs())
         
-        # Wait for all trigger tasks to complete
-        await asyncio.gather(*tasks)
-        logger.info("All sync operations triggered")
+        # Wait a bit before starting the thread test
+        await asyncio.sleep(10)
         
-        # Wait some time for the syncs to complete (they'll run in the background thread)
-        test_duration = 30  # seconds
-        logger.info(f"Waiting {test_duration} seconds for sync operations to complete...")
+        # Run another sync in a different thread
+        await run_in_new_thread()
         
-        for i in range(test_duration):
-            if i % 5 == 0:
-                logger.info(f"Elapsed time: {i}s")
-            await asyncio.sleep(1)
-    
-    except Exception as e:
-        logger.error(f"Error during concurrent sync test: {str(e)}")
-        logger.error(f"Exception type: {type(e).__name__}")
-        logger.error(f"Exception details: {repr(e)}")
-    finally:
-        # Attempt to shut down the synchronizer
-        logger.info("Stopping synchronizer...")
-        synchronizer.stop()
+        # Wait for the main sync to complete
+        await task1
         
-        # Close all connection pools
-        logger.info("Closing all database connection pools...")
+        # Ensure all pools are cleanly closed
         await close_all_pools()
-    
-    end_time = datetime.now(timezone.utc)
-    duration = (end_time - start_time).total_seconds()
-    logger.info(f"Finished concurrent sync test at: {end_time}")
-    logger.info(f"Total test duration: {duration:.2f} seconds")
-    logger.info("Check the log file 'bybit_sync_test.log' for detailed logs")
+        
+    except Exception as e:
+        logger.error(f"Error in test: {str(e)}")
+        logger.error(f"Exception type: {type(e).__name__}")
+    finally:
+        try:
+            await close_all_pools()
+        except Exception as e:
+            logger.error(f"Error closing pools: {str(e)}")
+            
+        logger.info(f"Test completed at: {datetime.now().isoformat()}")
+        logger.info("=== Bybit Sync Connection Test Complete ===")
+
 
 if __name__ == "__main__":
-    logger.info("=== Bybit Connection Pool Test ===")
-    logger.info("Testing concurrent database operations with the new connection pool")
-    
     try:
-        asyncio.run(run_concurrent_syncs())
-        logger.info("Test completed successfully")
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.warning("Test interrupted by user")
     except Exception as e:
-        logger.error(f"Test failed with error: {str(e)}")
+        logger.error(f"Unhandled exception: {str(e)}")
         logger.error(f"Exception type: {type(e).__name__}")
-        logger.error(f"Exception details: {repr(e)}")

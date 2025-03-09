@@ -32,7 +32,7 @@ BASE_RETRY_DELAY = 0.5
 
 # Store pools by event loop ID and thread ID
 _connection_pools: Dict[str, asyncpg.Pool] = {}
-_pool_creation_lock = threading.Lock()
+_pool_creation_locks: Dict[str, asyncio.Lock] = {}
 
 def get_loop_thread_key() -> str:
     """
@@ -190,6 +190,11 @@ async def execute_with_retry(operation: Callable[[], Coroutine], max_retries: in
     """
     Execute a database operation with retry logic.
     
+    This function handles database operation retries with proper error handling for:
+    - InterfaceError (especially "another operation is in progress")
+    - ConnectionDoesNotExistError (connection closed during operation)
+    - Event loop related errors
+    
     Args:
         operation: Async function that performs the database operation
         max_retries: Maximum number of retry attempts
@@ -204,39 +209,80 @@ async def execute_with_retry(operation: Callable[[], Coroutine], max_retries: in
     last_error = None
     loop_thread_key = get_loop_thread_key()
     
+    # Verify we're in a valid event loop
+    try:
+        current_loop = asyncio.get_running_loop()
+    except RuntimeError:
+        raise RuntimeError("execute_with_retry must be called from an async context with an active event loop")
+    
     while retry_count < max_retries:
         try:
+            # Execute the operation
             return await operation()
+            
         except (asyncpg.InterfaceError, asyncpg.ConnectionDoesNotExistError) as e:
             last_error = e
             retry_count += 1
             
             error_msg = str(e)
-            if "another operation is in progress" in error_msg or "connection was closed" in error_msg:
+            error_type = type(e).__name__
+            
+            # Handle specific database connection errors
+            if ("another operation is in progress" in error_msg or
+                "connection was closed" in error_msg or
+                "connection is closed" in error_msg):
+                
                 if retry_count < max_retries:
                     # Calculate backoff time with jitter
                     backoff = BASE_RETRY_DELAY * (2 ** (retry_count - 1)) + random.uniform(0, 0.5)
-                    logger.warning(f"[{loop_thread_key}] Database operation failed (attempt {retry_count}): {error_msg}. Retrying in {backoff:.2f} seconds...")
+                    logger.warning(f"[{loop_thread_key}] Database operation failed (attempt {retry_count}): {error_type}: {error_msg}. Retrying in {backoff:.2f} seconds...")
                     
-                    # Reset the connection pool for this context to force new connections
-                    if loop_thread_key in _connection_pools:
+                    # For the last retry attempt, reset the connection pool as a more aggressive recovery action
+                    if retry_count == max_retries - 1 and loop_thread_key in _connection_pools:
                         try:
-                            await _connection_pools[loop_thread_key].close()
-                            del _connection_pools[loop_thread_key]
-                            logger.info(f"[{loop_thread_key}] Reset connection pool due to connection error")
+                            # Only close the pool if it's not already closed
+                            if not _connection_pools[loop_thread_key].is_closed():
+                                await _connection_pools[loop_thread_key].close()
+                                del _connection_pools[loop_thread_key]
+                                logger.info(f"[{loop_thread_key}] Reset connection pool due to persistent connection error")
                         except Exception as close_error:
                             logger.warning(f"[{loop_thread_key}] Error closing pool: {str(close_error)}")
                     
+                    # Wait before retry
                     await asyncio.sleep(backoff)
                 else:
-                    logger.error(f"[{loop_thread_key}] Database operation failed after {max_retries} attempts: {error_msg}")
+                    logger.error(f"[{loop_thread_key}] Database operation failed after {max_retries} attempts: {error_type}: {error_msg}")
                     raise
             else:
-                # For other interface errors, just re-raise
+                # For other interface errors, log and re-raise
+                logger.error(f"[{loop_thread_key}] Unhandled {error_type}: {error_msg}")
                 raise
+                
+        except RuntimeError as e:
+            # Handle event loop related errors
+            error_msg = str(e)
+            if "got Future" in error_msg and "attached to a different loop" in error_msg:
+                last_error = e
+                retry_count += 1
+                
+                if retry_count < max_retries:
+                    backoff = BASE_RETRY_DELAY * (2 ** (retry_count - 1)) + random.uniform(0, 0.5)
+                    logger.warning(f"[{loop_thread_key}] Event loop error (attempt {retry_count}): {error_msg}. Retrying in {backoff:.2f} seconds...")
+                    
+                    # For event loop issues, we need to use time.sleep instead of asyncio.sleep
+                    # as asyncio.sleep itself might fail with event loop issues
+                    time.sleep(backoff)
+                else:
+                    logger.error(f"[{loop_thread_key}] Operation failed after {max_retries} attempts due to event loop issues")
+                    raise
+            else:
+                # Other runtime errors
+                logger.error(f"[{loop_thread_key}] Runtime error: {error_msg}")
+                raise
+                
         except Exception as e:
             # For other exceptions, don't retry
-            logger.error(f"[{loop_thread_key}] Database operation error: {str(e)}")
+            logger.error(f"[{loop_thread_key}] Database operation error: {type(e).__name__}: {str(e)}")
             raise
     
     # If we've exhausted retries, raise the last error
@@ -245,7 +291,6 @@ async def execute_with_retry(operation: Callable[[], Coroutine], max_retries: in
     
     # This should never happen, but just in case
     raise RuntimeError("Unexpected error in execute_with_retry")
-
 
 @asynccontextmanager
 async def get_db_connection():
@@ -261,65 +306,211 @@ async def get_db_connection():
     Yields:
         Connection from the pool with active transaction
     """
+    # Get a unique key for the current event loop and thread
     loop_thread_key = get_loop_thread_key()
+    # Verify we're in a valid event loop
+    try:
+        current_loop = asyncio.get_running_loop()
+    except RuntimeError:
+        raise RuntimeError("get_db_connection must be called from an async context with an active event loop")
+        
     logger.debug(f"[{loop_thread_key}] Getting database connection")
     
     # Get the connection pool for this context
-    pool = await get_connection_pool()
+    pool = None
     conn = None
     tr = None
+    connection_error = False
     
     try:
+        # Get pool with retry logic but limit pool creation attempts
+        for attempt in range(1, MAX_RETRY_ATTEMPTS + 1):
+            try:
+                pool = await get_connection_pool()
+                break
+            except Exception as e:
+                if attempt < MAX_RETRY_ATTEMPTS:
+                    backoff = BASE_RETRY_DELAY * (2 ** (attempt - 1)) + random.uniform(0, 0.5)
+                    logger.warning(f"[{loop_thread_key}] Pool retrieval attempt {attempt} failed: {str(e)}. Retrying in {backoff:.2f}s...")
+                    await asyncio.sleep(backoff)
+                else:
+                    logger.error(f"[{loop_thread_key}] Failed to get connection pool after {MAX_RETRY_ATTEMPTS} attempts")
+                    raise
+        
         # Define the operation to acquire a connection
         async def acquire_connection():
-            return await pool.acquire()
+            conn = await pool.acquire()
+            # Set the correct isolation level to prevent concurrent operation errors
+            await conn.execute("SET TRANSACTION ISOLATION LEVEL READ COMMITTED")
+            return conn
         
-        # Acquire a connection with retry logic
-        conn = await execute_with_retry(acquire_connection)
+        # Acquire a connection with retry logic - carefully handle connection acquisition
+        for attempt in range(1, MAX_RETRY_ATTEMPTS + 1):
+            try:
+                if attempt > 1 and pool.is_closed():
+                    # Only recreate the pool if it's closed
+                    logger.warning(f"[{loop_thread_key}] Pool is closed, recreating for retry attempt {attempt}")
+                    pool = await get_connection_pool()
+                
+                # Get a connection from the pool
+                conn = await pool.acquire()
+                break
+            except (asyncpg.InterfaceError, asyncpg.ConnectionDoesNotExistError) as e:
+                if attempt < MAX_RETRY_ATTEMPTS:
+                    backoff = BASE_RETRY_DELAY * (2 ** (attempt - 1)) + random.uniform(0, 0.5)
+                    logger.warning(f"[{loop_thread_key}] Connection acquisition attempt {attempt} failed: {str(e)}. Retrying in {backoff:.2f}s...")
+                    
+                    # Only close the pool if we get a connection error
+                    if not pool.is_closed():
+                        try:
+                            # Only close the pool as a last resort
+                            if attempt == MAX_RETRY_ATTEMPTS - 1:
+                                await close_pool(loop_thread_key)
+                        except Exception as close_err:
+                            logger.warning(f"[{loop_thread_key}] Error closing pool: {str(close_err)}")
+                    
+                    await asyncio.sleep(backoff)
+                else:
+                    logger.error(f"[{loop_thread_key}] Failed to acquire connection after {MAX_RETRY_ATTEMPTS} attempts")
+                    connection_error = True
+                    raise
+            except Exception as e:
+                logger.error(f"[{loop_thread_key}] Unexpected error acquiring connection: {str(e)}")
+                connection_error = True
+                raise
         
-        # Start a transaction
-        tr = conn.transaction()
-        await tr.start()
-        logger.debug(f"[{loop_thread_key}] Started transaction")
+        # Start a transaction with retry logic and proper error handling
+        for attempt in range(1, MAX_RETRY_ATTEMPTS + 1):
+            try:
+                # Check if connection is still valid before starting transaction
+                if conn.is_closed():
+                    raise asyncpg.ConnectionDoesNotExistError("Connection closed before transaction start")
+                
+                # Set appropriate transaction isolation level to prevent concurrent operation errors
+                await conn.execute("SET TRANSACTION ISOLATION LEVEL READ COMMITTED")
+                
+                # Create and start the transaction
+                tr = conn.transaction()
+                await tr.start()
+                logger.debug(f"[{loop_thread_key}] Started transaction (attempt {attempt})")
+                break
+            except (asyncpg.InterfaceError, asyncpg.ConnectionDoesNotExistError) as e:
+                if attempt < MAX_RETRY_ATTEMPTS:
+                    backoff = BASE_RETRY_DELAY * (2 ** (attempt - 1)) + random.uniform(0, 0.5)
+                    logger.warning(f"[{loop_thread_key}] Transaction start attempt {attempt} failed: {str(e)}. Retrying in {backoff:.2f}s...")
+                    
+                    # Release the bad connection and get a new one
+                    try:
+                        if not conn.is_closed():
+                            await pool.release(conn)
+                    except Exception:
+                        pass  # Ignore errors on release of bad connection
+                    
+                    await asyncio.sleep(backoff)
+                    
+                    # Get a new connection without closing the entire pool
+                    try:
+                        conn = await pool.acquire()
+                    except Exception as acquire_error:
+                        logger.warning(f"[{loop_thread_key}] Failed to acquire new connection: {str(acquire_error)}")
+                        # Only as a last resort, reset the pool
+                        if attempt == MAX_RETRY_ATTEMPTS - 1:
+                            await close_pool(loop_thread_key)
+                            pool = await get_connection_pool()
+                            conn = await pool.acquire()
+                else:
+                    logger.error(f"[{loop_thread_key}] Failed to start transaction after {MAX_RETRY_ATTEMPTS} attempts")
+                    connection_error = True
+                    raise
+            except Exception as e:
+                logger.error(f"[{loop_thread_key}] Unexpected error starting transaction: {str(e)}")
+                connection_error = True
+                raise
         
         try:
             # Yield the connection
             yield conn
             
             # If we get here, commit the transaction
-            await tr.commit()
-            logger.debug(f"[{loop_thread_key}] Transaction committed")
+            if tr and not getattr(tr, '_done', True):  # Check if transaction is still active
+                try:
+                    if not conn.is_closed():  # Check if connection is still valid
+                        await tr.commit()
+                        logger.debug(f"[{loop_thread_key}] Transaction committed successfully")
+                    else:
+                        logger.warning(f"[{loop_thread_key}] Cannot commit transaction: connection is closed")
+                        connection_error = True
+                        raise asyncpg.ConnectionDoesNotExistError("Connection closed before commit")
+                except Exception as commit_error:
+                    logger.error(f"[{loop_thread_key}] Error committing transaction: {str(commit_error)}")
+                    # If commit fails, try to rollback
+                    try:
+                        if not conn.is_closed():  # Check if connection is still valid
+                            await tr.rollback()
+                            logger.warning(f"[{loop_thread_key}] Transaction rolled back after commit failure")
+                    except Exception:
+                        pass  # Suppress rollback errors after commit failure
+                    connection_error = True
+                    raise commit_error
         except Exception as e:
             # If an exception occurs, rollback the transaction
-            if tr and not tr._done:  # Check if transaction is still active
+            if tr and not getattr(tr, '_done', True):  # Check if transaction is still active
                 try:
-                    await tr.rollback()
-                    logger.warning(f"[{loop_thread_key}] Transaction rolled back due to error: {str(e)}")
+                    if not conn.is_closed():  # Check if connection is still valid
+                        await tr.rollback()
+                        logger.warning(f"[{loop_thread_key}] Transaction rolled back due to error: {str(e)}")
                 except Exception as rollback_error:
                     logger.error(f"[{loop_thread_key}] Error rolling back transaction: {str(rollback_error)}")
             
             # Re-raise the original exception
+            connection_error = True
             raise
     finally:
         # Always release the connection back to the pool
         if conn:
             try:
-                if tr and not tr._done:  # If transaction wasn't committed or rolled back
+                # One final check to ensure transaction is closed
+                if tr and not getattr(tr, '_done', True) and not conn.is_closed():  # If transaction wasn't committed or rolled back
                     try:
                         await tr.rollback()
                         logger.warning(f"[{loop_thread_key}] Transaction rolled back in finally block")
                     except Exception as final_rollback_error:
                         logger.error(f"[{loop_thread_key}] Error in final transaction rollback: {str(final_rollback_error)}")
                 
-                await pool.release(conn)
-                logger.debug(f"[{loop_thread_key}] Released database connection back to pool")
-            except Exception as release_error:
-                logger.error(f"[{loop_thread_key}] Error releasing connection: {str(release_error)}")
-                
-                # If we can't release, the pool may be in a bad state
-                # Try to close and recreate it
+                # Only release if we have a pool and it's still open
+                if pool and not pool.is_closed() and not conn.is_closed():
+                    try:
+                        await pool.release(conn)
+                        logger.debug(f"[{loop_thread_key}] Released database connection back to pool")
+                    except Exception as release_error:
+                        logger.error(f"[{loop_thread_key}] Error releasing connection: {str(release_error)}")
+                        connection_error = True
+                elif conn and not conn.is_closed():
+                    # If pool is closed but connection is still open, try to close it directly
+                    try:
+                        await conn.close()
+                        logger.warning(f"[{loop_thread_key}] Closed connection directly due to closed pool")
+                    except Exception as close_error:
+                        logger.error(f"[{loop_thread_key}] Error closing connection directly: {str(close_error)}")
+            except Exception as final_error:
+                logger.error(f"[{loop_thread_key}] Error in connection cleanup: {str(final_error)}")
+                connection_error = True
+            
+            # If we had connection errors, the pool may be in a bad state
+            # Only close the pool if we had a serious error
+            if connection_error and loop_thread_key in _connection_pools:
                 try:
-                    await close_pool(loop_thread_key)
-                    logger.info(f"[{loop_thread_key}] Closed bad connection pool")
+                    # Check if there are many active connections still in use
+                    try:
+                        pool_status = f"Pool stats: {pool.get_size()}/{pool.get_max_size()} connections"
+                    except Exception:
+                        pool_status = "Could not get pool stats"
+                    
+                    logger.warning(f"[{loop_thread_key}] {pool_status}")
+                    
+                    # Only close the pool if it's not already closed
+                    if pool and not pool.is_closed():
+                        await close_pool(loop_thread_key)
+                        logger.info(f"[{loop_thread_key}] Closed bad connection pool due to errors")
                 except Exception as close_error:
                     logger.error(f"[{loop_thread_key}] Error closing bad pool: {str(close_error)}")
