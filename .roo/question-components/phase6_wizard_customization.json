@@ -1,0 +1,152 @@
+{
+  "title": "Expert Team Assembly",
+  "description": "Assemble your specialized project team",
+  "transition_message": "Based on your project's unique needs, I've identified specialized expertise areas that would best support your development journey. Let's assemble your expert team.",
+  "questions": [
+    {
+      "id": "team_presentation",
+      "question": "Based on your {project_type} project with {primary_language} and {framework_name}, I recommend assembling a team with the following specialized expertise areas. Does this team composition align with your project's needs?",
+      "type": "dynamic",
+      "dynamic_value": "recommended_modes_explanation",
+      "options": [
+        {"value": "yes", "label": "Yes, this team composition looks good"},
+        {"value": "adjust", "label": "I'd like to adjust the team composition"}
+      ],
+      "follow_ups": {
+        "yes": ["handoff_explanation"],
+        "adjust": ["team_adjustment"]
+      }
+    },
+    {
+      "id": "team_adjustment",
+      "question": "Let's review the recommended expertise areas. Which would you like to adjust?",
+      "type": "dynamic",
+      "dynamic_value": "selected_modes_grouping",
+      "multiple": true,
+      "follow_ups": ["adjustment_options"]
+    },
+    {
+      "id": "adjustment_options",
+      "question": "How would you like to adjust the {current_mode} expertise?",
+      "type": "multiple_choice",
+      "options": [
+        {"value": "modify", "label": "Modify its capabilities and focus areas"},
+        {"value": "remove", "label": "Remove this expertise from the team"},
+        {"value": "replace", "label": "Replace with different expertise"}
+      ],
+      "follow_ups": {
+        "modify": ["expertise_modification"],
+        "remove": ["remove_confirmation"],
+        "replace": ["replacement_options"]
+      }
+    },
+    {
+      "id": "expertise_modification",
+      "question": "The {current_mode} expertise currently focuses on:\n\n{current_role_definition}\n\nHow would you like to modify this expertise area?",
+      "type": "text",
+      "multiline": true,
+      "placeholder": "Describe how you'd like to adapt this expertise...",
+      "follow_ups": ["tools_adjustment"]
+    },
+    {
+      "id": "tools_adjustment",
+      "question": "Which capabilities should this expertise area have access to?",
+      "type": "multiple_select",
+      "options": [
+        {"value": "read", "label": "Accessing and analyzing files"},
+        {"value": "edit", "label": "Creating and modifying files"},
+        {"value": "command", "label": "Executing system commands"},
+        {"value": "browser", "label": "Interacting with web interfaces"},
+        {"value": "mcp", "label": "Accessing external tools and APIs"}
+      ],
+      "dynamic_value": "current_tools",
+      "follow_ups": ["instructions_adjustment"]
+    },
+    {
+      "id": "instructions_adjustment",
+      "question": "Any specific guidance you'd like to provide for how this expertise should be applied to your project?",
+      "type": "text",
+      "multiline": true,
+      "dynamic_value": "current_instructions",
+      "placeholder": "Add any specific guidance or priorities...",
+      "follow_ups": ["modification_review"]
+    },
+    {
+      "id": "modification_review",
+      "question": "Here's how the updated expertise area will support your project:\n\n{customized_config}\n\nDoes this align with your vision?",
+      "type": "multiple_choice",
+      "options": [
+        {"value": "yes", "label": "Yes, this looks good"},
+        {"value": "no", "label": "No, I'd like to make more adjustments"}
+      ],
+      "follow_ups": {
+        "yes": ["team_presentation"],
+        "no": ["expertise_modification"]
+      }
+    },
+    {
+      "id": "remove_confirmation",
+      "question": "Are you sure you want to remove the {current_mode} expertise from your team? This would mean losing specialized capabilities in:\n\n{current_role_definition}",
+      "type": "multiple_choice",
+      "options": [
+        {"value": "yes", "label": "Yes, remove this expertise"},
+        {"value": "no", "label": "No, keep this expertise"}
+      ],
+      "follow_ups": {
+        "yes": ["team_presentation"],
+        "no": ["team_adjustment"]
+      }
+    },
+    {
+      "id": "replacement_options",
+      "question": "Which expertise would you like to add to your team instead of {current_mode}?",
+      "type": "dynamic",
+      "dynamic_value": "available_modes",
+      "follow_ups": ["replacement_review"]
+    },
+    {
+      "id": "replacement_review",
+      "question": "Here's how the new expertise area will support your project:\n\n{replacement_description}\n\nWould you like to make this replacement?",
+      "type": "multiple_choice",
+      "options": [
+        {"value": "yes", "label": "Yes, add this expertise to the team"},
+        {"value": "no", "label": "No, consider different expertise"}
+      ],
+      "follow_ups": {
+        "yes": ["team_presentation"],
+        "no": ["replacement_options"]
+      }
+    },
+    {
+      "id": "handoff_explanation",
+      "question": "For projects that evolve over time, we can include specialized expertise in maintaining context and documentation through our handoff system. Would you like to include these capabilities in your team?",
+      "type": "multiple_choice",
+      "options": [
+        {"value": "yes", "label": "Yes, include handoff system expertise"},
+        {"value": "no", "label": "No, I don't need these capabilities"}
+      ],
+      "impacts": {
+        "yes": {
+          "add_modes": ["handoff-manager", "milestone-manager", "session-restorer"]
+        },
+        "no": {
+          "remove_modes": ["handoff-manager", "milestone-manager", "session-restorer"]
+        }
+      },
+      "follow_ups": ["team_finalization"]
+    },
+    {
+      "id": "team_finalization",
+      "question": "Your expert team is now fully assembled and ready to begin working on your {project_type} project. Each expertise area will contribute specialized capabilities as you develop your application.\n\nHere's an overview of your complete team and how they'll work together:\n\n{final_team_description}\n\nAre you ready to begin working with your team?",
+      "type": "multiple_choice",
+      "options": [
+        {"value": "yes", "label": "Yes, I'm ready to start"},
+        {"value": "adjust", "label": "I'd like to make some final adjustments"}
+      ],
+      "follow_ups": {
+        "yes": [],
+        "adjust": ["team_adjustment"]
+      }
+    }
+  ]
+}

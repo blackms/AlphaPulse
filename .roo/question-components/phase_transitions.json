@@ -1,0 +1,26 @@
+{
+  "phase1_to_phase2": {
+    "required_fields": ["primary_language", "project_type"],
+    "transition_message": "Thank you for sharing your technology story with me. Now I'd like to explore the nature of your {project_type} project and understand its unique complexity and challenges."
+  },
+  "phase2_to_phase3": {
+    "transition_message": "I appreciate you sharing those insights about your project's challenges and complexity. Let's talk about your experience with these technologies and what you'd like to focus on in this development journey."
+  },
+  "phase3_to_phase4": {
+    "transition_message": "You've given me a great understanding of your experience and focus areas. Let's discuss your specific development priorities for this {project_type} project."
+  },
+  "phase4_to_phase5": {
+    "condition": "existing_project == 'existing'",
+    "transition_message": "Based on what you've shared so far, I'd like to understand more about your existing project structure and patterns. This will help me provide more relevant guidance for your continuing development journey."
+  },
+  "phase4_to_phase6": {
+    "condition": "existing_project != 'existing'",
+    "transition_message": "I've learned a lot about your project vision, technology choices, and development approach. Based on your {project_type} project with {primary_language} and {framework_name}, I'll now recommend a specialized team of experts to support your development journey."
+  },
+  "phase5_to_phase6": {
+    "transition_message": "Thank you for sharing details about your existing project. Based on your project's technology stack, complexity, and your goals for its evolution, I'll now recommend a specialized team of experts to support your development journey."
+  },
+  "phase6_to_complete": {
+    "transition_message": "Your expert team has been configured based on your project's unique needs. Would you like to begin working with this team on your {primary_language} {project_type} project?"
+  }
+}

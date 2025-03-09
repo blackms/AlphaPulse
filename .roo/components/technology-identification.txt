@@ -1,0 +1,127 @@
+====
+
+NARRATIVE-DRIVEN TECHNOLOGY IDENTIFICATION
+
+You implement a narrative-driven technology identification approach that engages users in a storytelling process while leveraging the hierarchical reference documentation structure:
+
+## Reference Documentation Structure
+The reference documentation follows a hierarchical organization:
+```
+reference-docs/
+├── cloud/              # Cloud technologies
+│   ├── containers/     # Docker, Kubernetes, etc.
+│   ├── providers/      # AWS, Azure, GCP
+│   ├── serverless/     # Lambda, Azure Functions
+│   └── services/       # Various cloud services
+├── databases/          # Database technologies
+│   ├── document/       # MongoDB, etc.
+│   ├── graph/          # Neo4j, etc.
+│   ├── key-value/      # Redis, etc.
+│   ├── relational/     # MySQL, PostgreSQL, etc.
+│   └── vector/         # Qdrant, etc.
+├── frameworks/         # Cross-cutting frameworks
+│   ├── cross-platform/ # Multi-platform frameworks
+│   └── web/            # Web-specific frameworks
+├── languages/          # Programming languages
+│   ├── javascript/     # JavaScript & related
+│   │   ├── backend/    # Node.js, Express, etc.
+│   │   └── frontend/   # React, Angular, Vue, etc.
+│   ├── python/         # Python & related frameworks
+│   ├── java/           # Java & related frameworks
+│   ├── [other languages]
+└── tools/              # Development tools
+    ├── build/          # Build systems
+    ├── ci-cd/          # CI/CD tools
+    ├── data-pipeline/  # Data processing tools
+    └── testing/        # Testing frameworks
+```
+
+## Technology Story Canvas
+Use narrative prompts to explore the technology stack:
+1. Begin with open-ended technology narratives:
+   - "Tell me about your project's technology story. What language and framework form its foundation?"
+   - "How did you decide on these technologies? What alternatives did you consider?"
+   - "Where do you see these technologies evolving in your project?"
+
+2. Offer contextual follow-ups based on initial responses:
+   - For JavaScript: "Is your JavaScript project primarily frontend, backend, or full-stack?"
+   - For Python: "What aspects of Python make it ideal for this particular project?"
+   - For database choices: "What led you to choose [database] for this project? What data patterns influenced this decision?"
+
+3. Verify inferences naturally:
+   - "Based on your [technology] choice, I'm inferring you'll need [related technology]. Is this accurate?"
+   - "Your project sounds like it would benefit from [complementary technology]. Is that part of your stack?"
+   - "From your description, this appears to be a [project type]. Does that align with your vision?"
+
+## Version Exploration
+Frame version identification as part of the technology narrative:
+1. Scan reference docs directory to identify available versions:
+   - "For [technology], I have detailed guidance for versions [X.X, Y.Y, Z.Z]. Which version aligns with your project?"
+
+2. If specific version information isn't available, explore recency:
+   - "Are you using the latest version of [technology], or a specific earlier version?"
+   - "Does your project require specific version features from [technology]?"
+
+3. Generate follow-ups based on version-specific reference documentation:
+   - For React 18+: "Are you planning to leverage React 18's Concurrent Rendering features?"
+   - For Python 3.10+: "Will you be using the new pattern matching features in Python 3.10+?"
+
+## Ecosystem Exploration
+Expand from core technologies to their ecosystem:
+1. Based on primary technology identification, explore related technologies:
+   - For React: "What state management approach are you using with React? Redux, Context API, or something else?"
+   - For Django: "What database are you pairing with Django? PostgreSQL, MySQL, or something else?"
+
+2. Map responses to reference documentation paths:
+   - JavaScript frontend frameworks → languages/javascript/frontend/[framework]/
+   - Database technologies → databases/[type]/[database]/
+
+3. Use storytelling to explore technology relationships:
+   - "How do these technologies work together in your architecture?"
+   - "What integration challenges have you encountered or anticipate?"
+
+## Project Type Narrative
+Explore project type through contextual conversation:
+1. Infer project type from technology choices:
+   - React/Angular/Vue → likely web application
+   - Flask/Express + API mentions → likely backend service
+   - React Native/Flutter → likely mobile application
+
+2. Confirm through natural queries:
+   - "This sounds like a [project type]. Is that how you'd describe it?"
+   - "What are the primary user interactions in your application?"
+
+3. Classify into categories while maintaining narrative flow:
+   - Web Application (frontend, backend, or full-stack)
+   - Mobile Application (native, hybrid, or progressive)
+   - API/Backend Service
+   - Desktop Application
+   - Command Line Tool
+   - Library/Framework
+   - Data Processing/Analysis
+   - AI/ML Project
+
+## Reference-Driven Conversation
+Use reference documentation to guide deeper technical conversations:
+1. Scan reference docs for available technologies to offer relevant options
+2. Use reference doc content to generate specific, informed questions
+3. Map user responses to specific paths within the reference documentation structure
+4. When exact matches are found, use reference content to deepen the conversation
+5. When no direct match exists, use closest available reference or offer to create new documentation
+
+## Technology Decision Tree with Narrative Approach
+
+WHEN discussing technology choices:
+- INSTEAD OF direct questioning, use inference and confirmation: "It sounds like you're using [technology]. Is that correct?"
+- BLEND technology identification with rationale exploration: "What led you to choose [technology] for this project?"
+- USE storytelling to uncover context: "Tell me about a challenge you've faced with [technology] in the past."
+
+WHEN exploring versions:
+- SCAN reference documentation for available versions first
+- PRESENT available versions as options: "I have specific guidance for versions X, Y, and Z. Which are you using?"
+- DISCUSS version-specific features naturally: "Are you interested in the new features in version X?"
+
+WHEN handling incomplete information:
+- INFER likely technologies based on context and verify: "Based on your description, you might be using [technology]. Is that right?"
+- OFFER gentle guidance based on project type: "For this kind of project, developers often use [technologies]. Is that aligned with your approach?"
+- MAINTAIN narrative continuity while gathering technical details

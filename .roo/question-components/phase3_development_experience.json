@@ -1,0 +1,107 @@
+{
+  "title": "Development Experience",
+  "description": "Explore your experience and development priorities through specific scenarios",
+  "transition_message": "Let's talk about your experience with these technologies and what you'd like to focus on.",
+  "questions": [
+    {
+      "id": "technology_experience_story",
+      "question": "Tell me about your experience with {primary_language} and {framework_name}. What aspects do you find most interesting or challenging?",
+      "type": "text",
+      "placeholder": "e.g., I've been working with React for 2 years and particularly enjoy component composition...",
+      "follow_ups": ["experience_level_inference"]
+    },
+    {
+      "id": "experience_level_inference",
+      "question": "Based on your description, you seem to have {inferred_experience} experience with this technology stack. Is that accurate?",
+      "type": "multiple_choice",
+      "dynamic_inferred": "experience_level",
+      "options": [
+        {"value": "yes", "label": "Yes, that's accurate"},
+        {"value": "no", "label": "No, let me clarify"}
+      ],
+      "follow_ups": {
+        "yes": ["experience_level_set"],
+        "no": ["experience_level_selection"]
+      }
+    },
+    {
+      "id": "experience_level_set",
+      "type": "hidden",
+      "value_from": "inferred_experience",
+      "follow_ups": ["learning_interests"]
+    },
+    {
+      "id": "experience_level_selection",
+      "question": "How would you describe your experience level with this technology stack?",
+      "type": "multiple_choice",
+      "options": [
+        {"value": "beginner", "label": "Beginner (learning the basics)"},
+        {"value": "intermediate", "label": "Intermediate (some experience)"},
+        {"value": "advanced", "label": "Advanced (experienced developer)"}
+      ],
+      "impacts": {
+        "beginner": {
+          "add_modes": ["learn"],
+          "remove_modes": ["architect", "security", "perf", "cloud"],
+          "customInstructions": "Include learning-oriented documentation and explanations. Focus on fundamental concepts and patterns. Provide clear, step-by-step guidance."
+        },
+        "intermediate": {
+          "add_modes": [],
+          "remove_modes": [],
+          "customInstructions": "Balance explanations with implementation efficiency. Include references to best practices and patterns when appropriate."
+        },
+        "advanced": {
+          "add_modes": ["perf", "security"],
+          "remove_modes": ["learn"],
+          "customInstructions": "Focus on efficient implementation with minimal explanation of well-known concepts. Include advanced patterns and optimizations when appropriate."
+        }
+      },
+      "follow_ups": ["learning_interests"]
+    },
+    {
+      "id": "learning_interests",
+      "question": "What aspects of {primary_language} or {framework_name} are you hoping to learn more about while working on this project?",
+      "type": "text",
+      "placeholder": "e.g., I want to get better at state management patterns, learn about testing strategies...",
+      "follow_ups": ["development_focus_story"]
+    },
+    {
+      "id": "development_focus_story",
+      "question": "When you're developing a project like this, which aspects do you typically enjoy focusing on the most?",
+      "type": "text",
+      "placeholder": "e.g., I really enjoy frontend UI work, or I prefer focusing on data modeling and APIs...",
+      "follow_ups": ["developer_focus_confirmation"]
+    },
+    {
+      "id": "developer_focus_confirmation",
+      "question": "Based on your description, which aspects of development do you handle or enjoy most? (select all that apply)",
+      "type": "multiple_select",
+      "options": [
+        {"value": "frontend", "label": "Frontend Development (UI, UX, client-side logic)"},
+        {"value": "backend", "label": "Backend Development (APIs, server logic)"},
+        {"value": "fullstack", "label": "Full-stack Development (end-to-end features)"},
+        {"value": "design", "label": "UI/UX Design (interfaces, user flows)"},
+        {"value": "devops", "label": "DevOps & Deployment (infrastructure, CI/CD)"},
+        {"value": "testing", "label": "Testing & Quality Assurance"},
+        {"value": "data", "label": "Data Engineering/Analytics"}
+      ],
+      "mode_impacts": {
+        "frontend": ["frontend+2"],
+        "backend": ["backend+2"],
+        "fullstack": ["engineer+2"],
+        "design": ["ui+2"],
+        "devops": ["devops+2"],
+        "testing": ["qa+2"],
+        "data": ["dba+2", "analyst+2"]
+      },
+      "follow_ups": ["implementation_challenge"]
+    },
+    {
+      "id": "implementation_challenge",
+      "question": "Tell me about a technical challenge you've encountered with {framework_name} in the past. How did you overcome it?",
+      "type": "text",
+      "placeholder": "e.g., I struggled with handling complex state updates until I discovered a pattern that...",
+      "follow_ups": []
+    }
+  ]
+}

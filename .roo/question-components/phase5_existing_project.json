@@ -1,0 +1,103 @@
+{
+  "title": "Project History & Evolution",
+  "description": "Explore your project's journey and future direction",
+  "transition_message": "I'd like to learn more about your project's story - its past, present, and where you want to take it.",
+  "condition": "existing_project == 'existing'",
+  "questions": [
+    {
+      "id": "project_history",
+      "question": "Tell me the story of how your project evolved to its current state. What key decisions shaped its architecture and structure?",
+      "type": "text",
+      "multiline": true,
+      "placeholder": "e.g., We started with a simple prototype and gradually added features...",
+      "follow_ups": ["project_strengths"]
+    },
+    {
+      "id": "project_strengths",
+      "question": "What aspects of your project are you most proud of or consider particularly well-designed?",
+      "type": "text",
+      "placeholder": "e.g., Our component architecture is clean and maintainable...",
+      "follow_ups": ["preservation_priorities"]
+    },
+    {
+      "id": "preservation_priorities",
+      "question": "Based on your description, which elements of your existing project would you like to preserve as we continue development?",
+      "type": "multiple_select",
+      "options": [
+        {"value": "code_style", "label": "Code style and formatting patterns"},
+        {"value": "architecture", "label": "Architectural approach and structure"},
+        {"value": "testing", "label": "Testing methodology"},
+        {"value": "documentation", "label": "Documentation approach"},
+        {"value": "all", "label": "All existing conventions (maintain strict consistency)"},
+        {"value": "none", "label": "I'm open to fresh approaches in all areas"}
+      ],
+      "impacts": {
+        "code_style": {
+          "preserve_conventions": true,
+          "customInstructions": "Respect and continue existing code style and formatting patterns. Maintain consistency with established conventions while working within the codebase."
+        },
+        "architecture": {
+          "preserve_architecture": true,
+          "customInstructions": "Honor the established architectural patterns. Build new functionality within the existing structural approach rather than introducing different paradigms."
+        },
+        "testing": {
+          "preserve_testing": true,
+          "customInstructions": "Follow the project's testing philosophy and methodology. Maintain consistency with existing testing approaches when implementing new features."
+        },
+        "documentation": {
+          "preserve_docs": true,
+          "customInstructions": "Continue established documentation formats and styles. Ensure new documentation integrates seamlessly with existing materials."
+        },
+        "all": {
+          "preserve_all": true,
+          "customInstructions": "Strictly adhere to all established project conventions. Prioritize consistency with existing patterns across all aspects of development."
+        },
+        "none": {
+          "suggest_improvements": true,
+          "customInstructions": "Feel free to suggest improvements to existing approaches when appropriate. Balance respect for the existing codebase with opportunities for refinement."
+        }
+      },
+      "follow_ups": ["project_pain_points"]
+    },
+    {
+      "id": "project_pain_points",
+      "question": "What aspects of the current implementation would you change if you could start over? What challenges or pain points do you experience?",
+      "type": "text",
+      "multiline": true,
+      "placeholder": "e.g., Our test coverage is inconsistent, and our state management has become complex...",
+      "follow_ups": ["improvement_areas"]
+    },
+    {
+      "id": "improvement_areas",
+      "question": "Based on your description, which areas would you most like to focus on improving as the project evolves?",
+      "type": "multiple_select",
+      "options": [
+        {"value": "code_quality", "label": "Code quality and organization"},
+        {"value": "test_coverage", "label": "Testing approach and coverage"},
+        {"value": "documentation", "label": "Documentation and knowledge sharing"},
+        {"value": "architecture", "label": "Architecture and design patterns"},
+        {"value": "performance", "label": "Performance and optimization"},
+        {"value": "security", "label": "Security and data protection"},
+        {"value": "none", "label": "I'm satisfied with all aspects currently"}
+      ],
+      "mode_impacts": {
+        "code_quality": ["engineer+3", "architect+1"],
+        "test_coverage": ["qa+3"],
+        "documentation": ["writer+3"],
+        "architecture": ["architect+3"],
+        "performance": ["perf+3"],
+        "security": ["security+3"],
+        "none": []
+      },
+      "follow_ups": ["project_future"]
+    },
+    {
+      "id": "project_future",
+      "question": "Looking ahead, how do you envision this project evolving? What new directions or capabilities are you considering?",
+      "type": "text",
+      "multiline": true,
+      "placeholder": "e.g., We're planning to add real-time collaboration features and expand our API...",
+      "follow_ups": []
+    }
+  ]
+}

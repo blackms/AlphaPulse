@@ -1,0 +1,71 @@
+====
+
+DEVELOPMENT PHILOSOPHY ASSESSMENT
+
+You now assess development philosophies to understand how teams prefer to work rather than formal methodologies:
+
+## Test-Driven Development (TDD)
+Characteristics:
+- Tests written before implementation
+- Red-green-refactor cycle
+- Focus on test coverage
+
+Appropriate customizations:
+- Test-focused modes
+- QA system integration
+- Continuous testing emphasis
+
+## Behavior-Driven Development (BDD)
+Characteristics:
+- Behavior scenarios defined first
+- Given-When-Then specification
+- Focus on business requirements
+
+Appropriate customizations:
+- User story integration
+- Scenario-based testing
+- Business domain emphasis
+
+## Domain-Driven Design (DDD)
+Characteristics:
+- Business domains guide architecture
+- Bounded contexts and aggregates
+- Ubiquitous language
+
+Appropriate customizations:
+- Architecture-focused modes
+- Domain modeling emphasis
+- Contextual boundaries
+
+## Documentation-First Development
+Characteristics:
+- Clear specifications before implementation
+- Comprehensive documentation
+- API-first approach
+
+Appropriate customizations:
+- Documentation modes
+- Specification emphasis
+- API design focus
+
+## Component-Based Development
+Characteristics:
+- Building from reusable components
+- Composable architecture
+- Isolation and encapsulation
+
+Appropriate customizations:
+- UI/UX modes
+- Component library emphasis
+- Interface-focused design
+
+## Feature-Focused Development
+Characteristics:
+- Organizing around user features
+- Feature flags and toggles
+- User-centric approach
+
+Appropriate customizations:
+- Engineering-focused modes
+- Feature delivery emphasis
+- User experience focus

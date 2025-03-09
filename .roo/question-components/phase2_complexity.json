@@ -1,0 +1,173 @@
+{
+  "title": "Complexity Narrative",
+  "description": "Explore your project's complexity through storytelling",
+  "transition_message": "Now that I understand your technology landscape, let's explore the nature of your project through its complexity and challenges.",
+  "questions": [
+    {
+      "id": "project_challenge",
+      "question": "Describe a challenge you anticipate in this project. What makes it interesting or complex?",
+      "type": "text",
+      "placeholder": "e.g., Integrating with legacy systems, managing real-time data flows...",
+      "follow_ups": ["similar_projects"]
+    },
+    {
+      "id": "similar_projects",
+      "question": "Tell me about a similar project you've worked on before. How does this one compare in complexity?",
+      "type": "text",
+      "placeholder": "e.g., This is similar to my last project, but with more complex data relationships...",
+      "follow_ups": ["uncertainty_areas"]
+    },
+    {
+      "id": "uncertainty_areas",
+      "question": "What aspect of this project has the most uncertainty or keeps you up at night?",
+      "type": "text",
+      "placeholder": "e.g., Scaling to handle unpredictable traffic, ensuring security compliance...",
+      "follow_ups": ["adaptation_expectations"]
+    },
+    {
+      "id": "adaptation_expectations",
+      "question": "How much do you expect your approach to evolve as the project progresses?",
+      "type": "multiple_choice",
+      "options": [
+        {"value": "minimal", "label": "Minimal - I have a clear path forward"},
+        {"value": "moderate", "label": "Moderate - Some adaptation will be needed"},
+        {"value": "significant", "label": "Significant - The approach will likely evolve substantially"}
+      ],
+      "complexity_mapping": {
+        "minimal": "simple",
+        "moderate": "complicated",
+        "significant": "complex"
+      },
+      "follow_ups": ["solution_clarity"]
+    },
+    {
+      "id": "solution_clarity",
+      "question": "How would you describe your understanding of the solution path?",
+      "type": "multiple_choice",
+      "options": [
+        {"value": "clear", "label": "Very clear - I know exactly how to build it"},
+        {"value": "mostly_clear", "label": "Mostly clear - I know the general approach but will need to figure out some parts"},
+        {"value": "evolving", "label": "Evolving - The solution will emerge as we progress"}
+      ],
+      "complexity_mapping": {
+        "clear": "simple",
+        "mostly_clear": "complicated",
+        "evolving": "complex"
+      },
+      "follow_ups": ["project_complexity"]
+    },
+    {
+      "id": "project_complexity",
+      "type": "derived",
+      "derived_from": ["adaptation_expectations", "solution_clarity"],
+      "mapping_logic": "majority_vote",
+      "impacts": {
+        "simple": {
+          "priorities": ["speed", "standardization"],
+          "remove_modes": ["architect", "experimental"],
+          "customInstructions": "Focus on rapid implementation using established patterns. Favor straightforward approaches over clever solutions. Include essential tests focused on critical paths."
+        },
+        "complicated": {
+          "priorities": ["expertise", "best_practices"],
+          "add_modes": ["architect"],
+          "customInstructions": "Apply proven design patterns appropriate for this domain. Ensure comprehensive testing of edge cases. Document architectural decisions and their rationales."
+        },
+        "complex": {
+          "priorities": ["experimentation", "feedback_loops"],
+          "add_modes": ["experimental", "architect"],
+          "customInstructions": "Implement iterative solutions that can evolve. Start with minimal viable implementations. Build in feedback mechanisms and observability. Document assumptions and create easy paths for revision."
+        }
+      },
+      "follow_ups": ["development_approach"]
+    },
+    {
+      "id": "development_approach",
+      "question": "Tell me about your ideal development process. What practices and approaches do you value most?",
+      "type": "text",
+      "placeholder": "e.g., I prefer test-driven development with rapid iterations...",
+      "follow_ups": ["development_philosophy_confirmation"]
+    },
+    {
+      "id": "development_philosophy_confirmation",
+      "question": "Based on your description, which development approaches resonate with your style? (Select all that apply)",
+      "description": "These help me understand how to approach your project.",
+      "type": "multiple_select",
+      "options": [
+        {"value": "tdd", "label": "Test-Driven Development - Tests first, then code"},
+        {"value": "bdd", "label": "Behavior-Driven Development - Define behavior scenarios first"},
+        {"value": "ddd", "label": "Domain-Driven Design - Business domains guide architecture"},
+        {"value": "doc_first", "label": "Documentation-First - Clear specs before implementation"},
+        {"value": "component", "label": "Component-Based - Building from reusable parts"},
+        {"value": "feature", "label": "Feature-Focused - Organizing around user features"},
+        {"value": "none", "label": "No specific philosophy - Pragmatic approach"}
+      ],
+      "mode_impacts": {
+        "tdd": ["qa+3", "engineer+1"],
+        "bdd": ["qa+2", "architect+1"],
+        "ddd": ["architect+3", "dba+1"],
+        "doc_first": ["writer+3", "architect+1"],
+        "component": ["frontend+2", "engineer+1"],
+        "feature": ["engineer+2", "architect+1"]
+      },
+      "follow_ups": ["quality_speed_balance"]
+    },
+    {
+      "id": "quality_speed_balance",
+      "question": "When you think about project success, how do you balance speed and quality?",
+      "type": "text",
+      "placeholder": "e.g., I value thorough testing but need to move quickly...",
+      "follow_ups": ["quality_priority"]
+    },
+    {
+      "id": "quality_priority",
+      "question": "Based on your approach, where would you position your project priorities?",
+      "type": "scale",
+      "label": "Development Speed vs. Code Quality",
+      "min_label": "1: Heavily favor speed (get it working now)",
+      "max_label": "5: Heavily favor quality (comprehensive testing)",
+      "default": 3,
+      "impacts": {
+        "1": {
+          "add_modes": ["engineer"],
+          "remove_modes": ["qa", "security", "writer"],
+          "customInstructions": "Prioritize working solutions over perfect code. Focus on core functionality first. Use simple, direct approaches for non-critical paths."
+        },
+        "2": {
+          "add_modes": ["engineer"],
+          "remove_modes": ["qa", "writer"]
+        },
+        "3": {
+          "balanced": true
+        },
+        "4": {
+          "add_modes": ["qa", "writer"],
+          "customInstructions": "Prioritize code quality and maintainability. Implement comprehensive test coverage for critical features."
+        },
+        "5": {
+          "add_modes": ["qa", "security", "writer"],
+          "remove_modes": ["experimental"],
+          "customInstructions": "Prioritize maintainable, well-tested code. Implement comprehensive test coverage. Follow established patterns and thoroughly test all code paths."
+        }
+      },
+      "follow_ups": ["handoff_value"]
+    },
+    {
+      "id": "handoff_value",
+      "question": "Projects that evolve over time benefit from our handoff system, which maintains context between sessions. Would this be valuable for your project's journey?",
+      "type": "multiple_choice",
+      "options": [
+        {"value": "yes", "label": "Yes, I'd like to use the handoff system"},
+        {"value": "no", "label": "No, I don't need that capability"}
+      ],
+      "impacts": {
+        "yes": {
+          "add_modes": ["handoff-manager", "milestone-manager", "session-restorer"]
+        },
+        "no": {
+          "remove_modes": ["handoff-manager", "milestone-manager", "session-restorer"]
+        }
+      },
+      "follow_ups": []
+    }
+  ]
+}

@@ -1,0 +1,1756 @@
+{
+  "assessment": {
+    "phase1_technology": {
+      "title": "Technology Story Canvas",
+      "description": "Explore your project's technology narrative",
+      "dynamic_options": {
+        "languages": "custom-modes-pool/reference-docs/languages/*/",
+        "frameworks": "custom-modes-pool/reference-docs/languages/{primary_language}/*/",
+        "framework_versions": "custom-modes-pool/reference-docs/languages/{primary_language}/{framework_type}/{framework}/*-v*.md"
+      },
+      "questions": [
+        {
+          "id": "existing_project",
+          "question": "Let's start by understanding your project context. Are you working on an existing codebase or starting a new project?",
+          "type": "multiple_choice",
+          "options": [
+            {
+              "value": "existing",
+              "label": "Existing project (I already have code)"
+            },
+            {
+              "value": "new",
+              "label": "New project (Starting fresh)"
+            }
+          ],
+          "follow_ups": {
+            "existing": [
+              "project_scan_permission"
+            ],
+            "new": [
+              "technology_story"
+            ]
+          }
+        },
+        {
+          "id": "project_scan_permission",
+          "question": "I'd like to understand your existing project better. Would you like me to scan the project files to get a sense of your technology landscape?",
+          "type": "multiple_choice",
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes, analyze my project to identify technologies"
+            },
+            {
+              "value": "no",
+              "label": "No, I'll share the details through our conversation"
+            }
+          ],
+          "follow_ups": {
+            "yes": [
+              "project_scan_path"
+            ],
+            "no": [
+              "technology_story"
+            ]
+          }
+        },
+        {
+          "id": "project_scan_path",
+          "question": "Great! Which directory should I examine to understand your project?",
+          "type": "text",
+          "placeholder": "e.g., . (current directory) or ./my-project",
+          "follow_ups": [
+            "scan_confirmation"
+          ]
+        },
+        {
+          "id": "scan_confirmation",
+          "question": "Based on my analysis, I see your project uses these technologies. Does this capture your technology landscape accurately?",
+          "type": "dynamic",
+          "dynamic_value": "scan_results",
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes, that's accurate"
+            },
+            {
+              "value": "partial",
+              "label": "Partially correct (I'll fill in the gaps)"
+            },
+            {
+              "value": "no",
+              "label": "No, let me describe my technology stack"
+            }
+          ],
+          "follow_ups": {
+            "yes": [
+              "technology_story_continuation"
+            ],
+            "partial": [
+              "technology_story"
+            ],
+            "no": [
+              "technology_story"
+            ]
+          }
+        },
+        {
+          "id": "technology_story",
+          "question": "Tell me about your project's technology story. What language and framework form its foundation?",
+          "type": "text",
+          "placeholder": "e.g., I'm using JavaScript with React for a web application...",
+          "follow_ups": [
+            "primary_language_confirmation"
+          ]
+        },
+        {
+          "id": "technology_story_continuation",
+          "question": "How did you decide on these technologies? Were there alternatives you considered?",
+          "type": "text",
+          "placeholder": "e.g., We chose React because...",
+          "follow_ups": [
+            "project_type_inference"
+          ]
+        },
+        {
+          "id": "primary_language_confirmation",
+          "question": "Based on your description, it sounds like your primary programming language is {inferred_language}. Is that correct?",
+          "type": "multiple_choice",
+          "dynamic_inferred": "primary_language",
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes, that's correct"
+            },
+            {
+              "value": "no",
+              "label": "No, let me specify"
+            }
+          ],
+          "follow_ups": {
+            "yes": [
+              "primary_language_set",
+              "framework_inference"
+            ],
+            "no": [
+              "primary_language_selection"
+            ]
+          }
+        },
+        {
+          "id": "primary_language_set",
+          "type": "hidden",
+          "value_from": "inferred_language",
+          "follow_ups": []
+        },
+        {
+          "id": "primary_language_selection",
+          "question": "What is the primary programming language for your project?",
+          "type": "dynamic_select",
+          "source": "languages",
+          "options_template": [
+            {
+              "value": "{language_id}",
+              "label": "{language_name}"
+            }
+          ],
+          "fallback_options": [
+            {
+              "value": "javascript",
+              "label": "JavaScript/TypeScript"
+            },
+            {
+              "value": "python",
+              "label": "Python"
+            },
+            {
+              "value": "java",
+              "label": "Java"
+            },
+            {
+              "value": "csharp",
+              "label": "C#"
+            },
+            {
+              "value": "go",
+              "label": "Go"
+            },
+            {
+              "value": "ruby",
+              "label": "Ruby"
+            },
+            {
+              "value": "php",
+              "label": "PHP"
+            },
+            {
+              "value": "rust",
+              "label": "Rust"
+            },
+            {
+              "value": "other",
+              "label": "Other"
+            }
+          ],
+          "follow_ups": [
+            "framework_inference"
+          ]
+        },
+        {
+          "id": "framework_inference",
+          "question": "For {language_name} projects, developers often use frameworks like {framework_examples}. Which framework or library are you using?",
+          "type": "dynamic_inferred",
+          "inferred_options": {
+            "javascript": "React, Angular, Vue, or Express",
+            "python": "Django, Flask, or FastAPI",
+            "ruby": "Rails, Sinatra, or Hanami",
+            "java": "Spring, Jakarta EE, or Quarkus",
+            "csharp": "ASP.NET Core, Entity Framework, or Blazor"
+          },
+          "follow_ups": [
+            "{language_id}_framework"
+          ]
+        },
+        {
+          "id": "project_type_inference",
+          "question": "From your description, this sounds like a {inferred_project_type} project. Is that how you would characterize it?",
+          "type": "multiple_choice",
+          "dynamic_inferred": "project_type",
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes, that's right"
+            },
+            {
+              "value": "no",
+              "label": "No, let me clarify"
+            }
+          ],
+          "follow_ups": {
+            "yes": [
+              "project_type_set"
+            ],
+            "no": [
+              "project_type_selection"
+            ]
+          }
+        },
+        {
+          "id": "project_type_set",
+          "type": "hidden",
+          "value_from": "inferred_project_type",
+          "follow_ups": []
+        },
+        {
+          "id": "project_type_selection",
+          "question": "How would you characterize your project?",
+          "type": "multiple_choice",
+          "options": [
+            {
+              "value": "web",
+              "label": "Web Application"
+            },
+            {
+              "value": "mobile",
+              "label": "Mobile Application"
+            },
+            {
+              "value": "service",
+              "label": "Backend Service"
+            },
+            {
+              "value": "cli",
+              "label": "Command Line Tool"
+            },
+            {
+              "value": "library",
+              "label": "Library/Framework"
+            },
+            {
+              "value": "enterprise",
+              "label": "Enterprise System"
+            },
+            {
+              "value": "data",
+              "label": "Data Processing/Analysis"
+            },
+            {
+              "value": "ai",
+              "label": "AI/ML Project"
+            }
+          ],
+          "follow_ups": []
+        },
+        {
+          "id": "{language_id}_framework",
+          "question": "Which {language_name} framework or library are you using for your project?",
+          "type": "dynamic_select",
+          "source": "frameworks",
+          "options_template": [
+            {
+              "value": "{framework_id}",
+              "label": "{framework_name}"
+            }
+          ],
+          "fallback_options": {
+            "javascript": [
+              {
+                "value": "react",
+                "label": "React"
+              },
+              {
+                "value": "angular",
+                "label": "Angular"
+              },
+              {
+                "value": "vue",
+                "label": "Vue.js"
+              },
+              {
+                "value": "next",
+                "label": "Next.js"
+              },
+              {
+                "value": "svelte",
+                "label": "Svelte"
+              },
+              {
+                "value": "express",
+                "label": "Express.js"
+              },
+              {
+                "value": "nodejs",
+                "label": "Node.js (without framework)"
+              },
+              {
+                "value": "vanilla",
+                "label": "Vanilla JS (no framework)"
+              },
+              {
+                "value": "other",
+                "label": "Other"
+              }
+            ],
+            "python": [
+              {
+                "value": "django",
+                "label": "Django"
+              },
+              {
+                "value": "flask",
+                "label": "Flask"
+              },
+              {
+                "value": "fastapi",
+                "label": "FastAPI"
+              },
+              {
+                "value": "other",
+                "label": "Other"
+              }
+            ],
+            "ruby": [
+              {
+                "value": "rails",
+                "label": "Ruby on Rails"
+              },
+              {
+                "value": "sinatra",
+                "label": "Sinatra"
+              },
+              {
+                "value": "hanami",
+                "label": "Hanami"
+              },
+              {
+                "value": "other",
+                "label": "Other"
+              }
+            ]
+          },
+          "follow_ups": [
+            "{framework_id}_version_story"
+          ]
+        },
+        {
+          "id": "{framework_id}_version_story",
+          "question": "What version of {framework_name} are you targeting? This helps me understand which specific features and patterns are relevant to your project.",
+          "type": "text",
+          "placeholder": "e.g., version 18, the latest version, etc.",
+          "follow_ups": [
+            "{framework_id}_version_confirmation"
+          ]
+        },
+        {
+          "id": "{framework_id}_version_confirmation",
+          "question": "I have specific guidance for these {framework_name} versions. Which best matches your project?",
+          "type": "dynamic_select",
+          "source": "framework_versions",
+          "options_template": [
+            {
+              "value": "{version}",
+              "label": "{framework_name} {version}"
+            }
+          ],
+          "fallback_options": {
+            "react": [
+              {
+                "value": "19",
+                "label": "React 19.x (Latest)"
+              },
+              {
+                "value": "18",
+                "label": "React 18.x"
+              },
+              {
+                "value": "17",
+                "label": "React 17.x"
+              },
+              {
+                "value": "other",
+                "label": "Other/Custom"
+              }
+            ],
+            "angular": [
+              {
+                "value": "17",
+                "label": "Angular 17.x (Latest)"
+              },
+              {
+                "value": "16",
+                "label": "Angular 16.x"
+              },
+              {
+                "value": "15",
+                "label": "Angular 15.x"
+              },
+              {
+                "value": "other",
+                "label": "Other/Custom"
+              }
+            ],
+            "rails": [
+              {
+                "value": "7.1",
+                "label": "Rails 7.1.x (Latest)"
+              },
+              {
+                "value": "7.0",
+                "label": "Rails 7.0.x"
+              },
+              {
+                "value": "6.1",
+                "label": "Rails 6.1.x"
+              },
+              {
+                "value": "other",
+                "label": "Other/Custom"
+              }
+            ]
+          },
+          "reference_doc_path": "languages/{language_id}/{framework_type}/{framework_id}/{framework_id}-v{version}.md",
+          "follow_ups": [
+            "database_inference"
+          ]
+        },
+        {
+          "id": "database_inference",
+          "question": "Many {framework_name} projects use databases like {database_examples}. What database technology are you planning to use?",
+          "type": "dynamic_inferred",
+          "inferred_options": {
+            "react": "MongoDB, Firebase, or PostgreSQL",
+            "angular": "PostgreSQL, MySQL, or MongoDB",
+            "vue": "MySQL, MongoDB, or SQLite",
+            "rails": "PostgreSQL, MySQL, or MongoDB",
+            "django": "PostgreSQL, MySQL, or SQLite",
+            "flask": "SQLite, PostgreSQL, or MongoDB"
+          },
+          "follow_ups": [
+            "database_selection"
+          ]
+        },
+        {
+          "id": "database_selection",
+          "question": "Which database technology will your project use?",
+          "type": "dynamic_select",
+          "source": "database_types",
+          "options_template": [
+            {
+              "value": "{database_id}",
+              "label": "{database_name}"
+            }
+          ],
+          "fallback_options": [
+            {
+              "value": "postgresql",
+              "label": "PostgreSQL"
+            },
+            {
+              "value": "mysql",
+              "label": "MySQL"
+            },
+            {
+              "value": "mongodb",
+              "label": "MongoDB"
+            },
+            {
+              "value": "sqlite",
+              "label": "SQLite"
+            },
+            {
+              "value": "redis",
+              "label": "Redis"
+            },
+            {
+              "value": "neo4j",
+              "label": "Neo4j"
+            },
+            {
+              "value": "qdrant",
+              "label": "Qdrant"
+            },
+            {
+              "value": "none",
+              "label": "No database"
+            },
+            {
+              "value": "other",
+              "label": "Other"
+            }
+          ],
+          "reference_doc_base": "databases/",
+          "follow_ups": [
+            "technology_evolution"
+          ]
+        },
+        {
+          "id": "technology_evolution",
+          "question": "Looking forward, how do you see your technology choices evolving as the project progresses?",
+          "type": "text",
+          "placeholder": "e.g., We might add TypeScript later, or migrate to a different database...",
+          "follow_ups": []
+        }
+      ]
+    },
+    "phase2_project_complexity": {
+      "title": "Complexity Narrative",
+      "description": "Explore your project's complexity through storytelling",
+      "transition_message": "Now that I understand your technology landscape, let's explore the nature of your project through its complexity and challenges.",
+      "questions": [
+        {
+          "id": "project_challenge",
+          "question": "Describe a challenge you anticipate in this project. What makes it interesting or complex?",
+          "type": "text",
+          "placeholder": "e.g., Integrating with legacy systems, managing real-time data flows...",
+          "follow_ups": [
+            "similar_projects"
+          ]
+        },
+        {
+          "id": "similar_projects",
+          "question": "Tell me about a similar project you've worked on before. How does this one compare in complexity?",
+          "type": "text",
+          "placeholder": "e.g., This is similar to my last project, but with more complex data relationships...",
+          "follow_ups": [
+            "uncertainty_areas"
+          ]
+        },
+        {
+          "id": "uncertainty_areas",
+          "question": "What aspect of this project has the most uncertainty or keeps you up at night?",
+          "type": "text",
+          "placeholder": "e.g., Scaling to handle unpredictable traffic, ensuring security compliance...",
+          "follow_ups": [
+            "adaptation_expectations"
+          ]
+        },
+        {
+          "id": "adaptation_expectations",
+          "question": "How much do you expect your approach to evolve as the project progresses?",
+          "type": "multiple_choice",
+          "options": [
+            {
+              "value": "minimal",
+              "label": "Minimal - I have a clear path forward"
+            },
+            {
+              "value": "moderate",
+              "label": "Moderate - Some adaptation will be needed"
+            },
+            {
+              "value": "significant",
+              "label": "Significant - The approach will likely evolve substantially"
+            }
+          ],
+          "complexity_mapping": {
+            "minimal": "simple",
+            "moderate": "complicated",
+            "significant": "complex"
+          },
+          "follow_ups": [
+            "solution_clarity"
+          ]
+        },
+        {
+          "id": "solution_clarity",
+          "question": "How would you describe your understanding of the solution path?",
+          "type": "multiple_choice",
+          "options": [
+            {
+              "value": "clear",
+              "label": "Very clear - I know exactly how to build it"
+            },
+            {
+              "value": "mostly_clear",
+              "label": "Mostly clear - I know the general approach but will need to figure out some parts"
+            },
+            {
+              "value": "evolving",
+              "label": "Evolving - The solution will emerge as we progress"
+            }
+          ],
+          "complexity_mapping": {
+            "clear": "simple",
+            "mostly_clear": "complicated",
+            "evolving": "complex"
+          },
+          "follow_ups": [
+            "project_complexity"
+          ]
+        },
+        {
+          "id": "project_complexity",
+          "type": "derived",
+          "derived_from": [
+            "adaptation_expectations",
+            "solution_clarity"
+          ],
+          "mapping_logic": "majority_vote",
+          "impacts": {
+            "simple": {
+              "priorities": [
+                "speed",
+                "standardization"
+              ],
+              "remove_modes": [
+                "architect",
+                "experimental"
+              ],
+              "customInstructions": "Focus on rapid implementation using established patterns. Favor straightforward approaches over clever solutions. Include essential tests focused on critical paths."
+            },
+            "complicated": {
+              "priorities": [
+                "expertise",
+                "best_practices"
+              ],
+              "add_modes": [
+                "architect"
+              ],
+              "customInstructions": "Apply proven design patterns appropriate for this domain. Ensure comprehensive testing of edge cases. Document architectural decisions and their rationales."
+            },
+            "complex": {
+              "priorities": [
+                "experimentation",
+                "feedback_loops"
+              ],
+              "add_modes": [
+                "experimental",
+                "architect"
+              ],
+              "customInstructions": "Implement iterative solutions that can evolve. Start with minimal viable implementations. Build in feedback mechanisms and observability. Document assumptions and create easy paths for revision."
+            }
+          },
+          "follow_ups": [
+            "development_approach"
+          ]
+        },
+        {
+          "id": "development_approach",
+          "question": "Tell me about your ideal development process. What practices and approaches do you value most?",
+          "type": "text",
+          "placeholder": "e.g., I prefer test-driven development with rapid iterations...",
+          "follow_ups": [
+            "development_philosophy_confirmation"
+          ]
+        },
+        {
+          "id": "development_philosophy_confirmation",
+          "question": "Based on your description, which development approaches resonate with your style? (Select all that apply)",
+          "description": "These help me understand how to approach your project.",
+          "type": "multiple_select",
+          "options": [
+            {
+              "value": "tdd",
+              "label": "Test-Driven Development - Tests first, then code"
+            },
+            {
+              "value": "bdd",
+              "label": "Behavior-Driven Development - Define behavior scenarios first"
+            },
+            {
+              "value": "ddd",
+              "label": "Domain-Driven Design - Business domains guide architecture"
+            },
+            {
+              "value": "doc_first",
+              "label": "Documentation-First - Clear specs before implementation"
+            },
+            {
+              "value": "component",
+              "label": "Component-Based - Building from reusable parts"
+            },
+            {
+              "value": "feature",
+              "label": "Feature-Focused - Organizing around user features"
+            },
+            {
+              "value": "none",
+              "label": "No specific philosophy - Pragmatic approach"
+            }
+          ],
+          "mode_impacts": {
+            "tdd": [
+              "qa+3",
+              "engineer+1"
+            ],
+            "bdd": [
+              "qa+2",
+              "architect+1"
+            ],
+            "ddd": [
+              "architect+3",
+              "dba+1"
+            ],
+            "doc_first": [
+              "writer+3",
+              "architect+1"
+            ],
+            "component": [
+              "frontend+2",
+              "engineer+1"
+            ],
+            "feature": [
+              "engineer+2",
+              "architect+1"
+            ]
+          },
+          "follow_ups": [
+            "quality_speed_balance"
+          ]
+        },
+        {
+          "id": "quality_speed_balance",
+          "question": "When you think about project success, how do you balance speed and quality?",
+          "type": "text",
+          "placeholder": "e.g., I value thorough testing but need to move quickly...",
+          "follow_ups": [
+            "quality_priority"
+          ]
+        },
+        {
+          "id": "quality_priority",
+          "question": "Based on your approach, where would you position your project priorities?",
+          "type": "scale",
+          "label": "Development Speed vs. Code Quality",
+          "min_label": "1: Heavily favor speed (get it working now)",
+          "max_label": "5: Heavily favor quality (comprehensive testing)",
+          "default": 3,
+          "impacts": {
+            "1": {
+              "add_modes": [
+                "engineer"
+              ],
+              "remove_modes": [
+                "qa",
+                "security",
+                "writer"
+              ],
+              "customInstructions": "Prioritize working solutions over perfect code. Focus on core functionality first. Use simple, direct approaches for non-critical paths."
+            },
+            "2": {
+              "add_modes": [
+                "engineer"
+              ],
+              "remove_modes": [
+                "qa",
+                "writer"
+              ]
+            },
+            "3": {
+              "balanced": true
+            },
+            "4": {
+              "add_modes": [
+                "qa",
+                "writer"
+              ],
+              "customInstructions": "Prioritize code quality and maintainability. Implement comprehensive test coverage for critical features."
+            },
+            "5": {
+              "add_modes": [
+                "qa",
+                "security",
+                "writer"
+              ],
+              "remove_modes": [
+                "experimental"
+              ],
+              "customInstructions": "Prioritize maintainable, well-tested code. Implement comprehensive test coverage. Follow established patterns and thoroughly test all code paths."
+            }
+          },
+          "follow_ups": [
+            "handoff_value"
+          ]
+        },
+        {
+          "id": "handoff_value",
+          "question": "Projects that evolve over time benefit from our handoff system, which maintains context between sessions. Would this be valuable for your project's journey?",
+          "type": "multiple_choice",
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes, I'd like to use the handoff system"
+            },
+            {
+              "value": "no",
+              "label": "No, I don't need that capability"
+            }
+          ],
+          "impacts": {
+            "yes": {
+              "add_modes": [
+                "handoff-manager",
+                "milestone-manager",
+                "session-restorer"
+              ]
+            },
+            "no": {
+              "remove_modes": [
+                "handoff-manager",
+                "milestone-manager",
+                "session-restorer"
+              ]
+            }
+          },
+          "follow_ups": []
+        }
+      ]
+    },
+    "phase3_development_experience": {
+      "title": "Development Experience",
+      "description": "Explore your experience and development priorities through specific scenarios",
+      "transition_message": "Let's talk about your experience with these technologies and what you'd like to focus on.",
+      "questions": [
+        {
+          "id": "technology_experience_story",
+          "question": "Tell me about your experience with {primary_language} and {framework_name}. What aspects do you find most interesting or challenging?",
+          "type": "text",
+          "placeholder": "e.g., I've been working with React for 2 years and particularly enjoy component composition...",
+          "follow_ups": [
+            "experience_level_inference"
+          ]
+        },
+        {
+          "id": "experience_level_inference",
+          "question": "Based on your description, you seem to have {inferred_experience} experience with this technology stack. Is that accurate?",
+          "type": "multiple_choice",
+          "dynamic_inferred": "experience_level",
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes, that's accurate"
+            },
+            {
+              "value": "no",
+              "label": "No, let me clarify"
+            }
+          ],
+          "follow_ups": {
+            "yes": [
+              "experience_level_set"
+            ],
+            "no": [
+              "experience_level_selection"
+            ]
+          }
+        },
+        {
+          "id": "experience_level_set",
+          "type": "hidden",
+          "value_from": "inferred_experience",
+          "follow_ups": [
+            "learning_interests"
+          ]
+        },
+        {
+          "id": "experience_level_selection",
+          "question": "How would you describe your experience level with this technology stack?",
+          "type": "multiple_choice",
+          "options": [
+            {
+              "value": "beginner",
+              "label": "Beginner (learning the basics)"
+            },
+            {
+              "value": "intermediate",
+              "label": "Intermediate (some experience)"
+            },
+            {
+              "value": "advanced",
+              "label": "Advanced (experienced developer)"
+            }
+          ],
+          "impacts": {
+            "beginner": {
+              "add_modes": [
+                "learn"
+              ],
+              "remove_modes": [
+                "architect",
+                "security",
+                "perf",
+                "cloud"
+              ],
+              "customInstructions": "Include learning-oriented documentation and explanations. Focus on fundamental concepts and patterns. Provide clear, step-by-step guidance."
+            },
+            "intermediate": {
+              "add_modes": [],
+              "remove_modes": [],
+              "customInstructions": "Balance explanations with implementation efficiency. Include references to best practices and patterns when appropriate."
+            },
+            "advanced": {
+              "add_modes": [
+                "perf",
+                "security"
+              ],
+              "remove_modes": [
+                "learn"
+              ],
+              "customInstructions": "Focus on efficient implementation with minimal explanation of well-known concepts. Include advanced patterns and optimizations when appropriate."
+            }
+          },
+          "follow_ups": [
+            "learning_interests"
+          ]
+        },
+        {
+          "id": "learning_interests",
+          "question": "What aspects of {primary_language} or {framework_name} are you hoping to learn more about while working on this project?",
+          "type": "text",
+          "placeholder": "e.g., I want to get better at state management patterns, learn about testing strategies...",
+          "follow_ups": [
+            "development_focus_story"
+          ]
+        },
+        {
+          "id": "development_focus_story",
+          "question": "When you're developing a project like this, which aspects do you typically enjoy focusing on the most?",
+          "type": "text",
+          "placeholder": "e.g., I really enjoy frontend UI work, or I prefer focusing on data modeling and APIs...",
+          "follow_ups": [
+            "developer_focus_confirmation"
+          ]
+        },
+        {
+          "id": "developer_focus_confirmation",
+          "question": "Based on your description, which aspects of development do you handle or enjoy most? (select all that apply)",
+          "type": "multiple_select",
+          "options": [
+            {
+              "value": "frontend",
+              "label": "Frontend Development (UI, UX, client-side logic)"
+            },
+            {
+              "value": "backend",
+              "label": "Backend Development (APIs, server logic)"
+            },
+            {
+              "value": "fullstack",
+              "label": "Full-stack Development (end-to-end features)"
+            },
+            {
+              "value": "design",
+              "label": "UI/UX Design (interfaces, user flows)"
+            },
+            {
+              "value": "devops",
+              "label": "DevOps & Deployment (infrastructure, CI/CD)"
+            },
+            {
+              "value": "testing",
+              "label": "Testing & Quality Assurance"
+            },
+            {
+              "value": "data",
+              "label": "Data Engineering/Analytics"
+            }
+          ],
+          "mode_impacts": {
+            "frontend": [
+              "frontend+2"
+            ],
+            "backend": [
+              "backend+2"
+            ],
+            "fullstack": [
+              "engineer+2"
+            ],
+            "design": [
+              "ui+2"
+            ],
+            "devops": [
+              "devops+2"
+            ],
+            "testing": [
+              "qa+2"
+            ],
+            "data": [
+              "dba+2",
+              "analyst+2"
+            ]
+          },
+          "follow_ups": [
+            "implementation_challenge"
+          ]
+        },
+        {
+          "id": "implementation_challenge",
+          "question": "Tell me about a technical challenge you've encountered with {framework_name} in the past. How did you overcome it?",
+          "type": "text",
+          "placeholder": "e.g., I struggled with handling complex state updates until I discovered a pattern that...",
+          "follow_ups": []
+        }
+      ]
+    },
+    "phase4_development_focus": {
+      "title": "Development Priorities",
+      "description": "Understand specific development needs and priorities",
+      "transition_message": "Let's discuss your specific development priorities.",
+      "questions": [
+        {
+          "id": "development_focus",
+          "question": "What are your primary development focuses? (select all that apply)",
+          "type": "multiple_select",
+          "options": [
+            {
+              "value": "features",
+              "label": "Implementing new features"
+            },
+            {
+              "value": "bugs",
+              "label": "Fixing bugs"
+            },
+            {
+              "value": "refactoring",
+              "label": "Code refactoring/improvement"
+            },
+            {
+              "value": "performance",
+              "label": "Performance optimization"
+            },
+            {
+              "value": "security",
+              "label": "Security improvements"
+            },
+            {
+              "value": "accessibility",
+              "label": "Accessibility enhancements"
+            }
+          ],
+          "mode_impacts": {
+            "features": [
+              "engineer+3",
+              "architect+1"
+            ],
+            "bugs": [
+              "qa+3",
+              "engineer+2"
+            ],
+            "refactoring": [
+              "engineer+3",
+              "architect+2"
+            ],
+            "performance": [
+              "perf+3",
+              "engineer+1"
+            ],
+            "security": [
+              "security+3"
+            ],
+            "accessibility": [
+              "ui+3",
+              "frontend+1"
+            ]
+          }
+        },
+        {
+          "id": "specialized_needs",
+          "question": "Do you have any specialized needs? (select all that apply)",
+          "type": "multiple_select",
+          "options": [
+            {
+              "value": "framework_specific",
+              "label": "Framework-Specific Testing/Development"
+            },
+            {
+              "value": "natural_language",
+              "label": "Natural Language Programming (intent-driven)"
+            },
+            {
+              "value": "user_stories",
+              "label": "User Story Creation and Management"
+            },
+            {
+              "value": "code_review",
+              "label": "Specialized Code Review"
+            },
+            {
+              "value": "cicd",
+              "label": "CI/CD and Deployment Automation"
+            },
+            {
+              "value": "docs",
+              "label": "Documentation Generation"
+            },
+            {
+              "value": "analytics",
+              "label": "Data Analytics Integration"
+            },
+            {
+              "value": "monitoring",
+              "label": "Monitoring and Logging"
+            },
+            {
+              "value": "compliance",
+              "label": "Regulatory Compliance"
+            },
+            {
+              "value": "none",
+              "label": "None of the above"
+            }
+          ],
+          "mode_impacts": {
+            "framework_specific": [
+              "framework-tester+3"
+            ],
+            "natural_language": [
+              "vibemode+3"
+            ],
+            "user_stories": [
+              "user-story+3"
+            ],
+            "code_review": [
+              "reviewer+3"
+            ],
+            "cicd": [
+              "devops+3"
+            ],
+            "docs": [
+              "writer+3",
+              "architect+1"
+            ],
+            "analytics": [
+              "dba+2",
+              "analyst+3"
+            ],
+            "monitoring": [
+              "sre+3",
+              "devops+2"
+            ],
+            "compliance": [
+              "security+3",
+              "writer+1"
+            ],
+            "none": []
+          }
+        },
+        {
+          "id": "learning_needs",
+          "question": "Do you need learning support for specific technologies?",
+          "type": "multiple_choice",
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes, I have learning needs"
+            },
+            {
+              "value": "no",
+              "label": "No, I'm comfortable with all technologies"
+            }
+          ],
+          "follow_ups": {
+            "yes": [
+              "learning_areas"
+            ],
+            "no": []
+          }
+        },
+        {
+          "id": "learning_areas",
+          "question": "Which areas do you need learning support for? (select all that apply)",
+          "type": "multiple_select",
+          "options": [
+            {
+              "value": "framework",
+              "label": "Framework/Library"
+            },
+            {
+              "value": "language",
+              "label": "Programming Language"
+            },
+            {
+              "value": "architecture",
+              "label": "Architecture Patterns"
+            },
+            {
+              "value": "testing",
+              "label": "Testing Best Practices"
+            },
+            {
+              "value": "devops",
+              "label": "DevOps and Deployment"
+            },
+            {
+              "value": "security",
+              "label": "Security Practices"
+            }
+          ],
+          "mode_impacts": {
+            "framework": [
+              "learn+3"
+            ],
+            "language": [
+              "learn+3"
+            ],
+            "architecture": [
+              "architect+2",
+              "learn+2"
+            ],
+            "testing": [
+              "qa+2",
+              "learn+2"
+            ],
+            "devops": [
+              "devops+2",
+              "learn+2"
+            ],
+            "security": [
+              "security+2",
+              "learn+2"
+            ]
+          }
+        }
+      ]
+    },
+    "phase5_existing_project": {
+      "title": "Project History & Evolution",
+      "description": "Explore your project's journey and future direction",
+      "transition_message": "I'd like to learn more about your project's story - its past, present, and where you want to take it.",
+      "condition": "existing_project == 'existing'",
+      "questions": [
+        {
+          "id": "project_history",
+          "question": "Tell me the story of how your project evolved to its current state. What key decisions shaped its architecture and structure?",
+          "type": "text",
+          "multiline": true,
+          "placeholder": "e.g., We started with a simple prototype and gradually added features...",
+          "follow_ups": [
+            "project_strengths"
+          ]
+        },
+        {
+          "id": "project_strengths",
+          "question": "What aspects of your project are you most proud of or consider particularly well-designed?",
+          "type": "text",
+          "placeholder": "e.g., Our component architecture is clean and maintainable...",
+          "follow_ups": [
+            "preservation_priorities"
+          ]
+        },
+        {
+          "id": "preservation_priorities",
+          "question": "Based on your description, which elements of your existing project would you like to preserve as we continue development?",
+          "type": "multiple_select",
+          "options": [
+            {
+              "value": "code_style",
+              "label": "Code style and formatting patterns"
+            },
+            {
+              "value": "architecture",
+              "label": "Architectural approach and structure"
+            },
+            {
+              "value": "testing",
+              "label": "Testing methodology"
+            },
+            {
+              "value": "documentation",
+              "label": "Documentation approach"
+            },
+            {
+              "value": "all",
+              "label": "All existing conventions (maintain strict consistency)"
+            },
+            {
+              "value": "none",
+              "label": "I'm open to fresh approaches in all areas"
+            }
+          ],
+          "impacts": {
+            "code_style": {
+              "preserve_conventions": true,
+              "customInstructions": "Respect and continue existing code style and formatting patterns. Maintain consistency with established conventions while working within the codebase."
+            },
+            "architecture": {
+              "preserve_architecture": true,
+              "customInstructions": "Honor the established architectural patterns. Build new functionality within the existing structural approach rather than introducing different paradigms."
+            },
+            "testing": {
+              "preserve_testing": true,
+              "customInstructions": "Follow the project's testing philosophy and methodology. Maintain consistency with existing testing approaches when implementing new features."
+            },
+            "documentation": {
+              "preserve_docs": true,
+              "customInstructions": "Continue established documentation formats and styles. Ensure new documentation integrates seamlessly with existing materials."
+            },
+            "all": {
+              "preserve_all": true,
+              "customInstructions": "Strictly adhere to all established project conventions. Prioritize consistency with existing patterns across all aspects of development."
+            },
+            "none": {
+              "suggest_improvements": true,
+              "customInstructions": "Feel free to suggest improvements to existing approaches when appropriate. Balance respect for the existing codebase with opportunities for refinement."
+            }
+          },
+          "follow_ups": [
+            "project_pain_points"
+          ]
+        },
+        {
+          "id": "project_pain_points",
+          "question": "What aspects of the current implementation would you change if you could start over? What challenges or pain points do you experience?",
+          "type": "text",
+          "multiline": true,
+          "placeholder": "e.g., Our test coverage is inconsistent, and our state management has become complex...",
+          "follow_ups": [
+            "improvement_areas"
+          ]
+        },
+        {
+          "id": "improvement_areas",
+          "question": "Based on your description, which areas would you most like to focus on improving as the project evolves?",
+          "type": "multiple_select",
+          "options": [
+            {
+              "value": "code_quality",
+              "label": "Code quality and organization"
+            },
+            {
+              "value": "test_coverage",
+              "label": "Testing approach and coverage"
+            },
+            {
+              "value": "documentation",
+              "label": "Documentation and knowledge sharing"
+            },
+            {
+              "value": "architecture",
+              "label": "Architecture and design patterns"
+            },
+            {
+              "value": "performance",
+              "label": "Performance and optimization"
+            },
+            {
+              "value": "security",
+              "label": "Security and data protection"
+            },
+            {
+              "value": "none",
+              "label": "I'm satisfied with all aspects currently"
+            }
+          ],
+          "mode_impacts": {
+            "code_quality": [
+              "engineer+3",
+              "architect+1"
+            ],
+            "test_coverage": [
+              "qa+3"
+            ],
+            "documentation": [
+              "writer+3"
+            ],
+            "architecture": [
+              "architect+3"
+            ],
+            "performance": [
+              "perf+3"
+            ],
+            "security": [
+              "security+3"
+            ],
+            "none": []
+          },
+          "follow_ups": [
+            "project_future"
+          ]
+        },
+        {
+          "id": "project_future",
+          "question": "Looking ahead, how do you envision this project evolving? What new directions or capabilities are you considering?",
+          "type": "text",
+          "multiline": true,
+          "placeholder": "e.g., We're planning to add real-time collaboration features and expand our API...",
+          "follow_ups": []
+        }
+      ]
+    },
+    "phase6_mode_customization": {
+      "title": "Expert Team Assembly",
+      "description": "Assemble your specialized project team",
+      "transition_message": "Based on your project's unique needs, I've identified specialized expertise areas that would best support your development journey. Let's assemble your expert team.",
+      "questions": [
+        {
+          "id": "team_presentation",
+          "question": "Based on your {project_type} project with {primary_language} and {framework_name}, I recommend assembling a team with the following specialized expertise areas. Does this team composition align with your project's needs?",
+          "type": "dynamic",
+          "dynamic_value": "recommended_modes_explanation",
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes, this team composition looks good"
+            },
+            {
+              "value": "adjust",
+              "label": "I'd like to adjust the team composition"
+            }
+          ],
+          "follow_ups": {
+            "yes": [
+              "handoff_explanation"
+            ],
+            "adjust": [
+              "team_adjustment"
+            ]
+          }
+        },
+        {
+          "id": "team_adjustment",
+          "question": "Let's review the recommended expertise areas. Which would you like to adjust?",
+          "type": "dynamic",
+          "dynamic_value": "selected_modes_grouping",
+          "multiple": true,
+          "follow_ups": [
+            "adjustment_options"
+          ]
+        },
+        {
+          "id": "adjustment_options",
+          "question": "How would you like to adjust the {current_mode} expertise?",
+          "type": "multiple_choice",
+          "options": [
+            {
+              "value": "modify",
+              "label": "Modify its capabilities and focus areas"
+            },
+            {
+              "value": "remove",
+              "label": "Remove this expertise from the team"
+            },
+            {
+              "value": "replace",
+              "label": "Replace with different expertise"
+            }
+          ],
+          "follow_ups": {
+            "modify": [
+              "expertise_modification"
+            ],
+            "remove": [
+              "remove_confirmation"
+            ],
+            "replace": [
+              "replacement_options"
+            ]
+          }
+        },
+        {
+          "id": "expertise_modification",
+          "question": "The {current_mode} expertise currently focuses on:\n\n{current_role_definition}\n\nHow would you like to modify this expertise area?",
+          "type": "text",
+          "multiline": true,
+          "placeholder": "Describe how you'd like to adapt this expertise...",
+          "follow_ups": [
+            "tools_adjustment"
+          ]
+        },
+        {
+          "id": "tools_adjustment",
+          "question": "Which capabilities should this expertise area have access to?",
+          "type": "multiple_select",
+          "options": [
+            {
+              "value": "read",
+              "label": "Accessing and analyzing files"
+            },
+            {
+              "value": "edit",
+              "label": "Creating and modifying files"
+            },
+            {
+              "value": "command",
+              "label": "Executing system commands"
+            },
+            {
+              "value": "browser",
+              "label": "Interacting with web interfaces"
+            },
+            {
+              "value": "mcp",
+              "label": "Accessing external tools and APIs"
+            }
+          ],
+          "dynamic_value": "current_tools",
+          "follow_ups": [
+            "instructions_adjustment"
+          ]
+        },
+        {
+          "id": "instructions_adjustment",
+          "question": "Any specific guidance you'd like to provide for how this expertise should be applied to your project?",
+          "type": "text",
+          "multiline": true,
+          "dynamic_value": "current_instructions",
+          "placeholder": "Add any specific guidance or priorities...",
+          "follow_ups": [
+            "modification_review"
+          ]
+        },
+        {
+          "id": "modification_review",
+          "question": "Here's how the updated expertise area will support your project:\n\n{customized_config}\n\nDoes this align with your vision?",
+          "type": "multiple_choice",
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes, this looks good"
+            },
+            {
+              "value": "no",
+              "label": "No, I'd like to make more adjustments"
+            }
+          ],
+          "follow_ups": {
+            "yes": [
+              "team_presentation"
+            ],
+            "no": [
+              "expertise_modification"
+            ]
+          }
+        },
+        {
+          "id": "remove_confirmation",
+          "question": "Are you sure you want to remove the {current_mode} expertise from your team? This would mean losing specialized capabilities in:\n\n{current_role_definition}",
+          "type": "multiple_choice",
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes, remove this expertise"
+            },
+            {
+              "value": "no",
+              "label": "No, keep this expertise"
+            }
+          ],
+          "follow_ups": {
+            "yes": [
+              "team_presentation"
+            ],
+            "no": [
+              "team_adjustment"
+            ]
+          }
+        },
+        {
+          "id": "replacement_options",
+          "question": "Which expertise would you like to add to your team instead of {current_mode}?",
+          "type": "dynamic",
+          "dynamic_value": "available_modes",
+          "follow_ups": [
+            "replacement_review"
+          ]
+        },
+        {
+          "id": "replacement_review",
+          "question": "Here's how the new expertise area will support your project:\n\n{replacement_description}\n\nWould you like to make this replacement?",
+          "type": "multiple_choice",
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes, add this expertise to the team"
+            },
+            {
+              "value": "no",
+              "label": "No, consider different expertise"
+            }
+          ],
+          "follow_ups": {
+            "yes": [
+              "team_presentation"
+            ],
+            "no": [
+              "replacement_options"
+            ]
+          }
+        },
+        {
+          "id": "handoff_explanation",
+          "question": "For projects that evolve over time, we can include specialized expertise in maintaining context and documentation through our handoff system. Would you like to include these capabilities in your team?",
+          "type": "multiple_choice",
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes, include handoff system expertise"
+            },
+            {
+              "value": "no",
+              "label": "No, I don't need these capabilities"
+            }
+          ],
+          "impacts": {
+            "yes": {
+              "add_modes": [
+                "handoff-manager",
+                "milestone-manager",
+                "session-restorer"
+              ]
+            },
+            "no": {
+              "remove_modes": [
+                "handoff-manager",
+                "milestone-manager",
+                "session-restorer"
+              ]
+            }
+          },
+          "follow_ups": [
+            "team_finalization"
+          ]
+        },
+        {
+          "id": "team_finalization",
+          "question": "Your expert team is now fully assembled and ready to begin working on your {project_type} project. Each expertise area will contribute specialized capabilities as you develop your application.\n\nHere's an overview of your complete team and how they'll work together:\n\n{final_team_description}\n\nAre you ready to begin working with your team?",
+          "type": "multiple_choice",
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes, I'm ready to start"
+            },
+            {
+              "value": "adjust",
+              "label": "I'd like to make some final adjustments"
+            }
+          ],
+          "follow_ups": {
+            "yes": [],
+            "adjust": [
+              "team_adjustment"
+            ]
+          }
+        }
+      ]
+    },
+    "phase_transitions": {
+      "phase1_to_phase2": {
+        "required_fields": [
+          "primary_language",
+          "project_type"
+        ],
+        "transition_message": "Thank you for sharing your technology story with me. Now I'd like to explore the nature of your {project_type} project and understand its unique complexity and challenges."
+      },
+      "phase2_to_phase3": {
+        "transition_message": "I appreciate you sharing those insights about your project's challenges and complexity. Let's talk about your experience with these technologies and what you'd like to focus on in this development journey."
+      },
+      "phase3_to_phase4": {
+        "transition_message": "You've given me a great understanding of your experience and focus areas. Let's discuss your specific development priorities for this {project_type} project."
+      },
+      "phase4_to_phase5": {
+        "condition": "existing_project == 'existing'",
+        "transition_message": "Based on what you've shared so far, I'd like to understand more about your existing project structure and patterns. This will help me provide more relevant guidance for your continuing development journey."
+      },
+      "phase4_to_phase6": {
+        "condition": "existing_project != 'existing'",
+        "transition_message": "I've learned a lot about your project vision, technology choices, and development approach. Based on your {project_type} project with {primary_language} and {framework_name}, I'll now recommend a specialized team of experts to support your development journey."
+      },
+      "phase5_to_phase6": {
+        "transition_message": "Thank you for sharing details about your existing project. Based on your project's technology stack, complexity, and your goals for its evolution, I'll now recommend a specialized team of experts to support your development journey."
+      },
+      "phase6_to_complete": {
+        "transition_message": "Your expert team has been configured based on your project's unique needs. Would you like to begin working with this team on your {primary_language} {project_type} project?"
+      }
+    },
+    "reference_doc_mapping": {
+      "pattern": "languages/{primary_language}/{type}/{framework}/{framework}-v{version}.md",
+      "fallback_strategy": "closest_version",
+      "creation_support": true
+    },
+    "mode_selection_logic": {
+      "threshold": 3,
+      "essential_modes": [
+        "commander",
+        "engineer"
+      ],
+      "base_mode_limit": 7,
+      "handoff_modes": [
+        "handoff-manager",
+        "milestone-manager",
+        "session-restorer"
+      ],
+      "mode_groups": {
+        "planning": [
+          "architect",
+          "ui",
+          "api"
+        ],
+        "implementation": [
+          "engineer",
+          "frontend",
+          "backend",
+          "mobile",
+          "dba"
+        ],
+        "quality": [
+          "qa",
+          "security",
+          "perf"
+        ],
+        "operations": [
+          "devops",
+          "sre",
+          "cloud"
+        ],
+        "documentation": [
+          "writer",
+          "learn",
+          "analyst"
+        ],
+        "handoff": [
+          "handoff-manager",
+          "milestone-manager",
+          "session-restorer"
+        ],
+        "specialized": [
+          "framework-tester",
+          "vibemode",
+          "user-story",
+          "reviewer",
+          "experimental"
+        ]
+      }
+    }
+  }
+}

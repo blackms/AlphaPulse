@@ -1,0 +1,280 @@
+{
+  "title": "Technology Story Canvas",
+  "description": "Explore your project's technology narrative",
+  "dynamic_options": {
+    "languages": "custom-modes-pool/reference-docs/languages/*/",
+    "frameworks": "custom-modes-pool/reference-docs/languages/{primary_language}/*/",
+    "framework_versions": "custom-modes-pool/reference-docs/languages/{primary_language}/{framework_type}/{framework}/*-v*.md"
+  },
+  "questions": [
+    {
+      "id": "existing_project",
+      "question": "Let's start by understanding your project context. Are you working on an existing codebase or starting a new project?",
+      "type": "multiple_choice",
+      "options": [
+        {"value": "existing", "label": "Existing project (I already have code)"},
+        {"value": "new", "label": "New project (Starting fresh)"}
+      ],
+      "follow_ups": {
+        "existing": ["project_scan_permission"],
+        "new": ["technology_story"]
+      }
+    },
+    {
+      "id": "project_scan_permission",
+      "question": "I'd like to understand your existing project better. Would you like me to scan the project files to get a sense of your technology landscape?",
+      "type": "multiple_choice",
+      "options": [
+        {"value": "yes", "label": "Yes, analyze my project to identify technologies"},
+        {"value": "no", "label": "No, I'll share the details through our conversation"}
+      ],
+      "follow_ups": {
+        "yes": ["project_scan_path"],
+        "no": ["technology_story"]
+      }
+    },
+    {
+      "id": "project_scan_path",
+      "question": "Great! Which directory should I examine to understand your project?",
+      "type": "text",
+      "placeholder": "e.g., . (current directory) or ./my-project",
+      "follow_ups": ["scan_confirmation"]
+    },
+    {
+      "id": "scan_confirmation",
+      "question": "Based on my analysis, I see your project uses these technologies. Does this capture your technology landscape accurately?",
+      "type": "dynamic",
+      "dynamic_value": "scan_results",
+      "options": [
+        {"value": "yes", "label": "Yes, that's accurate"},
+        {"value": "partial", "label": "Partially correct (I'll fill in the gaps)"},
+        {"value": "no", "label": "No, let me describe my technology stack"}
+      ],
+      "follow_ups": {
+        "yes": ["technology_story_continuation"],
+        "partial": ["technology_story"],
+        "no": ["technology_story"]
+      }
+    },
+    {
+      "id": "technology_story",
+      "question": "Tell me about your project's technology story. What language and framework form its foundation?",
+      "type": "text",
+      "placeholder": "e.g., I'm using JavaScript with React for a web application...",
+      "follow_ups": ["primary_language_confirmation"]
+    },
+    {
+      "id": "technology_story_continuation",
+      "question": "How did you decide on these technologies? Were there alternatives you considered?",
+      "type": "text",
+      "placeholder": "e.g., We chose React because...",
+      "follow_ups": ["project_type_inference"]
+    },
+    {
+      "id": "primary_language_confirmation",
+      "question": "Based on your description, it sounds like your primary programming language is {inferred_language}. Is that correct?",
+      "type": "multiple_choice",
+      "dynamic_inferred": "primary_language",
+      "options": [
+        {"value": "yes", "label": "Yes, that's correct"},
+        {"value": "no", "label": "No, let me specify"}
+      ],
+      "follow_ups": {
+        "yes": ["primary_language_set", "framework_inference"],
+        "no": ["primary_language_selection"]
+      }
+    },
+    {
+      "id": "primary_language_set",
+      "type": "hidden",
+      "value_from": "inferred_language",
+      "follow_ups": []
+    },
+    {
+      "id": "primary_language_selection",
+      "question": "What is the primary programming language for your project?",
+      "type": "dynamic_select",
+      "source": "languages",
+      "options_template": [
+        {"value": "{language_id}", "label": "{language_name}"}
+      ],
+      "fallback_options": [
+        {"value": "javascript", "label": "JavaScript/TypeScript"},
+        {"value": "python", "label": "Python"},
+        {"value": "java", "label": "Java"},
+        {"value": "csharp", "label": "C#"},
+        {"value": "go", "label": "Go"},
+        {"value": "ruby", "label": "Ruby"},
+        {"value": "php", "label": "PHP"},
+        {"value": "rust", "label": "Rust"},
+        {"value": "other", "label": "Other"}
+      ],
+      "follow_ups": ["framework_inference"]
+    },
+    {
+      "id": "framework_inference",
+      "question": "For {language_name} projects, developers often use frameworks like {framework_examples}. Which framework or library are you using?",
+      "type": "dynamic_inferred",
+      "inferred_options": {
+        "javascript": "React, Angular, Vue, or Express",
+        "python": "Django, Flask, or FastAPI",
+        "ruby": "Rails, Sinatra, or Hanami",
+        "java": "Spring, Jakarta EE, or Quarkus",
+        "csharp": "ASP.NET Core, Entity Framework, or Blazor"
+      },
+      "follow_ups": ["{language_id}_framework"]
+    },
+    {
+      "id": "project_type_inference",
+      "question": "From your description, this sounds like a {inferred_project_type} project. Is that how you would characterize it?",
+      "type": "multiple_choice",
+      "dynamic_inferred": "project_type",
+      "options": [
+        {"value": "yes", "label": "Yes, that's right"},
+        {"value": "no", "label": "No, let me clarify"}
+      ],
+      "follow_ups": {
+        "yes": ["project_type_set"],
+        "no": ["project_type_selection"]
+      }
+    },
+    {
+      "id": "project_type_set",
+      "type": "hidden",
+      "value_from": "inferred_project_type",
+      "follow_ups": []
+    },
+    {
+      "id": "project_type_selection",
+      "question": "How would you characterize your project?",
+      "type": "multiple_choice",
+      "options": [
+        {"value": "web", "label": "Web Application"},
+        {"value": "mobile", "label": "Mobile Application"},
+        {"value": "service", "label": "Backend Service"},
+        {"value": "cli", "label": "Command Line Tool"},
+        {"value": "library", "label": "Library/Framework"},
+        {"value": "enterprise", "label": "Enterprise System"},
+        {"value": "data", "label": "Data Processing/Analysis"},
+        {"value": "ai", "label": "AI/ML Project"}
+      ],
+      "follow_ups": []
+    },
+    {
+      "id": "{language_id}_framework",
+      "question": "Which {language_name} framework or library are you using for your project?",
+      "type": "dynamic_select",
+      "source": "frameworks",
+      "options_template": [
+        {"value": "{framework_id}", "label": "{framework_name}"}
+      ],
+      "fallback_options": {
+        "javascript": [
+          {"value": "react", "label": "React"},
+          {"value": "angular", "label": "Angular"},
+          {"value": "vue", "label": "Vue.js"},
+          {"value": "next", "label": "Next.js"},
+          {"value": "svelte", "label": "Svelte"},
+          {"value": "express", "label": "Express.js"},
+          {"value": "nodejs", "label": "Node.js (without framework)"},
+          {"value": "vanilla", "label": "Vanilla JS (no framework)"},
+          {"value": "other", "label": "Other"}
+        ],
+        "python": [
+          {"value": "django", "label": "Django"},
+          {"value": "flask", "label": "Flask"},
+          {"value": "fastapi", "label": "FastAPI"},
+          {"value": "other", "label": "Other"}
+        ],
+        "ruby": [
+          {"value": "rails", "label": "Ruby on Rails"},
+          {"value": "sinatra", "label": "Sinatra"},
+          {"value": "hanami", "label": "Hanami"},
+          {"value": "other", "label": "Other"}
+        ]
+      },
+      "follow_ups": ["{framework_id}_version_story"]
+    },
+    {
+      "id": "{framework_id}_version_story",
+      "question": "What version of {framework_name} are you targeting? This helps me understand which specific features and patterns are relevant to your project.",
+      "type": "text",
+      "placeholder": "e.g., version 18, the latest version, etc.",
+      "follow_ups": ["{framework_id}_version_confirmation"]
+    },
+    {
+      "id": "{framework_id}_version_confirmation",
+      "question": "I have specific guidance for these {framework_name} versions. Which best matches your project?",
+      "type": "dynamic_select",
+      "source": "framework_versions",
+      "options_template": [
+        {"value": "{version}", "label": "{framework_name} {version}"}
+      ],
+      "fallback_options": {
+        "react": [
+          {"value": "19", "label": "React 19.x (Latest)"},
+          {"value": "18", "label": "React 18.x"},
+          {"value": "17", "label": "React 17.x"},
+          {"value": "other", "label": "Other/Custom"}
+        ],
+        "angular": [
+          {"value": "17", "label": "Angular 17.x (Latest)"},
+          {"value": "16", "label": "Angular 16.x"},
+          {"value": "15", "label": "Angular 15.x"},
+          {"value": "other", "label": "Other/Custom"}
+        ],
+        "rails": [
+          {"value": "7.1", "label": "Rails 7.1.x (Latest)"},
+          {"value": "7.0", "label": "Rails 7.0.x"},
+          {"value": "6.1", "label": "Rails 6.1.x"},
+          {"value": "other", "label": "Other/Custom"}
+        ]
+      },
+      "reference_doc_path": "languages/{language_id}/{framework_type}/{framework_id}/{framework_id}-v{version}.md",
+      "follow_ups": ["database_inference"]
+    },
+    {
+      "id": "database_inference",
+      "question": "Many {framework_name} projects use databases like {database_examples}. What database technology are you planning to use?",
+      "type": "dynamic_inferred",
+      "inferred_options": {
+        "react": "MongoDB, Firebase, or PostgreSQL",
+        "angular": "PostgreSQL, MySQL, or MongoDB",
+        "vue": "MySQL, MongoDB, or SQLite",
+        "rails": "PostgreSQL, MySQL, or MongoDB",
+        "django": "PostgreSQL, MySQL, or SQLite",
+        "flask": "SQLite, PostgreSQL, or MongoDB"
+      },
+      "follow_ups": ["database_selection"]
+    },
+    {
+      "id": "database_selection",
+      "question": "Which database technology will your project use?",
+      "type": "dynamic_select",
+      "source": "database_types",
+      "options_template": [
+        {"value": "{database_id}", "label": "{database_name}"}
+      ],
+      "fallback_options": [
+        {"value": "postgresql", "label": "PostgreSQL"},
+        {"value": "mysql", "label": "MySQL"},
+        {"value": "mongodb", "label": "MongoDB"},
+        {"value": "sqlite", "label": "SQLite"},
+        {"value": "redis", "label": "Redis"},
+        {"value": "neo4j", "label": "Neo4j"},
+        {"value": "qdrant", "label": "Qdrant"},
+        {"value": "none", "label": "No database"},
+        {"value": "other", "label": "Other"}
+      ],
+      "reference_doc_base": "databases/",
+      "follow_ups": ["technology_evolution"]
+    },
+    {
+      "id": "technology_evolution",
+      "question": "Looking forward, how do you see your technology choices evolving as the project progresses?",
+      "type": "text",
+      "placeholder": "e.g., We might add TypeScript later, or migrate to a different database...",
+      "follow_ups": []
+    }
+  ]
+}

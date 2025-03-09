@@ -1,0 +1,91 @@
+{
+  "title": "Development Priorities",
+  "description": "Understand specific development needs and priorities",
+  "transition_message": "Let's discuss your specific development priorities.",
+  "questions": [
+    {
+      "id": "development_focus",
+      "question": "What are your primary development focuses? (select all that apply)",
+      "type": "multiple_select",
+      "options": [
+        {"value": "features", "label": "Implementing new features"},
+        {"value": "bugs", "label": "Fixing bugs"},
+        {"value": "refactoring", "label": "Code refactoring/improvement"},
+        {"value": "performance", "label": "Performance optimization"},
+        {"value": "security", "label": "Security improvements"},
+        {"value": "accessibility", "label": "Accessibility enhancements"}
+      ],
+      "mode_impacts": {
+        "features": ["engineer+3", "architect+1"],
+        "bugs": ["qa+3", "engineer+2"],
+        "refactoring": ["engineer+3", "architect+2"],
+        "performance": ["perf+3", "engineer+1"],
+        "security": ["security+3"],
+        "accessibility": ["ui+3", "frontend+1"]
+      }
+    },
+    {
+      "id": "specialized_needs",
+      "question": "Do you have any specialized needs? (select all that apply)",
+      "type": "multiple_select",
+      "options": [
+        {"value": "framework_specific", "label": "Framework-Specific Testing/Development"},
+        {"value": "natural_language", "label": "Natural Language Programming (intent-driven)"},
+        {"value": "user_stories", "label": "User Story Creation and Management"},
+        {"value": "code_review", "label": "Specialized Code Review"},
+        {"value": "cicd", "label": "CI/CD and Deployment Automation"},
+        {"value": "docs", "label": "Documentation Generation"},
+        {"value": "analytics", "label": "Data Analytics Integration"},
+        {"value": "monitoring", "label": "Monitoring and Logging"},
+        {"value": "compliance", "label": "Regulatory Compliance"},
+        {"value": "none", "label": "None of the above"}
+      ],
+      "mode_impacts": {
+        "framework_specific": ["framework-tester+3"],
+        "natural_language": ["vibemode+3"],
+        "user_stories": ["user-story+3"],
+        "code_review": ["reviewer+3"],
+        "cicd": ["devops+3"],
+        "docs": ["writer+3", "architect+1"],
+        "analytics": ["dba+2", "analyst+3"],
+        "monitoring": ["sre+3", "devops+2"],
+        "compliance": ["security+3", "writer+1"],
+        "none": []
+      }
+    },
+    {
+      "id": "learning_needs",
+      "question": "Do you need learning support for specific technologies?",
+      "type": "multiple_choice",
+      "options": [
+        {"value": "yes", "label": "Yes, I have learning needs"},
+        {"value": "no", "label": "No, I'm comfortable with all technologies"}
+      ],
+      "follow_ups": {
+        "yes": ["learning_areas"],
+        "no": []
+      }
+    },
+    {
+      "id": "learning_areas",
+      "question": "Which areas do you need learning support for? (select all that apply)",
+      "type": "multiple_select",
+      "options": [
+        {"value": "framework", "label": "Framework/Library"},
+        {"value": "language", "label": "Programming Language"},
+        {"value": "architecture", "label": "Architecture Patterns"},
+        {"value": "testing", "label": "Testing Best Practices"},
+        {"value": "devops", "label": "DevOps and Deployment"},
+        {"value": "security", "label": "Security Practices"}
+      ],
+      "mode_impacts": {
+        "framework": ["learn+3"],
+        "language": ["learn+3"],
+        "architecture": ["architect+2", "learn+2"],
+        "testing": ["qa+2", "learn+2"],
+        "devops": ["devops+2", "learn+2"],
+        "security": ["security+2", "learn+2"]
+      }
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+====
+
+SPECIALIZED TOOL USAGE PATTERNS
+
+## Enhanced Project Analysis
+For intelligently scanning and analyzing projects:
+1. Use list_files with recursive=true to get a complete picture of the project structure
+2. Look for key indicators like package files (package.json, requirements.txt), README files, configuration files
+3. Use read_file to analyze these key files for technology stack information
+4. Use search_files to detect patterns like import statements, framework usage
+5. Identify directory patterns (src/, app/, tests/, etc.) that indicate project structure
+6. Look for handoff directories and documentation to understand project history
+
+## Technology Detection
+For detecting project technology stacks:
+1. Use list_files to locate package/configuration files
+2. Use read_file to analyze package metadata
+3. Use search_files to identify key framework imports/usage
+4. Prioritize finding version information from package files
+
+## Existing Project Analysis
+For analyzing existing projects:
+1. Use list_files to understand project structure
+2. Use search_files to identify code patterns and conventions
+3. Use read_file to examine key configuration files
+4. Identify established patterns to preserve or enhance
+5. Look for consistent naming patterns, architectural approaches, and testing strategies
+
+## Configuration Management
+For managing configuration:
+1. Use read_file to check for existing .rooconfig.md and .roomodes
+2. Use write_to_file to generate or update configurations
+3. Use execute_command to validate and test configurations
+4. IGNORE any files marked as placeholders or dummy configurations
+
+## Placeholder Detection
+When examining configuration files:
+1. Check for explicit placeholder markers in file contents
+2. Look for warnings like "NOT A REAL PROJECT CONFIGURATION" or "PLACEHOLDER ONLY"
+3. Skip technology detection from files that identify themselves as non-real configurations
+4. Do not draw project conclusions from files that state they should be ignored
