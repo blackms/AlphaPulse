@@ -9,7 +9,9 @@ import os
 import threading
 import random
 import time
-from typing import Dict, Optional, Any, Callable, Coroutine
+import sqlite3
+import aiosqlite
+from typing import Dict, Optional, Any, Callable, Coroutine, Union
 from contextlib import asynccontextmanager
 
 import asyncpg
@@ -22,7 +24,9 @@ from alpha_pulse.data_pipeline.database.connection import (
     DEFAULT_DB_NAME,
     DEFAULT_DB_USER,
     DEFAULT_DB_PASS,
-    _initialize_tables
+    _initialize_tables,
+    DB_TYPE,
+    SQLITE_DB_PATH
 )
 
 # Maximum retry attempts for database operations
@@ -31,8 +35,10 @@ MAX_RETRY_ATTEMPTS = 3
 BASE_RETRY_DELAY = 0.5
 
 # Store pools by event loop ID and thread ID
-_connection_pools: Dict[str, asyncpg.Pool] = {}
+_connection_pools: Dict[str, Union[asyncpg.Pool, aiosqlite.Connection]] = {}
 _pool_creation_locks: Dict[str, asyncio.Lock] = {}
+_global_lock = threading.RLock()  # Global lock for thread-safe dictionary access
+_sqlite_pools = {}  # Special storage for SQLite connections
 
 def get_loop_thread_key() -> str:
     """
@@ -54,7 +60,6 @@ def get_loop_thread_key() -> str:
     
     return f"{thread_id}_{loop_id}"
 
-
 async def get_connection_pool() -> asyncpg.Pool:
     """
     Get or create a connection pool for the current event loop and thread.
@@ -67,18 +72,27 @@ async def get_connection_pool() -> asyncpg.Pool:
     """
     loop_thread_key = get_loop_thread_key()
     
-    # Check if we already have a pool for this combination
-    if loop_thread_key in _connection_pools:
-        pool = _connection_pools[loop_thread_key]
-        if not pool.is_closed():
-            logger.debug(f"Using existing connection pool for {loop_thread_key}")
-            return pool
-        else:
-            logger.debug(f"Existing pool for {loop_thread_key} is closed, creating new one")
+    # Thread-safe check of the connection pools dictionary
+    with _global_lock:
+        # Check if we already have a pool for this combination
+        if loop_thread_key in _connection_pools:
+            pool = _connection_pools[loop_thread_key]
+            if not pool.is_closed():
+                logger.debug(f"Using existing connection pool for {loop_thread_key}")
+                return pool
+            else:
+                logger.debug(f"Existing pool for {loop_thread_key} is closed, creating new one")
     
-    # Create a new pool
-    with _pool_creation_lock:
-        # Double-check in case another thread created the pool while waiting
+        # Get or create a lock for this specific loop/thread combination
+        if loop_thread_key not in _pool_creation_locks:
+            _pool_creation_locks[loop_thread_key] = asyncio.Lock()
+    
+    # Get the lock instance first
+    lock = _pool_creation_locks[loop_thread_key]
+    
+    # Use an async lock to prevent multiple concurrent creations of the same pool
+    async with lock:
+        # Double-check in case another task created the pool while waiting
         if loop_thread_key in _connection_pools and not _connection_pools[loop_thread_key].is_closed():
             return _connection_pools[loop_thread_key]
         
@@ -144,6 +158,7 @@ async def get_connection_pool() -> asyncpg.Pool:
         
         # This should never happen, but just in case
         raise RuntimeError("Unexpected error in get_connection_pool")
+        raise RuntimeError("Unexpected error in get_connection_pool")
 
 
 async def close_pool(loop_thread_key: Optional[str] = None) -> None:
@@ -157,11 +172,18 @@ async def close_pool(loop_thread_key: Optional[str] = None) -> None:
     if loop_thread_key is None:
         loop_thread_key = get_loop_thread_key()
     
-    if loop_thread_key in _connection_pools:
-        logger.info(f"Closing connection pool for {loop_thread_key}")
+    pool_to_close = None
+    with _global_lock:
+        if loop_thread_key in _connection_pools:
+            logger.info(f"Closing connection pool for {loop_thread_key}")
+            pool_to_close = _connection_pools[loop_thread_key]
+    
+    if pool_to_close:
         try:
-            await _connection_pools[loop_thread_key].close()
-            del _connection_pools[loop_thread_key]
+            await pool_to_close.close()
+            with _global_lock:
+                if loop_thread_key in _connection_pools:
+                    del _connection_pools[loop_thread_key]
             logger.info(f"Connection pool for {loop_thread_key} closed and removed")
         except Exception as e:
             logger.error(f"Error closing connection pool for {loop_thread_key}: {str(e)}")
@@ -173,7 +195,12 @@ async def close_all_pools() -> None:
     """
     logger.info(f"Closing all connection pools ({len(_connection_pools)} pools)")
     
-    for key, pool in list(_connection_pools.items()):
+    # Use a thread-safe copy of the pools dictionary
+    pools_to_close = {}
+    with _global_lock:
+        pools_to_close = dict(_connection_pools)
+    
+    for key, pool in pools_to_close.items():
         try:
             logger.debug(f"Closing connection pool for {key}")
             await pool.close()
@@ -181,8 +208,11 @@ async def close_all_pools() -> None:
         except Exception as e:
             logger.error(f"Error closing connection pool for {key}: {str(e)}")
     
-    # Clear the pools dictionary
-    _connection_pools.clear()
+    # Clear the pools and locks dictionaries in a thread-safe way
+    with _global_lock:
+        _connection_pools.clear()
+        _pool_creation_locks.clear()
+    
     logger.info("All connection pools closed")
 
 

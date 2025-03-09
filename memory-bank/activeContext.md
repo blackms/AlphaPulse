@@ -119,3 +119,26 @@ Error updating sync status: Task <Task pending name='Task-12' coro=<ExchangeData
 - Bybit API connectivity: Working ✅
 - Database connectivity: Working ✅
 - Event loop management: Improved ✅
+
+## New Task: PostgreSQL Migration
+
+**Status**: In Progress 🔄
+
+**Objective**:
+Remove SQLite support from the AlphaPulse backend and standardize exclusively on PostgreSQL.
+
+**Rationale**:
+- Simplify database management code
+- Improve reliability and performance
+- Enable PostgreSQL-specific optimizations
+- Reduce testing and maintenance complexity
+
+**Key Files**:
+- `src/alpha_pulse/data_pipeline/database/connection.py`
+- `src/alpha_pulse/data_pipeline/database/connection_manager.py`
+- Configuration files
+- Testing infrastructure
+
+**Documentation**:
+- [PostgreSQL Migration Decision](../memory-bank/postgres_migration_decision.md)
+- [PostgreSQL Migration Implementation Guide](../memory-bank/postgres_migration_implementation.md)
