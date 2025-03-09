@@ -1,7 +1,7 @@
 """
 Database connection utilities.
 
-This module provides functions to establish connections to the database.
+This module provides functions to establish connections to the PostgreSQL database.
 """
 import os
 import json
@@ -13,19 +13,14 @@ from typing import Optional, Dict, Any, List, Tuple
 from contextlib import asynccontextmanager
 
 import asyncpg
-import sqlite3
 from loguru import logger
 
-# Default connection parameters
+# Default PostgreSQL connection parameters
 DEFAULT_DB_HOST = "localhost"
 DEFAULT_DB_PORT = 5432
 DEFAULT_DB_NAME = "alphapulse"  # Changed from alpha_pulse to alphapulse
 DEFAULT_DB_USER = "testuser"
 DEFAULT_DB_PASS = "testpassword"
-
-# Database type
-DB_TYPE = os.environ.get("DB_TYPE", "postgres").lower()
-SQLITE_DB_PATH = os.environ.get("SQLITE_DB_PATH", "alphapulse.db")
 
 # Thread-local storage for connection pools
 _thread_local = threading.local()
@@ -331,7 +326,7 @@ def _json_default(obj):
 
 async def init_db():
     """
-    Initialize the database connection and tables.
+    Initialize the PostgreSQL database connection and tables.
     
     This function is used during application startup to ensure
     the database is properly initialized.
@@ -340,24 +335,15 @@ async def init_db():
         bool: True if initialization was successful, False otherwise
     """
     thread_id = threading.get_ident()
-    logger.info(f"[THREAD {thread_id}] Initializing database")
+    logger.info(f"[THREAD {thread_id}] Initializing PostgreSQL database")
     
     try:
-        if DB_TYPE == "postgres":
-            # Initialize the thread-local pool
-            await _get_thread_pg_pool()
-            return True
-        elif DB_TYPE == "sqlite":
-            # For SQLite, implement initialization here
-            logger.warning(f"Database initialization for {DB_TYPE} not fully implemented")
-            # TODO: Implement SQLite initialization
-            return True
-        else:
-            logger.warning(f"Unknown database type: {DB_TYPE}")
-            logger.warning(f"Supported types are: postgres, sqlite")
-            return False
+        # Initialize the thread-local pool
+        await _get_thread_pg_pool()
+        logger.info(f"[THREAD {thread_id}] PostgreSQL database successfully initialized")
+        return True
     except Exception as e:
-        logger.error(f"Failed to initialize database: {str(e)}")
+        logger.error(f"Failed to initialize PostgreSQL database: {str(e)}")
         logger.error("The application may not function correctly without database access")
         # Return False but don't re-raise the exception to allow the application to start
         # with degraded functionality
