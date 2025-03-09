@@ -2,136 +2,149 @@
 
 ## Problem Summary
 
-The AlphaPulse data pipeline synchronizer module was experiencing database connection issues during sync operations for the Bybit exchange. The logs showed several critical errors:
+The AlphaPulse data pipeline synchronizer was encountering multiple connection-related errors during Bybit exchange synchronization:
 
-1. `InterfaceError: cannot perform operation: another operation is in progress`
-2. `Task got Future attached to a different loop`
-3. `ConnectionDoesNotExistError: connection was closed in the middle of operation`
+1. **InterfaceError: "cannot perform operation: another operation is in progress"**
+   - Occurs when trying to execute a database operation while another operation is already in progress on the same connection
 
-These errors indicated problems with:
-- Concurrent database operations
-- Event loop conflicts in asyncio
-- Database connections being closed unexpectedly during operations
+2. **Task got Future attached to a different loop**
+   - Indicates asyncio tasks from one event loop tried to interact with another event loop
+   - Common in multi-threaded async applications with improper isolation
 
-## Root Causes
+3. **ConnectionDoesNotExistError: connection was closed in the middle of operation**
+   - Database connection was terminated unexpectedly during an active operation
 
-After analyzing the code, we identified the following root causes:
+## Root Causes Identified
 
-1. **Global Connection Pool**: The system was using a single global connection pool (`_pg_pool`) shared across all threads without proper synchronization.
+1. **Improper Connection Pooling**: Connections weren't properly isolated between threads and event loops
+2. **Insufficient Transaction Management**: Transactions weren't consistently managed across all operations
+3. **Inadequate Error Handling**: No robust retry mechanism for transient connection issues
+4. **Event Loop Confusion**: Tasks created in one event loop attempting to run in another
+5. **Thread Safety Issues**: Thread identifiers weren't consistently tracked across modules
 
-2. **Event Loop Conflicts**: Multiple threads were trying to use the same event loop, causing conflicts when tasks were attached to different loops.
+## Implemented Solutions
 
-3. **Lack of Connection Retry Logic**: There was no mechanism to retry database operations when connections failed or were closed unexpectedly.
+### 1. Enhanced Connection Manager
+- Created connection pools per thread/event loop combination
+- Implemented proper connection acquisition and release
+- Added transaction management with automatic commit/rollback
+- Developed robust error handling and retry logic
 
-4. **Improper Transaction Management**: Database transactions weren't properly managed, leading to connections being left in an inconsistent state.
+### 2. Task Manager Improvements
+- Added consistent thread and event loop tracking
+- Implemented consistent logging with proper context identifiers
+- Enhanced error handling with proper status updates
 
-5. **Fallback to Direct Connections**: When asyncio issues occurred, the code fell back to direct psycopg2 connections, creating additional connection management problems.
+### 3. Synchronizer Enhancements
+- Improved isolation between different data type sync operations
+- Better handling of concurrent operations
+- More robust error management for sync operations
+- Proper tracking of partial success in ALL sync operations
 
-## Implemented Fixes
-
-### 1. Thread-Local Connection Pools
-
-- Replaced the global `_pg_pool` with thread-local storage for connection pools
-- Each thread now has its own dedicated connection pool
-- Added proper synchronization for pool creation with a lock
-
-```python
-# Thread-local storage for connection pools
-_thread_local = threading.local()
-
-# Lock for pool creation
-_pool_creation_lock = threading.Lock()
-
-async def _get_thread_pg_pool() -> asyncpg.Pool:
-    """Get or create a PostgreSQL connection pool for the current thread."""
-    # Implementation details...
-```
-
-### 2. Connection Retry Logic with Exponential Backoff
-
-- Added retry logic with exponential backoff for database operations
-- Implemented jitter to prevent thundering herd problems
-- Added specific handling for different types of connection errors
-
-```python
-async def _execute_with_retry(operation, max_retries=MAX_RETRY_ATTEMPTS):
-    """Execute a database operation with retry logic."""
-    # Implementation details...
-```
-
-### 3. Improved Transaction Management
-
-- Ensured each database operation is wrapped in a transaction
-- Added proper transaction commit/rollback handling
-- Ensured connections are always released back to the pool, even on errors
-
-```python
-@asynccontextmanager
-async def get_pg_connection():
-    """Get a PostgreSQL connection from the thread-local pool with retry logic."""
-    # Implementation with transaction management...
-```
-
-### 4. Enhanced Error Handling
-
-- Added specific handling for different types of database errors
-- Improved logging with thread IDs for better debugging
-- Added connection pool reset on connection errors
-
-### 5. Connection Pool Configuration Improvements
-
-- Increased minimum and maximum pool sizes
-- Added command timeout and statement timeout settings
-- Limited connection lifetime to prevent stale connections
-- Added maximum queries per connection to prevent resource exhaustion
-
-```python
-_thread_local.pg_pool = await asyncpg.create_pool(
-    # Connection parameters...
-    min_size=2,           # Ensure we have at least 2 connections
-    max_size=20,          # Increased from 10 to handle more concurrent operations
-    command_timeout=60.0, # Set command timeout to 60 seconds
-    max_inactive_connection_lifetime=300.0,  # 5 minutes max idle time
-    max_queries=50000,    # Maximum queries per connection
-    setup=lambda conn: conn.execute('SET statement_timeout = 30000;')  # 30 second statement timeout
-)
-```
-
-### 6. Proper Connection Cleanup
-
-- Added a `close_all_connections()` function to ensure proper cleanup
-- Ensured connections are closed when threads exit
-- Added connection cleanup in error handling paths
-
-```python
-async def close_all_connections():
-    """Close all database connections."""
-    # Implementation details...
-```
+### 4. Consistent Thread/Loop Identification
+- Implemented `get_loop_thread_key()` across all modules
+- Ensured consistent logging format with proper context
 
 ## Testing
 
-A test script (`test_database_connection.py`) has been created to verify the fixes:
+1. Run the test_bybit_sync.py script to verify connection pooling and transaction management:
+   ```bash
+   python test_bybit_sync.py
+   ```
 
-1. It runs multiple workers concurrently in the same thread to test connection pooling
-2. It runs workers in multiple threads to test thread-local connection pools
-3. It performs a mix of read and write operations to test transaction management
-4. It verifies that the system can handle concurrent operations without errors
+2. This test will verify:
+   - Multiple concurrent operations are handled correctly
+   - Connection pooling works properly across threads and loops
+   - Retry logic handles transient errors
+   - Connections remain stable throughout sync operations
 
-To run the test:
+## Key Code Improvements
 
-```bash
-python test_database_connection.py
-```
+1. **Connection Pooling**:
+   ```python
+   async def get_connection_pool():
+       """Get or create a connection pool for the current event loop and thread."""
+       loop_thread_key = get_loop_thread_key()
+       
+       # Check if we already have a pool for this combination
+       if loop_thread_key in _connection_pools:
+           pool = _connection_pools[loop_thread_key]
+           if not pool.is_closed():
+               return pool
+   ```
 
-## Conclusion
+2. **Transaction Management**:
+   ```python
+   @asynccontextmanager
+   async def get_db_connection():
+       """Get a database connection with transaction management."""
+       conn = None
+       tr = None
+       
+       try:
+           # Acquire a connection with retry logic
+           conn = await execute_with_retry(acquire_connection)
+           
+           # Start a transaction
+           tr = conn.transaction()
+           await tr.start()
+           
+           yield conn
+           
+           # If we get here, commit the transaction
+           await tr.commit()
+       except Exception:
+           # If an exception occurs, rollback the transaction
+           if tr and not tr._done:
+               await tr.rollback()
+           raise
+   ```
 
-These changes significantly improve the robustness of the database connection handling in the AlphaPulse data pipeline. The system now:
+3. **Retry Logic**:
+   ```python
+   async def execute_with_retry(operation, max_retries=MAX_RETRY_ATTEMPTS):
+       """Execute a database operation with retry logic."""
+       retry_count = 0
+       
+       while retry_count < max_retries:
+           try:
+               return await operation()
+           except (asyncpg.InterfaceError, asyncpg.ConnectionDoesNotExistError) as e:
+               # Handle connection errors with retry
+               retry_count += 1
+               if retry_count < max_retries:
+                   # Calculate backoff time with jitter
+                   backoff = BASE_RETRY_DELAY * (2 ** (retry_count - 1)) + random.uniform(0, 0.5)
+                   # Reset the connection pool as needed
+                   # Wait and retry
+               else:
+                   raise
+   ```
 
-1. Properly handles concurrent database operations
-2. Manages event loop conflicts between threads
-3. Automatically retries failed operations with exponential backoff
-4. Ensures proper transaction management and connection cleanup
-5. Provides better logging and error reporting for debugging
+4. **Improved ALL Sync Operation**:
+   ```python
+   # Sync each data type individually with proper isolation
+   async def sync_balances_op():
+       repo = await get_repository()
+       await self._data_synchronizer.sync_balances(exchange_id, exchange, repo)
+       return True
+   
+   balances_success = await execute_with_retry(sync_balances_op)
+   
+   # Track partial success
+   sync_success = balances_success or positions_success or orders_success or prices_success
+   ```
 
-These improvements should eliminate the "another operation is in progress" and "connection was closed" errors, ensuring stable database connections during synchronization tasks.
+## Monitoring Recommendations
+
+1. Add additional logging for database connection lifecycle events
+2. Monitor transaction durations and implement timeouts for long-running operations
+3. Set up alerts for repeated connection failures
+4. Implement more detailed metrics for connection pool usage and health
+
+## Future Improvements
+
+1. Consider implementing database connection health checks
+2. Add circuit breaker pattern for external API calls that might impact database operations
+3. Implement more granular retry policies based on error types
+4. Consider database read replicas for heavy read operations

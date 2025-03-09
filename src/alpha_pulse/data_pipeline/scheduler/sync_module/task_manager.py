@@ -15,7 +15,8 @@ from loguru import logger
 from alpha_pulse.data_pipeline.scheduler import DataType
 from alpha_pulse.data_pipeline.scheduler.sync_module.types import SyncStatus
 from alpha_pulse.data_pipeline.database.exchange_cache import ExchangeCacheRepository
-from alpha_pulse.data_pipeline.database.connection import get_pg_connection
+# Import from the new connection manager
+from alpha_pulse.data_pipeline.database.connection_manager import get_db_connection, execute_with_retry, get_loop_thread_key
 # Import the default connection parameters from the connection module
 from alpha_pulse.data_pipeline.database.connection import (
     DEFAULT_DB_HOST,
@@ -120,7 +121,6 @@ class TaskManager:
         # For now, just return the exchange from environment
         exchange_type = os.environ.get('EXCHANGE_TYPE', 'bybit').lower()
         return [exchange_type]
-    
     async def check_scheduled_syncs(self) -> List[tuple]:
         """
         Check for scheduled syncs that need to run.
@@ -128,7 +128,7 @@ class TaskManager:
         Returns:
             List of (exchange_id, data_type) tuples that need to be synced
         """
-        thread_id = threading.get_ident()
+        loop_thread_key = get_loop_thread_key()
         now = datetime.now(timezone.utc)
         to_sync = []
         
@@ -137,14 +137,13 @@ class TaskManager:
         
         # Define the operation to get sync statuses
         async def get_sync_statuses():
-            async with get_pg_connection() as conn:
+            async with get_db_connection() as conn:
                 repo = ExchangeCacheRepository(conn)
                 return await repo.get_all_sync_status()
         
         try:
-            # Use the execute_with_retry function from connection.py
-            from alpha_pulse.data_pipeline.database.connection import _execute_with_retry
-            sync_statuses = await _execute_with_retry(get_sync_statuses)
+            # Use execute_with_retry from our new connection manager
+            sync_statuses = await execute_with_retry(get_sync_statuses)
             
             # Create a dict of sync statuses by exchange and data type
             status_dict = {}
@@ -175,12 +174,12 @@ class TaskManager:
                     if (next_sync_time is None or
                             now >= next_sync_time):
                         # Add to sync queue
-                        logger.info(f"[THREAD {thread_id}] Scheduling sync for {exchange_id}, type: {data_type}")
+                        logger.info(f"[{loop_thread_key}] Scheduling sync for {exchange_id}, type: {data_type}")
                         to_sync.append((exchange_id, data_type))
         except Exception as e:
-            logger.error(f"[THREAD {thread_id}] Error checking scheduled syncs: {str(e)}")
-            logger.error(f"[THREAD {thread_id}] Exception type: {type(e).__name__}")
-            logger.error(f"[THREAD {thread_id}] Exception details: {repr(e)}")
+            logger.error(f"[{loop_thread_key}] Error checking scheduled syncs: {str(e)}")
+            logger.error(f"[{loop_thread_key}] Exception type: {type(e).__name__}")
+            logger.error(f"[{loop_thread_key}] Exception details: {repr(e)}")
         
         return to_sync
     
@@ -195,12 +194,12 @@ class TaskManager:
             status: New status
             error_message: Optional error message
         """
-        thread_id = threading.get_ident()
+        loop_thread_key = get_loop_thread_key()
         next_sync_time = datetime.now(timezone.utc) + timedelta(seconds=self._sync_interval)
         
         # Define the operation to update sync status
         async def update_operation():
-            async with get_pg_connection() as conn:
+            async with get_db_connection() as conn:
                 repo = ExchangeCacheRepository(conn)
                 await repo.update_sync_status(
                     exchange_id,
@@ -211,11 +210,10 @@ class TaskManager:
                 )
         
         try:
-            # Use the execute_with_retry function from connection.py
-            from alpha_pulse.data_pipeline.database.connection import _execute_with_retry
-            await _execute_with_retry(update_operation)
-            logger.debug(f"[THREAD {thread_id}] Successfully updated sync status for {exchange_id}, {data_type}")
+            # Use execute_with_retry from our new connection manager
+            await execute_with_retry(update_operation)
+            logger.debug(f"[{loop_thread_key}] Successfully updated sync status for {exchange_id}, {data_type}")
         except Exception as e:
-            logger.error(f"[THREAD {thread_id}] Error updating sync status: {str(e)}")
-            logger.error(f"[THREAD {thread_id}] Exception type: {type(e).__name__}")
-            logger.error(f"[THREAD {thread_id}] Exception details: {repr(e)}")
+            logger.error(f"[{loop_thread_key}] Error updating sync status: {str(e)}")
+            logger.error(f"[{loop_thread_key}] Exception type: {type(e).__name__}")
+            logger.error(f"[{loop_thread_key}] Exception details: {repr(e)}")
