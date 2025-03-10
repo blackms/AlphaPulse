@@ -12,7 +12,7 @@ import json
 from loguru import logger
 
 from enum import Enum
-from alpha_pulse.data_pipeline.database.connection_manager import get_db_connection
+from alpha_pulse.data_pipeline.database.connection_manager import get_db_connection, is_pool_closed
 
 
 class DataType(str, Enum):
@@ -40,6 +40,19 @@ class ExchangeCacheRepository:
         """
         self.conn = connection
     
+    def _check_connection(self):
+        """
+        Check if the connection is valid.
+        
+        Raises:
+            asyncpg.InterfaceError: If the connection is None or closed
+        """
+        import asyncpg
+        if self.conn is None:
+            raise asyncpg.InterfaceError("Connection is None")
+        if self.conn.is_closed():
+            raise asyncpg.InterfaceError("Connection is closed")
+    
     async def get_all_sync_status(self) -> List[Dict[str, Any]]:
         """
         Get the sync status for all exchanges and data types.
@@ -64,6 +77,7 @@ class ExchangeCacheRepository:
                 """
                 return await conn.fetch(query)
         else:
+            self._check_connection()
             # Use the provided connection
             query = """
                 SELECT 
@@ -112,6 +126,7 @@ class ExchangeCacheRepository:
                 return None
         else:
             # Use the provided connection
+            self._check_connection()
             query = """
                 SELECT 
                     exchange_id, 
@@ -232,6 +247,7 @@ class ExchangeCacheRepository:
                 return dict(record)
         else:
             # Use the provided connection
+            self._check_connection()
             # Check if record exists
             query = """
                 SELECT id FROM sync_status
@@ -388,6 +404,7 @@ class ExchangeCacheRepository:
                     count += 1
         else:
             # Use the provided connection
+            self._check_connection()
             for currency, balance in balances.items():
                 # Extract values
                 available = float(balance.get('available', 0))
@@ -596,6 +613,7 @@ class ExchangeCacheRepository:
                     count += 1
         else:
             # Use the provided connection
+            self._check_connection()
             for symbol, position in positions.items():
                 # Extract values
                 quantity = float(position.get('quantity', 0))
@@ -703,6 +721,7 @@ class ExchangeCacheRepository:
                 return positions
         else:
             # Use the provided connection
+            self._check_connection()
             query = """
                 SELECT 
                     symbol, 
@@ -832,6 +851,7 @@ class ExchangeCacheRepository:
                     count += 1
         else:
             # Use the provided connection
+            self._check_connection()
             for order in orders:
                 # Extract values
                 order_id = str(order.get('id', ''))
@@ -989,6 +1009,7 @@ class ExchangeCacheRepository:
                 return orders
         else:
             # Use the provided connection
+            self._check_connection()
             if symbol:
                 query = """
                     SELECT 
@@ -1116,6 +1137,7 @@ class ExchangeCacheRepository:
                     )
         else:
             # Use the provided connection
+            self._check_connection()
             # Check if record exists
             query = """
                 SELECT id FROM exchange_prices
@@ -1207,6 +1229,7 @@ class ExchangeCacheRepository:
                 return None
         else:
             # Use the provided connection
+            self._check_connection()
             query = """
                 SELECT 
                     price,
@@ -1263,6 +1286,7 @@ class ExchangeCacheRepository:
                 return prices
         else:
             # Use the provided connection
+            self._check_connection()
             query = """
                 SELECT 
                     base_currency,
