@@ -261,6 +261,15 @@ const portfolioService = {
    * @returns Promise with portfolio data
    */
   getPortfolio: async (retryCount = 0): Promise<PortfolioData> => {
+    // TEMPORARY WORKAROUND: Use mock data to avoid backend initialization error
+    // This completely bypasses the API endpoint that's causing the error
+    // Once backend is fixed, remove this block and enable the API call below
+    console.log('Using mock portfolio data (BYPASSING BACKEND)');
+    return generateMockPortfolioData(
+      'Using mock data because backend has PortfolioService initialization issue'
+    );
+
+    /* Temporarily disabled API call that triggers the backend error
     console.log('Getting portfolio data (compatible with current backend)');
     
     const fetchWithRetry = async (attempt: number): Promise<PortfolioData> => {
@@ -337,6 +346,7 @@ const portfolioService = {
     };
     
     return fetchWithRetry(retryCount);
+    */
   },
 
   /**
@@ -345,6 +355,11 @@ const portfolioService = {
    * @returns Promise with portfolio history data
    */
   getPortfolioHistory: async (period: string): Promise<any> => {
+    // TEMPORARY WORKAROUND: Use mock data to avoid backend initialization error
+    console.log('Using mock portfolio history data (BYPASSING BACKEND)');
+    return generateMockHistoricalData();
+    
+    /* Temporarily disabled API call that triggers the backend error
     try {
       const response = await apiClient.get(`/api/v1/portfolio?include_history=true`);
       // Extract the historical data for the requested period
@@ -353,6 +368,7 @@ const portfolioService = {
       console.error('Error fetching portfolio history, using mock data:', error);
       return generateMockHistoricalData();
     }
+    */
   },
 
   /**
