@@ -13,10 +13,16 @@ from datetime import datetime, timedelta
 import logging
 
 # Configure logging
+LOG_FILE = "bybit_fix_results.log"
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(LOG_FILE),
+        logging.StreamHandler(sys.stdout)
+    ]
 )
+logger.info(f"Logs will be written to {LOG_FILE}")
 logger = logging.getLogger('bybit_fix')
 
 # Add parent directory to path to import from src
@@ -94,6 +100,12 @@ async def test_fixed_order_history(symbol="BTC/USDT"):
             # Log first order details
             if len(adapter_orders) > 0:
                 logger.info(f"Sample adapter order: {adapter_orders[0]}")
+                
+                # Save sample order to a separate JSON file for easier inspection
+                import json
+                with open("bybit_sample_order.json", "w") as f:
+                    json.dump(adapter_orders[0], f, indent=2)
+                logger.info("Sample order saved to bybit_sample_order.json")
         else:
             logger.warning(f"No orders found via fixed adapter for {symbol}")
             
@@ -163,15 +175,15 @@ async def main():
     print("=" * 80 + "\n")
     
     # Apply the fix
-    print("Applying the fix to ccxt_adapter.py...")
+    print("Applying the fix to ccxt_adapter.py (detailed logs in bybit_fix_results.log)...")
     apply_fix()
     
     # Run the test
-    print("\nTesting order history retrieval with the fix...\n")
+    print("\nTesting order history retrieval with the fix...(results will be logged to file)")
     await test_fixed_order_history()
     
     print("\n" + "=" * 80)
-    print(" TEST COMPLETED ".center(80, "="))
+    print(f" TEST COMPLETED - Results saved to {LOG_FILE} ".center(80, "="))
     print("=" * 80 + "\n")
 
 
