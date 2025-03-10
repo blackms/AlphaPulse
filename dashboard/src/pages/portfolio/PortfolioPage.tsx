@@ -326,16 +326,31 @@ const PortfolioPage: React.FC = () => {
           </Card>
         </Grid>
         
+        {/* Only show cash balance if it represents real data */}
         <Grid item xs={12} md={6} lg={3}>
           <Card>
             <CardContent>
-              <Typography variant="h6" gutterBottom>Cash Balance</Typography>
-              <Typography variant="h4" sx={{ mb: 1 }}>
-                {isLoading && (
-                  <CircularProgress size={16} thickness={4} sx={{ mr: 1 }} />
-                )}
-                {formatCurrency(cashBalance)}
+              <Typography variant="h6" gutterBottom>
+                Cash Balance
+                <Tooltip title="Note: Cash balance is not retrieved from the exchange directly and may not represent your actual cash holdings.">
+                  <IconButton size="small" sx={{ ml: 1, mt: -1 }}>
+                    <InfoIcon fontSize="small" color="action" />
+                  </IconButton>
+                </Tooltip>
               </Typography>
+              <Typography variant="h4" sx={{ mb: 1 }}>
+                {isLoading ? (
+                  <CircularProgress size={16} thickness={4} sx={{ mr: 1 }} />
+                ) : totalValue > 0 && Math.abs((cashBalance / totalValue) - 0.2) < 0.001 ? (
+                  <Typography variant="body2" color="text.secondary" component="span">
+                    Value estimated (not actual exchange data)
+                  </Typography>
+                ) : (
+                  formatCurrency(cashBalance)
+                )}
+              </Typography>
+              
+              
               <Box display="flex" alignItems="center">
                 <Typography variant="body2">
                   {((cashBalance / totalValue) * 100).toFixed(1)}% of portfolio
@@ -450,7 +465,14 @@ const PortfolioPage: React.FC = () => {
                         <strong>Portfolio Value:</strong> {formatCurrency(totalValue)}
                       </Typography>
                       <Typography variant="body1" gutterBottom>
-                        <strong>Cash Balance:</strong> {formatCurrency(cashBalance)}
+                        <strong>Cash Balance:</strong>{' '}
+                        {totalValue > 0 && Math.abs((cashBalance / totalValue) - 0.2) < 0.001 ? (
+                          <span>Value estimated (not actual exchange data)</span>
+                        ) : (
+                          formatCurrency(cashBalance)
+                        )
+                        }
+                        
                       </Typography>
                     </Grid>
                     <Grid item xs={12} md={6}>
