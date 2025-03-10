@@ -16,6 +16,7 @@ from alpha_pulse.data_pipeline.database.exchange_cache_fixed import ExchangeCach
 # Import the fixed connection manager
 from alpha_pulse.data_pipeline.database.connection_manager_fixed import get_db_connection
 
+
 class DataSynchronizer:
     """
     Handles the synchronization of different types of exchange data.
@@ -24,7 +25,7 @@ class DataSynchronizer:
     """
     
     @staticmethod
-    def db_operation_with_retry(max_retries=3, retry_delay=1.0):
+    def db_operation_with_retry(max_retries=5, retry_delay=1.0):
         """
         Decorator for database operations that need retry logic.
         
@@ -39,30 +40,49 @@ class DataSynchronizer:
             @wraps(func)
             async def wrapper(*args, **kwargs):
                 last_exception = None
+                
                 for attempt in range(1, max_retries + 1):
                     try:
                         return await func(*args, **kwargs)
                     except asyncpg.InterfaceError as e:
                         error_msg = str(e)
-                        if "connection has been released back to the pool" in error_msg or "connection is closed" in error_msg:
+                        if ("connection has been released back to the pool" in error_msg or 
+                            "connection is closed" in error_msg):
                             logger.error(f"Database connection error in {func.__name__} (attempt {attempt}/{max_retries}): {error_msg}")
                             if attempt < max_retries:
                                 # Add exponential backoff with jitter
                                 retry_delay_with_jitter = retry_delay * (1 + (attempt - 1) * 0.2) 
                                 retry_delay_with_jitter += 0.1 * (asyncio.create_task(asyncio.sleep(0)).result())  # Add jitter
-                                logger.info(f"Retrying operation in {retry_delay} seconds...")
-                                await asyncio.sleep(retry_delay)
+                                logger.info(f"Retrying operation in {retry_delay_with_jitter} seconds...")
+                                await asyncio.sleep(retry_delay_with_jitter)
                                 last_exception = e
                             else:
                                 logger.error(f"Max retries ({max_retries}) reached for {func.__name__}")
                                 raise
                         else:
                             raise
+                    except asyncio.InvalidStateError as e:
+                        # Handle the "Result is not set" error specifically
+                        error_msg = str(e)
+                        logger.error(f"Invalid state error in {func.__name__} (attempt {attempt}/{max_retries}): {error_msg}")
+                        if attempt < max_retries:
+                            # Add exponential backoff with jitter 
+                            retry_delay_with_jitter = retry_delay * (1 + (attempt - 1) * 0.2)
+                            retry_delay_with_jitter += 0.1 * (asyncio.create_task(asyncio.sleep(0)).result())  # Add jitter
+                            logger.info(f"Retrying operation in {retry_delay_with_jitter} seconds after invalid state error...")
+                            await asyncio.sleep(retry_delay_with_jitter)
+                            last_exception = e
+                        else:
+                            logger.error(f"Max retries ({max_retries}) reached for {func.__name__}")
+                            raise
                     except Exception as e:
                         raise
                 raise last_exception  # This should never be reached, but just in case
             return wrapper
         return decorator
+    
+    def __init__(self):
+        self.repo = None  # Will be set for each session
     
     async def sync_balances(self, exchange_id: str, exchange: BaseExchange, repo: ExchangeCacheRepository) -> bool:
         """
@@ -78,6 +98,7 @@ class DataSynchronizer:
         """
         logger.info(f"Syncing balances for {exchange_id}")
         
+        self.repo = repo  # Store repo for potential retries
         @DataSynchronizer.db_operation_with_retry(max_retries=3, retry_delay=1.0)
         async def _store_balances(exchange_id, balance_dict, repo):
             try:
@@ -126,6 +147,7 @@ class DataSynchronizer:
         """
         logger.info(f"Syncing positions for {exchange_id}")
         
+        self.repo = repo  # Store repo for potential retries
         @DataSynchronizer.db_operation_with_retry(max_retries=3, retry_delay=1.0)
         async def _store_positions(exchange_id, positions_dict, repo):
             try:
@@ -197,6 +219,7 @@ class DataSynchronizer:
         """
         logger.info(f"Syncing orders for {exchange_id}")
         
+        self.repo = repo  # Store repo for potential retries
         @DataSynchronizer.db_operation_with_retry(max_retries=3, retry_delay=1.0)
         async def _store_orders(exchange_id, all_orders, repo):
             try:
@@ -270,6 +293,7 @@ class DataSynchronizer:
         """
         logger.info(f"Syncing prices for {exchange_id}")
         
+        self.repo = repo  # Store repo for potential retries
         @DataSynchronizer.db_operation_with_retry(max_retries=3, retry_delay=1.0)
         async def _store_price(exchange_id, base_currency, quote_currency, price, repo):
             try:

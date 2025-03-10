@@ -14,7 +14,9 @@ import asyncpg
 from loguru import logger
 
 from enum import Enum
-from alpha_pulse.data_pipeline.database.connection_manager import get_db_connection, is_pool_closed
+# Use the fixed connection manager instead of the original
+from alpha_pulse.data_pipeline.database.connection_manager_fixed import get_db_connection
+from alpha_pulse.data_pipeline.database.connection_manager import is_pool_closed
 
 
 class DataType(str, Enum):
