@@ -21,6 +21,7 @@ class DataSynchronizer:
     This class is responsible for fetching data from exchanges and storing it in the database.
     """
     
+    @staticmethod
     def db_operation_with_retry(max_retries=3, retry_delay=1.0):
         """
         Decorator for database operations that need retry logic.
@@ -72,7 +73,7 @@ class DataSynchronizer:
         """
         logger.info(f"Syncing balances for {exchange_id}")
         
-        @self.db_operation_with_retry(max_retries=3, retry_delay=1.0)
+        @DataSynchronizer.db_operation_with_retry(max_retries=3, retry_delay=1.0)
         async def _store_balances(exchange_id, balance_dict, repo):
             try:
                 await repo.store_balances(exchange_id, balance_dict)
@@ -120,7 +121,7 @@ class DataSynchronizer:
         """
         logger.info(f"Syncing positions for {exchange_id}")
         
-        @self.db_operation_with_retry(max_retries=3, retry_delay=1.0)
+        @DataSynchronizer.db_operation_with_retry(max_retries=3, retry_delay=1.0)
         async def _store_positions(exchange_id, positions_dict, repo):
             try:
                 await repo.store_positions(exchange_id, positions_dict)
@@ -191,7 +192,7 @@ class DataSynchronizer:
         """
         logger.info(f"Syncing orders for {exchange_id}")
         
-        @self.db_operation_with_retry(max_retries=3, retry_delay=1.0)
+        @DataSynchronizer.db_operation_with_retry(max_retries=3, retry_delay=1.0)
         async def _store_orders(exchange_id, all_orders, repo):
             try:
                 await repo.store_orders(exchange_id, all_orders)
@@ -264,7 +265,7 @@ class DataSynchronizer:
         """
         logger.info(f"Syncing prices for {exchange_id}")
         
-        @self.db_operation_with_retry(max_retries=3, retry_delay=1.0)
+        @DataSynchronizer.db_operation_with_retry(max_retries=3, retry_delay=1.0)
         async def _store_price(exchange_id, base_currency, quote_currency, price, repo):
             try:
                 await repo.store_price(
