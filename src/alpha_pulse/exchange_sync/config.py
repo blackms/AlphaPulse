@@ -30,7 +30,7 @@ def get_database_config() -> Dict[str, Any]:
         'port': int(os.getenv('DB_PORT', '5432')),
         'user': os.getenv('DB_USER', 'testuser'),
         'password': os.getenv('DB_PASS', 'testpassword'),
-        'database': os.getenv('DB_NAME', 'alphapulse')
+        'database': os.getenv('DB_NAME', 'alphapulse')  # Changed from alphapulse.db to alphapulse
     }
 
 
