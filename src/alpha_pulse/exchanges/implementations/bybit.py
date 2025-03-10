@@ -442,13 +442,32 @@ class BybitExchange(CCXTAdapter):
             if orders:
                 logger.info(f"Found {len(orders)} orders for {symbol} using direct format")
                 return orders
+            # If still no orders, return empty list but log a warning
+            logger.warning(f"No orders found for {symbol} after trying multiple formats")
             
-            # If still no orders, return empty list
-            logger.info(f"No orders found for {symbol} after trying multiple formats")
+            # Check if credentials are valid
+            if not self.config.api_key or not self.config.api_secret:
+                logger.error("Missing API credentials for Bybit. Please check your credentials.")
+            else:
+                # Suggest IP whitelisting
+                logger.error("You might need to whitelist your IP address in the Bybit dashboard")
+                
             return []
             
         except Exception as e:
-            logger.error(f"Error getting orders for {symbol}: {str(e)}")
+            error_str = str(e)
+            
+            # Check for specific error messages
+            if "Order status is wrong" in error_str:
+                logger.error(f"Authentication error for {symbol}: {error_str}. You might need to whitelist your IP address in the Bybit dashboard.")
+            elif "Invalid API key" in error_str or "api_key" in error_str.lower():
+                logger.error(f"API key error for {symbol}: {error_str}. Check your API key and secret.")
+            elif "permission" in error_str.lower() or "access" in error_str.lower():
+                logger.error(f"Permission error for {symbol}: {error_str}. Check API key permissions in the Bybit dashboard.")
+            else:
+                logger.error(f"Error getting orders for {symbol}: {error_str}")
+                
+            return []
             return []
     
     async def get_average_entry_price(self, symbol: str) -> Optional[Decimal]:
@@ -489,7 +508,11 @@ class BybitExchange(CCXTAdapter):
             
             # If no orders found or calculation failed, use mock entry prices for testing
             # This is only for demonstration purposes
-            logger.warning(f"Using mock entry price for {symbol}")
+            logger.warning(f"Using mock entry price for {symbol} - REAL DATA NOT AVAILABLE")
+            
+            # Check for potential authentication issues
+            if "Order status is wrong" in str(orders):
+                logger.error(f"Authentication error for {symbol}: Order status is wrong. You might need to whitelist your IP address in the Bybit dashboard.")
             
             # Make sure we have a proper trading pair symbol
             trading_pair = symbol

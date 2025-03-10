@@ -279,6 +279,23 @@ class CCXTAdapter(BaseExchange):
                     response = await self.exchange.privateGetV5OrderHistory(direct_params)
                     logger.debug(f"Direct API response structure: {list(response.keys()) if response else 'None'}")
                     
+                    # Check for error codes in the response
+                    if response and 'retCode' in response:
+                        ret_code = response.get('retCode')
+                        ret_msg = response.get('retMsg', 'Unknown error')
+                        
+                        if ret_code != 0:  # Non-zero code indicates an error
+                            error_msg = f"Bybit API error: code={ret_code}, message={ret_msg}"
+                            
+                            # Check for specific error conditions
+                            if "Order status is wrong" in ret_msg:
+                                error_msg += "; You might need to whitelist your IP address in the Bybit dashboard"
+                            elif "Invalid API key" in ret_msg or "api_key" in ret_msg.lower():
+                                error_msg += "; Check your API key and secret"
+                            
+                            logger.error(error_msg)
+                            raise Exception(error_msg)
+                    
                     # Extract orders from response if available
                     if response and 'result' in response and 'list' in response['result']:
                         direct_orders = response['result']['list']
@@ -288,7 +305,38 @@ class CCXTAdapter(BaseExchange):
                         if direct_orders:
                             logger.info(f"Sample direct order: {direct_orders[0]}")
                 except Exception as e:
-                    logger.error(f"Error with direct API call: {str(e)}")
+                    # Check if the exception message contains a JSON response with error codes
+                    error_str = str(e)
+                    if "retCode" in error_str:
+                        try:
+                            # Try to extract the JSON part from the error message
+                            import re
+                            import json
+                            
+                            # Find JSON-like content in the error message
+                            json_match = re.search(r'(\{.*\})', error_str)
+                            if json_match:
+                                json_str = json_match.group(1)
+                                error_data = json.loads(json_str)
+                                
+                                # Extract error details
+                                ret_code = error_data.get('retCode')
+                                ret_msg = error_data.get('retMsg', 'Unknown error')
+                                
+                                error_details = f"Bybit API error: code={ret_code}, message={ret_msg}"
+                                
+                                # Check for specific error conditions
+                                if "Order status is wrong" in ret_msg:
+                                    error_details += "; You might need to whitelist your IP address in the Bybit dashboard"
+                                elif "Invalid API key" in ret_msg or "api_key" in ret_msg.lower():
+                                    error_details += "; Check your API key and secret"
+                                
+                                logger.error(error_details)
+                        except Exception as json_error:
+                            # If JSON parsing fails, just log the original error
+                            logger.error(f"Error with direct API call: {error_str}")
+                    else:
+                        logger.error(f"Error with direct API call: {error_str}")
             
             if all_orders:
                 logger.info(f"Total orders found for {symbol}: {len(all_orders)}")
