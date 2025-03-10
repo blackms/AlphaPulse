@@ -1,6 +1,30 @@
 # Active Context
 
-## Current Task: Extend Loguru Integration to API Modules
+## Current Task: Update Exchange Cache Module
+
+**Status**: Completed ✅
+
+**Objective**:
+1. Update the exchange_cache.py file to use the new connection module
+2. Remove dependencies on the legacy connection_manager module
+3. Maintain backward compatibility and functionality
+
+**Implementation**:
+- Replaced import from connection_manager with import from connection
+- Updated all get_db_connection calls to use get_pg_connection
+- Removed is_pool_closed reference as it's no longer needed
+- Maintained the same functionality and interface
+- Kept loguru for logging
+
+**Key Files**:
+- `src/alpha_pulse/data_pipeline/database/exchange_cache.py` (updated)
+
+**Documentation**:
+- Updated Memory Bank files to reflect the changes
+
+## Previous Tasks
+
+### Extend Loguru Integration to API Modules
 
 **Status**: Completed ✅
 
@@ -21,8 +45,6 @@
 
 **Documentation**:
 - Updated Memory Bank files to reflect the changes
-
-## Previous Tasks
 
 ### Fix Legacy Exchange Cache Import
 
@@ -224,6 +246,23 @@
 
 ## Issues Fixed
 
+### Legacy Connection Manager Dependencies
+
+**Status**: Fixed ✅
+
+**Issue**: The exchange_cache.py file was still using the removed connection_manager module.
+
+**Root Cause**: The refactoring to remove the connection_manager module was incomplete, as exchange_cache.py still had dependencies on it.
+
+**Fix**:
+- Updated exchange_cache.py to use the new connection module
+- Replaced get_db_connection with get_pg_connection
+- Removed is_pool_closed reference
+
+**Verification**:
+- Code compiles without errors
+- Database operations work correctly
+
 ### Import Error After Removing Legacy Files
 
 **Status**: Fixed ✅
@@ -320,3 +359,4 @@ Error updating sync status: Task <Task pending name='Task-12' coro=<ExchangeData
 - Loguru integration: Completed ✅
 - Legacy code removal: Completed ✅
 - Import errors: Fixed ✅
+- Legacy dependencies: Removed ✅

@@ -2,6 +2,15 @@
 
 ## Completed Tasks
 
+### 2025-03-10: Update Exchange Cache Module
+
+- ✅ Updated exchange_cache.py to use the new connection module
+- ✅ Replaced import from connection_manager with import from connection
+- ✅ Updated all get_db_connection calls to use get_pg_connection
+- ✅ Removed is_pool_closed reference as it's no longer needed
+- ✅ Maintained the same functionality and interface
+- ✅ Kept loguru for logging
+
 ### 2025-03-10: Extend Loguru Integration to API Modules
 
 - ✅ Replaced standard logging with loguru in src/alpha_pulse/api/main.py
