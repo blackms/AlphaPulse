@@ -1,6 +1,16 @@
 #!/bin/bash
 # Test script for the exchange sync module
 
+# Create the database if it doesn't exist
+echo "Setting up the database..."
+chmod +x create_alphapulse_db.sh
+./create_alphapulse_db.sh
+
+if [ $? -ne 0 ]; then
+    echo "Failed to create database. Please check the error messages above."
+    exit 1
+fi
+
 # Set database environment variables
 export DB_USER="testuser"
 export DB_PASS="testpassword"
