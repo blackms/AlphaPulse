@@ -29,6 +29,7 @@ import {
   Refresh as RefreshIcon,
   Info as InfoIcon,
   Analytics as AnalyticsIcon,
+  BugReport as BugIcon,
   Warning as WarningIcon,
   SwapHoriz as RebalanceIcon,
   Sync as SyncIcon,
@@ -48,6 +49,7 @@ import {
   // Asset, // Unused import
 } from '../../store/slices/portfolioSlice';
 import ErrorFallback from '../../components/ErrorFallback';
+import BackendErrorAlert from '../../components/BackendErrorAlert';
 import { Line } from 'react-chartjs-2';
 import 'chart.js/auto';
 
@@ -203,9 +205,19 @@ const PortfolioPage: React.FC = () => {
     );
   }
 
+  // Check for specific PortfolioService error
+  const isPortfolioServiceError = error && error.includes('PortfolioService.__init__() takes 1 positional argument but 2 were given');
+
   // If there's an error and no data, show the error component
   if (error && !assets.length) {
-    return (
+    return isPortfolioServiceError ? (
+      <Box sx={{ p: 3 }}>
+        <BackendErrorAlert error={error} />
+        <Box sx={{ mt: 3, textAlign: 'center' }}>
+          <Button href="/dashboard/system/diagnostics" variant="contained" startIcon={<BugIcon />}>View Diagnostic Tools</Button>
+        </Box>
+      </Box>
+    ) : (
       <Box sx={{ p: 3 }}>
         <ErrorFallback error={error} retry={handleRefresh} showDetails={false} />
       </Box>
@@ -230,7 +242,18 @@ const PortfolioPage: React.FC = () => {
               />
             </Box>
           </Tooltip>
-          {error && (
+          {isPortfolioServiceError ? (
+            <Button
+              variant="outlined"
+              color="warning"
+              component="a"
+              href="/dashboard/system/diagnostics"
+              startIcon={<BugIcon />}
+              sx={{ mr: 2 }}
+            >
+              Backend Error Details
+            </Button>
+          ) : error && (
             <Alert 
               severity="warning" 
               icon={<WarningIcon />}

@@ -12,6 +12,17 @@ const transformApiData = (apiData: any): PortfolioData => {
   const totalValue = apiData.total_value || 100000;
   const cashBalance = apiData.cash || totalValue * 0.25;
   
+  // Log diagnostic information if there's an error
+  if (apiData.error) {
+    console.error('Backend error detected:', apiData.error);
+    
+    // Log specific error pattern to help backend developers
+    if (apiData.error.includes('PortfolioService.__init__() takes 1 positional argument but 2 were given')) {
+      console.error('BACKEND ISSUE: PortfolioService class is not accepting exchange_id parameter in constructor.');
+      console.info('FIX: The PortfolioService class in src/alpha_pulse/exchange_sync/portfolio_service.py needs to be updated to accept exchange_id parameter.');
+    }
+  }
+  
   // Create a cash asset for proper display
   const cashAsset = {
     assetId: 'CASH-USD',
@@ -125,8 +136,10 @@ const portfolioService = {
         // Check if API returned an error structure
         if (apiData.error) {
           console.warn('API returned error structure:', apiData.error);
+          console.info('Diagnostic: This is likely a backend initialization issue with PortfolioService');
           
-          // If we have some positions data but there was an error, we can still proceed
+          // Even with the error, if we have positions data we can still display it
+          // This makes the dashboard resilient to backend issues
           if (apiData.positions && apiData.positions.length > 0) {
             console.log('Using partial data despite error');
           } else if (attempt < MAX_RETRIES) {

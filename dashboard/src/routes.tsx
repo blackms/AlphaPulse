@@ -7,6 +7,7 @@ import DashboardPage from './pages/dashboard/DashboardPage';
 import PortfolioPage from './pages/portfolio/PortfolioPage';
 import AlertsPage from './pages/alerts/AlertsPage';
 import SystemStatusPage from './pages/system/SystemStatusPage';
+import DiagnosticPage from './pages/system/DiagnosticPage';
 import SettingsPage from './pages/settings/SettingsPage';
 import NotFoundPage from './pages/NotFoundPage';
 
@@ -45,6 +46,7 @@ const Router: React.FC = () => {
         <Route path="trading" element={<DashboardPage />} /> {/* No TradingPage yet, using DashboardPage as fallback */}
         <Route path="alerts" element={<AlertsPage />} />
         <Route path="system" element={<SystemStatusPage />} />
+        <Route path="system/diagnostics" element={<DiagnosticPage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>
 
