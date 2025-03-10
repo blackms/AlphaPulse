@@ -1,6 +1,30 @@
 # Active Context
 
-## Current Task: Fix Legacy Exchange Cache Import
+## Current Task: Extend Loguru Integration to API Modules
+
+**Status**: Completed ✅
+
+**Objective**:
+1. Replace standard logging with loguru in API modules
+2. Ensure consistent logging across the entire application
+3. Maintain backward compatibility with existing log messages
+
+**Implementation**:
+- Replaced standard logging with loguru in src/alpha_pulse/api/main.py
+- Replaced standard logging with loguru in src/alpha_pulse/api/websockets/subscription.py
+- Removed unnecessary logging configuration in main.py
+- Maintained the same log messages for backward compatibility
+
+**Key Files**:
+- `src/alpha_pulse/api/main.py` (updated)
+- `src/alpha_pulse/api/websockets/subscription.py` (updated)
+
+**Documentation**:
+- Updated Memory Bank files to reflect the changes
+
+## Previous Tasks
+
+### Fix Legacy Exchange Cache Import
 
 **Status**: Completed ✅
 
@@ -19,8 +43,6 @@
 
 **Documentation**:
 - Updated Memory Bank files to reflect the changes
-
-## Previous Tasks
 
 ### Remove Legacy Exchange Cache Files
 
