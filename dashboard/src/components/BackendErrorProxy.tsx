@@ -69,7 +69,7 @@ const BackendErrorProxy: React.FC<BackendErrorProxyProps> = ({ endpoint, childre
   const getUserFriendlyError = (error: string) => {
     // Check for specific errors and provide friendly messages
     if (error.includes('PortfolioService.__init__()')) {
-      return 'The portfolio service is temporarily unavailable.';
+      return 'The portfolio service is temporarily unavailable due to a parameter mismatch.';
     }
     
     if (error.includes('timeout') || error.includes('network')) {

@@ -92,10 +92,13 @@ const transformApiData = (apiData: any): PortfolioData => {
 
 /**
  * Portfolio service for API calls with error handling
+ * Updated to ensure compatibility with backend API expectations
  */
 const portfolioService = {
   /**
    * Get portfolio data with retry logic and fallbacks
+   * IMPORTANT: This call avoids sending any exchange_id parameter
+   * to match the PortfolioService.__init__() requirement
    * @returns Promise with portfolio data
    */
   getPortfolio: async (retryCount = 0): Promise<PortfolioData> => {
@@ -103,7 +106,8 @@ const portfolioService = {
       try {
         console.log(`Fetching portfolio data (attempt ${attempt + 1}/${MAX_RETRIES + 1})...`);
         
-        // Make API call with minimal parameters - no exchange_id to avoid the init error
+        // Make API call with ONLY the include_history parameter - NO exchange_id!
+        // This matches what the backend PortfolioService constructor expects
         const response = await apiClient.get('/api/v1/portfolio', {
           params: {
             include_history: false
@@ -163,11 +167,14 @@ const portfolioService = {
 
   /**
    * Get portfolio history
+   * IMPORTANT: This call avoids sending any exchange_id parameter
+   * to match the PortfolioService.__init__() requirement
    * @param period - Time period for history (day, week, month, year, all)
    * @returns Promise with portfolio history data
    */
   getPortfolioHistory: async (period: string): Promise<HistoricalValue[]> => {
     try {
+      // Make API call with ONLY the include_history and period parameters - NO exchange_id!
       const response = await apiClient.get('/api/v1/portfolio', {
         params: {
           include_history: true,
@@ -203,10 +210,25 @@ const portfolioService = {
       // Get the full portfolio and filter for the specific asset
       // This is the most efficient approach as the API doesn't support 
       // direct fetching of a single asset
-      const portfolioData = await portfolioService.getPortfolio(0);
+      const portfolioData = await portfolioService.getPortfolio();
       return portfolioData.assets.find(a => a.assetId === assetId) || null;
     } catch (error) {
       console.error('Error fetching asset details:', error);
+      throw error;
+    }
+  },
+  
+  /**
+   * Reload exchange data (will NOT pass exchange_id to match backend expectations)
+   * @returns Promise with the reload result
+   */
+  reloadData: async (): Promise<any> => {
+    try {
+      // Call the reload endpoint WITHOUT any exchange_id parameter
+      const response = await apiClient.post('/api/v1/portfolio/reload');
+      return response.data;
+    } catch (error) {
+      console.error('Error reloading portfolio data:', error);
       throw error;
     }
   }
