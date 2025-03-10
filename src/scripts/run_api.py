@@ -27,7 +27,7 @@ def main():
     parser = argparse.ArgumentParser(description='Run the AlphaPulse API server')
     parser.add_argument('--host', default='0.0.0.0', help='Host to bind to')
     parser.add_argument('--port', type=int, default=8000, help='Port to bind to')
-    parser.add_argument('--reload', action='store_true', help='Enable auto-reload')
+    parser.add_argument('--reload', action='store_true', help='Enable auto-reload', default=True)
     parser.add_argument('--workers', type=int, default=1, help='Number of worker processes')
     parser.add_argument('--log-level', default='info', help='Log level')
     
