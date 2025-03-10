@@ -31,7 +31,6 @@ import {
   Analytics as AnalyticsIcon,
   BugReport as BugIcon,
   Warning as WarningIcon,
-  SwapHoriz as RebalanceIcon,
   // Removed unused SyncIcon import
 } from '@mui/icons-material';
 import { useSelector, useDispatch } from 'react-redux';
@@ -97,10 +96,9 @@ const PortfolioPage: React.FC = () => {
   // Set up the data refresh functionality with the hook
   const { 
     refresh, 
-    isRefreshing, 
-    // Removed unused lastRefreshed variable
+    isRefreshing
   } = useDataRefresh({
-    refreshFn: () => dispatch(fetchPortfolioStart()),
+    refreshFn: () => handleRefresh(),
     interval: 30000, // 30 seconds
     autoRefresh: autoRefreshEnabled,
     onError: (err) => {
@@ -110,7 +108,17 @@ const PortfolioPage: React.FC = () => {
   });
   
   const handleRefresh = () => {
-    dispatch(fetchPortfolioStart());
+    try {
+      dispatch(fetchPortfolioStart());
+    } catch (err) {
+      console.error("Error during portfolio data refresh:", err);
+    }
+  };
+  
+  // Error message for user-friendly display
+  const getUserFriendlyErrorMessage = () => {
+    return "We're experiencing difficulties communicating with our servers. " +
+           "Please try again later.";
   };
   
   // Helper functions
@@ -194,17 +202,17 @@ const PortfolioPage: React.FC = () => {
     },
   };
 
-  // If we're in a loading state, show a loading indicator
+  // Loading state - show a loading indicator
   if (isLoading && !assets.length) {
     return (
-      <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '50vh' }}>
+      <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
         <CircularProgress size={60} thickness={4} sx={{ mb: 3 }} />
-        <Typography variant="h6" color="text.secondary">
+        <Typography variant="h6" color="text.secondary" align="center">
           Loading portfolio data...
         </Typography>
       </Box>
     );
-  }
+  };
 
   // Check for specific PortfolioService error
   const isPortfolioServiceError = error && error.includes('PortfolioService.__init__() takes 1 positional argument but 2 were given');
@@ -219,8 +227,18 @@ const PortfolioPage: React.FC = () => {
         </Box>
       </Box>
     ) : (
-      <Box sx={{ p: 3 }}>
-        <ErrorFallback error={error} retry={handleRefresh} showDetails={false} />
+      <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+        <Alert 
+          severity="error" 
+          sx={{ width: '100%', maxWidth: 600, mb: 3 }}
+          variant="filled"
+        >
+          <Typography variant="h6" gutterBottom>Connection Error</Typography>
+          <Typography>{getUserFriendlyErrorMessage()}</Typography>
+        </Alert>
+        <Button variant="contained" onClick={handleRefresh} startIcon={isRefreshing ? <CircularProgress size={20} color="inherit" /> : <RefreshIcon />}>
+          {isRefreshing ? "Trying to reconnect..." : "Try Again"}
+        </Button>
       </Box>
     );
   }
@@ -228,7 +246,14 @@ const PortfolioPage: React.FC = () => {
   return (
     <Box sx={{ p: 3 }}>
       {/* Show error alert if needed */}
-      {error && <BackendErrorAlert error={error} />}
+      {error && (
+        <Alert 
+          severity="error" 
+          sx={{ mb: 3 }}
+        >
+          <Typography>{getUserFriendlyErrorMessage()}</Typography>
+        </Alert>
+      )}
       
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <Typography variant="h4" component="h1">
@@ -240,9 +265,9 @@ const PortfolioPage: React.FC = () => {
               <Typography variant="body2" color="text.secondary" sx={{ mr: 1 }}>
                 Auto refresh
               </Typography>
-              <Switch
+              <Switch 
                 checked={autoRefreshEnabled}
-                onChange={(e) => setAutoRefreshEnabled(e.target.checked)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAutoRefreshEnabled(e.target.checked)}
               />
             </Box>
           </Tooltip>
@@ -254,22 +279,14 @@ const PortfolioPage: React.FC = () => {
               href="/dashboard/system/diagnostics"
               startIcon={<BugIcon />}
               sx={{ mr: 2 }}
+              size="small"
             >
-              Backend Error Details
+              Diagnostic Tools
             </Button>
-          ) : error && (
-            <Alert 
-              severity="warning" 
-              icon={<WarningIcon />}
-              sx={{ mr: 2 }}
-              action={
-                <Button color="inherit" size="small" onClick={handleRefresh}>
-                  Retry
-                </Button>
-              }
-            >
-              Error fetching latest data
-            </Alert>
+          ) : (
+            <>
+              {/* No specific error handling needed here due to our improved error UI */}
+            </>
           )}
           <Button
             variant="contained"
@@ -387,15 +404,11 @@ const PortfolioPage: React.FC = () => {
                     {isRefreshing ? 'Refreshing...' : `Last updated: ${formatLastUpdated(lastUpdated)}`}
                   </Typography>
                 </Box>
-              )}
+               )}
               <Button 
                 startIcon={<AnalyticsIcon />}
                 sx={{ mr: 1 }}
-              >
-                Analytics
-              </Button>
-              <Button 
-                startIcon={<RebalanceIcon />}
+                disabled={isLoading || !!error}
               >
                 Rebalance
               </Button>
@@ -431,24 +444,20 @@ const PortfolioPage: React.FC = () => {
                   <Grid container spacing={3}>
                     <Grid item xs={12} md={6}>
                       <Typography variant="body1" gutterBottom>
-                        <strong>Assets:</strong> {assets && assets.length ? assets.length : 0}
+                        <strong>Total Assets:</strong> {assets && assets.length ? assets.length : 0}
                       </Typography>
                       <Typography variant="body1" gutterBottom>
-                        <strong>Diversification Score:</strong> 78%
+                        <strong>Portfolio Value:</strong> {formatCurrency(totalValue)}
                       </Typography>
                       <Typography variant="body1" gutterBottom>
-                        <strong>Risk Level:</strong> Medium
+                        <strong>Cash Balance:</strong> {formatCurrency(cashBalance)}
                       </Typography>
                     </Grid>
                     <Grid item xs={12} md={6}>
                       <Typography variant="body1" gutterBottom>
-                        <strong>Sharpe Ratio:</strong> 1.8
-                      </Typography>
-                      <Typography variant="body1" gutterBottom>
-                        <strong>Volatility:</strong> 12.3%
-                      </Typography>
-                      <Typography variant="body1" gutterBottom>
-                        <strong>Max Drawdown:</strong> 15.2%
+                        <strong>Last Updated:</strong> {lastUpdated ? 
+                          new Date(lastUpdated).toLocaleString() : 
+                          'Never updated'}
                       </Typography>
                     </Grid>
                   </Grid>
@@ -528,53 +537,50 @@ const PortfolioPage: React.FC = () => {
           </TabPanel>
           
           {/* Performance Tab */}
-          <TabPanel value={tabValue} index={2}>
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
-                <Paper sx={{ p: 2 }}>
-                  <Typography variant="h6" gutterBottom>Performance Summary</Typography>
-                  <Table>
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Period</TableCell>
-                        <TableCell align="right">Return (%)</TableCell>
-                        <TableCell align="right">Return ($)</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {performance && performance.length > 0 ? performance.map((period) => (
-                        <TableRow key={period.period}>
-                          <TableCell component="th" scope="row">
-                            {period.period.charAt(0).toUpperCase() + period.period.slice(1)}
-                          </TableCell>
-                          <TableCell align="right">
-                            <Typography
-                              variant="body2"
-                              color={period.returnPercent >= 0 ? 'success.main' : 'error.main'}
-                            >
-                              {formatPercentage(period.returnPercent)}
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="right">
-                            <Typography
-                              variant="body2"
-                              color={period.returnValue >= 0 ? 'success.main' : 'error.main'}
-                            >
-                              {formatCurrency(period.returnValue)}
-                            </Typography>
-                          </TableCell>
-                        </TableRow>
-                      )) : (
+          <TabPanel value={tabValue} index={2}>    
+            {performance && performance.length > 0 ? (
+              <Grid container spacing={3}>
+                <Grid item xs={12} md={6}>
+                  <Paper sx={{ p: 2 }}>
+                    <Typography variant="h6" gutterBottom>Performance Summary</Typography>
+                    <Table>
+                      <TableHead>
                         <TableRow>
-                          <TableCell colSpan={3} align="center">No performance data available</TableCell>
+                          <TableCell>Period</TableCell>
+                          <TableCell align="right">Return (%)</TableCell>
+                          <TableCell align="right">Return ($)</TableCell>
                         </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </Paper>
-              </Grid>
-              
-              <Grid item xs={12} md={6}>
+                      </TableHead>
+                      <TableBody>
+                        {performance.map((period) => (
+                          <TableRow key={period.period}>
+                            <TableCell component="th" scope="row">
+                              {period.period.charAt(0).toUpperCase() + period.period.slice(1)}
+                            </TableCell>
+                            <TableCell align="right">
+                              <Typography
+                                variant="body2"
+                                color={period.returnPercent >= 0 ? 'success.main' : 'error.main'}
+                              >
+                                {formatPercentage(period.returnPercent)}
+                              </Typography>
+                            </TableCell>
+                            <TableCell align="right">
+                              <Typography
+                                variant="body2"
+                                color={period.returnValue >= 0 ? 'success.main' : 'error.main'}
+                              >
+                                {formatCurrency(period.returnValue)}
+                              </Typography>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </Paper>
+                </Grid>
+                
+                <Grid item xs={12} md={6}>
                 <Paper sx={{ p: 2 }}>
                   <Typography variant="h6" gutterBottom>Top Performers</Typography>
                   <Table>
@@ -623,124 +629,62 @@ const PortfolioPage: React.FC = () => {
                   </Table>
                 </Paper>
               </Grid>
-            </Grid>
+              </Grid>
+            ) : (
+              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 4 }}>
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  <Typography>No performance data available at this time.</Typography>
+                </Alert>
+                <Typography variant="body2" color="text.secondary">
+                  Performance metrics will be displayed once they become available.
+                </Typography>
+              </Box>
+            )}
           </TabPanel>
           
           {/* Allocation Tab */}
           <TabPanel value={tabValue} index={3}>
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
-                <Paper sx={{ p: 2 }}>
-                  <Typography variant="h6" gutterBottom>Current Allocation</Typography>
+            {assets && assets.length > 0 ? (
+              <Box sx={{ py: 2, display: 'flex', justifyContent: 'center' }}>
+                <Paper sx={{ p: 3, maxWidth: '800px', width: '100%' }}>
+                  <Typography variant="h6" gutterBottom align="center">Asset Allocation</Typography>
+                  <Alert severity="info" sx={{ mb: 3 }}>
+                    <Typography>
+                      Asset allocation data is based on current portfolio composition.
+                      Target allocations will be available in future updates.
+                    </Typography>
+                  </Alert>
+                  {/* Display a simple allocation table */}
                   <Table>
                     <TableHead>
                       <TableRow>
                         <TableCell>Asset</TableCell>
-                        <TableCell align="right">Current</TableCell>
-                        <TableCell align="right">Target</TableCell>
-                        <TableCell align="right">Difference</TableCell>
+                        <TableCell align="right">Current Allocation</TableCell>
+                        <TableCell align="right">Value</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {assets && assets.length > 0 ?
-                        assets.map((asset) => {
-                          // Mock target allocations for demo purposes
-                          let targetAllocation = 0;
-                          
-                          // Assign target allocations based on asset symbol
-                          if (asset.symbol === 'BTC') targetAllocation = 35.0;
-                          else if (asset.symbol === 'ETH') targetAllocation = 25.0;
-                          else if (asset.symbol === 'SOL') targetAllocation = 20.0;
-                          else if (asset.symbol === 'LINK') targetAllocation = 5.0;
-                          else if (asset.symbol === 'MATIC') targetAllocation = 5.0;
-                          else targetAllocation = 0;
-                          
-                          const difference = asset.allocation - targetAllocation;
-                          
-                          return (
-                            <TableRow key={asset.assetId}>
-                              <TableCell component="th" scope="row">
-                                {asset.symbol}
-                              </TableCell>
-                              <TableCell align="right">{asset.allocation.toFixed(1)}%</TableCell>
-                              <TableCell align="right">{targetAllocation.toFixed(1)}%</TableCell>
-                              <TableCell align="right">
-                                <Typography
-                                  variant="body2"
-                                  color={Math.abs(difference) > 2 ? 'warning.main' : 'text.primary'}
-                                >
-                                  {difference >= 0 ? '+' : ''}{difference.toFixed(1)}%
-                                </Typography>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })
-                      : (
-                        <TableRow>
-                          <TableCell colSpan={4} align="center">No asset data available</TableCell>
+                      {assets.map((asset) => (
+                        <TableRow key={asset.assetId}>
+                          <TableCell>{asset.symbol}</TableCell>
+                          <TableCell align="right">{asset.allocation.toFixed(1)}%</TableCell>
+                          <TableCell align="right">{formatCurrency(asset.value)}</TableCell>
                         </TableRow>
-                      )}
+                      ))}
                     </TableBody>
                   </Table>
                 </Paper>
-              </Grid>
-              
-              <Grid item xs={12} md={6}>
-                <Paper sx={{ p: 2 }}>
-                  <Typography variant="h6" gutterBottom>Rebalancing Recommendations</Typography>
-                  <Box>
-                    <Typography variant="body1" paragraph>
-                      Based on the current market conditions and portfolio allocation, the following adjustments are recommended:
-                    </Typography>
-                    
-                    <Box component="ul">
-                      {assets && assets.length > 0 ?
-                        assets.map((asset) => {
-                          // Mock target allocations for demo purposes
-                          const targetAllocation =
-                            (() => {
-                              // Assign target allocations based on asset symbol
-                              if (asset.symbol === 'BTC') return 35.0;
-                              if (asset.symbol === 'ETH') return 25.0;
-                              if (asset.symbol === 'SOL') return 20.0;
-                              if (asset.symbol === 'LINK') return 5.0;
-                              if (asset.symbol === 'MATIC') return 5.0;
-                              return 0;
-                            })();
-                          const difference = asset.allocation - targetAllocation;
-                          
-                          if (Math.abs(difference) > 2) {
-                            const action = difference > 0 ? 'Reduce' : 'Increase';
-                            const amountToAdjust = Math.abs(difference) * totalValue / 100;
-                            
-                            return (
-                              <Box component="li" key={asset.assetId} sx={{ mb: 1 }}>
-                                <Typography variant="body2">
-                                  <strong>{action} {asset.symbol}:</strong> {formatCurrency(amountToAdjust)} ({Math.abs(difference).toFixed(1)}%)
-                                </Typography>
-                              </Box>
-                            );
-                          }
-                          return null;
-                        }).filter(Boolean)
-                      : (
-                        <Typography variant="body2">No asset data available for rebalancing</Typography>
-                      )}
-                    </Box>
-                    
-                    <Box mt={3}>
-                      <Button 
-                        variant="contained" 
-                        color="primary"
-                        startIcon={<RebalanceIcon />}
-                      >
-                        Execute Rebalancing
-                      </Button>
-                    </Box>
-                  </Box>
-                </Paper>
-              </Grid>
-            </Grid>
+              </Box>
+            ) : (
+              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 4 }}>
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  <Typography>No allocation data available at this time.</Typography>
+                </Alert>
+                <Typography variant="body2" color="text.secondary">
+                  Asset allocation will be displayed once portfolio data is available.
+                </Typography>
+              </Box>
+            )}
           </TabPanel>
         </CardContent>
       </Card>

@@ -1,6 +1,6 @@
 import apiClient from './apiClient';
 import { PortfolioData, Asset, PerformancePeriod, HistoricalValue } from '../../types/portfolio';
-import { AxiosError, AxiosResponse } from 'axios';
+import { AxiosError } from 'axios';
 
 /**
  * Portfolio service for accessing portfolio data from the API
