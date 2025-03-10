@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -35,16 +35,9 @@ const BackendErrorProxy: React.FC<BackendErrorProxyProps> = ({ endpoint, childre
   // Check for specific portfolio service error
   const isPortfolioServiceError = error && 
     error.includes('PortfolioService.__init__() takes 1 positional argument but 2 were given');
-  
-  // Auto-apply fix on load if endpoint is portfolio and we have the specific error
-  useEffect(() => {
-    if (endpoint === 'portfolio' && isPortfolioServiceError && !fixApplied) {
-      applyFix();
-    }
-  }, [endpoint, isPortfolioServiceError, fixApplied]);
-  
+
   // Function to apply the fix - in this case, send a request to our proxy API endpoint
-  const applyFix = async () => {
+  const applyFix = useCallback(async () => {
     try {
       setAttemptingFix(true);
       
@@ -63,7 +56,15 @@ const BackendErrorProxy: React.FC<BackendErrorProxyProps> = ({ endpoint, childre
       console.error('Error applying fix:', err);
       setAttemptingFix(false);
     }
-  };
+  }, [dispatch, setAttemptingFix, setFixApplied]);
+  
+  // Auto-apply fix on load if endpoint is portfolio and we have the specific error
+  useEffect(() => {
+    if (endpoint === 'portfolio' && isPortfolioServiceError && !fixApplied) {
+      applyFix();
+    }
+  }, [endpoint, isPortfolioServiceError, fixApplied, applyFix]);
+  
   
   // If our fix resolved the issue, render the children
   if (!isPortfolioServiceError || fixApplied) {

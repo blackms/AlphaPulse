@@ -4,6 +4,11 @@ import { AxiosError } from 'axios';
 
 const MAX_RETRIES = 3;
 
+// Define API error response interface
+interface ApiErrorResponse {
+  error?: string;
+}
+
 // Common mock assets that can be reused
 const MOCK_ASSETS = {
   BTC: {
@@ -299,11 +304,13 @@ const portfolioService = {
         const axiosError = error as AxiosError;
         
         // Check for the specific PortfolioService init error in the response
-        if (axiosError.response?.data?.error && 
-            typeof axiosError.response.data.error === 'string' &&
-            axiosError.response.data.error.includes('PortfolioService.__init__()')) {
+        const errorData = axiosError.response?.data as ApiErrorResponse | undefined;
+        
+        if (errorData?.error && 
+            typeof errorData.error === 'string' &&
+            errorData.error.includes('PortfolioService.__init__()')) {
           console.info('Using mock data due to PortfolioService init error');
-          return generateMockPortfolioData(axiosError.response.data.error);
+          return generateMockPortfolioData(errorData.error);
         }
         
         // Handle network errors, server errors, etc.
