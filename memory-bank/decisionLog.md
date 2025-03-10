@@ -36,6 +36,43 @@ Remove SQLite support entirely and standardize on PostgreSQL as the only support
 
 ## API Decisions
 
+### 2025-03-10: Integrate exchange_sync module into main application
+
+**Context:**
+The existing exchange data synchronization system had multiple issues including complex threading, connection pool management problems, scattered error handling, high coupling between components, and files exceeding 200 lines of code. A new `exchange_sync` module was developed to address these issues with a cleaner, more maintainable design.
+
+**Decision:**
+Refactor AlphaPulse by removing all legacy complex logic and integrating the new exchange_sync functionality directly into the main application.
+
+**Rationale:**
+- Simplifies the codebase by removing complex connection pooling and threading logic
+- Improves reliability by using a simpler database connection approach
+- Enhances maintainability with clear separation of concerns
+- Reduces coupling between components
+- Provides better error handling and logging
+- Enables easier testing and debugging
+
+**Alternatives Considered:**
+1. **Keep the legacy system**: Continue using the existing complex system with incremental improvements. Rejected due to ongoing maintenance burden and complexity.
+2. **Hybrid approach**: Use both systems in parallel during a transition period. Rejected due to increased complexity and potential for conflicts.
+3. **Complete replacement (selected)**: Replace the legacy system entirely with the new exchange_sync module. Selected for clean implementation and reduced complexity.
+
+**Implementation:**
+- Created a new API integration module for the exchange_sync module
+- Updated the main.py file to use the new module
+- Updated the system.py router to use the new module
+- Enhanced PortfolioDataAccessor with direct exchange_sync support
+- Updated portfolio.py router to use the new integration
+- Added comprehensive documentation in EXCHANGE_SYNC_INTEGRATION.md
+
+**Consequences:**
+- Simplified codebase with cleaner architecture
+- Improved reliability of exchange data synchronization
+- Reduced complexity in error handling and recovery
+- Better separation of concerns
+- More maintainable code with smaller, focused components
+- Easier to extend with new exchanges or features
+
 ## Frontend Decisions
 
 ## Architecture Decisions
@@ -74,3 +111,36 @@ Implement a progressive evolution approach starting with a modular monolith inco
 - Clearer ownership boundaries for team organization
 - More explicit interfaces between components
 - Better alignment with business domains
+
+### 2025-03-10: Exchange Data Synchronization Redesign
+
+**Context**: 
+The current exchange data synchronization system has experienced recurring issues with database connections, threading/concurrency problems, and complex error handling. The debug logs show "connection has been released back to the pool" and "Result is not set" errors that occur despite multiple attempts to fix them. The complexity of the current implementation with pools, transactions, and multi-threaded access makes debugging difficult.
+
+**Decision**: 
+Completely redesign the exchange data synchronization module with a simplified architecture following SOLID principles, focusing on:
+
+1. Simpler components with clear boundaries (< 200 lines per file)
+2. Single-responsibility modules that are easier to test and debug
+3. Elimination of complex connection pooling in favor of simpler per-operation connections
+4. More robust error handling with clear logs
+5. Running as a background process on a timer (every 30 minutes) instead of complex threading
+
+**Alternatives Considered**:
+
+1. *Continue patching the existing system*: While we've made progress with fixes, the fundamental design issues would likely continue to cause problems. The system has become too complex.
+
+2. *Partial refactoring*: We could keep some components and rewrite others, but this would risk maintaining incompatible design approaches and wouldn't fully address the architectural issues.
+
+3. *Complete redesign (selected)*: While requiring more upfront work, this provides a clean break from the problematic patterns and ensures a more maintainable system going forward.
+
+**Implications**:
+
+- Short-term development cost for the rewrite
+- Cleaner architecture with clear responsibilities
+- Improved maintainability and debugging experience
+- Simplified error handling and recovery
+- Reduced risk of connection-related issues
+
+**Implementation Notes**: 
+A detailed design document has been created in `memory-bank/exchange_sync_refactoring.md` outlining the new architecture, component responsibilities, and implementation approach. The system will use a clean domain model, repository pattern, and service layer with simple database connections.
