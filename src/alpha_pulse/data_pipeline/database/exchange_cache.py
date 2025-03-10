@@ -7,6 +7,7 @@ the portfolio API to retrieve cached data.
 """
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any, Union
+import asyncio
 import json
 
 from loguru import logger
@@ -40,18 +41,32 @@ class ExchangeCacheRepository:
         """
         self.conn = connection
     
-    def _check_connection(self):
+    async def _check_connection(self):
         """
         Check if the connection is valid.
         
         Raises:
             asyncpg.InterfaceError: If the connection is None or closed
         """
-        import asyncpg
-        if self.conn is None:
-            raise asyncpg.InterfaceError("Connection is None")
-        if self.conn.is_closed():
-            raise asyncpg.InterfaceError("Connection is closed")
+        try:
+            import asyncpg
+            if self.conn is None:
+                raise asyncpg.InterfaceError("Connection is None")
+            
+            # Try to execute a simple query to verify connection is usable
+            try:
+                await self.conn.fetchval("SELECT 1")
+            except asyncpg.InterfaceError as e:
+                error_msg = str(e)
+                if "connection has been released back to the pool" in error_msg:
+                    logger.error(f"Connection has been released back to the pool")
+                    raise asyncpg.InterfaceError("Connection has been released back to the pool")
+                elif "connection is closed" in error_msg:
+                    logger.error(f"Connection is closed")
+                    raise asyncpg.InterfaceError("Connection is closed")
+                raise
+        except Exception as e:
+            raise asyncpg.InterfaceError(f"Connection validation failed: {str(e)}")
     
     async def get_all_sync_status(self) -> List[Dict[str, Any]]:
         """

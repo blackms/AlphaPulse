@@ -597,6 +597,13 @@ class BybitExchange(CCXTAdapter):
         try:
             logger.debug(f"Getting ticker data for {symbol}")
             
+            # Ensure the symbol is in the correct format for Bybit (should be BASE/QUOTE)
+            # If not in correct format, try to normalize it
+            if '/' not in symbol:
+                normalized_symbol = f"{symbol}/USDT"
+                logger.debug(f"Normalizing symbol from {symbol} to {normalized_symbol}")
+                symbol = normalized_symbol
+
             # Use the existing get_ticker_price method from CCXTAdapter
             price = await self.get_ticker_price(symbol)
             
@@ -613,14 +620,21 @@ class BybitExchange(CCXTAdapter):
             
             return ticker
         except Exception as e:
-            logger.error(f"Error getting ticker data for {symbol}: {str(e)}")
-            # Return a minimal ticker with None for the price
-            return {
-                'symbol': symbol,
-                'last': None,
-                'bid': None,
-                'ask': None,
-                'volume': None,
-                'timestamp': int(time.time() * 1000),
-                'datetime': datetime.now().isoformat()
-            }
+            error_msg = f"Failed to fetch ticker for {symbol}: {str(e)}"
+            logger.error(f"Error getting ticker data for {symbol}: {error_msg}")
+            
+            # Determine if this is a market symbol error
+            if "does not have market symbol" in str(e) or "market does not exist" in str(e).lower():
+                # If the exchange doesn't support this symbol, propagate a more specific error
+                raise Exception(f"{error_msg}: {self.exchange_id} does not have market symbol {symbol}")
+            else:
+                # For other errors, return a minimal ticker with None for the price
+                return {
+                    'symbol': symbol,
+                    'last': None,
+                    'bid': None,
+                    'ask': None,
+                    'volume': None,
+                    'timestamp': int(time.time() * 1000),
+                    'datetime': datetime.now().isoformat()
+                }

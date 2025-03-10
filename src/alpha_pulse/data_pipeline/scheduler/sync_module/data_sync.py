@@ -8,11 +8,13 @@ from typing import Dict, Any, Optional, List
 from loguru import logger
 import asyncpg
 import asyncio
+import time
 from functools import wraps
 
 from alpha_pulse.exchanges.interfaces import BaseExchange
 from alpha_pulse.data_pipeline.database.exchange_cache_fixed import ExchangeCacheRepository
-
+# Import the fixed connection manager
+from alpha_pulse.data_pipeline.database.connection_manager_fixed import get_db_connection
 
 class DataSynchronizer:
     """
@@ -45,6 +47,9 @@ class DataSynchronizer:
                         if "connection has been released back to the pool" in error_msg or "connection is closed" in error_msg:
                             logger.error(f"Database connection error in {func.__name__} (attempt {attempt}/{max_retries}): {error_msg}")
                             if attempt < max_retries:
+                                # Add exponential backoff with jitter
+                                retry_delay_with_jitter = retry_delay * (1 + (attempt - 1) * 0.2) 
+                                retry_delay_with_jitter += 0.1 * (asyncio.create_task(asyncio.sleep(0)).result())  # Add jitter
                                 logger.info(f"Retrying operation in {retry_delay} seconds...")
                                 await asyncio.sleep(retry_delay)
                                 last_exception = e
@@ -298,19 +303,45 @@ class DataSynchronizer:
                             symbols.add(position.symbol)
             
             # Add some default symbols
-            symbols.add("BTC/USDT")
-            symbols.add("ETH/USDT")
+            # Ensure symbols are in proper format for exchange
+            default_pairs = ["BTC/USDT", "ETH/USDT"]
+            for pair in default_pairs:
+                if pair not in symbols:
+                    symbols.add(pair)
+
+            # Add other cryptocurrencies in proper trading pair format
+            # This ensures Bybit and other exchanges can recognize the symbols
+            crypto_symbols = ["ADA", "DOGE", "SHIB", "TRX", "MNT"]
+            for symbol in crypto_symbols:
+                trading_pair = f"{symbol}/USDT"
+                if trading_pair not in symbols:
+                    symbols.add(trading_pair)
             
             success_count = 0
             # Get prices for each symbol
             for symbol in symbols:
                 try:
+                    # Skip symbols that don't have a quote currency (proper format should be BASE/QUOTE)
+                    if '/' not in symbol:
+                        logger.warning(f"Skipping improperly formatted symbol: {symbol}. Should be in format BASE/QUOTE")
+                        continue
+
                     # Get price for this symbol
                     ticker = await exchange.get_ticker(symbol)
                     
                     # Handle different return types
                     if isinstance(ticker, dict) and 'last' in ticker:
-                        price = float(ticker['last'])
+                        # Ensure we have a valid price (not None)
+                        if ticker['last'] is None:
+                            logger.warning(f"Received None price for {symbol}, skipping")
+                            continue
+                            
+                        try:
+                            price = float(ticker['last'])
+                        except (TypeError, ValueError) as e:
+                            logger.warning(f"Invalid price for {symbol}: {ticker['last']}, error: {str(e)}")
+                            continue
+
                         quote_currency = symbol.split('/')[-1] if '/' in symbol else "USDT"
                         try:
                             result = await _store_price(
@@ -331,7 +362,7 @@ class DataSynchronizer:
                         logger.warning(f"Unexpected ticker format for {symbol}: {ticker}")
                 except Exception as e:
                     logger.error(f"Error getting price for {symbol}: {str(e)}")
-            
+                    
             logger.info(f"Successfully synced prices for {exchange_id}")
             return success_count > 0
         except Exception as e:
