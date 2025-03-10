@@ -588,7 +588,6 @@ const PortfolioPage: React.FC = () => {
                     <TableBody>
                       {assets && assets.length > 0 ?
                         assets
-                          .filter(asset => asset.symbol !== 'CASH')
                           .sort((a, b) => b.unrealizedPnLPercent - a.unrealizedPnLPercent)
                           .slice(0, 5)
                           .map((asset) => (
@@ -646,14 +645,16 @@ const PortfolioPage: React.FC = () => {
                       {assets && assets.length > 0 ?
                         assets.map((asset) => {
                           // Mock target allocations for demo purposes
-                          const targetAllocation =
-                            asset.symbol === 'BTC' ? 35.0 :
-                            asset.symbol === 'ETH' ? 25.0 :
-                            asset.symbol === 'SOL' ? 20.0 :
-                            asset.symbol === 'LINK' ? 5.0 :
-                            asset.symbol === 'MATIC' ? 5.0 :
-                            asset.symbol === 'CASH' ? 10.0 : 0;
-                            
+                          let targetAllocation = 0;
+                          
+                          // Assign target allocations based on asset symbol
+                          if (asset.symbol === 'BTC') targetAllocation = 35.0;
+                          else if (asset.symbol === 'ETH') targetAllocation = 25.0;
+                          else if (asset.symbol === 'SOL') targetAllocation = 20.0;
+                          else if (asset.symbol === 'LINK') targetAllocation = 5.0;
+                          else if (asset.symbol === 'MATIC') targetAllocation = 5.0;
+                          else targetAllocation = 0;
+                          
                           const difference = asset.allocation - targetAllocation;
                           
                           return (
@@ -697,13 +698,15 @@ const PortfolioPage: React.FC = () => {
                         assets.map((asset) => {
                           // Mock target allocations for demo purposes
                           const targetAllocation =
-                            asset.symbol === 'BTC' ? 35.0 :
-                            asset.symbol === 'ETH' ? 25.0 :
-                            asset.symbol === 'SOL' ? 20.0 :
-                            asset.symbol === 'LINK' ? 5.0 :
-                            asset.symbol === 'MATIC' ? 5.0 :
-                            asset.symbol === 'CASH' ? 10.0 : 0;
-                            
+                            (() => {
+                              // Assign target allocations based on asset symbol
+                              if (asset.symbol === 'BTC') return 35.0;
+                              if (asset.symbol === 'ETH') return 25.0;
+                              if (asset.symbol === 'SOL') return 20.0;
+                              if (asset.symbol === 'LINK') return 5.0;
+                              if (asset.symbol === 'MATIC') return 5.0;
+                              return 0;
+                            })();
                           const difference = asset.allocation - targetAllocation;
                           
                           if (Math.abs(difference) > 2) {

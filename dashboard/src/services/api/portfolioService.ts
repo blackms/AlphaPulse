@@ -25,25 +25,9 @@ const transformApiData = (apiData: any): PortfolioData => {
   // Calculate total values with safe defaults if data is incomplete
   const totalValue = apiData.total_value || 0;
   const cashBalance = apiData.cash || 0;
-  
-  // Create a cash asset for proper display
-  const cashAsset: Asset = {
-    assetId: 'CASH-USD',
-    symbol: 'CASH',
-    name: 'Cash',
-    type: 'fiat',
-    quantity: cashBalance,
-    price: 1,
-    value: cashBalance,
-    allocation: totalValue > 0 ? (cashBalance / totalValue) * 100 : 100,
-    unrealizedPnL: 0,
-    unrealizedPnLPercent: 0,
-    costBasis: 1,
-    lastUpdated: new Date().toISOString(),
-    change24h: 0,
-    change24hPercent: 0,
-  };
-  
+
+  // No longer creating a synthetic cash asset
+
   const positions = Array.isArray(apiData.positions) ? apiData.positions : [];
   
   // Transform API data to match frontend expected format
@@ -51,7 +35,6 @@ const transformApiData = (apiData: any): PortfolioData => {
     totalValue: totalValue,
     cashBalance: cashBalance,
     assets: [
-      ...(totalValue > 0 ? [cashAsset] : []),
       ...positions.map((position: any) => {
         // Safely extract values with fallbacks
         const symbol = position.symbol || 'UNKNOWN';
