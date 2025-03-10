@@ -241,7 +241,8 @@ class CCXTAdapter(BaseExchange):
                 try:
                     logger.debug(f"Fetching open orders for {symbol} with category {category}")
                     # Remove category and orderFilter parameters as they're not supported by fetch_open_orders
-                    open_params = {k: v for k, v in category_params.items() 
+                    # Make sure to remove any nested category parameters too
+                    open_params = {k: v for k, v in bybit_params.items() 
                                   if k not in ['category', 'orderFilter']}
                     logger.debug(f"Adjusted params for fetch_open_orders: {open_params}")
                     open_orders = await self.exchange.fetch_open_orders(symbol, **open_params)
@@ -256,7 +257,8 @@ class CCXTAdapter(BaseExchange):
                 try:
                     logger.debug(f"Fetching closed orders for {symbol} with category {category}")
                     # Remove category and orderFilter parameters as they're not supported by fetch_closed_orders
-                    closed_params = {k: v for k, v in category_params.items() 
+                    # Make sure to remove any nested category parameters too 
+                    closed_params = {k: v for k, v in bybit_params.items() 
                                     if k not in ['category', 'orderFilter']}
                     logger.debug(f"Adjusted params for fetch_closed_orders: {closed_params}")
                     closed_orders = await self.exchange.fetch_closed_orders(symbol, **closed_params)
@@ -268,7 +270,7 @@ class CCXTAdapter(BaseExchange):
                     logger.debug(f"Error fetching closed orders for {symbol} in {category} category: {str(e)}")
                 
                 # If we found orders in this category, no need to try others
-            
+                
             # If we still don't have orders, try one more approach with direct API call
             if not all_orders and symbol:
                 logger.debug("No orders found with standard methods, trying direct API call")
@@ -276,15 +278,21 @@ class CCXTAdapter(BaseExchange):
                     # For Bybit V5 API direct access
                     direct_symbol = symbol.replace('/', '') if '/' in symbol else symbol
                     direct_params = {
-                        'category': 'spot',  # Try spot first
                         'symbol': direct_symbol,
-                        'limit': 50,
-                        'orderStatus': 'all',  # Get all possible statuses
+                        'limit': 50
                     }
-                    logger.debug(f"Making direct API call with params: {direct_params}")
+                    
+                    # Try both history endpoint (for completed orders) and realtime endpoint (for active orders)
+                    # First, try the history endpoint
+                    history_params = {
+                        **direct_params,
+                        'category': 'spot',  # Try spot first
+                        'orderStatus': 'all'  # Get all possible statuses
+                    }
+                    logger.debug(f"Making direct API call with params: {history_params}")
                     
                     # Direct CCXT call to Bybit's API endpoint
-                    response = await self.exchange.privateGetV5OrderHistory(direct_params)
+                    response = await self.exchange.privateGetV5OrderHistory(history_params)
                     logger.debug(f"Direct API response structure: {list(response.keys()) if response else 'None'}")
                     
                     # Check for error codes in the response
@@ -312,6 +320,38 @@ class CCXTAdapter(BaseExchange):
                         # For now we just log that we found some orders
                         if direct_orders:
                             logger.info(f"Sample direct order: {direct_orders[0]}")
+                            
+                    # If no orders found, try the realtime endpoint (for active orders)
+                    if not direct_orders:
+                        try:
+                            realtime_params = {
+                                **direct_params,
+                                'category': 'spot',
+                                'openOnly': 0  # 0 means all orders, 1 means only open orders
+                            }
+                            logger.debug(f"Trying realtime orders endpoint with params: {realtime_params}")
+                            
+                            realtime_response = await self.exchange.privateGetV5OrderRealtime(realtime_params)
+                            logger.debug(f"Realtime API response structure: {list(realtime_response.keys()) if realtime_response else 'None'}")
+                            
+                            # Extract orders from response if available
+                            if realtime_response and 'result' in realtime_response and 'list' in realtime_response['result']:
+                                realtime_orders = realtime_response['result']['list']
+                                if realtime_orders:
+                                    logger.info(f"Found {len(realtime_orders)} orders with realtime API call for {direct_symbol}")
+                                    # Log a sample order
+                                    logger.info(f"Sample realtime order: {realtime_orders[0]}")
+                                    
+                                    # Append to direct_orders if we have any
+                                    if 'direct_orders' in locals() and direct_orders:
+                                        direct_orders.extend(realtime_orders)
+                                    else:
+                                        direct_orders = realtime_orders
+                            
+                        except Exception as realtime_error:
+                            logger.debug(f"Error with realtime API call: {str(realtime_error)}")
+                            # Continue with any orders we've already found
+                            
                 except Exception as e:
                     # Check if the exception message contains a JSON response with error codes
                     error_str = str(e)
