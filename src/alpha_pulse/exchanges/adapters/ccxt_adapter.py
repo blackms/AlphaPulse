@@ -240,7 +240,11 @@ class CCXTAdapter(BaseExchange):
                 # Get open orders with this category
                 try:
                     logger.debug(f"Fetching open orders for {symbol} with category {category}")
-                    open_orders = await self.exchange.fetch_open_orders(symbol, **category_params)
+                    # Remove category and orderFilter parameters as they're not supported by fetch_open_orders
+                    open_params = {k: v for k, v in category_params.items() 
+                                  if k not in ['category', 'orderFilter']}
+                    logger.debug(f"Adjusted params for fetch_open_orders: {open_params}")
+                    open_orders = await self.exchange.fetch_open_orders(symbol, **open_params)
                     if open_orders:
                         logger.info(f"Found {len(open_orders)} open orders for {symbol} in {category} category")
                         logger.debug(f"Sample open order: {open_orders[0] if open_orders else 'None'}")
@@ -251,7 +255,11 @@ class CCXTAdapter(BaseExchange):
                 # Get closed orders with this category
                 try:
                     logger.debug(f"Fetching closed orders for {symbol} with category {category}")
-                    closed_orders = await self.exchange.fetch_closed_orders(symbol, **category_params)
+                    # Remove category and orderFilter parameters as they're not supported by fetch_closed_orders
+                    closed_params = {k: v for k, v in category_params.items() 
+                                    if k not in ['category', 'orderFilter']}
+                    logger.debug(f"Adjusted params for fetch_closed_orders: {closed_params}")
+                    closed_orders = await self.exchange.fetch_closed_orders(symbol, **closed_params)
                     if closed_orders:
                         logger.info(f"Found {len(closed_orders)} closed orders for {symbol} in {category} category")
                         logger.debug(f"Sample closed order: {closed_orders[0] if closed_orders else 'None'}")
