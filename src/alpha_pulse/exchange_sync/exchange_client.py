@@ -4,10 +4,11 @@ Exchange client for interacting with cryptocurrency exchange APIs.
 This module abstracts communication with various exchanges, handling authentication,
 rate limiting, and data conversion to internal models.
 """
-import logging
 import asyncio
 from typing import Dict, List, Optional, Any, Tuple
 import ccxt.async_support as ccxt
+
+from loguru import logger
 
 # Import the credentials manager if available
 try:
@@ -42,18 +43,17 @@ class ExchangeClient:
         """
         self.exchange_id = exchange_id.lower()
         self.exchange_config = get_exchange_config(exchange_id)
-        self.logger = logging.getLogger(__name__)
         self.exchange = None
         
         # Log credential source
         if CREDENTIALS_MANAGER_AVAILABLE:
             creds = credentials_manager.get_credentials(exchange_id)
             if creds:
-                self.logger.info(f"Using credentials from AlphaPulse credentials manager for {exchange_id}")
+                logger.info(f"Using credentials from AlphaPulse credentials manager for {exchange_id}")
             else:
-                self.logger.info(f"No credentials found in credentials manager for {exchange_id}, using environment variables")
+                logger.info(f"No credentials found in credentials manager for {exchange_id}, using environment variables")
         else:
-            self.logger.info(f"AlphaPulse credentials manager not available, using environment variables")
+            logger.info(f"AlphaPulse credentials manager not available, using environment variables")
     
     async def connect(self) -> bool:
         """
@@ -82,15 +82,15 @@ class ExchangeClient:
             
             # Log credential status (without revealing actual keys)
             if config['apiKey']:
-                self.logger.info(f"Connecting to {self.exchange_id} with API key: {config['apiKey'][:4]}...{config['apiKey'][-4:] if len(config['apiKey']) > 8 else ''}")
+                logger.info(f"Connecting to {self.exchange_id} with API key: {config['apiKey'][:4]}...{config['apiKey'][-4:] if len(config['apiKey']) > 8 else ''}")
             else:
-                self.logger.warning(f"Connecting to {self.exchange_id} without API credentials (read-only mode)")
+                logger.warning(f"Connecting to {self.exchange_id} without API credentials (read-only mode)")
             
             # Add testnet if configured
             if self.exchange_config['testnet']:
                 if self.exchange_id in ['bybit', 'binance', 'kucoin']:
                     config['options'] = {'testnet': True}
-                self.logger.info(f"Using testnet mode for {self.exchange_id}")
+                logger.info(f"Using testnet mode for {self.exchange_id}")
             
             # Create exchange instance
             self.exchange = exchange_class(config)
@@ -98,17 +98,17 @@ class ExchangeClient:
             # Load markets to ensure connection is working
             await self.exchange.load_markets()
             
-            self.logger.info(f"Successfully connected to {self.exchange_id}")
+            logger.info(f"Successfully connected to {self.exchange_id}")
             return True
             
         except ccxt.NetworkError as e:
-            self.logger.error(f"Network error connecting to {self.exchange_id}: {str(e)}")
+            logger.error(f"Network error connecting to {self.exchange_id}: {str(e)}")
             raise ExchangeError(f"Network error: {str(e)}")
         except ccxt.ExchangeError as e:
-            self.logger.error(f"Exchange error connecting to {self.exchange_id}: {str(e)}")
+            logger.error(f"Exchange error connecting to {self.exchange_id}: {str(e)}")
             raise ExchangeError(f"Exchange error: {str(e)}")
         except Exception as e:
-            self.logger.error(f"Failed to connect to {self.exchange_id}: {str(e)}")
+            logger.error(f"Failed to connect to {self.exchange_id}: {str(e)}")
             raise ExchangeError(f"Connection error: {str(e)}")
     
     async def disconnect(self) -> None:
@@ -116,9 +116,9 @@ class ExchangeClient:
         if self.exchange:
             try:
                 await self.exchange.close()
-                self.logger.info(f"Disconnected from {self.exchange_id}")
+                logger.info(f"Disconnected from {self.exchange_id}")
             except Exception as e:
-                self.logger.warning(f"Error disconnecting from {self.exchange_id}: {str(e)}")
+                logger.warning(f"Error disconnecting from {self.exchange_id}: {str(e)}")
     
     async def get_portfolio(self) -> List[PortfolioItem]:
         """
@@ -138,7 +138,7 @@ class ExchangeClient:
             balance = await self.exchange.fetch_balance()
             
             if not balance or 'total' not in balance:
-                self.logger.warning(f"No balance data returned from {self.exchange_id}")
+                logger.warning(f"No balance data returned from {self.exchange_id}")
                 return []
             
             result = []
@@ -160,7 +160,7 @@ class ExchangeClient:
                     if ticker and 'last' in ticker and ticker['last'] is not None:
                         portfolio_item.current_price = float(ticker['last'])
                 except Exception as e:
-                    self.logger.warning(f"Could not fetch price for {asset}: {str(e)}")
+                    logger.warning(f"Could not fetch price for {asset}: {str(e)}")
                 
                 # Try to calculate average entry price
                 try:
@@ -168,21 +168,21 @@ class ExchangeClient:
                     if avg_price is not None:
                         portfolio_item.avg_entry_price = avg_price
                 except Exception as e:
-                    self.logger.warning(f"Could not calculate average entry price for {asset}: {str(e)}")
+                    logger.warning(f"Could not calculate average entry price for {asset}: {str(e)}")
                 
                 result.append(portfolio_item)
             
-            self.logger.info(f"Retrieved {len(result)} portfolio items from {self.exchange_id}")
+            logger.info(f"Retrieved {len(result)} portfolio items from {self.exchange_id}")
             return result
             
         except ccxt.NetworkError as e:
-            self.logger.error(f"Network error fetching portfolio from {self.exchange_id}: {str(e)}")
+            logger.error(f"Network error fetching portfolio from {self.exchange_id}: {str(e)}")
             raise ExchangeError(f"Network error: {str(e)}")
         except ccxt.ExchangeError as e:
-            self.logger.error(f"Exchange error fetching portfolio from {self.exchange_id}: {str(e)}")
+            logger.error(f"Exchange error fetching portfolio from {self.exchange_id}: {str(e)}")
             raise ExchangeError(f"Exchange error: {str(e)}")
         except Exception as e:
-            self.logger.error(f"Error fetching portfolio from {self.exchange_id}: {str(e)}")
+            logger.error(f"Error fetching portfolio from {self.exchange_id}: {str(e)}")
             raise ExchangeError(f"Fetch error: {str(e)}")
     
     async def get_ticker(self, symbol: str) -> Dict[str, Any]:
@@ -217,16 +217,16 @@ class ExchangeClient:
             return ticker
             
         except ccxt.BadSymbol as e:
-            self.logger.warning(f"Symbol {symbol} not found on {self.exchange_id}: {str(e)}")
+            logger.warning(f"Symbol {symbol} not found on {self.exchange_id}: {str(e)}")
             raise ExchangeError(f"Symbol not found: {symbol}")
         except ccxt.NetworkError as e:
-            self.logger.error(f"Network error fetching ticker for {symbol}: {str(e)}")
+            logger.error(f"Network error fetching ticker for {symbol}: {str(e)}")
             raise ExchangeError(f"Network error: {str(e)}")
         except ccxt.ExchangeError as e:
-            self.logger.error(f"Exchange error fetching ticker for {symbol}: {str(e)}")
+            logger.error(f"Exchange error fetching ticker for {symbol}: {str(e)}")
             raise ExchangeError(f"Exchange error: {str(e)}")
         except Exception as e:
-            self.logger.error(f"Error fetching ticker for {symbol}: {str(e)}")
+            logger.error(f"Error fetching ticker for {symbol}: {str(e)}")
             raise ExchangeError(f"Fetch error: {str(e)}")
     
     async def get_orders(self, symbol: str, limit: int = 50) -> List[Dict[str, Any]]:
@@ -266,22 +266,22 @@ class ExchangeClient:
                 try:
                     orders = await self.exchange.fetch_closed_orders(symbol, limit=limit)
                 except ccxt.NotSupported:
-                    self.logger.warning(f"Fetching orders not supported by {self.exchange_id}")
+                    logger.warning(f"Fetching orders not supported by {self.exchange_id}")
                     return []
             
             return orders
             
         except ccxt.BadSymbol as e:
-            self.logger.warning(f"Symbol {symbol} not found on {self.exchange_id}: {str(e)}")
+            logger.warning(f"Symbol {symbol} not found on {self.exchange_id}: {str(e)}")
             return []
         except ccxt.NetworkError as e:
-            self.logger.error(f"Network error fetching orders for {symbol}: {str(e)}")
+            logger.error(f"Network error fetching orders for {symbol}: {str(e)}")
             raise ExchangeError(f"Network error: {str(e)}")
         except ccxt.ExchangeError as e:
-            self.logger.error(f"Exchange error fetching orders for {symbol}: {str(e)}")
+            logger.error(f"Exchange error fetching orders for {symbol}: {str(e)}")
             raise ExchangeError(f"Exchange error: {str(e)}")
         except Exception as e:
-            self.logger.error(f"Error fetching orders for {symbol}: {str(e)}")
+            logger.error(f"Error fetching orders for {symbol}: {str(e)}")
             raise ExchangeError(f"Fetch error: {str(e)}")
     
     async def calculate_average_entry_price(self, asset: str) -> Optional[float]:
@@ -342,7 +342,7 @@ class ExchangeClient:
             return None
             
         except Exception as e:
-            self.logger.warning(f"Error calculating average entry price for {asset}: {str(e)}")
+            logger.warning(f"Error calculating average entry price for {asset}: {str(e)}")
             return None
     
     async def __aenter__(self):

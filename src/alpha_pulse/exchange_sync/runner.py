@@ -1,187 +1,83 @@
 """
-Runner script for exchange data synchronization.
+Runner for executing exchange synchronization.
 
-This module provides a command-line interface for running the exchange
-synchronization process, either as a one-time operation or as a scheduled service.
+This module provides a simple way to run exchange synchronization
+as a standalone process.
 """
 import asyncio
-import argparse
-import logging
 import sys
-from datetime import datetime
+import argparse
+from typing import List, Optional
 
-from .config import configure_logging, get_sync_config
-from .scheduler import ExchangeSyncScheduler
+from loguru import logger
+
 from .portfolio_service import PortfolioService
-from .repository import PortfolioRepository
+from .config import configure_logging
 
 
-async def initialize_database() -> bool:
+async def run_sync(exchanges: List[str], log_level: str = "INFO") -> None:
     """
-    Initialize the database tables needed for exchange synchronization.
+    Run exchange synchronization for the specified exchanges.
     
-    Returns:
-        True if initialization was successful
+    Args:
+        exchanges: List of exchange identifiers to synchronize
+        log_level: Logging level
     """
-    logger = logging.getLogger(__name__)
-    logger.info("Initializing database tables...")
+    # Configure logging
+    configure_logging(log_level=log_level)
     
-    try:
-        repo = PortfolioRepository()
-        await repo.initialize_tables()
-        logger.info("Database initialization complete")
-        return True
-    except Exception as e:
-        logger.error(f"Database initialization failed: {str(e)}")
-        return False
-
-
-async def run_once() -> None:
-    """
-    Run a one-time synchronization of all configured exchanges.
-    """
-    logger = logging.getLogger(__name__)
-    logger.info("Starting one-time synchronization")
+    logger.info(f"Starting exchange synchronization for: {', '.join(exchanges)}")
+    
+    # Create the portfolio service
+    service = PortfolioService()
     
     try:
-        # Initialize database
-        if not await initialize_database():
-            logger.error("Cannot proceed with synchronization due to database initialization failure")
-            return
+        # Run the synchronization
+        results = await service.sync_portfolio(exchanges)
         
-        # Run the sync
-        start_time = datetime.now()
-        results = await ExchangeSyncScheduler.run_once()
-        end_time = datetime.now()
+        # Process results
+        success_count = sum(1 for result in results.values() if result.success)
+        total_count = len(results)
         
-        # Log summary
-        success_count = sum(1 for r in results.values() if r.success)
-        duration = (end_time - start_time).total_seconds()
-        
-        logger.info(f"Synchronization completed in {duration:.2f} seconds")
-        logger.info(f"Results: {success_count}/{len(results)} exchanges successful")
+        logger.info(f"Synchronization completed: {success_count}/{total_count} exchanges successful")
         
         # Log detailed results
         for exchange_id, result in results.items():
             if result.success:
-                logger.info(f"{exchange_id}: Successfully synced {result.items_synced} items")
+                logger.info(f"{exchange_id}: Synced {result.items_synced}/{result.items_processed} items in {result.duration_seconds:.2f}s")
             else:
-                logger.error(f"{exchange_id}: Sync failed with errors: {', '.join(result.errors)}")
-    
-    except Exception as e:
-        logger.error(f"One-time synchronization failed: {str(e)}")
-
-
-async def run_scheduler(interval_minutes: int) -> None:
-    """
-    Run the synchronization scheduler as a service.
-    
-    Args:
-        interval_minutes: Time between synchronization runs in minutes
-    """
-    logger = logging.getLogger(__name__)
-    logger.info(f"Starting scheduler with {interval_minutes} minute interval")
-    
-    try:
-        # Initialize database
-        if not await initialize_database():
-            logger.error("Cannot start scheduler due to database initialization failure")
-            return
+                logger.error(f"{exchange_id}: Failed - {', '.join(result.errors)}")
         
-        # Create and start the scheduler
-        scheduler = ExchangeSyncScheduler(interval_minutes=interval_minutes)
-        
-        try:
-            await scheduler.start()
-        except KeyboardInterrupt:
-            logger.info("Keyboard interrupt received, stopping scheduler")
-        finally:
-            await scheduler.stop()
-            logger.info("Scheduler stopped")
-    
     except Exception as e:
-        logger.error(f"Scheduler execution failed: {str(e)}")
+        logger.error(f"Error during synchronization: {str(e)}")
+        sys.exit(1)
 
 
-def parse_arguments():
-    """
-    Parse command line arguments.
-    
-    Returns:
-        Parsed command line arguments
-    """
-    parser = argparse.ArgumentParser(
-        description='Exchange Data Synchronization Runner'
-    )
-    
-    # Mode selection
+def main():
+    """Command-line entry point."""
+    parser = argparse.ArgumentParser(description="Run exchange synchronization")
     parser.add_argument(
-        '--one-time',
-        action='store_true',
-        help='Run a one-time synchronization and exit'
+        "--exchanges", 
+        type=str, 
+        default="bybit",
+        help="Comma-separated list of exchanges to synchronize"
     )
-    
-    # Scheduler options
     parser.add_argument(
-        '--interval',
-        type=int,
-        help='Scheduler interval in minutes (default from config)'
+        "--log-level", 
+        type=str, 
+        default="INFO",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        help="Logging level"
     )
     
-    # Logging options
-    parser.add_argument(
-        '--log-level',
-        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
-        default=None,
-        help='Logging level (default from config)'
-    )
+    args = parser.parse_args()
     
-    parser.add_argument(
-        '--log-dir',
-        type=str,
-        default=None,
-        help='Directory for log files (default from config)'
-    )
+    # Parse exchanges
+    exchanges = [e.strip() for e in args.exchanges.split(",")]
     
-    return parser.parse_args()
-
-
-async def main():
-    """
-    Main entry point for the runner.
-    """
-    # Parse command line arguments
-    args = parse_arguments()
-    
-    # Configure logging
-    configure_logging(log_dir=args.log_dir, log_level=args.log_level)
-    logger = logging.getLogger(__name__)
-    
-    logger.info("Exchange Sync Runner starting")
-    
-    # Get sync configuration
-    sync_config = get_sync_config()
-    
-    # Determine interval (command line args override config)
-    interval_minutes = args.interval or sync_config['interval_minutes']
-    
-    try:
-        if args.one_time:
-            # Run one-time sync
-            await run_once()
-        else:
-            # Run as a scheduler
-            await run_scheduler(interval_minutes)
-    
-    except Exception as e:
-        logger.error(f"Runner failed with error: {str(e)}")
-        return 1
-    
-    logger.info("Runner exiting")
-    return 0
+    # Run the synchronization
+    asyncio.run(run_sync(exchanges, args.log_level))
 
 
 if __name__ == "__main__":
-    # Run the main function
-    exit_code = asyncio.run(main())
-    sys.exit(exit_code)
+    main()

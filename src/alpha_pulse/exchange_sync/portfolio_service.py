@@ -1,199 +1,158 @@
 """
-Portfolio service for exchange data synchronization.
+Portfolio synchronization service.
 
-This service coordinates the exchange client and repository to synchronize
-portfolio data, implementing the core business logic of the synchronization process.
+This module provides functionality to synchronize portfolio data from exchanges.
 """
-import logging
+import asyncio
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+from typing import Dict, List, Optional, Any
+
+from loguru import logger
 
 from .models import PortfolioItem, SyncResult
-from .exchange_client import ExchangeClient, ExchangeError
-from .repository import PortfolioRepository, DatabaseError
-from .config import get_exchange_config
+from .repository import PortfolioRepository
+from .exchange_client import ExchangeClient
 
 
 class PortfolioService:
     """
-    Service for portfolio data synchronization.
+    Service for synchronizing portfolio data from exchanges.
     
-    This class orchestrates the interaction between the exchange client and
-    the database repository, implementing the business logic for portfolio
-    data synchronization.
+    This class handles the synchronization of portfolio data from exchanges,
+    storing it in the database, and providing access to the data.
     """
     
-    def __init__(self, exchange_id: str):
-        """
-        Initialize the portfolio service.
-        
-        Args:
-            exchange_id: Identifier of the exchange (e.g., 'bybit', 'binance')
-        """
-        self.exchange_id = exchange_id
-        self.logger = logging.getLogger(__name__)
-        self.exchange_client = ExchangeClient(exchange_id)
+    def __init__(self):
+        """Initialize the portfolio service."""
         self.repository = PortfolioRepository()
     
-    async def initialize(self) -> bool:
+    async def sync_portfolio(self, exchange_ids: List[str]) -> Dict[str, SyncResult]:
         """
-        Initialize the service and ensure the database tables exist.
+        Synchronize portfolio data from multiple exchanges.
         
+        Args:
+            exchange_ids: List of exchange identifiers to synchronize
+            
         Returns:
-            True if initialization was successful
+            Dictionary mapping exchange IDs to sync results
         """
-        try:
-            await self.repository.initialize_tables()
-            return True
-        except DatabaseError as e:
-            self.logger.error(f"Failed to initialize database: {str(e)}")
-            return False
+        logger.info(f"Starting portfolio sync for {len(exchange_ids)} exchanges: {', '.join(exchange_ids)}")
+        
+        results = {}
+        for exchange_id in exchange_ids:
+            try:
+                result = await self.sync_exchange_portfolio(exchange_id)
+                results[exchange_id] = result
+            except Exception as e:
+                logger.error(f"Error syncing portfolio for {exchange_id}: {str(e)}")
+                # Create a failed result
+                results[exchange_id] = SyncResult(
+                    items_processed=0,
+                    items_synced=0,
+                    success=False,
+                    start_time=datetime.now(),
+                    end_time=datetime.now(),
+                    errors=[f"Failed to sync portfolio: {str(e)}"]
+                )
+        
+        logger.info(f"Completed portfolio sync for all exchanges")
+        return results
     
-    async def sync_portfolio(self) -> SyncResult:
+    async def sync_exchange_portfolio(self, exchange_id: str) -> SyncResult:
         """
-        Synchronize portfolio data from exchange to database.
+        Synchronize portfolio data from a single exchange.
         
-        This method fetches portfolio data from the exchange and saves it to
-        the database, handling errors and retries appropriately.
-        
+        Args:
+            exchange_id: Exchange identifier
+            
         Returns:
-            SyncResult with information about the synchronization outcome
+            Synchronization result
         """
-        result = SyncResult(
-            success=True,
-            start_time=datetime.now()
-        )
+        logger.info(f"Syncing portfolio for {exchange_id}...")
+        
+        start_time = datetime.now()
+        client = ExchangeClient(exchange_id)
+        errors = []
         
         try:
             # Connect to the exchange
-            await self.exchange_client.connect()
+            await client.connect()
             
-            # Get portfolio data from the exchange
-            self.logger.info(f"Fetching portfolio data from {self.exchange_id}...")
-            portfolio_items = await self.exchange_client.get_portfolio()
+            # Fetch portfolio data
+            logger.info(f"Fetching portfolio data from {exchange_id}...")
+            portfolio_items = await client.get_portfolio()
             
-            result.items_processed = len(portfolio_items)
+            logger.info(f"Retrieved {len(portfolio_items)} portfolio items from {exchange_id}")
             
-            if not portfolio_items:
-                self.logger.warning(f"No portfolio items returned from {self.exchange_id}")
-                result.end_time = datetime.now()
-                await self.repository.save_sync_result(
-                    self.exchange_id, "portfolio", result
-                )
-                return result
-            
-            self.logger.info(f"Retrieved {len(portfolio_items)} portfolio items from {self.exchange_id}")
-            
-            # Save each portfolio item to the database
-            successful_items = 0
+            # Save each item to the database
+            saved_count = 0
             for item in portfolio_items:
                 try:
-                    await self.repository.save_portfolio_item(
-                        self.exchange_id, item
-                    )
-                    successful_items += 1
-                except DatabaseError as e:
-                    error_msg = f"Error storing portfolio item {item.asset}: {str(e)}"
-                    self.logger.error(error_msg)
-                    result.add_error(error_msg)
+                    await self.repository.save_portfolio_item(exchange_id, item)
+                    saved_count += 1
+                except Exception as e:
+                    logger.error(f"Error saving portfolio item {item.asset}: {str(e)}")
+                    errors.append(f"Failed to save {item.asset}: {str(e)}")
             
-            result.items_synced = successful_items
-            self.logger.info(f"Successfully saved {successful_items} of {len(portfolio_items)} items")
+            logger.info(f"Successfully saved {saved_count} of {len(portfolio_items)} items")
             
-            # Save the sync result
-            result.end_time = datetime.now()
-            await self.repository.save_sync_result(
-                self.exchange_id, "portfolio", result
+            # Create the result
+            result = SyncResult(
+                items_processed=len(portfolio_items),
+                items_synced=saved_count,
+                success=saved_count > 0 and len(errors) == 0,
+                start_time=start_time,
+                end_time=datetime.now(),
+                errors=errors
             )
             
+            # Save the sync result
+            await self.repository.save_sync_result(exchange_id, "portfolio", result)
+            
+            logger.info(f"Successfully synced portfolio for {exchange_id}")
             return result
             
-        except ExchangeError as e:
-            error_msg = f"Exchange error during portfolio sync: {str(e)}"
-            self.logger.error(error_msg)
-            result.add_error(error_msg)
-        except DatabaseError as e:
-            error_msg = f"Database error during portfolio sync: {str(e)}"
-            self.logger.error(error_msg)
-            result.add_error(error_msg)
         except Exception as e:
-            error_msg = f"Unexpected error during portfolio sync: {str(e)}"
-            self.logger.error(error_msg)
-            result.add_error(error_msg)
-        finally:
-            # Ensure the exchange client is disconnected
-            await self.exchange_client.disconnect()
+            logger.error(f"Error syncing portfolio for {exchange_id}: {str(e)}")
             
-            # Ensure we have an end time even if there was an error
-            if result.end_time is None:
-                result.end_time = datetime.now()
-                
-            # Try to save the sync result, but don't throw if it fails
+            # Create a failed result
+            result = SyncResult(
+                items_processed=0,
+                items_synced=0,
+                success=False,
+                start_time=start_time,
+                end_time=datetime.now(),
+                errors=[f"Failed to sync portfolio: {str(e)}"]
+            )
+            
+            # Try to save the sync result
             try:
-                await self.repository.save_sync_result(
-                    self.exchange_id, "portfolio", result
-                )
+                await self.repository.save_sync_result(exchange_id, "portfolio", result)
+            except Exception as save_error:
+                logger.error(f"Error saving sync result: {str(save_error)}")
+            
+            return result
+        finally:
+            # Always disconnect from the exchange
+            try:
+                await client.disconnect()
             except Exception as e:
-                self.logger.error(f"Error saving sync result: {str(e)}")
-        
-        return result
+                logger.error(f"Error disconnecting from {exchange_id}: {str(e)}")
     
-    async def get_portfolio(self) -> List[PortfolioItem]:
+    async def get_portfolio(self, exchange_id: str) -> List[PortfolioItem]:
         """
-        Get the current portfolio data from the database.
+        Get portfolio data for an exchange.
         
+        Args:
+            exchange_id: Exchange identifier
+            
         Returns:
             List of portfolio items
         """
         try:
-            items = await self.repository.get_portfolio_items(self.exchange_id)
-            self.logger.info(f"Retrieved {len(items)} portfolio items from database")
+            items = await self.repository.get_portfolio_items(exchange_id)
+            logger.debug(f"Retrieved {len(items)} portfolio items for {exchange_id} from database")
             return items
-        except DatabaseError as e:
-            self.logger.error(f"Error retrieving portfolio items: {str(e)}")
-            return []
-    
-    @classmethod
-    async def sync_all_exchanges(cls) -> Dict[str, SyncResult]:
-        """
-        Synchronize portfolio data for all configured exchanges.
-        
-        This class method creates a PortfolioService for each configured exchange
-        and synchronizes its portfolio data.
-        
-        Returns:
-            Dictionary mapping exchange IDs to their sync results
-        """
-        from .config import get_sync_config
-        
-        logger = logging.getLogger(__name__)
-        sync_config = get_sync_config()
-        exchanges = sync_config['exchanges']
-        
-        logger.info(f"Starting portfolio sync for {len(exchanges)} exchanges: {', '.join(exchanges)}")
-        
-        results = {}
-        
-        for exchange_id in exchanges:
-            try:
-                service = cls(exchange_id)
-                await service.initialize()
-                
-                logger.info(f"Syncing portfolio for {exchange_id}...")
-                result = await service.sync_portfolio()
-                
-                results[exchange_id] = result
-                
-                if result.success:
-                    logger.info(f"Successfully synced portfolio for {exchange_id}")
-                else:
-                    logger.warning(f"Portfolio sync for {exchange_id} completed with errors: {', '.join(result.errors)}")
-                    
-            except Exception as e:
-                logger.error(f"Error during portfolio sync for {exchange_id}: {str(e)}")
-                result = SyncResult(success=False)
-                result.add_error(str(e))
-                results[exchange_id] = result
-        
-        logger.info(f"Completed portfolio sync for all exchanges")
-        return results
+        except Exception as e:
+            logger.error(f"Error retrieving portfolio for {exchange_id}: {str(e)}")
+            raise

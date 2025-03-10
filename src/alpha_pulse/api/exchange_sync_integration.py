@@ -5,18 +5,15 @@ This module provides functionality to integrate the exchange_sync module
 with a FastAPI application, handling startup, shutdown, and background tasks.
 """
 import asyncio
-import logging
 from typing import Callable, Dict, Any
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, BackgroundTasks
+from loguru import logger
 
 from alpha_pulse.exchange_sync.repository import PortfolioRepository
 from alpha_pulse.exchange_sync.scheduler import ExchangeSyncScheduler
 from alpha_pulse.exchange_sync.config import configure_logging
-
-# Configure logging
-logger = logging.getLogger(__name__)
 
 
 async def initialize_exchange_sync() -> bool:

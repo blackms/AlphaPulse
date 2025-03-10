@@ -4,11 +4,11 @@ Database repository for exchange synchronization data.
 This module provides a simple, reliable approach to database operations
 using single connections per operation rather than complex connection pooling.
 """
-import logging
+from datetime import datetime
 import asyncpg
 import asyncio
-from datetime import datetime
 from typing import List, Optional, Dict, Any
+from loguru import logger
 
 from .models import PortfolioItem, OrderData, SyncResult
 from .config import get_database_config
@@ -31,7 +31,6 @@ class PortfolioRepository:
     def __init__(self):
         """Initialize the repository with database configuration."""
         self.db_config = get_database_config()
-        self.logger = logging.getLogger(__name__)
     
     async def get_connection(self):
         """
@@ -53,7 +52,7 @@ class PortfolioRepository:
                 database=self.db_config['database']
             )
         except Exception as e:
-            self.logger.error(f"Failed to connect to database: {str(e)}")
+            logger.error(f"Failed to connect to database: {str(e)}")
             raise DatabaseError(f"Database connection error: {str(e)}")
     
     async def initialize_tables(self):
@@ -98,9 +97,9 @@ class PortfolioRepository:
                 )
             """)
             
-            self.logger.info("Database tables initialized successfully")
+            logger.info("Database tables initialized successfully")
         except Exception as e:
-            self.logger.error(f"Error initializing database tables: {str(e)}")
+            logger.error(f"Error initializing database tables: {str(e)}")
             raise DatabaseError(f"Failed to initialize tables: {str(e)}")
         finally:
             if conn:
@@ -149,7 +148,7 @@ class PortfolioRepository:
                     item.avg_entry_price,
                     now
                 )
-                self.logger.debug(f"Updated portfolio item: {exchange_id} - {item.asset}")
+                logger.debug(f"Updated portfolio item: {exchange_id} - {item.asset}")
             else:
                 # Insert new record
                 await conn.execute("""
@@ -165,12 +164,12 @@ class PortfolioRepository:
                     item.avg_entry_price,
                     now
                 )
-                self.logger.debug(f"Inserted new portfolio item: {exchange_id} - {item.asset}")
+                logger.debug(f"Inserted new portfolio item: {exchange_id} - {item.asset}")
             
             return True
             
         except Exception as e:
-            self.logger.error(f"Error saving portfolio item {item.asset}: {str(e)}")
+            logger.error(f"Error saving portfolio item {item.asset}: {str(e)}")
             raise DatabaseError(f"Failed to save portfolio item: {str(e)}")
         finally:
             if conn:
@@ -210,11 +209,11 @@ class PortfolioRepository:
                 )
                 result.append(item)
             
-            self.logger.debug(f"Retrieved {len(result)} portfolio items for {exchange_id}")
+            logger.debug(f"Retrieved {len(result)} portfolio items for {exchange_id}")
             return result
             
         except Exception as e:
-            self.logger.error(f"Error getting portfolio items for {exchange_id}: {str(e)}")
+            logger.error(f"Error getting portfolio items for {exchange_id}: {str(e)}")
             raise DatabaseError(f"Failed to retrieve portfolio items: {str(e)}")
         finally:
             if conn:
@@ -262,11 +261,11 @@ class PortfolioRepository:
                 now
             )
             
-            self.logger.debug(f"Saved sync result for {exchange_id} - {sync_type}")
+            logger.debug(f"Saved sync result for {exchange_id} - {sync_type}")
             return True
             
         except Exception as e:
-            self.logger.error(f"Error saving sync result for {exchange_id}: {str(e)}")
+            logger.error(f"Error saving sync result for {exchange_id}: {str(e)}")
             raise DatabaseError(f"Failed to save sync result: {str(e)}")
         finally:
             if conn:
