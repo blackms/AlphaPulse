@@ -618,11 +618,17 @@ async def get_db_connection():
                 if pool and not is_pool_closed(pool) and conn and not conn.is_closed():
                     try:
                         # Check if the connection is still valid before releasing
+                        connection_valid = True
                         try:
-                            await conn.fetchval("SELECT 1")
+                            # Use a timeout to prevent hanging if the connection is in a bad state
+                            async def _test_query():
+                                return await conn.fetchval("SELECT 1")
+                            
+                            await asyncio.wait_for(_test_query(), timeout=1.0)
                         except Exception as e:
                             logger.warning(f"[{loop_thread_key}] Connection validation failed before release: {str(e)}")
-                            raise asyncpg.InterfaceError("Connection validation failed before release")
+                            connection_valid = False
+                        
                         await pool.release(conn)
                         logger.debug(f"[{loop_thread_key}] Released database connection back to pool")
                         conn = None  # Set to None to prevent further use
@@ -651,7 +657,7 @@ async def get_db_connection():
                     # If the pool is closed, don't try to release the connection
                     pool_closed = is_pool_closed(pool) if pool else True
                     conn_closed = conn.is_closed() if conn else True
-                    logger.warning(f"[{loop_thread_key}] Not releasing connection to pool - pool closed: {pool_closed}, conn closed: {conn_closed}")
+                    logger.warning(f"[{loop_thread_key}] Not releasing connection to pool - pool closed: {pool_closed}, conn closed: {conn_closed}. Creating new pool for future operations.")
                     # Decrement active connection counter even if we can't release properly
                     with _global_lock:
                         if loop_thread_key in _active_connections and _active_connections[loop_thread_key] > 0:
@@ -661,6 +667,7 @@ async def get_db_connection():
                     if not conn_closed:
                         try:
                             await conn.close()
+                            # Remove the pool from the registry to force creation of a new one next time
                             logger.warning(f"[{loop_thread_key}] Closed connection directly due to closed pool")
                             # Set conn to None to prevent further attempts to use it
                             conn = None
@@ -673,7 +680,7 @@ async def get_db_connection():
             
             # If we had connection errors, the pool may be in a bad state
             # Only close the pool if we had a serious error
-            if connection_error and loop_thread_key in _connection_pools:
+            if connection_error and pool and not is_pool_closed(pool) and loop_thread_key in _connection_pools:
                 try:
                     # Check if there are many active connections still in use
                     try:
@@ -688,7 +695,7 @@ async def get_db_connection():
                     logger.warning(f"[{loop_thread_key}] {pool_status}")
                     
                     # Only close the pool if it's not already closed
-                    if pool and not is_pool_closed(pool):
+                    if not is_pool_closed(pool):
                         await close_pool(loop_thread_key)
                         logger.info(f"[{loop_thread_key}] Closed bad connection pool due to errors")
                 except Exception as close_error:
