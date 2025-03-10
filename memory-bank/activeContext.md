@@ -1,6 +1,29 @@
 # Active Context
 
-## Current Task: Implement Loguru in Exchange Sync Module
+## Current Task: Remove Legacy Exchange Cache Files
+
+**Status**: Completed ✅
+
+**Objective**:
+1. Remove legacy exchange cache files that are no longer needed
+2. Complete the refactoring by removing unused code
+3. Make the codebase cleaner and more maintainable
+
+**Implementation**:
+- Removed src/alpha_pulse/data_pipeline/database/exchange_cache_fixed.py
+- Removed tests/test_exchange_cache.py
+- Verified that these files are no longer needed as their functionality has been replaced by the new exchange_sync module
+
+**Key Files**:
+- `src/alpha_pulse/data_pipeline/database/exchange_cache_fixed.py` (removed)
+- `tests/test_exchange_cache.py` (removed)
+
+**Documentation**:
+- Updated Memory Bank files to reflect the changes
+
+## Previous Tasks
+
+### Implement Loguru in Exchange Sync Module
 
 **Status**: Completed ✅
 
@@ -32,14 +55,6 @@
 **Documentation**:
 - [Exchange Sync Integration](../docs/EXCHANGE_SYNC_INTEGRATION.md)
 
-**Next Steps**:
-1. Test the loguru integration with real exchange data
-2. Update test suite to cover the new logging functionality
-3. Consider extending loguru to other modules in AlphaPulse
-4. Add metrics collection for monitoring exchange sync operations
-
-## Previous Tasks
-
 ### Refactor AlphaPulse by Integrating Exchange Sync Module
 
 **Status**: Completed ✅
@@ -56,6 +71,14 @@
 - Enhanced PortfolioDataAccessor with direct exchange_sync support
 - Updated portfolio.py router to use the new integration
 - Added comprehensive documentation in EXCHANGE_SYNC_INTEGRATION.md
+- Removed legacy complex logic from AlphaPulse:
+  - Removed src/alpha_pulse/data_pipeline/api_integration.py
+  - Removed src/alpha_pulse/data_pipeline/scheduler.py
+  - Removed src/alpha_pulse/data_pipeline/scheduler/ directory
+  - Removed src/alpha_pulse/data_pipeline/database/connection_manager.py
+  - Removed src/alpha_pulse/data_pipeline/database/connection_manager_fixed.py
+  - Removed src/alpha_pulse/data_pipeline/database/exchange_cache_fixed.py
+  - Removed tests/test_exchange_cache.py
 
 **Key Files**:
 - `src/alpha_pulse/api/exchange_sync_integration.py` (new)
@@ -67,6 +90,12 @@
 
 **Documentation**:
 - [Exchange Sync Integration](../docs/EXCHANGE_SYNC_INTEGRATION.md)
+
+**Next Steps**:
+1. Test the integration with real exchange data
+2. Update test suite to cover the new integration
+3. Consider adding more exchanges to the exchange_sync module
+4. Add metrics collection for monitoring exchange sync operations
 
 ### Complete PostgreSQL Migration and Fix Bybit Integration
 
@@ -228,3 +257,4 @@ Error updating sync status: Task <Task pending name='Task-12' coro=<ExchangeData
 - PostgreSQL migration: Completed ✅
 - Exchange sync integration: Completed ✅
 - Loguru integration: Completed ✅
+- Legacy code removal: Completed ✅
