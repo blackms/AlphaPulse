@@ -14,7 +14,7 @@ from loguru import logger
 
 from alpha_pulse.data_pipeline.scheduler import DataType
 from alpha_pulse.data_pipeline.scheduler.sync_module.types import SyncStatus
-from alpha_pulse.data_pipeline.database.exchange_cache import ExchangeCacheRepository
+from alpha_pulse.data_pipeline.database.exchange_cache_fixed import ExchangeCacheRepository
 # Import from the new connection manager
 from alpha_pulse.data_pipeline.database.connection_manager import get_db_connection, execute_with_retry, get_loop_thread_key
 # Import the default connection parameters from the connection module

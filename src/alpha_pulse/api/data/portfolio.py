@@ -12,7 +12,7 @@ from alpha_pulse.portfolio.portfolio_manager import PortfolioManager
 from alpha_pulse.exchanges.factories import ExchangeFactory
 from alpha_pulse.exchanges.types import ExchangeType
 from alpha_pulse.data_pipeline.database.connection import get_pg_connection
-from alpha_pulse.data_pipeline.database.exchange_cache import ExchangeCacheRepository
+from alpha_pulse.data_pipeline.database.exchange_cache_fixed import ExchangeCacheRepository
 from alpha_pulse.data_pipeline.scheduler import exchange_data_synchronizer, DataType
 
 

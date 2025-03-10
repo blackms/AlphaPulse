@@ -18,7 +18,7 @@ from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from alpha_pulse.data_pipeline.database.connection import get_pg_connection
-from alpha_pulse.data_pipeline.database.exchange_cache import (
+from alpha_pulse.data_pipeline.database.exchange_cache_fixed import (
     ExchangeCacheRepository, SyncStatus, ExchangeSync
 )
 from alpha_pulse.exchanges.factories import ExchangeFactory
