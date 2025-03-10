@@ -3,7 +3,7 @@ Main API application.
 
 This module defines the FastAPI application and routes.
 """
-import logging
+from loguru import logger
 from datetime import timedelta
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,13 +24,6 @@ from .exchange_sync_integration import (
     register_exchange_sync_events
 ) 
 from alpha_pulse.data_pipeline.database.connection import init_db
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
 
 # Create FastAPI application
 app = FastAPI(

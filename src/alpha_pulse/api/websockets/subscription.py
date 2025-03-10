@@ -3,7 +3,7 @@ WebSocket subscription manager.
 
 This module provides a subscription manager for WebSocket connections.
 """
-import logging
+from loguru import logger
 import asyncio
 import json
 from typing import Dict, Any, Set, List, Callable, Coroutine
@@ -13,8 +13,6 @@ from alpha_pulse.monitoring.alerting import AlertManager
 from alpha_pulse.monitoring.alerting.models import Alert
 
 from .manager import connection_manager
-
-logger = logging.getLogger(__name__)
 
 
 class AlertsSubscription:
