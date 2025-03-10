@@ -18,6 +18,10 @@ import {
   Button,
   IconButton,
   Paper,
+  CircularProgress,
+  Alert,
+  Switch,
+  Tooltip,
 } from '@mui/material';
 import {
   TrendingUp as TrendingUpIcon,
@@ -25,18 +29,25 @@ import {
   Refresh as RefreshIcon,
   Info as InfoIcon,
   Analytics as AnalyticsIcon,
+  Warning as WarningIcon,
   SwapHoriz as RebalanceIcon,
+  Sync as SyncIcon,
 } from '@mui/icons-material';
 import { useSelector, useDispatch } from 'react-redux';
+import useDataRefresh from '../../hooks/useDataRefresh';
 import {
   selectAssets,
   selectTotalValue,
   selectCashBalance,
   selectPerformance,
   selectHistoricalValues,
+  selectPortfolioLoading,
+  selectPortfolioError,
+  selectLastUpdated,
   fetchPortfolioStart,
   // Asset, // Unused import
 } from '../../store/slices/portfolioSlice';
+import ErrorFallback from '../../components/ErrorFallback';
 import { Line } from 'react-chartjs-2';
 import 'chart.js/auto';
 
@@ -69,12 +80,31 @@ const PortfolioPage: React.FC = () => {
   const cashBalance = useSelector(selectCashBalance);
   const performance = useSelector(selectPerformance);
   const historicalValues = useSelector(selectHistoricalValues);
+  const isLoading = useSelector(selectPortfolioLoading);
+  const error = useSelector(selectPortfolioError);
+  const lastUpdated = useSelector(selectLastUpdated);
   
   const [tabValue, setTabValue] = useState(0);
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
   
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
   };
+
+  // Set up the data refresh functionality with the hook
+  const { 
+    refresh, 
+    isRefreshing, 
+    lastRefreshed 
+  } = useDataRefresh({
+    refreshFn: () => dispatch(fetchPortfolioStart()),
+    interval: 30000, // 30 seconds
+    autoRefresh: autoRefreshEnabled,
+    onError: (err) => {
+      console.error("Error refreshing portfolio data:", err);
+      // We don't need to do anything here as the error will be handled by the Redux store
+    }
+  });
   
   const handleRefresh = () => {
     dispatch(fetchPortfolioStart());
@@ -90,6 +120,15 @@ const PortfolioPage: React.FC = () => {
   
   const formatPercentage = (value: number) => {
     return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
+  };
+
+  const formatLastUpdated = (timestamp: string | null) => {
+    if (!timestamp) return 'Never updated';
+    
+    const diffMinutes = Math.round((Date.now() - new Date(timestamp).getTime()) / 60000);
+    if (diffMinutes < 1) return 'Just now';
+    if (diffMinutes === 1) return '1 minute ago';
+    return `${diffMinutes} minutes ago`;
   };
   
   // Chart data preparation
@@ -151,6 +190,27 @@ const PortfolioPage: React.FC = () => {
       },
     },
   };
+
+  // If we're in a loading state, show a loading indicator
+  if (isLoading && !assets.length) {
+    return (
+      <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '50vh' }}>
+        <CircularProgress size={60} thickness={4} sx={{ mb: 3 }} />
+        <Typography variant="h6" color="text.secondary">
+          Loading portfolio data...
+        </Typography>
+      </Box>
+    );
+  }
+
+  // If there's an error and no data, show the error component
+  if (error && !assets.length) {
+    return (
+      <Box sx={{ p: 3 }}>
+        <ErrorFallback error={error} retry={handleRefresh} showDetails={false} />
+      </Box>
+    );
+  }
   
   return (
     <Box sx={{ p: 3 }}>
@@ -158,13 +218,41 @@ const PortfolioPage: React.FC = () => {
         <Typography variant="h4" component="h1">
           Portfolio
         </Typography>
-        <Button
-          variant="outlined"
-          startIcon={<RefreshIcon />}
-          onClick={handleRefresh}
-        >
-          Refresh
-        </Button>
+        <Box display="flex" alignItems="center" gap={2}>
+          <Tooltip title={`Auto-refresh ${autoRefreshEnabled ? 'enabled' : 'disabled'}`}>
+            <Box display="flex" alignItems="center">
+              <Typography variant="body2" color="text.secondary" sx={{ mr: 1 }}>
+                Auto refresh
+              </Typography>
+              <Switch
+                checked={autoRefreshEnabled}
+                onChange={(e) => setAutoRefreshEnabled(e.target.checked)}
+              />
+            </Box>
+          </Tooltip>
+          {error && (
+            <Alert 
+              severity="warning" 
+              icon={<WarningIcon />}
+              sx={{ mr: 2 }}
+              action={
+                <Button color="inherit" size="small" onClick={handleRefresh}>
+                  Retry
+                </Button>
+              }
+            >
+              Error fetching latest data
+            </Alert>
+          )}
+          <Button
+            variant="contained"
+            startIcon={isRefreshing ? <CircularProgress size={18} color="inherit" /> : <RefreshIcon />}
+            onClick={refresh}
+          >
+            {isRefreshing ? "Refreshing..." : "Refresh"}
+            Refresh
+          </Button>
+        </Box>
       </Box>
       
       {/* Summary Cards */}
@@ -174,6 +262,9 @@ const PortfolioPage: React.FC = () => {
             <CardContent>
               <Typography variant="h6" gutterBottom>Total Value</Typography>
               <Typography variant="h4" sx={{ mb: 1 }}>
+                {isLoading && (
+                  <CircularProgress size={16} thickness={4} sx={{ mr: 1 }} />
+                )}
                 {formatCurrency(totalValue)}
               </Typography>
               <Box display="flex" alignItems="center">
@@ -197,6 +288,9 @@ const PortfolioPage: React.FC = () => {
             <CardContent>
               <Typography variant="h6" gutterBottom>Cash Balance</Typography>
               <Typography variant="h4" sx={{ mb: 1 }}>
+                {isLoading && (
+                  <CircularProgress size={16} thickness={4} sx={{ mr: 1 }} />
+                )}
                 {formatCurrency(cashBalance)}
               </Typography>
               <Box display="flex" alignItems="center">
@@ -251,6 +345,23 @@ const PortfolioPage: React.FC = () => {
           title="Portfolio Performance"
           action={
             <Box>
+              {(isRefreshing || lastUpdated) && (
+                <Box sx={{ display: 'inline-flex', alignItems: 'center', mr: 2 }}>
+                  {isRefreshing && (
+                    <CircularProgress size={16} sx={{ mr: 1 }} />
+                  )}
+                  <Typography 
+                    variant="caption" 
+                    color="text.secondary"
+                    sx={{ 
+                      display: 'inline-block',
+                      verticalAlign: 'middle' 
+                    }}
+                  >
+                    {isRefreshing ? 'Refreshing...' : `Last updated: ${formatLastUpdated(lastUpdated)}`}
+                  </Typography>
+                </Box>
+              )}
               <Button 
                 startIcon={<AnalyticsIcon />}
                 sx={{ mr: 1 }}
