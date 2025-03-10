@@ -8,7 +8,14 @@ the logging system.
 import os
 import logging
 from logging.handlers import RotatingFileHandler
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
+
+# Import the credentials manager from AlphaPulse
+try:
+    from alpha_pulse.exchanges.credentials.manager import credentials_manager
+    CREDENTIALS_MANAGER_AVAILABLE = True
+except ImportError:
+    CREDENTIALS_MANAGER_AVAILABLE = False
 
 
 def get_database_config() -> Dict[str, Any]:
@@ -29,7 +36,7 @@ def get_database_config() -> Dict[str, Any]:
 
 def get_exchange_config(exchange_id: str) -> Dict[str, Any]:
     """
-    Get exchange-specific configuration from environment variables.
+    Get exchange-specific configuration from credentials manager or environment variables.
     
     Args:
         exchange_id: The identifier of the exchange (e.g. 'bybit', 'binance')
@@ -37,14 +44,46 @@ def get_exchange_config(exchange_id: str) -> Dict[str, Any]:
     Returns:
         Dictionary with exchange-specific configuration
     """
-    # Convert to uppercase for environment variables
-    exchange_upper = exchange_id.upper()
+    api_key, api_secret, testnet = get_exchange_credentials(exchange_id)
     
     return {
-        'api_key': os.getenv(f'{exchange_upper}_API_KEY', ''),
-        'api_secret': os.getenv(f'{exchange_upper}_API_SECRET', ''),
-        'testnet': os.getenv(f'{exchange_upper}_TESTNET', 'false').lower() == 'true'
+        'api_key': api_key,
+        'api_secret': api_secret,
+        'testnet': testnet
     }
+
+
+def get_exchange_credentials(exchange_id: str) -> Tuple[str, str, bool]:
+    """
+    Get exchange credentials from credentials manager or environment variables.
+    
+    Args:
+        exchange_id: The identifier of the exchange (e.g. 'bybit', 'binance')
+        
+    Returns:
+        Tuple of (api_key, api_secret, testnet)
+    """
+    # Try to get credentials from the credentials manager first
+    if CREDENTIALS_MANAGER_AVAILABLE:
+        logging.debug(f"Attempting to get credentials for {exchange_id} from credentials manager")
+        creds = credentials_manager.get_credentials(exchange_id)
+        if creds:
+            logging.info(f"Using credentials from credentials manager for {exchange_id}")
+            return creds.api_key, creds.api_secret, creds.testnet
+    
+    # Fall back to environment variables if credentials manager is not available
+    # or if no credentials were found
+    exchange_upper = exchange_id.upper()
+    api_key = os.getenv(f'{exchange_upper}_API_KEY', '')
+    api_secret = os.getenv(f'{exchange_upper}_API_SECRET', '')
+    testnet = os.getenv(f'{exchange_upper}_TESTNET', 'false').lower() == 'true'
+    
+    if api_key and api_secret:
+        logging.info(f"Using credentials from environment variables for {exchange_id}")
+    else:
+        logging.warning(f"No credentials found for {exchange_id}")
+        
+    return api_key, api_secret, testnet
 
 
 def get_sync_config() -> Dict[str, Any]:

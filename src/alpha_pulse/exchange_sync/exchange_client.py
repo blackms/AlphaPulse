@@ -9,6 +9,13 @@ import asyncio
 from typing import Dict, List, Optional, Any, Tuple
 import ccxt.async_support as ccxt
 
+# Import the credentials manager if available
+try:
+    from alpha_pulse.exchanges.credentials.manager import credentials_manager
+    CREDENTIALS_MANAGER_AVAILABLE = True
+except ImportError:
+    CREDENTIALS_MANAGER_AVAILABLE = False
+
 from .models import PortfolioItem, OrderData, SyncResult
 from .config import get_exchange_config
 
@@ -37,6 +44,16 @@ class ExchangeClient:
         self.exchange_config = get_exchange_config(exchange_id)
         self.logger = logging.getLogger(__name__)
         self.exchange = None
+        
+        # Log credential source
+        if CREDENTIALS_MANAGER_AVAILABLE:
+            creds = credentials_manager.get_credentials(exchange_id)
+            if creds:
+                self.logger.info(f"Using credentials from AlphaPulse credentials manager for {exchange_id}")
+            else:
+                self.logger.info(f"No credentials found in credentials manager for {exchange_id}, using environment variables")
+        else:
+            self.logger.info(f"AlphaPulse credentials manager not available, using environment variables")
     
     async def connect(self) -> bool:
         """
@@ -59,14 +76,21 @@ class ExchangeClient:
             # Configure the exchange
             config = {
                 'apiKey': self.exchange_config['api_key'],
-                'secret': self.exchange_config['api_secret'],
+                'secret': self.exchange_config['api_secret'], 
                 'enableRateLimit': True
             }
+            
+            # Log credential status (without revealing actual keys)
+            if config['apiKey']:
+                self.logger.info(f"Connecting to {self.exchange_id} with API key: {config['apiKey'][:4]}...{config['apiKey'][-4:] if len(config['apiKey']) > 8 else ''}")
+            else:
+                self.logger.warning(f"Connecting to {self.exchange_id} without API credentials (read-only mode)")
             
             # Add testnet if configured
             if self.exchange_config['testnet']:
                 if self.exchange_id in ['bybit', 'binance', 'kucoin']:
                     config['options'] = {'testnet': True}
+                self.logger.info(f"Using testnet mode for {self.exchange_id}")
             
             # Create exchange instance
             self.exchange = exchange_class(config)

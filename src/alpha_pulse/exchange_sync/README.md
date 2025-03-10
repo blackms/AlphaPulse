@@ -15,6 +15,19 @@ This module provides a clean, maintainable solution for fetching portfolio and p
 - **Symbol Format Handling**: Properly handles exchange-specific symbol formats
 - **Clean API**: Easy to use programmatically or as a standalone service
 
+## Credential Management
+
+The module integrates with AlphaPulse's credential management system:
+
+1. **Primary Source**: First checks for credentials in AlphaPulse's credential manager
+2. **Fallback**: If not found, falls back to environment variables
+3. **Transparent**: Logs the source of credentials without exposing sensitive data
+
+This approach ensures:
+- Consistent credential handling across the entire AlphaPulse system
+- Secure storage of API keys and secrets
+- Compatibility with existing configuration methods
+
 ## Components
 
 - **Models**: Data structures representing portfolio items and sync results
@@ -105,6 +118,8 @@ The module uses environment variables for configuration:
   - `{EXCHANGE}_API_KEY`: API key for the exchange (e.g., BYBIT_API_KEY)
   - `{EXCHANGE}_API_SECRET`: API secret for the exchange
   - `{EXCHANGE}_TESTNET`: Use testnet (true/false)
+
+> **Note**: The module will first attempt to use credentials from AlphaPulse's credential manager before falling back to environment variables.
 
 ## Database Schema
 
