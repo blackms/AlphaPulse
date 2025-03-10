@@ -14,9 +14,8 @@ import asyncpg
 from loguru import logger
 
 from enum import Enum
-# Use the fixed connection manager instead of the original
-from alpha_pulse.data_pipeline.database.connection_manager_fixed import get_db_connection
-from alpha_pulse.data_pipeline.database.connection_manager import is_pool_closed
+# Use the connection module directly instead of the connection manager
+from alpha_pulse.data_pipeline.database.connection import get_pg_connection
 
 
 class DataType(str, Enum):
@@ -98,7 +97,7 @@ class ExchangeCacheRepository:
             max_retries = 3
             for attempt in range(1, max_retries + 1):
                 try:
-                    async with get_db_connection() as conn:
+                    async with get_pg_connection() as conn:
                         return await self._get_all_sync_status_with_conn(conn)
                 except asyncpg.InterfaceError as e:
                     logger.error(f"Connection error on attempt {attempt}/{max_retries}: {str(e)}")
@@ -141,7 +140,7 @@ class ExchangeCacheRepository:
         """
         # If no connection provided, get one from the pool
         if self.conn is None:
-            async with get_db_connection() as conn:
+            async with get_pg_connection() as conn:
                 query = """
                     SELECT 
                         exchange_id, 
@@ -204,7 +203,7 @@ class ExchangeCacheRepository:
         
         # If no connection provided, get one from the pool
         if self.conn is None:
-            async with get_db_connection() as conn:
+            async with get_pg_connection() as conn:
                 # Check if record exists
                 query = """
                     SELECT id FROM sync_status
@@ -372,7 +371,7 @@ class ExchangeCacheRepository:
         
         # If no connection provided, get one from the pool
         if self.conn is None:
-            async with get_db_connection() as conn:
+            async with get_pg_connection() as conn:
                 for currency, balance in balances.items():
                     # Extract values
                     available = float(balance.get('available', 0))
@@ -515,7 +514,7 @@ class ExchangeCacheRepository:
         """
         # If no connection provided, get one from the pool
         if self.conn is None:
-            async with get_db_connection() as conn:
+            async with get_pg_connection() as conn:
                 query = """
                     SELECT 
                         currency, 
@@ -579,7 +578,7 @@ class ExchangeCacheRepository:
         
         # If no connection provided, get one from the pool
         if self.conn is None:
-            async with get_db_connection() as conn:
+            async with get_pg_connection() as conn:
                 for symbol, position in positions.items():
                     # Extract values
                     quantity = float(position.get('quantity', 0))
@@ -724,7 +723,7 @@ class ExchangeCacheRepository:
         """
         # If no connection provided, get one from the pool
         if self.conn is None:
-            async with get_db_connection() as conn:
+            async with get_pg_connection() as conn:
                 query = """
                     SELECT 
                         symbol, 
@@ -794,7 +793,7 @@ class ExchangeCacheRepository:
         
         # If no connection provided, get one from the pool
         if self.conn is None:
-            async with get_db_connection() as conn:
+            async with get_pg_connection() as conn:
                 for order in orders:
                     # Extract values
                     order_id = str(order.get('id', ''))
@@ -982,7 +981,7 @@ class ExchangeCacheRepository:
         """
         # If no connection provided, get one from the pool
         if self.conn is None:
-            async with get_db_connection() as conn:
+            async with get_pg_connection() as conn:
                 if symbol:
                     query = """
                         SELECT 
@@ -1115,7 +1114,7 @@ class ExchangeCacheRepository:
         
         # If no connection provided, get one from the pool
         if self.conn is None:
-            async with get_db_connection() as conn:
+            async with get_pg_connection() as conn:
                 # Check if record exists
                 query = """
                     SELECT id FROM exchange_prices
@@ -1235,7 +1234,7 @@ class ExchangeCacheRepository:
         """
         # If no connection provided, get one from the pool
         if self.conn is None:
-            async with get_db_connection() as conn:
+            async with get_pg_connection() as conn:
                 query = """
                     SELECT 
                         price,
@@ -1287,7 +1286,7 @@ class ExchangeCacheRepository:
         """
         # If no connection provided, get one from the pool
         if self.conn is None:
-            async with get_db_connection() as conn:
+            async with get_pg_connection() as conn:
                 query = """
                     SELECT 
                         base_currency,
