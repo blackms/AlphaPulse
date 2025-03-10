@@ -65,6 +65,45 @@ Remove SQLite support entirely and standardize on PostgreSQL as the only support
 
 ## API Decisions
 
+### 2025-03-10: Implement Loguru for Enhanced Logging in Exchange Sync Module
+
+**Context:**
+The exchange_sync module was using the standard Python logging module, which provides basic logging functionality but lacks advanced features like structured logging, automatic log rotation, and rich error tracebacks.
+
+**Decision:**
+Replace standard logging with loguru in the exchange_sync module to enhance logging capabilities.
+
+**Rationale:**
+- Provides more readable and colorized console output for better developer experience
+- Enables structured log files with automatic rotation for production use
+- Offers better error tracebacks with variable inspection for easier debugging
+- Creates consistent logging format across all components
+- Simplifies logging configuration with intuitive API
+- Maintains backward compatibility while enhancing debugging capabilities
+
+**Alternatives Considered:**
+1. **Keep standard logging**: Continue using Python's built-in logging module. Rejected due to limited features and verbosity of configuration.
+2. **Use structlog**: Another structured logging library. Rejected due to higher complexity compared to loguru.
+3. **Use loguru (selected)**: Selected for its simplicity, rich features, and developer-friendly API.
+
+**Implementation:**
+- Replaced standard logging with loguru in repository.py
+- Updated config.py with loguru configuration
+- Integrated loguru in portfolio_service.py
+- Implemented loguru in scheduler.py
+- Converted exchange_client.py to use loguru
+- Updated runner.py with loguru logging
+- Modified exchange_sync_integration.py to use loguru
+- Added comprehensive documentation in EXCHANGE_SYNC_INTEGRATION.md
+
+**Consequences:**
+- Improved developer experience with more readable logs
+- Enhanced debugging capabilities with better error tracebacks
+- More maintainable logging configuration
+- Consistent logging format across all components
+- Automatic log rotation for production use
+- Slight increase in dependencies (added loguru)
+
 ### 2025-03-10: Integrate exchange_sync module into main application
 
 **Context:**
