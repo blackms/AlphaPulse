@@ -22,9 +22,15 @@ class PortfolioService:
     storing it in the database, and providing access to the data.
     """
     
-    def __init__(self):
-        """Initialize the portfolio service."""
+    def __init__(self, exchange_id: str = None):
+        """
+        Initialize the portfolio service.
+        
+        Args:
+            exchange_id: Optional exchange identifier to use as default
+        """
         self.repository = PortfolioRepository()
+        self.default_exchange_id = exchange_id
     
     async def sync_portfolio(self, exchange_ids: List[str]) -> Dict[str, SyncResult]:
         """
@@ -139,7 +145,7 @@ class PortfolioService:
             except Exception as e:
                 logger.error(f"Error disconnecting from {exchange_id}: {str(e)}")
     
-    async def get_portfolio(self, exchange_id: str) -> List[PortfolioItem]:
+    async def get_portfolio(self, exchange_id: str = None) -> List[PortfolioItem]:
         """
         Get portfolio data for an exchange.
         
@@ -150,6 +156,10 @@ class PortfolioService:
             List of portfolio items
         """
         try:
+            # Use the default exchange_id if none is provided
+            if exchange_id is None:
+                exchange_id = self.default_exchange_id
+                
             items = await self.repository.get_portfolio_items(exchange_id)
             logger.debug(f"Retrieved {len(items)} portfolio items for {exchange_id} from database")
             return items

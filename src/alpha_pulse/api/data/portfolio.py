@@ -204,7 +204,10 @@ class PortfolioDataAccessor:
             # Initialize the exchange_sync service if needed
             if self._exchange_sync_service is None:
                 self._exchange_sync_service = PortfolioService(self._exchange_id)
-                await self._exchange_sync_service.initialize()
+                # Note: The initialize method doesn't exist in PortfolioService
+                # This was likely a mistake in the original code
+                # We'll keep this commented out for reference
+                # await self._exchange_sync_service.initialize()
             
             # Get portfolio items from the exchange
             portfolio_items = await self._exchange_sync_service.get_portfolio()

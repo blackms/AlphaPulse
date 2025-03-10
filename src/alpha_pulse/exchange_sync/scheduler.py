@@ -132,7 +132,7 @@ class ExchangeSyncScheduler:
         Returns:
             Dictionary mapping exchange IDs to sync results
         """
-        service = PortfolioService()
+        service = PortfolioService()  # No need to pass exchange_id as we're syncing multiple exchanges
         return await service.sync_portfolio(self.exchanges)
     
     @classmethod

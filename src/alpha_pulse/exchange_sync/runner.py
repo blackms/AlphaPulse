@@ -29,7 +29,7 @@ async def run_sync(exchanges: List[str], log_level: str = "INFO") -> None:
     logger.info(f"Starting exchange synchronization for: {', '.join(exchanges)}")
     
     # Create the portfolio service
-    service = PortfolioService()
+    service = PortfolioService()  # No need to pass exchange_id as we're syncing multiple exchanges
     
     try:
         # Run the synchronization
