@@ -4,6 +4,35 @@ This document tracks key architectural and implementation decisions made during 
 
 ## Database Decisions
 
+### 2025-03-10: Remove Legacy Connection Manager and Database Pooling
+
+**Context:**
+The system was using a complex connection manager with pooling that was causing recurring issues with database connections, especially in multi-threaded environments. The connection manager was overly complex (700+ lines) and difficult to maintain.
+
+**Decision:**
+Remove the legacy connection manager and connection pooling in favor of simpler direct database connections.
+
+**Rationale:**
+- Simplifies the codebase by removing complex connection pooling logic
+- Reduces the risk of connection-related issues like "connection has been released back to the pool"
+- Improves reliability by using a simpler database connection approach
+- Makes debugging easier with clearer error messages
+- Aligns with the new exchange_sync module's design principles
+
+**Implementation:**
+- Removed `src/alpha_pulse/data_pipeline/database/connection_manager.py`
+- Removed `src/alpha_pulse/data_pipeline/database/connection_manager_fixed.py`
+- Updated `exchange_cache_fixed.py` to use direct database connection
+- Updated portfolio data accessor to use the new exchange_sync module
+- Verified application runs successfully with the new implementation
+
+**Consequences:**
+- Simplified codebase with cleaner database access
+- Improved reliability of database operations
+- Reduced complexity in error handling and recovery
+- Better separation of concerns
+- More maintainable code with smaller, focused components
+
 ### 2025-03-09: Migrate from SQLite to PostgreSQL exclusively
 
 **Context:**
@@ -64,6 +93,12 @@ Refactor AlphaPulse by removing all legacy complex logic and integrating the new
 - Enhanced PortfolioDataAccessor with direct exchange_sync support
 - Updated portfolio.py router to use the new integration
 - Added comprehensive documentation in EXCHANGE_SYNC_INTEGRATION.md
+- Removed legacy components:
+  - Removed src/alpha_pulse/data_pipeline/api_integration.py
+  - Removed src/alpha_pulse/data_pipeline/scheduler.py
+  - Removed src/alpha_pulse/data_pipeline/scheduler/ directory
+  - Removed src/alpha_pulse/data_pipeline/database/connection_manager.py
+  - Removed src/alpha_pulse/data_pipeline/database/connection_manager_fixed.py
 
 **Consequences:**
 - Simplified codebase with cleaner architecture
