@@ -63,8 +63,8 @@ async def test_bybit_order_history():
         await adapter.initialize()
         logger.info("Adapter initialized successfully")
         
-        # Test with BTC/USDT
-        symbol = "BTC/USDT"
+        # Test with ETH/USDT instead of BTC/USDT
+        symbol = "ETH/USDT"
         logger.info(f"Testing order history for {symbol}...")
         
         # Get order history
@@ -77,7 +77,7 @@ async def test_bybit_order_history():
             logger.warning(f"No orders found for {symbol}")
         
         # Also try with market format
-        market_symbol = "BTCUSDT"
+        market_symbol = "ETHUSDT"
         logger.info(f"Testing order history with market format: '{market_symbol}'")
         
         # Try with direct call to _get_bybit_order_history
