@@ -12,7 +12,6 @@ from alpha_pulse.portfolio.portfolio_manager import PortfolioManager
 from alpha_pulse.exchanges.factories import ExchangeFactory
 from alpha_pulse.exchanges.types import ExchangeType
 from alpha_pulse.data_pipeline.database.connection import get_pg_connection
-from alpha_pulse.data_pipeline.database.exchange_cache_fixed import ExchangeCacheRepository
 
 # Import the new exchange_sync module
 from alpha_pulse.exchange_sync.portfolio_service import PortfolioService
