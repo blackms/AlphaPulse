@@ -36,6 +36,7 @@ BASE_RETRY_DELAY = 0.5
 _connection_pools: Dict[str, Pool] = {}
 _pool_creation_locks: Dict[str, asyncio.Lock] = {}
 _active_connections: Dict[str, int] = {}  # Track active connections per pool
+_pool_closing: Dict[str, bool] = {}  # Track pools that are in the process of closing
 _global_lock = threading.RLock()  # Global lock for thread-safe dictionary access
 def get_loop_thread_key() -> str:
     """
@@ -159,6 +160,7 @@ async def get_connection_pool() -> Pool:
                 # Store the pool
                 _connection_pools[loop_thread_key] = pool
                 _active_connections[loop_thread_key] = 0  # Initialize connection counter
+                _pool_closing[loop_thread_key] = False  # Initialize closing flag
                 logger.info(f"Successfully created connection pool for {loop_thread_key}")
                 return pool
             
@@ -198,6 +200,13 @@ async def close_pool(loop_thread_key: Optional[str] = None) -> None:
     
     pool_to_close = None
     with _global_lock:
+        # Check if pool is already in the process of closing
+        if loop_thread_key in _pool_closing and _pool_closing[loop_thread_key]:
+            logger.warning(f"Pool for {loop_thread_key} is already in the process of closing")
+            return
+            
+        # Mark the pool as closing
+        _pool_closing[loop_thread_key] = True
         # Check if there are active connections for this pool
         active_count = _active_connections.get(loop_thread_key, 0)
         if active_count > 0:
@@ -205,6 +214,7 @@ async def close_pool(loop_thread_key: Optional[str] = None) -> None:
             # Don't close the pool if there are active connections
             # This prevents the "connection released back to pool" errors
             return
+        
             
         elif loop_thread_key in _connection_pools:
             logger.info(f"Closing connection pool for {loop_thread_key}")
@@ -220,6 +230,7 @@ async def close_pool(loop_thread_key: Optional[str] = None) -> None:
                     # Also clean up the active connections counter
                     if loop_thread_key in _active_connections:
                         del _active_connections[loop_thread_key]
+                    del _pool_closing[loop_thread_key]  # Remove closing flag
                     # Only remove from registry after successful close
             logger.info(f"Connection pool for {loop_thread_key} closed and removed from registry")
         except Exception as e:
@@ -252,6 +263,7 @@ async def close_all_pools() -> None:
     with _global_lock:
         _connection_pools.clear()
         _active_connections.clear()
+        _pool_closing.clear()
         _pool_creation_locks.clear()
     
     logger.info("All connection pools closed")
@@ -441,9 +453,15 @@ async def get_db_connection():
                 
                 # Get a connection from the pool
                 conn = await pool.acquire()
-                # Increment active connection counter
+                
+                # Check if the pool is in the process of closing
                 with _global_lock:
-                    _active_connections.setdefault(loop_thread_key, 0)
+                    if loop_thread_key in _pool_closing and _pool_closing[loop_thread_key]:
+                        logger.warning(f"[{loop_thread_key}] Acquired connection from a pool that is closing")
+                        # Don't increment the counter for a closing pool
+                    else:
+                        # Increment active connection counter
+                        _active_connections.setdefault(loop_thread_key, 0)
                     _active_connections[loop_thread_key] += 1
                 break
             except (asyncpg.InterfaceError, asyncpg.ConnectionDoesNotExistError) as e:
@@ -579,11 +597,16 @@ async def get_db_connection():
                             raise asyncpg.InterfaceError("Connection validation failed before release")
                         await pool.release(conn)
                         logger.debug(f"[{loop_thread_key}] Released database connection back to pool")
-                        # Decrement active connection counter
+                        
+                        # Decrement active connection counter and check if we can close the pool
                         with _global_lock:
                             if loop_thread_key in _active_connections and _active_connections[loop_thread_key] > 0:
                                 _active_connections[loop_thread_key] -= 1
                                 logger.debug(f"[{loop_thread_key}] Active connections: {_active_connections[loop_thread_key]}")
+                                # If pool was marked for closing and this was the last connection, close it now
+                                if _active_connections[loop_thread_key] == 0 and loop_thread_key in _pool_closing and _pool_closing[loop_thread_key]:
+                                    logger.info(f"[{loop_thread_key}] Last connection released, closing pool that was marked for closing")
+                                    asyncio.create_task(close_pool(loop_thread_key))
                     except Exception as release_error:
                         logger.error(f"[{loop_thread_key}] Error releasing connection: {str(release_error)}")
                         connection_error = True
