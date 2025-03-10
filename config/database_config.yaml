@@ -5,8 +5,8 @@ postgres:
   host: localhost
   port: 5432
   database: alphapulse
-  username: alessio
-  password: ""
+  username: testuser
+  password: "testpassword"
   schema: public
   sslmode: disable
   pool:

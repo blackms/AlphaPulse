@@ -28,8 +28,8 @@ def get_database_config() -> Dict[str, Any]:
     return {
         'host': os.getenv('DB_HOST', 'localhost'),
         'port': int(os.getenv('DB_PORT', '5432')),
-        'user': os.getenv('DB_USER', 'postgres'),
-        'password': os.getenv('DB_PASS', 'postgres'),
+        'user': os.getenv('DB_USER', 'testuser'),
+        'password': os.getenv('DB_PASS', 'testpassword'),
         'database': os.getenv('DB_NAME', 'alphapulse')
     }
 

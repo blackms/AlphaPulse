@@ -19,8 +19,8 @@ from loguru import logger
 DEFAULT_DB_HOST = "localhost"
 DEFAULT_DB_PORT = 5432
 DEFAULT_DB_NAME = "alphapulse"
-DEFAULT_DB_USER = "alessio"  # Using the current user
-DEFAULT_DB_PASS = ""  # No password for local development
+DEFAULT_DB_USER = "testuser"  # Updated to use testuser
+DEFAULT_DB_PASS = "testpassword"  # Updated to use testpassword
 
 # Thread-local storage for connection pools
 _thread_local = threading.local()
