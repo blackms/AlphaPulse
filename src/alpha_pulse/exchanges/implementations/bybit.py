@@ -468,7 +468,6 @@ class BybitExchange(CCXTAdapter):
                 logger.error(f"Error getting orders for {symbol}: {error_str}")
                 
             return []
-            return []
     
     async def get_average_entry_price(self, symbol: str) -> Optional[Decimal]:
         """
@@ -584,3 +583,44 @@ class BybitExchange(CCXTAdapter):
         except Exception as e:
             logger.error(f"Failed to fetch enhanced positions: {str(e)}")
             return {}
+            
+    async def get_ticker(self, symbol: str) -> Dict[str, Any]:
+        """
+        Get ticker data for a symbol.
+        
+        Args:
+            symbol: Trading pair symbol
+            
+        Returns:
+            Dictionary containing ticker data with 'last' price
+        """
+        try:
+            logger.debug(f"Getting ticker data for {symbol}")
+            
+            # Use the existing get_ticker_price method from CCXTAdapter
+            price = await self.get_ticker_price(symbol)
+            
+            # Format the response as expected by the data_sync module
+            ticker = {
+                'symbol': symbol,
+                'last': price,
+                'bid': None,
+                'ask': None,
+                'volume': None,
+                'timestamp': int(time.time() * 1000),
+                'datetime': datetime.now().isoformat()
+            }
+            
+            return ticker
+        except Exception as e:
+            logger.error(f"Error getting ticker data for {symbol}: {str(e)}")
+            # Return a minimal ticker with None for the price
+            return {
+                'symbol': symbol,
+                'last': None,
+                'bid': None,
+                'ask': None,
+                'volume': None,
+                'timestamp': int(time.time() * 1000),
+                'datetime': datetime.now().isoformat()
+            }
