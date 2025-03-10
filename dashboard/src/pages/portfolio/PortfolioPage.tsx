@@ -32,7 +32,7 @@ import {
   BugReport as BugIcon,
   Warning as WarningIcon,
   SwapHoriz as RebalanceIcon,
-  Sync as SyncIcon,
+  // Removed unused SyncIcon import
 } from '@mui/icons-material';
 import { useSelector, useDispatch } from 'react-redux';
 import useDataRefresh from '../../hooks/useDataRefresh';
@@ -50,7 +50,7 @@ import {
 } from '../../store/slices/portfolioSlice';
 import ErrorFallback from '../../components/ErrorFallback';
 import BackendErrorAlert from '../../components/BackendErrorAlert';
-import BackendErrorProxy from '../../components/BackendErrorProxy';
+// Removed unused BackendErrorProxy import
 import { Line } from 'react-chartjs-2';
 import 'chart.js/auto';
 
@@ -98,7 +98,7 @@ const PortfolioPage: React.FC = () => {
   const { 
     refresh, 
     isRefreshing, 
-    lastRefreshed 
+    // Removed unused lastRefreshed variable
   } = useDataRefresh({
     refreshFn: () => dispatch(fetchPortfolioStart()),
     interval: 30000, // 30 seconds
@@ -227,9 +227,9 @@ const PortfolioPage: React.FC = () => {
   
   return (
     <Box sx={{ p: 3 }}>
-      {/* Wrap all portfolio content in our error proxy to handle backend issues */}
-      <BackendErrorProxy endpoint="portfolio">
-        
+      {/* Show error alert if needed */}
+      {error && <BackendErrorAlert error={error} />}
+      
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <Typography variant="h4" component="h1">
           Portfolio
@@ -277,7 +277,6 @@ const PortfolioPage: React.FC = () => {
             onClick={refresh}
           >
             {isRefreshing ? "Refreshing..." : "Refresh"}
-            Refresh
           </Button>
         </Box>
       </Box>
@@ -742,7 +741,6 @@ const PortfolioPage: React.FC = () => {
           </TabPanel>
         </CardContent>
       </Card>
-      </BackendErrorProxy>
     </Box>
   );
 };
