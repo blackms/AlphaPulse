@@ -27,7 +27,7 @@ from alpha_pulse.data_pipeline.database.connection_manager import (
     get_loop_thread_key,
     is_pool_closed
 )
-from alpha_pulse.data_pipeline.database.exchange_cache import ExchangeCacheRepository
+from alpha_pulse.data_pipeline.database.exchange_cache_fixed import ExchangeCacheRepository
 
 
 class ExchangeDataSynchronizer:

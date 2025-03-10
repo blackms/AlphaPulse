@@ -9,7 +9,7 @@ from loguru import logger
 import asyncpg
 
 from alpha_pulse.exchanges.interfaces import BaseExchange
-from alpha_pulse.data_pipeline.database.exchange_cache import ExchangeCacheRepository
+from alpha_pulse.data_pipeline.database.exchange_cache_fixed import ExchangeCacheRepository
 
 
 class DataSynchronizer:
