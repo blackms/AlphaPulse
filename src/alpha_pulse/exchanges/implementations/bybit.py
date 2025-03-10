@@ -392,6 +392,65 @@ class BybitExchange(CCXTAdapter):
             logger.warning(f"Error fetching Bybit order history for {symbol}: {str(e)}")
             return []
     
+    async def get_orders(self, symbol: str) -> List[Dict[str, Any]]:
+        """
+        Get orders for a specific symbol.
+        
+        This method retrieves order history for the specified symbol using
+        Bybit-specific order history fetching.
+        
+        Args:
+            symbol: Trading pair symbol
+            
+        Returns:
+            List of orders for the symbol
+        """
+        try:
+            # Use the _get_bybit_order_history method from the CCXTAdapter
+            from datetime import datetime, timedelta
+            
+            # Add time parameters for Bybit (last 90 days)
+            time_params = {
+                'since': int((datetime.now() - timedelta(days=90)).timestamp() * 1000),
+                'limit': 100
+            }
+            
+            # Normalize the symbol to handle different formats
+            symbol_formats = self._normalize_symbol(symbol)
+            
+            # Try different symbol formats
+            for format_name, format_value in [
+                ("pair", symbol_formats['pair']),
+                ("market", symbol_formats['market']),
+                ("spot", symbol_formats['spot']),
+                ("linear", symbol_formats['linear'])
+            ]:
+                logger.debug(f"Trying to get orders with {format_name} format: '{format_value}'")
+                try:
+                    orders = await self._get_bybit_order_history(symbol=format_value, params=time_params)
+                    if orders:
+                        logger.info(f"Found {len(orders)} orders for {symbol} using {format_name} format")
+                        return orders
+                except Exception as e:
+                    logger.debug(f"Error getting orders with {format_name} format: {str(e)}")
+            
+            # If no orders found with standard formats, try direct format
+            direct_symbol = symbol.replace('/', '') if '/' in symbol else symbol
+            logger.debug(f"Trying direct format '{direct_symbol}' for Bybit orders")
+            
+            orders = await self._get_bybit_order_history(symbol=direct_symbol, params=time_params)
+            if orders:
+                logger.info(f"Found {len(orders)} orders for {symbol} using direct format")
+                return orders
+            
+            # If still no orders, return empty list
+            logger.info(f"No orders found for {symbol} after trying multiple formats")
+            return []
+            
+        except Exception as e:
+            logger.error(f"Error getting orders for {symbol}: {str(e)}")
+            return []
+    
     async def get_average_entry_price(self, symbol: str) -> Optional[Decimal]:
         """
         Calculate average entry price for symbol.

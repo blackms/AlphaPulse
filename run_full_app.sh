@@ -23,12 +23,12 @@ API_DEBUG=true
 API_LOG_LEVEL=INFO
 
 # Database Configuration
-DB_TYPE=sqlite
-DB_NAME=alpha_pulse.db
+DB_TYPE=postgres
+DB_NAME=alphapulse
 DB_HOST=localhost
 DB_PORT=5432
-DB_USER=postgres
-DB_PASSWORD=postgres
+DB_USER=alessio
+DB_PASSWORD=
 
 # Exchange API Keys
 BYBIT_API_KEY=rYo8Mt01xzflkn33lZ
@@ -73,7 +73,8 @@ tmux split-window -h -t alpha_pulse
 
 # Start the API server in the left pane
 tmux send-keys -t alpha_pulse:0.0 "echo -e '${GREEN}Starting API server...${NC}'" C-m
-tmux send-keys -t alpha_pulse:0.0 "./run_api_sqlite.sh" C-m
+echo "Configuring to use PostgreSQL database..."
+tmux send-keys -t alpha_pulse:0.0 "./run_api_postgres.sh" C-m
 
 # Wait for API to start
 echo "Waiting for API server to start..."

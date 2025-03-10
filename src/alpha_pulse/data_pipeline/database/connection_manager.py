@@ -14,6 +14,7 @@ from typing import Dict, Optional, Any, Callable, Coroutine
 from contextlib import asynccontextmanager
 
 import asyncpg
+from asyncpg.pool import Pool
 from loguru import logger
 
 # Import the default connection parameters from the existing connection module
@@ -32,10 +33,9 @@ MAX_RETRY_ATTEMPTS = 3
 BASE_RETRY_DELAY = 0.5
 
 # Store PostgreSQL pools by event loop ID and thread ID
-_connection_pools: Dict[str, asyncpg.Pool] = {}
+_connection_pools: Dict[str, Pool] = {}
 _pool_creation_locks: Dict[str, asyncio.Lock] = {}
 _global_lock = threading.RLock()  # Global lock for thread-safe dictionary access
-
 def get_loop_thread_key() -> str:
     """
     Generate a unique key based on the current event loop and thread.
@@ -56,7 +56,29 @@ def get_loop_thread_key() -> str:
     
     return f"{thread_id}_{loop_id}"
 
-async def get_connection_pool() -> asyncpg.Pool:
+def is_pool_closed(pool: Optional[Pool]) -> bool:
+    """
+    Safely check if a pool is closed.
+    
+    This function handles the case where the pool might not have an is_closed method.
+    
+    Args:
+        pool: The connection pool to check
+        
+    Returns:
+        True if the pool is closed or None, False otherwise
+    """
+    if pool is None:
+        return True
+    
+    try:
+        return pool.is_closed()
+    except (AttributeError, Exception):
+        # If the pool doesn't have an is_closed method or any other error occurs,
+        # assume it's in an unusable state (effectively closed)
+        return True
+
+async def get_connection_pool() -> Pool:
     """
     Get or create a connection pool for the current event loop and thread.
     
@@ -73,7 +95,7 @@ async def get_connection_pool() -> asyncpg.Pool:
         # Check if we already have a pool for this combination
         if loop_thread_key in _connection_pools:
             pool = _connection_pools[loop_thread_key]
-            if not pool.is_closed():
+            if not is_pool_closed(pool):
                 logger.debug(f"Using existing connection pool for {loop_thread_key}")
                 return pool
             else:
@@ -89,7 +111,7 @@ async def get_connection_pool() -> asyncpg.Pool:
     # Use an async lock to prevent multiple concurrent creations of the same pool
     async with lock:
         # Double-check in case another task created the pool while waiting
-        if loop_thread_key in _connection_pools and not _connection_pools[loop_thread_key].is_closed():
+        if loop_thread_key in _connection_pools and not is_pool_closed(_connection_pools[loop_thread_key]):
             return _connection_pools[loop_thread_key]
         
         # Get connection parameters from environment
@@ -287,7 +309,7 @@ async def execute_with_retry(operation: Callable[[], Coroutine], max_retries: in
                     if retry_count == max_retries - 1 and loop_thread_key in _connection_pools:
                         try:
                             # Only close the pool if it's not already closed
-                            if not _connection_pools[loop_thread_key].is_closed():
+                            if not is_pool_closed(_connection_pools[loop_thread_key]):
                                 await _connection_pools[loop_thread_key].close()
                                 del _connection_pools[loop_thread_key]
                                 logger.info(f"[{loop_thread_key}] Reset connection pool due to persistent connection error")
@@ -393,7 +415,7 @@ async def get_db_connection():
         # Acquire a connection with retry logic - carefully handle connection acquisition
         for attempt in range(1, MAX_RETRY_ATTEMPTS + 1):
             try:
-                if attempt > 1 and pool.is_closed():
+                if attempt > 1 and is_pool_closed(pool):
                     # Only recreate the pool if it's closed
                     logger.warning(f"[{loop_thread_key}] Pool is closed, recreating for retry attempt {attempt}")
                     pool = await get_connection_pool()
@@ -407,7 +429,7 @@ async def get_db_connection():
                     logger.warning(f"[{loop_thread_key}] Connection acquisition attempt {attempt} failed: {str(e)}. Retrying in {backoff:.2f}s...")
                     
                     # Only close the pool if we get a connection error
-                    if not pool.is_closed():
+                    if not is_pool_closed(pool):
                         try:
                             # Only close the pool as a last resort
                             if attempt == MAX_RETRY_ATTEMPTS - 1:
@@ -524,20 +546,26 @@ async def get_db_connection():
                         logger.error(f"[{loop_thread_key}] Error in final transaction rollback: {str(final_rollback_error)}")
                 
                 # Only release if we have a pool and it's still open
-                if pool and not pool.is_closed() and not conn.is_closed():
+                if pool and not is_pool_closed(pool) and conn and not conn.is_closed():
                     try:
                         await pool.release(conn)
                         logger.debug(f"[{loop_thread_key}] Released database connection back to pool")
                     except Exception as release_error:
                         logger.error(f"[{loop_thread_key}] Error releasing connection: {str(release_error)}")
                         connection_error = True
-                elif conn and not conn.is_closed():
+                elif conn:
+                    # If the pool is closed, don't try to release the connection
+                    pool_closed = is_pool_closed(pool) if pool else True
+                    conn_closed = conn.is_closed() if conn else True
+                    logger.warning(f"[{loop_thread_key}] Not releasing connection - pool closed: {pool_closed}, conn closed: {conn_closed}")
+                    
                     # If pool is closed but connection is still open, try to close it directly
-                    try:
-                        await conn.close()
-                        logger.warning(f"[{loop_thread_key}] Closed connection directly due to closed pool")
-                    except Exception as close_error:
-                        logger.error(f"[{loop_thread_key}] Error closing connection directly: {str(close_error)}")
+                    if not conn_closed:
+                        try:
+                            await conn.close()
+                            logger.warning(f"[{loop_thread_key}] Closed connection directly due to closed pool")
+                        except Exception as close_error:
+                            logger.error(f"[{loop_thread_key}] Error closing connection directly: {str(close_error)}")
             except Exception as final_error:
                 logger.error(f"[{loop_thread_key}] Error in connection cleanup: {str(final_error)}")
                 connection_error = True
@@ -555,7 +583,7 @@ async def get_db_connection():
                     logger.warning(f"[{loop_thread_key}] {pool_status}")
                     
                     # Only close the pool if it's not already closed
-                    if pool and not pool.is_closed():
+                    if pool and not is_pool_closed(pool):
                         await close_pool(loop_thread_key)
                         logger.info(f"[{loop_thread_key}] Closed bad connection pool due to errors")
                 except Exception as close_error:

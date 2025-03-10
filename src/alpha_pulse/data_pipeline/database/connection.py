@@ -18,9 +18,9 @@ from loguru import logger
 # Default PostgreSQL connection parameters
 DEFAULT_DB_HOST = "localhost"
 DEFAULT_DB_PORT = 5432
-DEFAULT_DB_NAME = "alphapulse"  # Changed from alpha_pulse to alphapulse
-DEFAULT_DB_USER = "testuser"
-DEFAULT_DB_PASS = "testpassword"
+DEFAULT_DB_NAME = "alphapulse"
+DEFAULT_DB_USER = "alessio"  # Using the current user
+DEFAULT_DB_PASS = ""  # No password for local development
 
 # Thread-local storage for connection pools
 _thread_local = threading.local()

@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import update, delete, func, and_, or_
 
-from .connection import connection_manager, execute_with_retry
+from .connection import get_pg_connection, _execute_with_retry as execute_with_retry
 from .models import (
     User, ApiKey, Portfolio, Position, Trade, Alert, Metric, BaseModel
 )
@@ -39,14 +39,14 @@ class Repository(Generic[T]):
     
     async def find_by_id(self, id: int) -> Optional[Dict[str, Any]]:
         """Find an entity by ID."""
-        async with connection_manager.get_pg_connection() as conn:
+        async with get_pg_connection() as conn:
             query = f"SELECT * FROM {self.table_name} WHERE id = $1"
             row = await conn.fetchrow(query, id)
             return dict(row) if row else None
     
     async def find_all(self, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
         """Find all entities with pagination."""
-        async with connection_manager.get_pg_connection() as conn:
+        async with get_pg_connection() as conn:
             query = f"SELECT * FROM {self.table_name} ORDER BY id LIMIT $1 OFFSET $2"
             rows = await conn.fetch(query, limit, offset)
             return [dict(row) for row in rows]
@@ -68,7 +68,7 @@ class Repository(Generic[T]):
         
         where_clause = " AND ".join(where_clauses)
         
-        async with connection_manager.get_pg_connection() as conn:
+        async with get_pg_connection() as conn:
             query = f"""
                 SELECT * FROM {self.table_name}
                 WHERE {where_clause}
@@ -82,7 +82,7 @@ class Repository(Generic[T]):
     async def count(self, criteria: Dict[str, Any] = None) -> int:
         """Count entities, optionally filtered by criteria."""
         if not criteria:
-            async with connection_manager.get_pg_connection() as conn:
+            async with get_pg_connection() as conn:
                 query = f"SELECT COUNT(*) FROM {self.table_name}"
                 result = await conn.fetchval(query)
                 return result
@@ -99,7 +99,7 @@ class Repository(Generic[T]):
         
         where_clause = " AND ".join(where_clauses)
         
-        async with connection_manager.get_pg_connection() as conn:
+        async with get_pg_connection() as conn:
             query = f"SELECT COUNT(*) FROM {self.table_name} WHERE {where_clause}"
             result = await conn.fetchval(query, *params)
             return result
@@ -113,7 +113,7 @@ class Repository(Generic[T]):
         placeholders = ", ".join(f"${i+1}" for i in range(len(data)))
         values = list(data.values())
         
-        async with connection_manager.get_pg_connection() as conn:
+        async with get_pg_connection() as conn:
             query = f"""
                 INSERT INTO {self.table_name} ({columns})
                 VALUES ({placeholders})
@@ -146,7 +146,7 @@ class Repository(Generic[T]):
         set_clause = ", ".join(set_clauses)
         values.append(id)  # For the WHERE clause
         
-        async with connection_manager.get_pg_connection() as conn:
+        async with get_pg_connection() as conn:
             query = f"""
                 UPDATE {self.table_name}
                 SET {set_clause}
@@ -158,7 +158,7 @@ class Repository(Generic[T]):
     
     async def delete(self, id: int) -> bool:
         """Delete an entity by ID."""
-        async with connection_manager.get_pg_connection() as conn:
+        async with get_pg_connection() as conn:
             query = f"DELETE FROM {self.table_name} WHERE id = $1 RETURNING id"
             row = await conn.fetchrow(query, id)
             return row is not None
@@ -180,7 +180,7 @@ class Repository(Generic[T]):
         
         where_clause = " AND ".join(where_clauses)
         
-        async with connection_manager.get_pg_connection() as conn:
+        async with get_pg_connection() as conn:
             query = f"""
                 DELETE FROM {self.table_name}
                 WHERE {where_clause}
@@ -199,21 +199,21 @@ class UserRepository(Repository[User]):
     
     async def find_by_username(self, username: str) -> Optional[Dict[str, Any]]:
         """Find a user by username."""
-        async with connection_manager.get_pg_connection() as conn:
+        async with get_pg_connection() as conn:
             query = f"SELECT * FROM {self.table_name} WHERE username = $1"
             row = await conn.fetchrow(query, username)
             return dict(row) if row else None
     
     async def find_by_email(self, email: str) -> Optional[Dict[str, Any]]:
         """Find a user by email."""
-        async with connection_manager.get_pg_connection() as conn:
+        async with get_pg_connection() as conn:
             query = f"SELECT * FROM {self.table_name} WHERE email = $1"
             row = await conn.fetchrow(query, email)
             return dict(row) if row else None
     
     async def update_last_login(self, user_id: int) -> None:
         """Update the last login timestamp for a user."""
-        async with connection_manager.get_pg_connection() as conn:
+        async with get_pg_connection() as conn:
             query = f"""
                 UPDATE {self.table_name}
                 SET last_login = now()
@@ -231,7 +231,7 @@ class ApiKeyRepository(Repository[ApiKey]):
     
     async def find_by_key(self, api_key: str) -> Optional[Dict[str, Any]]:
         """Find an API key by its value."""
-        async with connection_manager.get_pg_connection() as conn:
+        async with get_pg_connection() as conn:
             query = f"""
                 SELECT ak.*, u.username, u.role
                 FROM {self.table_name} ak
@@ -243,14 +243,14 @@ class ApiKeyRepository(Repository[ApiKey]):
     
     async def find_by_user_id(self, user_id: int) -> List[Dict[str, Any]]:
         """Find all API keys for a user."""
-        async with connection_manager.get_pg_connection() as conn:
+        async with get_pg_connection() as conn:
             query = f"SELECT * FROM {self.table_name} WHERE user_id = $1"
             rows = await conn.fetch(query, user_id)
             return [dict(row) for row in rows]
     
     async def update_last_used(self, api_key_id: int) -> None:
         """Update the last used timestamp for an API key."""
-        async with connection_manager.get_pg_connection() as conn:
+        async with get_pg_connection() as conn:
             query = f"""
                 UPDATE {self.table_name}
                 SET last_used = now()
@@ -268,7 +268,7 @@ class PortfolioRepository(Repository[Portfolio]):
     
     async def find_with_positions(self, portfolio_id: int) -> Optional[Dict[str, Any]]:
         """Find a portfolio with its positions."""
-        async with connection_manager.get_pg_connection() as conn:
+        async with get_pg_connection() as conn:
             # Get portfolio
             portfolio_query = f"SELECT * FROM {self.table_name} WHERE id = $1"
             portfolio_row = await conn.fetchrow(portfolio_query, portfolio_id)
@@ -290,7 +290,7 @@ class PortfolioRepository(Repository[Portfolio]):
     
     async def find_all_with_positions(self, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
         """Find all portfolios with their positions."""
-        async with connection_manager.get_pg_connection() as conn:
+        async with get_pg_connection() as conn:
             # Get portfolios
             portfolios_query = f"""
                 SELECT * FROM {self.table_name}
@@ -337,7 +337,7 @@ class PositionRepository(Repository[Position]):
     
     async def find_by_portfolio_and_symbol(self, portfolio_id: int, symbol: str) -> Optional[Dict[str, Any]]:
         """Find a position by portfolio ID and symbol."""
-        async with connection_manager.get_pg_connection() as conn:
+        async with get_pg_connection() as conn:
             query = f"""
                 SELECT * FROM {self.table_name}
                 WHERE portfolio_id = $1 AND symbol = $2
@@ -347,7 +347,7 @@ class PositionRepository(Repository[Position]):
     
     async def update_current_price(self, position_id: int, current_price: float) -> Optional[Dict[str, Any]]:
         """Update the current price of a position."""
-        async with connection_manager.get_pg_connection() as conn:
+        async with get_pg_connection() as conn:
             query = f"""
                 UPDATE {self.table_name}
                 SET current_price = $1, updated_at = now()
@@ -372,7 +372,7 @@ class PositionRepository(Repository[Position]):
         
         case_statement = " ".join(case_statements)
         
-        async with connection_manager.get_pg_connection() as conn:
+        async with get_pg_connection() as conn:
             query = f"""
                 UPDATE {self.table_name}
                 SET current_price = CASE {case_statement} END,
@@ -394,7 +394,7 @@ class TradeRepository(Repository[Trade]):
     
     async def find_by_portfolio(self, portfolio_id: int, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
         """Find trades by portfolio ID."""
-        async with connection_manager.get_pg_connection() as conn:
+        async with get_pg_connection() as conn:
             query = f"""
                 SELECT * FROM {self.table_name}
                 WHERE portfolio_id = $1
@@ -406,7 +406,7 @@ class TradeRepository(Repository[Trade]):
     
     async def find_by_symbol(self, symbol: str, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
         """Find trades by symbol."""
-        async with connection_manager.get_pg_connection() as conn:
+        async with get_pg_connection() as conn:
             query = f"""
                 SELECT * FROM {self.table_name}
                 WHERE symbol = $1
@@ -418,7 +418,7 @@ class TradeRepository(Repository[Trade]):
     
     async def find_by_time_range(self, start_time: datetime, end_time: datetime, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
         """Find trades within a time range."""
-        async with connection_manager.get_pg_connection() as conn:
+        async with get_pg_connection() as conn:
             query = f"""
                 SELECT * FROM {self.table_name}
                 WHERE executed_at BETWEEN $1 AND $2
@@ -438,7 +438,7 @@ class AlertRepository(Repository[Alert]):
     
     async def find_unacknowledged(self, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
         """Find unacknowledged alerts."""
-        async with connection_manager.get_pg_connection() as conn:
+        async with get_pg_connection() as conn:
             query = f"""
                 SELECT * FROM {self.table_name}
                 WHERE acknowledged = false
@@ -450,7 +450,7 @@ class AlertRepository(Repository[Alert]):
     
     async def find_by_severity(self, severity: str, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
         """Find alerts by severity."""
-        async with connection_manager.get_pg_connection() as conn:
+        async with get_pg_connection() as conn:
             query = f"""
                 SELECT * FROM {self.table_name}
                 WHERE severity = $1
@@ -462,7 +462,7 @@ class AlertRepository(Repository[Alert]):
     
     async def acknowledge(self, alert_id: int, acknowledged_by: str) -> Optional[Dict[str, Any]]:
         """Acknowledge an alert."""
-        async with connection_manager.get_pg_connection() as conn:
+        async with get_pg_connection() as conn:
             query = f"""
                 UPDATE {self.table_name}
                 SET acknowledged = true,
@@ -484,7 +484,7 @@ class MetricRepository:
     
     async def insert(self, metric: Metric) -> None:
         """Insert a new metric."""
-        async with connection_manager.get_pg_connection() as conn:
+        async with get_pg_connection() as conn:
             query = f"""
                 INSERT INTO {self.table_name} (time, metric_name, value, labels)
                 VALUES ($1, $2, $3, $4)
@@ -502,7 +502,7 @@ class MetricRepository:
         if not metrics:
             return
         
-        async with connection_manager.get_pg_connection() as conn:
+        async with get_pg_connection() as conn:
             # Prepare values for batch insert
             values = []
             for metric in metrics:
@@ -528,7 +528,7 @@ class MetricRepository:
         limit: int = 1000
     ) -> List[Dict[str, Any]]:
         """Find metrics by name within a time range."""
-        async with connection_manager.get_pg_connection() as conn:
+        async with get_pg_connection() as conn:
             query = f"""
                 SELECT time, value, labels
                 FROM {self.table_name}
@@ -548,7 +548,7 @@ class MetricRepository:
     
     async def find_latest_by_name(self, metric_name: str) -> Optional[Dict[str, Any]]:
         """Find the latest metric by name."""
-        async with connection_manager.get_pg_connection() as conn:
+        async with get_pg_connection() as conn:
             query = f"""
                 SELECT time, value, labels
                 FROM {self.table_name}
@@ -578,7 +578,7 @@ class MetricRepository:
         if aggregation not in valid_aggregations:
             raise ValueError(f"Invalid aggregation: {aggregation}. Must be one of {valid_aggregations}")
         
-        async with connection_manager.get_pg_connection() as conn:
+        async with get_pg_connection() as conn:
             # Use date_trunc for time bucketing instead of TimescaleDB's time_bucket
             query = f"""
                 SELECT

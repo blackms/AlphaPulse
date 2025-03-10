@@ -31,7 +31,7 @@ tmux split-window -h -t alphapulse
 
 # Start the API server in the left pane
 tmux send-keys -t alphapulse:0.0 "echo -e '${GREEN}Starting API server...${NC}'" C-m
-tmux send-keys -t alphapulse:0.0 "./run_api_sqlite.sh" C-m
+tmux send-keys -t alphapulse:0.0 "./run_api_postgres.sh" C-m
 
 # Wait for API to start
 echo "Waiting for API server to start..."

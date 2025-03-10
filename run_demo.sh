@@ -59,13 +59,23 @@ fi
 echo "Setting up data directory..."
 mkdir -p data
 
-# Set environment variable to use SQLite instead of PostgreSQL
-echo "Configuring to use SQLite database..."
-export ALPHA_PULSE_DB_TYPE=sqlite
-export ALPHA_PULSE_DB_PATH=data/alpha_pulse.db
+# Set environment variable to use PostgreSQL
+echo "Configuring to use PostgreSQL database..."
+export ALPHA_PULSE_DB_TYPE=postgres
+export DB_HOST=localhost
+export DB_PORT=5432
+export DB_NAME=alphapulse
+export DB_USER=alessio
+export DB_PASS=""
 
-# Skip database initialization for demo
-echo "Skipping database initialization for demo..."
+# Initialize database
+echo "Initializing database..."
+python3 -c "from src.alpha_pulse.data_pipeline.database.connection import init_db; import asyncio; asyncio.run(init_db())"
+if [ $? -ne 0 ]; then
+    echo "Database initialization failed! Please check your PostgreSQL configuration."
+    echo "Make sure PostgreSQL is running and accessible with the credentials in config/database_config.yaml"
+    exit 1
+fi
 
 # Start the backend API server
 echo "Starting backend API server..."
