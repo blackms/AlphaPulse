@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any, Union
 import asyncio
 import json
+import asyncpg
 
 from loguru import logger
 
@@ -48,22 +49,36 @@ class ExchangeCacheRepository:
         Raises:
             asyncpg.InterfaceError: If the connection is None or closed
         """
+        if self.conn is None:
+            raise asyncpg.InterfaceError("Connection is None")
+        
         try:
-            import asyncpg
-            if self.conn is None:
-                raise asyncpg.InterfaceError("Connection is None")
-            
-            # Try to execute a simple query to verify connection is usable
+            # First check if the connection is closed without executing a query
+            if hasattr(self.conn, 'is_closed') and self.conn.is_closed():
+                logger.error("Connection is closed (detected via is_closed property)")
+                raise asyncpg.InterfaceError("Connection is closed")
+                
+            # Check if the connection's transaction is closed
+            if hasattr(self.conn, '_transaction') and self.conn._transaction is None:
+                logger.error("Connection transaction is None")
+                raise asyncpg.InterfaceError("Connection transaction is None")
+                
+            # Try a simple query as a last resort
+            # We wrap this in a timeout to prevent hanging if the connection is in a bad state
             try:
-                await self.conn.fetchval("SELECT 1")
+                # Set a short timeout for the query
+                async def _test_query():
+                    return await self.conn.fetchval("SELECT 1")
+                
+                result = await asyncio.wait_for(_test_query(), timeout=1.0)
+                if result != 1:
+                    logger.error(f"Connection test query returned unexpected result: {result}")
+                    raise asyncpg.InterfaceError("Connection validation failed: unexpected result")
             except asyncpg.InterfaceError as e:
                 error_msg = str(e)
-                if "connection has been released back to the pool" in error_msg:
-                    logger.error(f"Connection has been released back to the pool")
-                    raise asyncpg.InterfaceError("Connection has been released back to the pool")
-                elif "connection is closed" in error_msg:
-                    logger.error(f"Connection is closed")
-                    raise asyncpg.InterfaceError("Connection is closed")
+                if "connection has been released back to the pool" in error_msg or "connection is closed" in error_msg:
+                    logger.error(f"Connection validation failed: {error_msg}")
+                    raise asyncpg.InterfaceError(f"Connection validation failed: {error_msg}")
                 raise
         except Exception as e:
             raise asyncpg.InterfaceError(f"Connection validation failed: {str(e)}")
@@ -77,7 +92,23 @@ class ExchangeCacheRepository:
         """
         # If no connection provided, get one from the pool
         if self.conn is None:
-            async with get_db_connection() as conn:
+            # Use a retry mechanism for getting a connection
+            max_retries = 3
+            for attempt in range(1, max_retries + 1):
+                try:
+                    async with get_db_connection() as conn:
+                        return await self._get_all_sync_status_with_conn(conn)
+                except asyncpg.InterfaceError as e:
+                    logger.error(f"Connection error on attempt {attempt}/{max_retries}: {str(e)}")
+                    if attempt == max_retries:
+                        raise
+        else:
+            await self._check_connection()
+            return await self._get_all_sync_status_with_conn(self.conn)
+            
+    async def _get_all_sync_status_with_conn(self, conn):
+        """Helper method to get all sync status with a specific connection"""
+        try:
                 query = """
                     SELECT 
                         exchange_id, 
@@ -91,22 +122,9 @@ class ExchangeCacheRepository:
                     FROM sync_status
                 """
                 return await conn.fetch(query)
-        else:
-            await self._check_connection()
-            # Use the provided connection
-            query = """
-                SELECT 
-                    exchange_id, 
-                    data_type, 
-                    status, 
-                    last_sync, 
-                    next_sync, 
-                    error_message,
-                    created_at,
-                    updated_at
-                FROM sync_status
-            """
-            return await self.conn.fetch(query)
+        except Exception as e:
+            logger.error(f"Error in _get_all_sync_status_with_conn: {str(e)}")
+            raise
     
     async def get_sync_status(self, exchange_id: str, data_type: str) -> Optional[Dict[str, Any]]:
         """
