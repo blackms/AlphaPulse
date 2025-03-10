@@ -1,13 +1,16 @@
 #!/bin/bash
-# Simple script to test the fixed Bybit order history functionality
 
-echo "Testing Bybit order history fix..."
-python test_bybit_fix.py
+# Run the Bybit fix and test script
 
+# Ensure script is executable
+chmod +x test_bybit_fix.py
+
+# Run the script
+python3 test_bybit_fix.py
+
+# Check exit code
 if [ $? -eq 0 ]; then
-    echo "SUCCESS: Test passed!"
-    exit 0
+  echo "Test completed successfully. The fix has been applied."
 else
-    echo "ERROR: Test failed!"
-    exit 1
+  echo "Test failed. Please check the logs for details."
 fi
