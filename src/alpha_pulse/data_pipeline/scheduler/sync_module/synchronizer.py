@@ -9,6 +9,7 @@ import threading
 import time
 import signal
 from typing import Dict, List, Optional, Any, Set, Union
+import asyncpg
 
 from loguru import logger
 
@@ -353,8 +354,19 @@ class ExchangeDataSynchronizer:
         # Define a function to get a repository with isolated connection
         # This is crucial to prevent database conflicts
         async def get_fresh_repository():
-            async with get_db_connection() as conn:
-                return ExchangeCacheRepository(conn)
+            try:
+                async with get_db_connection() as conn:
+                    if conn is None or conn.is_closed():
+                        logger.warning(f"[{loop_thread_key}] Got None or closed connection from get_db_connection")
+                        raise asyncpg.InterfaceError("Connection is None or closed")
+                    return ExchangeCacheRepository(conn)
+            except asyncpg.InterfaceError as e:
+                error_msg = str(e)
+                if "connection has been released back to the pool" in error_msg:
+                    logger.error(f"[{loop_thread_key}] Database connection error in get_fresh_repository: {error_msg}")
+                    logger.error(f"[{loop_thread_key}] This is likely due to a connection pool issue. The operation will be retried.")
+                raise
+            
         
         # Mark as in progress with proper retry logic
         try:
@@ -426,7 +438,7 @@ class ExchangeDataSynchronizer:
                         results["balances"] = await execute_with_retry(sync_balances_op)
                         logger.info(f"[{loop_thread_key}] Successfully synced balances for {exchange_id}")
                         # Small delay to ensure connections are properly released
-                        await asyncio.sleep(0.5)
+                        await asyncio.sleep(1.0)  # Increased delay to ensure proper connection cleanup
                     except Exception as e:
                         logger.error(f"[{loop_thread_key}] Error syncing balances for {exchange_id}: {str(e)}")
                         logger.error(f"[{loop_thread_key}] Exception type: {type(e).__name__}")
@@ -442,7 +454,7 @@ class ExchangeDataSynchronizer:
                         results["positions"] = await execute_with_retry(sync_positions_op)
                         logger.info(f"[{loop_thread_key}] Successfully synced positions for {exchange_id}")
                         # Small delay to ensure connections are properly released
-                        await asyncio.sleep(0.5)
+                        await asyncio.sleep(1.0)  # Increased delay to ensure proper connection cleanup
                     except Exception as e:
                         logger.error(f"[{loop_thread_key}] Error syncing positions for {exchange_id}: {str(e)}")
                         logger.error(f"[{loop_thread_key}] Exception type: {type(e).__name__}")
@@ -458,7 +470,7 @@ class ExchangeDataSynchronizer:
                         results["orders"] = await execute_with_retry(sync_orders_op)
                         logger.info(f"[{loop_thread_key}] Successfully synced orders for {exchange_id}")
                         # Small delay to ensure connections are properly released
-                        await asyncio.sleep(0.5)
+                        await asyncio.sleep(1.0)  # Increased delay to ensure proper connection cleanup
                     except Exception as e:
                         logger.error(f"[{loop_thread_key}] Error syncing orders for {exchange_id}: {str(e)}")
                         logger.error(f"[{loop_thread_key}] Exception type: {type(e).__name__}")

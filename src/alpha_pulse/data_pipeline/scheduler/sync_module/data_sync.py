@@ -6,6 +6,7 @@ such as balances, positions, orders, and prices.
 """
 from typing import Dict, Any, Optional
 from loguru import logger
+import asyncpg
 
 from alpha_pulse.exchanges.interfaces import BaseExchange
 from alpha_pulse.data_pipeline.database.exchange_cache import ExchangeCacheRepository
@@ -46,12 +47,21 @@ class DataSynchronizer:
                 }
             
             # Store in database
-            await repo.store_balances(exchange_id, balance_dict)
+            try:
+                await repo.store_balances(exchange_id, balance_dict)
+                logger.info(f"Successfully synced balances for {exchange_id}")
+                return True
+            except asyncpg.InterfaceError as db_error:
+                error_msg = str(db_error)
+                if "connection has been released back to the pool" in error_msg:
+                    logger.error(f"Database connection error in sync_balances for {exchange_id}: {error_msg}")
+                    logger.error(f"This is likely due to a connection pool issue. The operation will be retried.")
+                raise
+            except Exception as e:
+                logger.error(f"Error storing balances for {exchange_id}: {str(e)}")
+                raise
             
-            logger.info(f"Successfully synced balances for {exchange_id}")
-            return True
         except Exception as e:
-            logger.error(f"Error syncing balances for {exchange_id}: {str(e)}")
             raise
     
     async def sync_positions(self, exchange_id: str, exchange: BaseExchange, repo: ExchangeCacheRepository) -> bool:
@@ -106,12 +116,21 @@ class DataSynchronizer:
                         continue
             
             # Store in database
-            await repo.store_positions(exchange_id, positions_dict)
+            try:
+                await repo.store_positions(exchange_id, positions_dict)
+                logger.info(f"Successfully synced positions for {exchange_id}")
+                return True
+            except asyncpg.InterfaceError as db_error:
+                error_msg = str(db_error)
+                if "connection has been released back to the pool" in error_msg:
+                    logger.error(f"Database connection error in sync_positions for {exchange_id}: {error_msg}")
+                    logger.error(f"This is likely due to a connection pool issue. The operation will be retried.")
+                raise
+            except Exception as e:
+                logger.error(f"Error storing positions for {exchange_id}: {str(e)}")
+                raise
             
-            logger.info(f"Successfully synced positions for {exchange_id}")
-            return True
         except Exception as e:
-            logger.error(f"Error syncing positions for {exchange_id}: {str(e)}")
             raise
     
     async def sync_orders(self, exchange_id: str, exchange: BaseExchange, repo: ExchangeCacheRepository) -> bool:
@@ -168,12 +187,21 @@ class DataSynchronizer:
                     logger.error(f"Error getting orders for {symbol}: {str(e)}")
             
             # Store in database
-            await repo.store_orders(exchange_id, all_orders)
+            try:
+                await repo.store_orders(exchange_id, all_orders)
+                logger.info(f"Successfully synced {len(all_orders)} orders for {exchange_id}")
+                return True
+            except asyncpg.InterfaceError as db_error:
+                error_msg = str(db_error)
+                if "connection has been released back to the pool" in error_msg:
+                    logger.error(f"Database connection error in sync_orders for {exchange_id}: {error_msg}")
+                    logger.error(f"This is likely due to a connection pool issue. The operation will be retried.")
+                raise
+            except Exception as e:
+                logger.error(f"Error storing orders for {exchange_id}: {str(e)}")
+                raise
             
-            logger.info(f"Successfully synced {len(all_orders)} orders for {exchange_id}")
-            return True
         except Exception as e:
-            logger.error(f"Error syncing orders for {exchange_id}: {str(e)}")
             raise
     
     async def sync_prices(self, exchange_id: str, exchange: BaseExchange, repo: ExchangeCacheRepository) -> bool:
@@ -220,13 +248,22 @@ class DataSynchronizer:
                     if isinstance(ticker, dict) and 'last' in ticker:
                         price = float(ticker['last'])
                         quote_currency = symbol.split('/')[-1] if '/' in symbol else "USDT"
-                        await repo.store_price(
-                            exchange_id,
-                            symbol.split('/')[0] if '/' in symbol else symbol,
-                            quote_currency,
-                            price
-                        )
-                        logger.info(f"Got price for {symbol}: {price}")
+                        try:
+                            await repo.store_price(
+                                exchange_id,
+                                symbol.split('/')[0] if '/' in symbol else symbol,
+                                quote_currency,
+                                price
+                            )
+                            logger.info(f"Got price for {symbol}: {price}")
+                        except asyncpg.InterfaceError as db_error:
+                            error_msg = str(db_error)
+                            if "connection has been released back to the pool" in error_msg:
+                                logger.error(f"Database connection error storing price for {symbol}: {error_msg}")
+                                logger.error(f"This is likely due to a connection pool issue. The operation will be retried.")
+                            raise
+                        except Exception as e:
+                            logger.error(f"Error storing price for {symbol}: {str(e)}")
                     elif hasattr(ticker, 'last'):
                         # Handle object with 'last' attribute
                         price = float(ticker.last)
@@ -246,5 +283,4 @@ class DataSynchronizer:
             logger.info(f"Successfully synced prices for {exchange_id}")
             return True
         except Exception as e:
-            logger.error(f"Error syncing prices for {exchange_id}: {str(e)}")
             raise

@@ -180,7 +180,6 @@ async def get_connection_pool() -> Pool:
         
         # This should never happen, but just in case
         raise RuntimeError("Unexpected error in get_connection_pool")
-        raise RuntimeError("Unexpected error in get_connection_pool")
 
 
 async def close_pool(loop_thread_key: Optional[str] = None) -> None:
@@ -199,6 +198,7 @@ async def close_pool(loop_thread_key: Optional[str] = None) -> None:
         if loop_thread_key in _connection_pools:
             logger.info(f"Closing connection pool for {loop_thread_key}")
             pool_to_close = _connection_pools[loop_thread_key]
+            _connection_pools[loop_thread_key] = None  # Set to None immediately to prevent further use
     
     if pool_to_close:
         try:
@@ -206,7 +206,7 @@ async def close_pool(loop_thread_key: Optional[str] = None) -> None:
             with _global_lock:
                 if loop_thread_key in _connection_pools:
                     del _connection_pools[loop_thread_key]
-            logger.info(f"Connection pool for {loop_thread_key} closed and removed")
+            logger.info(f"Connection pool for {loop_thread_key} closed and removed from registry")
         except Exception as e:
             logger.error(f"Error closing connection pool for {loop_thread_key}: {str(e)}")
 
@@ -225,7 +225,10 @@ async def close_all_pools() -> None:
     for key, pool in pools_to_close.items():
         try:
             logger.debug(f"Closing connection pool for {key}")
-            await pool.close()
+            if pool is not None and not is_pool_closed(pool):
+                await pool.close()
+            else:
+                logger.debug(f"Pool for {key} is already None or closed")
             logger.debug(f"Connection pool for {key} closed")
         except Exception as e:
             logger.error(f"Error closing connection pool for {key}: {str(e)}")
@@ -557,13 +560,16 @@ async def get_db_connection():
                     # If the pool is closed, don't try to release the connection
                     pool_closed = is_pool_closed(pool) if pool else True
                     conn_closed = conn.is_closed() if conn else True
-                    logger.warning(f"[{loop_thread_key}] Not releasing connection - pool closed: {pool_closed}, conn closed: {conn_closed}")
+                    logger.warning(f"[{loop_thread_key}] Not releasing connection to pool - pool closed: {pool_closed}, conn closed: {conn_closed}")
                     
                     # If pool is closed but connection is still open, try to close it directly
                     if not conn_closed:
                         try:
                             await conn.close()
                             logger.warning(f"[{loop_thread_key}] Closed connection directly due to closed pool")
+                            # Set conn to None to prevent further attempts to use it
+                            conn = None
+                            logger.debug(f"[{loop_thread_key}] Set connection to None after direct close")
                         except Exception as close_error:
                             logger.error(f"[{loop_thread_key}] Error closing connection directly: {str(close_error)}")
             except Exception as final_error:
@@ -576,7 +582,11 @@ async def get_db_connection():
                 try:
                     # Check if there are many active connections still in use
                     try:
-                        pool_status = f"Pool stats: {pool.get_size()}/{pool.get_max_size()} connections"
+                        if pool is None or is_pool_closed(pool):
+                            logger.warning(f"[{loop_thread_key}] Cannot get pool stats - pool is None or closed")
+                            pool_status = "Pool is None or closed"
+                        else:
+                            pool_status = f"Pool stats: {pool.get_size()}/{pool.get_max_size()} connections"
                     except Exception:
                         pool_status = "Could not get pool stats"
                     
