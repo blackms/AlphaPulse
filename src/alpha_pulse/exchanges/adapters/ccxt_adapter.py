@@ -288,14 +288,13 @@ class CCXTAdapter(BaseExchange):
                         if direct_orders:
                             logger.info(f"Sample direct order: {direct_orders[0]}")
                 except Exception as e:
-                    logger.debug(f"Error with direct API call: {str(e)}")
+                    logger.error(f"Error with direct API call: {str(e)}")
             
             if all_orders:
                 logger.info(f"Total orders found for {symbol}: {len(all_orders)}")
             else:
-                # Change from warning to debug level since this is not an error condition
-                # and is properly handled by the caller
-                logger.debug(f"No orders found for {symbol} after trying multiple approaches")
+                # This should be a warning since it indicates a potential issue
+                logger.warning(f"No orders found for {symbol} after trying multiple approaches")
             
             return all_orders
         except Exception as e:

@@ -489,7 +489,7 @@ class BybitExchange(CCXTAdapter):
             
             # If no orders found or calculation failed, use mock entry prices for testing
             # This is only for demonstration purposes
-            logger.debug(f"Using mock entry price for {symbol}")
+            logger.warning(f"Using mock entry price for {symbol}")
             
             # Make sure we have a proper trading pair symbol
             trading_pair = symbol
