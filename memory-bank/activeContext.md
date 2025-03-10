@@ -1,11 +1,13 @@
 # Active Context
 
-## Current Task: PostgreSQL Migration
+## Current Task: Complete PostgreSQL Migration and Fix Bybit Integration
 
 **Status**: Completed ✅
 
 **Objective**:
-Remove SQLite support from the AlphaPulse backend and standardize exclusively on PostgreSQL.
+1. Remove SQLite support completely from the AlphaPulse backend
+2. Implement missing get_orders method in BybitExchange class
+3. Fix connection pool management issues
 
 **Implementation**:
 - Updated connection.py to remove SQLite-specific code
@@ -15,7 +17,13 @@ Remove SQLite support from the AlphaPulse backend and standardize exclusively on
 - Enhanced connection_manager.py with improved PostgreSQL pool handling:
   - Added is_pool_closed() helper function for safer pool state checking
   - Updated all pool.is_closed() calls to use the safer function
-  - Fixed connection release issues
+  - Fixed connection release issues with better null checks
+  - Improved error handling for closed connections
+- Implemented missing get_orders method in BybitExchange class:
+  - Added robust implementation that tries multiple symbol formats
+  - Leveraged existing _get_bybit_order_history method for consistency
+  - Implemented proper error handling and logging
+  - Returns empty list instead of raising exceptions on failure
 - Updated repository.py to use direct PostgreSQL connection functions
 - Updated database_config.yaml with correct PostgreSQL credentials
 - Documented the implementation in postgres_migration_implementation.md
@@ -26,6 +34,7 @@ Remove SQLite support from the AlphaPulse backend and standardize exclusively on
 - `src/alpha_pulse/data_pipeline/database/connection.py`
 - `src/alpha_pulse/data_pipeline/database/connection_manager.py`
 - `src/alpha_pulse/data_pipeline/database/repository.py`
+- `src/alpha_pulse/exchanges/implementations/bybit.py`
 - `config/database_config.yaml`
 - `run_api_postgres.sh`
 - `run_full_app.sh`
@@ -41,9 +50,7 @@ Remove SQLite support from the AlphaPulse backend and standardize exclusively on
 2. Update test suite to use PostgreSQL
 3. Verify connection pooling under load
 4. Document PostgreSQL setup requirements for developers
-5. Fix Bybit API integration issues (unrelated to PostgreSQL migration):
-   - The error "bybit.fetch_open_orders() got an unexpected keyword argument 'category'" needs to be addressed
-   - The error "'BybitExchange' object has no attribute 'get_orders'" indicates a missing method that needs to be implemented
+5. Consider adding database migration scripts for users upgrading from SQLite
 
 ## Previous Tasks
 

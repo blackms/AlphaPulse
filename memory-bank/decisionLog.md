@@ -23,6 +23,9 @@ Remove SQLite support entirely and standardize on PostgreSQL as the only support
 - Updated connection.py to remove SQLite-specific code
 - Created run_api_postgres.sh to replace SQLite version
 - Updated all launcher scripts to use PostgreSQL
+- Implemented missing get_orders method in BybitExchange class
+- Fixed connection pool management in connection_manager.py
+- Improved connection release logic with better null checks
 - Documented the change in memory-bank/postgres_migration_implementation.md
 
 **Consequences:**
