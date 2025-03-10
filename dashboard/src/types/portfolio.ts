@@ -40,4 +40,6 @@ export interface PortfolioData {
   assetAllocation: {
     [key: string]: number;
   };
+  // Optional error information for frontend error handling
+  error?: string;
 }

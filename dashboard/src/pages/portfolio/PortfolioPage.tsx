@@ -50,6 +50,7 @@ import {
 } from '../../store/slices/portfolioSlice';
 import ErrorFallback from '../../components/ErrorFallback';
 import BackendErrorAlert from '../../components/BackendErrorAlert';
+import BackendErrorProxy from '../../components/BackendErrorProxy';
 import { Line } from 'react-chartjs-2';
 import 'chart.js/auto';
 
@@ -226,6 +227,9 @@ const PortfolioPage: React.FC = () => {
   
   return (
     <Box sx={{ p: 3 }}>
+      {/* Wrap all portfolio content in our error proxy to handle backend issues */}
+      <BackendErrorProxy endpoint="portfolio">
+        
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <Typography variant="h4" component="h1">
           Portfolio
@@ -738,6 +742,7 @@ const PortfolioPage: React.FC = () => {
           </TabPanel>
         </CardContent>
       </Card>
+      </BackendErrorProxy>
     </Box>
   );
 };
