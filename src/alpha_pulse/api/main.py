@@ -20,9 +20,9 @@ from .dependencies import get_alert_manager
 from .auth import authenticate_user, create_access_token, get_current_user, ACCESS_TOKEN_EXPIRE_MINUTES
 
 # Import exchange data synchronization
-from alpha_pulse.data_pipeline.api_integration import (
-    startup_exchange_sync, shutdown_exchange_sync
-)
+from .exchange_sync_integration import (
+    register_exchange_sync_events
+) 
 from alpha_pulse.data_pipeline.database.connection import init_db
 
 # Configure logging
@@ -54,6 +54,9 @@ app.include_router(alerts.router, prefix="/api/v1", tags=["alerts"])
 app.include_router(portfolio.router, prefix="/api/v1", tags=["portfolio"])
 app.include_router(trades.router, prefix="/api/v1", tags=["trades"])
 app.include_router(system.router, prefix="/api/v1", tags=["system"])
+
+# Register exchange sync events
+register_exchange_sync_events(app)
 
 # Include WebSocket routers
 app.include_router(ws_endpoints.router, tags=["websockets"])
@@ -105,13 +108,6 @@ async def startup_event():
         logger.error(f"Error initializing exchange data cache database: {e}")
     
     # Start exchange data synchronization
-    try:
-        await startup_exchange_sync()
-        logger.info("Exchange data synchronization started")
-    except Exception as e:
-        logger.error(f"Error starting exchange data synchronization: {e}")
-        logger.warning("The API will continue but may fall back to direct exchange queries")
-    
     # Get the alert manager
     alert_manager = get_alert_manager()
     
@@ -140,13 +136,6 @@ async def shutdown_event():
     
     # Stop the alert manager
     await alert_manager.stop()
-    
-    # Stop exchange data synchronization
-    try:
-        await shutdown_exchange_sync()
-        logger.info("Exchange data synchronization stopped")
-    except Exception as e:
-        logger.error(f"Error stopping exchange data synchronization: {e}")
     
     logger.info("AlphaPulse API shutdown complete")
 

@@ -13,7 +13,7 @@ from ..dependencies import (
     get_portfolio_accessor
 )
 from ..data import PortfolioDataAccessor
-from alpha_pulse.data_pipeline.scheduler import DataType
+from ..exchange_sync_integration import trigger_exchange_sync
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ router = APIRouter()
 @router.get("/portfolio")
 async def get_portfolio(
     include_history: bool = Query(False, description="Include portfolio history"),
-    use_cache: bool = Query(True, description="Use cached data if available"),
+    refresh: bool = Query(False, description="Force refresh from exchange"),
     _: Dict[str, Any] = Depends(require_view_portfolio),
     portfolio_accessor: PortfolioDataAccessor = Depends(get_portfolio_accessor)
 ) -> Dict[str, Any]:
@@ -32,12 +32,20 @@ async def get_portfolio(
     
     Args:
         include_history: Whether to include historical data
-        use_cache: Whether to use cached data (if available) or force direct exchange fetch
+        refresh: Whether to force a refresh from the exchange
     
     Returns:
         Portfolio data
     """
-    return await portfolio_accessor.get_portfolio(include_history=include_history, use_cache=use_cache)
+    try:
+        # If refresh is requested, get data directly from exchange
+        if refresh:
+            return await portfolio_accessor._get_portfolio_from_exchange()
+        
+        return await portfolio_accessor.get_portfolio(include_history=include_history)
+    except Exception as e:
+        logger.error(f"Error getting portfolio data: {e}")
+        return {"error": str(e), "total_value": 0, "cash": 0, "positions": []}
 
 
 # Create a development endpoint for reloading data without authentication
@@ -59,52 +67,14 @@ async def reload_exchange_data_debug(
     Returns:
         Status information about the reload operation
     """
-    # Convert string data_type to enum if provided
-    enum_data_type = None
-    if data_type:
-        try:
-            enum_data_type = DataType(data_type.lower())
-        except ValueError:
-            return {
-                "status": "error",
-                "message": f"Invalid data type: {data_type}. Valid types: {', '.join([t.value for t in DataType])}"
-            }
-    
-    # Trigger the reload
-    result = await portfolio_accessor.reload_data(enum_data_type)
-    result["endpoint"] = "debug"
+    # Use the exchange_sync integration to trigger a sync
+    result = await trigger_exchange_sync(portfolio_accessor._exchange_id)
     return result
 
 
 @router.post("/portfolio/reload")
 async def reload_exchange_data(
-    data_type: Optional[str] = Query(None, description="Type of data to reload (orders, balances, positions, prices, all)"),
     _: Dict[str, Any] = Depends(require_view_portfolio),
     portfolio_accessor: PortfolioDataAccessor = Depends(get_portfolio_accessor)
 ) -> Dict[str, Any]:
-    """
-    Force reload of exchange data.
-    
-    This endpoint triggers an immediate fetch of the latest data from the exchange and updates the cache.
-    The operation runs asynchronously, so the API returns immediately while the data sync happens in the background.
-    
-    Args:
-        data_type: Optional type of data to reload (orders, balances, positions, prices, all)
-                  If not specified, all data types will be reloaded
-    
-    Returns:
-        Status information about the reload operation
-    """
-    # Convert string data_type to enum if provided
-    enum_data_type = None
-    if data_type:
-        try:
-            enum_data_type = DataType(data_type.lower())
-        except ValueError:
-            return {
-                "status": "error",
-                "message": f"Invalid data type: {data_type}. Valid types: {', '.join([t.value for t in DataType])}"
-            }
-    
-    # Trigger the reload
-    return await portfolio_accessor.reload_data(enum_data_type)
+    return await trigger_exchange_sync(portfolio_accessor._exchange_id)

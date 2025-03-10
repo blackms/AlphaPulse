@@ -6,6 +6,7 @@ These classes provide access to the underlying data sources.
 import logging
 from typing import Dict, List, Any, Optional
 from datetime import datetime, timedelta
+import asyncio
 
 from ..data_pipeline.database import (
     connection_manager,
@@ -17,6 +18,9 @@ from ..data_pipeline.database import (
     MetricRepository,
     Metric
 )
+
+# Import the new exchange_sync module
+from ..exchange_sync.portfolio_service import PortfolioService as ExchangeSyncPortfolioService
 
 logger = logging.getLogger(__name__)
 
@@ -136,6 +140,8 @@ class PortfolioDataAccessor:
         """Initialize the accessor."""
         self.portfolio_repo = PortfolioRepository()
         self.position_repo = PositionRepository()
+        self._exchange_id = "bybit"  # Default exchange ID
+        self._exchange_sync_service = None
     
     async def get_portfolio(self, include_history: bool = False) -> Dict[str, Any]:
         """Get portfolio data."""
@@ -231,6 +237,55 @@ class PortfolioDataAccessor:
                 "cash": 0,
                 "positions": []
             }
+    
+    async def _get_portfolio_from_exchange(self) -> Dict[str, Any]:
+        """
+        Get portfolio data directly from the exchange using the new exchange_sync module.
+        
+        This method provides a more reliable way to get portfolio data by using
+        the simplified exchange_sync module instead of the legacy connection manager.
+        
+        Returns:
+            Portfolio data dictionary
+        """
+        try:
+            # Initialize the exchange_sync service if needed
+            if self._exchange_sync_service is None:
+                self._exchange_sync_service = ExchangeSyncPortfolioService(self._exchange_id)
+                await self._exchange_sync_service.initialize()
+            
+            # Get portfolio items from the exchange
+            portfolio_items = await self._exchange_sync_service.get_portfolio()
+            
+            if not portfolio_items:
+                logger.warning(f"No portfolio items found for {self._exchange_id}")
+                return {
+                    "total_value": 0,
+                    "cash": 0,
+                    "positions": []
+                }
+            
+            # Format the portfolio items
+            positions = []
+            total_value = 0
+            
+            for item in portfolio_items:
+                position = {
+                    "symbol": item.asset,
+                    "quantity": item.quantity,
+                    "entry_price": item.avg_entry_price or 0,
+                    "current_price": item.current_price or 0,
+                    "value": item.value or 0,
+                    "pnl": item.profit_loss or 0,
+                    "pnl_percentage": item.profit_loss_percentage or 0
+                }
+                positions.append(position)
+                total_value += position["value"] or 0
+            
+            return {"total_value": total_value, "positions": positions, "cash": total_value * 0.2}
+        except Exception as e:
+            logger.error(f"Error getting portfolio from exchange: {e}")
+            return {"error": str(e), "total_value": 0, "cash": 0, "positions": []}
 
 
 class TradeDataAccessor:
