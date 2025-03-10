@@ -35,6 +35,7 @@ BASE_RETRY_DELAY = 0.5
 # Store PostgreSQL pools by event loop ID and thread ID
 _connection_pools: Dict[str, Pool] = {}
 _pool_creation_locks: Dict[str, asyncio.Lock] = {}
+_active_connections: Dict[str, int] = {}  # Track active connections per pool
 _global_lock = threading.RLock()  # Global lock for thread-safe dictionary access
 def get_loop_thread_key() -> str:
     """
@@ -96,6 +97,7 @@ async def get_connection_pool() -> Pool:
         if loop_thread_key in _connection_pools:
             pool = _connection_pools[loop_thread_key]
             if not is_pool_closed(pool):
+                _active_connections.setdefault(loop_thread_key, 0)  # Initialize counter if not exists
                 logger.debug(f"Using existing connection pool for {loop_thread_key}")
                 return pool
             else:
@@ -156,6 +158,7 @@ async def get_connection_pool() -> Pool:
                 
                 # Store the pool
                 _connection_pools[loop_thread_key] = pool
+                _active_connections[loop_thread_key] = 0  # Initialize connection counter
                 logger.info(f"Successfully created connection pool for {loop_thread_key}")
                 return pool
             
@@ -195,17 +198,29 @@ async def close_pool(loop_thread_key: Optional[str] = None) -> None:
     
     pool_to_close = None
     with _global_lock:
-        if loop_thread_key in _connection_pools:
+        # Check if there are active connections for this pool
+        active_count = _active_connections.get(loop_thread_key, 0)
+        if active_count > 0:
+            logger.warning(f"Cannot close pool for {loop_thread_key} - {active_count} active connections")
+            # Don't close the pool if there are active connections
+            # This prevents the "connection released back to pool" errors
+            return
+            
+        elif loop_thread_key in _connection_pools:
             logger.info(f"Closing connection pool for {loop_thread_key}")
             pool_to_close = _connection_pools[loop_thread_key]
-            _connection_pools[loop_thread_key] = None  # Set to None immediately to prevent further use
+            # Don't set to None yet - wait until we've actually closed the pool
     
     if pool_to_close:
         try:
             await pool_to_close.close()
             with _global_lock:
                 if loop_thread_key in _connection_pools:
-                    del _connection_pools[loop_thread_key]
+                    del _connection_pools[loop_thread_key]  
+                    # Also clean up the active connections counter
+                    if loop_thread_key in _active_connections:
+                        del _active_connections[loop_thread_key]
+                    # Only remove from registry after successful close
             logger.info(f"Connection pool for {loop_thread_key} closed and removed from registry")
         except Exception as e:
             logger.error(f"Error closing connection pool for {loop_thread_key}: {str(e)}")
@@ -236,6 +251,7 @@ async def close_all_pools() -> None:
     # Clear the pools and locks dictionaries in a thread-safe way
     with _global_lock:
         _connection_pools.clear()
+        _active_connections.clear()
         _pool_creation_locks.clear()
     
     logger.info("All connection pools closed")
@@ -425,6 +441,10 @@ async def get_db_connection():
                 
                 # Get a connection from the pool
                 conn = await pool.acquire()
+                # Increment active connection counter
+                with _global_lock:
+                    _active_connections.setdefault(loop_thread_key, 0)
+                    _active_connections[loop_thread_key] += 1
                 break
             except (asyncpg.InterfaceError, asyncpg.ConnectionDoesNotExistError) as e:
                 if attempt < MAX_RETRY_ATTEMPTS:
@@ -551,8 +571,19 @@ async def get_db_connection():
                 # Only release if we have a pool and it's still open
                 if pool and not is_pool_closed(pool) and conn and not conn.is_closed():
                     try:
+                        # Check if the connection is still valid before releasing
+                        try:
+                            await conn.fetchval("SELECT 1")
+                        except Exception as e:
+                            logger.warning(f"[{loop_thread_key}] Connection validation failed before release: {str(e)}")
+                            raise asyncpg.InterfaceError("Connection validation failed before release")
                         await pool.release(conn)
                         logger.debug(f"[{loop_thread_key}] Released database connection back to pool")
+                        # Decrement active connection counter
+                        with _global_lock:
+                            if loop_thread_key in _active_connections and _active_connections[loop_thread_key] > 0:
+                                _active_connections[loop_thread_key] -= 1
+                                logger.debug(f"[{loop_thread_key}] Active connections: {_active_connections[loop_thread_key]}")
                     except Exception as release_error:
                         logger.error(f"[{loop_thread_key}] Error releasing connection: {str(release_error)}")
                         connection_error = True
@@ -561,6 +592,10 @@ async def get_db_connection():
                     pool_closed = is_pool_closed(pool) if pool else True
                     conn_closed = conn.is_closed() if conn else True
                     logger.warning(f"[{loop_thread_key}] Not releasing connection to pool - pool closed: {pool_closed}, conn closed: {conn_closed}")
+                    # Decrement active connection counter even if we can't release properly
+                    with _global_lock:
+                        if loop_thread_key in _active_connections and _active_connections[loop_thread_key] > 0:
+                            _active_connections[loop_thread_key] -= 1
                     
                     # If pool is closed but connection is still open, try to close it directly
                     if not conn_closed:
