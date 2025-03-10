@@ -1,6 +1,28 @@
 # Active Context
 
-## Current Task: Remove Legacy Exchange Cache Files
+## Current Task: Fix Legacy Exchange Cache Import
+
+**Status**: Completed ✅
+
+**Objective**:
+1. Fix the import error after removing the legacy exchange_cache_fixed.py file
+2. Ensure the application starts correctly
+3. Complete the refactoring by removing all references to legacy code
+
+**Implementation**:
+- Removed the import of ExchangeCacheRepository from the deleted exchange_cache_fixed.py file
+- Updated portfolio.py to exclusively use the new exchange_sync module
+- Verified that the application starts correctly
+
+**Key Files**:
+- `src/alpha_pulse/api/data/portfolio.py` (updated)
+
+**Documentation**:
+- Updated Memory Bank files to reflect the changes
+
+## Previous Tasks
+
+### Remove Legacy Exchange Cache Files
 
 **Status**: Completed ✅
 
@@ -20,8 +42,6 @@
 
 **Documentation**:
 - Updated Memory Bank files to reflect the changes
-
-## Previous Tasks
 
 ### Implement Loguru in Exchange Sync Module
 
@@ -182,6 +202,25 @@
 
 ## Issues Fixed
 
+### Import Error After Removing Legacy Files
+
+**Status**: Fixed ✅
+
+**Issue**: The application failed to start after removing the legacy exchange_cache_fixed.py file:
+```
+ModuleNotFoundError: No module named 'alpha_pulse.data_pipeline.database.exchange_cache_fixed'
+```
+
+**Root Cause**: The portfolio.py file was still importing the ExchangeCacheRepository from the deleted file.
+
+**Fix**:
+- Removed the import of ExchangeCacheRepository from portfolio.py
+- The file was already using the new exchange_sync module, so no functional changes were needed
+
+**Verification**:
+- Application starts up successfully
+- No import errors are reported
+
 ### Bybit API Authentication Issue
 
 **Status**: Fixed ✅
@@ -258,3 +297,4 @@ Error updating sync status: Task <Task pending name='Task-12' coro=<ExchangeData
 - Exchange sync integration: Completed ✅
 - Loguru integration: Completed ✅
 - Legacy code removal: Completed ✅
+- Import errors: Fixed ✅
