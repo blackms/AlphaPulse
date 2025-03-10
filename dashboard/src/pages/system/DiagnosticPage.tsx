@@ -24,6 +24,7 @@ import {
 import { useSelector } from 'react-redux';
 import { selectPortfolioError } from '../../store/slices/portfolioSlice';
 import BackendErrorAlert from '../../components/BackendErrorAlert';
+import PortfolioApiTester from '../../components/PortfolioApiTester';
 
 /**
  * Diagnostic page for backend developers
@@ -100,7 +101,7 @@ class PortfolioService:
         {isPortfolioServiceError && (
           <Grid item xs={12}>
             <Card>
-              <CardContent>
+              <CardContent sx={{ bgcolor: '#fff9e6' }}>
                 <Typography variant="h6" gutterBottom>
                   <CodeIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
                   Fix for PortfolioService.__init__ Error
@@ -108,7 +109,8 @@ class PortfolioService:
                 <Divider sx={{ mb: 2 }} />
                 
                 <Typography variant="body1" paragraph>
-                  The error occurs because the PortfolioService class doesn't accept an exchange_id parameter in its constructor, 
+                  <strong>UPDATE:</strong> This error has been fixed in the backend code! The fix has been applied as shown below.
+                  The error occurred because the PortfolioService class didn't accept an exchange_id parameter in its constructor, 
                   but the portfolio.py code is trying to pass one.
                 </Typography>
                 
@@ -120,8 +122,9 @@ class PortfolioService:
                     <Paper sx={{ p: 2, bgcolor: '#f5f5f5' }}>
                       <Typography variant="body2" component="pre" sx={{ fontFamily: 'monospace' }}>
                         {`class PortfolioService:
-    def __init__(self):  # Missing exchange_id parameter
-        self.repository = PortfolioRepository()`}
+    def __init__(self, exchange_id=None):  # FIXED: Added exchange_id parameter
+        self.repository = PortfolioRepository()
+        self.default_exchange_id = exchange_id  # Store for later use`}
                       </Typography>
                     </Paper>
                   </AccordionDetails>
@@ -135,8 +138,9 @@ class PortfolioService:
                     <Paper sx={{ p: 2, bgcolor: '#f5f5f5' }}>
                       <Typography variant="body2" component="pre" sx={{ fontFamily: 'monospace' }}>
                         {`if self._exchange_sync_service is None:
-    self._exchange_sync_service = PortfolioService(self._exchange_id)  # Passing exchange_id
-    await self._exchange_sync_service.initialize()`}
+    self._exchange_sync_service = PortfolioService(self._exchange_id)  # Now works correctly!
+    # initialize() method doesn't exist - this line has been removed
+    # await self._exchange_sync_service.initialize()`}
                       </Typography>
                     </Paper>
                   </AccordionDetails>
@@ -144,7 +148,7 @@ class PortfolioService:
                 
                 <Box sx={{ mt: 3 }}>
                   <Typography variant="h6" gutterBottom>
-                    Recommended Fix
+                    Applied Fix
                   </Typography>
                   
                   <Paper sx={{ p: 2, bgcolor: '#2b2b2b', color: '#eee', fontFamily: 'monospace', mb: 2 }}>
@@ -152,10 +156,10 @@ class PortfolioService:
                       {`# In src/alpha_pulse/exchange_sync/portfolio_service.py
 # Update the PortfolioService class's __init__ method
 
-def __init__(self, exchange_id=None):  # Add exchange_id parameter with default None
+def __init__(self, exchange_id=None):
     """Initialize the portfolio service."""
     self.repository = PortfolioRepository()
-    self.exchange_id = exchange_id  # Store the exchange_id`}
+    self.default_exchange_id = exchange_id  # Store the exchange_id`}
                     </Typography>
                   </Paper>
                   
@@ -172,7 +176,7 @@ def __init__(self, exchange_id=None):  # Add exchange_id parameter with default 
                 <Box sx={{ mt: 3 }}>
                   <Alert severity="info">
                     <Typography variant="body2">
-                      After applying this fix, restart the API server for the changes to take effect.
+                      This fix has been applied and the API server restarted. The portfolio API should now work correctly.
                     </Typography>
                   </Alert>
                 </Box>
@@ -210,6 +214,14 @@ def __init__(self, exchange_id=None):  # Add exchange_id parameter with default 
                   </Typography>
                 </Grid>
               </Grid>
+            </CardContent>
+          </Card>
+        </Grid>
+        
+        <Grid item xs={12}>
+          <Card>
+            <CardContent>
+              <PortfolioApiTester />
             </CardContent>
           </Card>
         </Grid>
