@@ -106,8 +106,13 @@ def check_permission(permission: str):
     to check if the user has a specific permission.
     """
     async def _check_permission(user: Dict[str, Any] = Depends(get_user)) -> Dict[str, Any]:
-        # For testing purposes, allow all permissions
-        return user
+        # Check if the user has the required permission
+        if permission not in user.get("permissions", []):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to access this resource",
+            )
+        return user  # Return the user if authorized
     return _check_permission
 
 

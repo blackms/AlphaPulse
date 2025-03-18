@@ -53,11 +53,17 @@ async def get_alerts(
     if source:
         filters["source"] = source
     
-    return await alert_accessor.get_alerts(
-        start_time=start_time,
-        end_time=end_time,
-        filters=filters
-    )
+    try:
+        return await alert_accessor.get_alerts(
+            start_time=start_time,
+            end_time=end_time,
+            filters=filters
+        )
+    except Exception as e:
+        logger.error(f"Error retrieving alerts: {e}")
+        # Return empty list on error as specified in the test
+        return []
+
 
 
 @router.post("/alerts/{alert_id}/acknowledge")
@@ -75,12 +81,18 @@ async def acknowledge_alert(
     Returns:
         Acknowledgment result
     """
-    result = await alert_accessor.acknowledge_alert(
-        alert_id=alert_id,
-        user=user["username"]
-    )
-    
-    if not result["success"]:
-        raise HTTPException(status_code=404, detail="Alert not found or already acknowledged")
-    
-    return result
+    try:
+        result = await alert_accessor.acknowledge_alert(
+            alert_id=alert_id,
+            user=user["username"]
+        )
+        
+        if not result["success"]:
+            raise HTTPException(status_code=404, detail="Alert not found or already acknowledged")
+        
+        return result
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions
+    except Exception as e:
+        logger.error(f"Error acknowledging alert: {e}")
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
