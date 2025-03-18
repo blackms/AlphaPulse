@@ -4,8 +4,9 @@ Metrics calculation functions for the enhanced metrics collector.
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timezone, timedelta
 import numpy as np
+from decimal import Decimal
 
-from ..portfolio.data_models import PortfolioData, Position
+from ..portfolio.data_models import PortfolioData, Position, PortfolioPosition
 
 
 def calculate_performance_metrics(
@@ -73,7 +74,7 @@ def calculate_risk_metrics(
         return {}
     
     position_weights = {
-        p.symbol: (p.quantity * p.current_price) / total_value 
+        p.asset_id: (p.quantity * p.current_price) / total_value 
         for p in portfolio_data.positions
     }
     
@@ -81,7 +82,7 @@ def calculate_risk_metrics(
     hhi = sum(w**2 for w in position_weights.values())
     
     # Calculate leverage
-    leverage = total_value / portfolio_data.cash if portfolio_data.cash > 0 else 0
+    leverage = total_value / portfolio_data.cash_balance if portfolio_data.cash_balance > 0 else 0
     
     # Calculate other risk metrics
     metrics = {
@@ -89,8 +90,8 @@ def calculate_risk_metrics(
         'concentration_hhi': hhi,
         'largest_position_pct': max(position_weights.values()) if position_weights else 0,
         'leverage': leverage,
-        'cash_pct': portfolio_data.cash / (portfolio_data.cash + total_value) if (portfolio_data.cash + total_value) > 0 else 0,
-        'portfolio_value': total_value + portfolio_data.cash
+        'cash_pct': portfolio_data.cash_balance / (portfolio_data.cash_balance + total_value) if (portfolio_data.cash_balance + total_value) > 0 else 0,
+        'portfolio_value': total_value + portfolio_data.cash_balance
     }
     
     return metrics
@@ -179,7 +180,9 @@ def calculate_sharpe_ratio(returns: np.ndarray, risk_free_rate: float = 0.0) -> 
     if returns.size == 0:
         return 0.0
         
-    excess_returns = returns - risk_free_rate
+    # Convert Decimal values to float for numpy operations
+    float_returns = np.array([float(r) if isinstance(r, Decimal) else r for r in returns])
+    excess_returns = float_returns - risk_free_rate
     if np.std(excess_returns) == 0:
         return 0.0
         
@@ -200,7 +203,9 @@ def calculate_sortino_ratio(returns: np.ndarray, risk_free_rate: float = 0.0) ->
     if returns.size == 0:
         return 0.0
         
-    excess_returns = returns - risk_free_rate
+    # Convert Decimal values to float for numpy operations
+    float_returns = np.array([float(r) if isinstance(r, Decimal) else r for r in returns])
+    excess_returns = float_returns - risk_free_rate
     downside_returns = excess_returns[excess_returns < 0]
     
     if downside_returns.size == 0:
@@ -247,7 +252,9 @@ def calculate_var(returns: np.ndarray, confidence: float = 0.95) -> float:
     if returns.size == 0:
         return 0.0
         
-    return abs(np.percentile(returns, (1 - confidence) * 100))
+    # Convert Decimal values to float for numpy operations
+    float_returns = np.array([float(r) if isinstance(r, Decimal) else r for r in returns])
+    return abs(np.percentile(float_returns, (1 - confidence) * 100))
 
 
 def calculate_expected_shortfall(returns: np.ndarray, confidence: float = 0.95) -> float:
@@ -265,7 +272,9 @@ def calculate_expected_shortfall(returns: np.ndarray, confidence: float = 0.95) 
         return 0.0
         
     var = calculate_var(returns, confidence)
-    return abs(np.mean(returns[returns <= -var]))
+    # Convert Decimal values to float for numpy operations
+    float_returns = np.array([float(r) if isinstance(r, Decimal) else r for r in returns])
+    return abs(np.mean(float_returns[float_returns <= -var]))
 
 
 def calculate_tracking_error(returns: np.ndarray) -> float:
@@ -281,7 +290,9 @@ def calculate_tracking_error(returns: np.ndarray) -> float:
     if returns.size == 0:
         return 0.0
         
-    return np.std(returns) * np.sqrt(252)
+    # Convert Decimal values to float for numpy operations
+    float_returns = np.array([float(r) if isinstance(r, Decimal) else r for r in returns])
+    return np.std(float_returns) * np.sqrt(252)
 
 
 def calculate_information_ratio(returns: np.ndarray, risk_free_rate: float = 0.0) -> float:
@@ -302,7 +313,9 @@ def calculate_information_ratio(returns: np.ndarray, risk_free_rate: float = 0.0
     if tracking_error == 0:
         return 0.0
         
-    return (np.mean(returns) - risk_free_rate) / tracking_error
+    # Convert Decimal values to float for numpy operations
+    float_returns = np.array([float(r) if isinstance(r, Decimal) else r for r in returns])
+    return (np.mean(float_returns) - risk_free_rate) / tracking_error
 
 
 def calculate_calmar_ratio(returns: np.ndarray) -> float:
@@ -322,7 +335,9 @@ def calculate_calmar_ratio(returns: np.ndarray) -> float:
     if max_drawdown == 0:
         return 0.0
         
-    return (np.mean(returns) * 252) / max_drawdown
+    # Convert Decimal values to float for numpy operations
+    float_returns = np.array([float(r) if isinstance(r, Decimal) else r for r in returns])
+    return (np.mean(float_returns) * 252) / max_drawdown
 
 
 def calculate_beta(returns: np.ndarray) -> float:
@@ -338,10 +353,13 @@ def calculate_beta(returns: np.ndarray) -> float:
     if returns.size == 0:
         return 0.0
         
+    # Convert Decimal values to float for numpy operations
+    float_returns = np.array([float(r) if isinstance(r, Decimal) else r for r in returns])
+        
     # Using a simple market proxy (can be enhanced with actual market data)
-    market_returns = returns  # Placeholder
+    market_returns = float_returns  # Placeholder
     
-    covariance = np.cov(returns, market_returns)[0][1]
+    covariance = np.cov(float_returns, market_returns)[0][1]
     market_variance = np.var(market_returns)
     
     if market_variance == 0:
@@ -365,9 +383,11 @@ def calculate_alpha(returns: np.ndarray, risk_free_rate: float = 0.0) -> float:
         return 0.0
         
     beta = calculate_beta(returns)
-    market_returns = returns  # Placeholder
+    # Convert Decimal values to float for numpy operations
+    float_returns = np.array([float(r) if isinstance(r, Decimal) else r for r in returns])
+    market_returns = float_returns  # Placeholder
     
-    return np.mean(returns) - (risk_free_rate + beta * (np.mean(market_returns) - risk_free_rate))
+    return np.mean(float_returns) - (risk_free_rate + beta * (np.mean(market_returns) - risk_free_rate))
 
 
 def calculate_r_squared(returns: np.ndarray) -> float:
@@ -383,8 +403,10 @@ def calculate_r_squared(returns: np.ndarray) -> float:
     if returns.size == 0:
         return 0.0
         
-    market_returns = returns  # Placeholder
-    correlation = np.corrcoef(returns, market_returns)[0, 1]
+    # Convert Decimal values to float for numpy operations
+    float_returns = np.array([float(r) if isinstance(r, Decimal) else r for r in returns])
+    market_returns = float_returns  # Placeholder
+    correlation = np.corrcoef(float_returns, market_returns)[0, 1]
     
     return correlation ** 2
 
@@ -407,7 +429,9 @@ def calculate_treynor_ratio(returns: np.ndarray, risk_free_rate: float = 0.0) ->
     if beta == 0:
         return 0.0
         
-    return (np.mean(returns) - risk_free_rate) / beta
+    # Convert Decimal values to float for numpy operations
+    float_returns = np.array([float(r) if isinstance(r, Decimal) else r for r in returns])
+    return (np.mean(float_returns) - risk_free_rate) / beta
 
 
 def calculate_total_return(portfolio_data: PortfolioData) -> float:
@@ -423,7 +447,7 @@ def calculate_total_return(portfolio_data: PortfolioData) -> float:
     if not portfolio_data.positions or not hasattr(portfolio_data, 'initial_value') or portfolio_data.initial_value == 0:
         return 0.0
         
-    current_value = sum(p.quantity * p.current_price for p in portfolio_data.positions) + portfolio_data.cash
+    current_value = sum(p.quantity * p.current_price for p in portfolio_data.positions) + portfolio_data.cash_balance
     return (current_value / portfolio_data.initial_value) - 1 if portfolio_data.initial_value > 0 else 0.0
 
 
@@ -468,7 +492,9 @@ def calculate_volatility(returns: np.ndarray) -> float:
     if returns.size == 0:
         return 0.0
         
-    return np.std(returns) * np.sqrt(252)
+    # Convert Decimal values to float for numpy operations
+    float_returns = np.array([float(r) if isinstance(r, Decimal) else r for r in returns])
+    return np.std(float_returns) * np.sqrt(252)
 
 
 def calculate_derived_metrics(metrics: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -522,4 +548,3 @@ def calculate_derived_metrics(metrics: List[Dict[str, Any]]) -> Dict[str, Any]:
             derived['performance_stability'] = sharpe / sortino
     
     return derived
-    return np.std(returns) * np.sqrt(252)

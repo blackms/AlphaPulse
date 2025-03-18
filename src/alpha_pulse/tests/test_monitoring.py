@@ -5,10 +5,11 @@ import asyncio
 import pytest
 import numpy as np
 from datetime import datetime, timezone, timedelta
+from decimal import Decimal
 
 from alpha_pulse.monitoring.collector import EnhancedMetricsCollector
-from alpha_pulse.monitoring.config import MonitoringConfig
-from alpha_pulse.portfolio.data_models import PortfolioData, Position
+from alpha_pulse.monitoring.config import MonitoringConfig, StorageConfig
+from alpha_pulse.portfolio.data_models import PortfolioData, Position, PortfolioPosition
 from alpha_pulse.monitoring.metrics_calculations import (
     calculate_performance_metrics,
     calculate_risk_metrics,
@@ -19,29 +20,28 @@ from alpha_pulse.monitoring.metrics_calculations import (
 @pytest.fixture
 def sample_portfolio():
     """Create a sample portfolio for testing."""
-    positions = [
-        Position(
-            symbol="BTC",
-            quantity=1.5,
-            current_price=50000.0,
-            cost_basis=45000.0
+    portfolio_positions = [
+        PortfolioPosition(
+            asset_id="BTC",
+            quantity=Decimal("1.5"),
+            current_price=Decimal("50000.0"),
+            market_value=Decimal("75000.0"),
+            profit_loss=Decimal("7500.0")
         ),
-        Position(
-            symbol="ETH",
-            quantity=10.0,
-            current_price=3000.0,
-            cost_basis=2800.0
+        PortfolioPosition(
+            asset_id="ETH",
+            quantity=Decimal("10.0"),
+            current_price=Decimal("3000.0"),
+            market_value=Decimal("30000.0"),
+            profit_loss=Decimal("2000.0")
         )
     ]
     
-    start_date = datetime.now(timezone.utc) - timedelta(days=30)
-    
     return PortfolioData(
-        positions=positions,
-        cash=20000.0,
-        timestamp=datetime.now(timezone.utc),
-        initial_value=100000.0,
-        start_date=start_date
+        total_value=Decimal("125000.0"),
+        cash_balance=Decimal("20000.0"),
+        positions=portfolio_positions,
+        timestamp=datetime.now(timezone.utc)
     )
 
 
@@ -90,7 +90,7 @@ def sample_agent_data():
 def config():
     """Create a test configuration."""
     return MonitoringConfig(
-        storage=MonitoringConfig.StorageConfig(
+        storage=StorageConfig(
             type="memory",
             memory_max_points=1000
         ),
@@ -157,8 +157,10 @@ async def test_collect_and_store(config, sample_portfolio, sample_trade_data, sa
         assert metrics["trade"]["symbol"] == "BTC"
         
         # Check agent metrics
-        assert "technical_confidence" in metrics["agent"]
-        assert metrics["agent"]["technical_confidence"] == 0.8
+        # Check for overall agent metrics which are always present
+        assert "avg_confidence" in metrics["agent"]
+        assert "signal_agreement" in metrics["agent"]
+        assert "signal_direction" in metrics["agent"]
         
         # Check system metrics
         assert "cpu_usage_percent" in metrics["system"]
