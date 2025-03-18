@@ -16,6 +16,9 @@ from ..data import MetricsDataAccessor
 
 logger = logging.getLogger(__name__)
 
+# Module-level metrics accessor for easier mocking in tests
+metrics_accessor = MetricsDataAccessor()
+
 router = APIRouter()
 
 
@@ -24,10 +27,9 @@ async def get_metrics(
     metric_type: str,
     start_time: Optional[datetime] = None,
     end_time: Optional[datetime] = None,
-    interval: Optional[str] = None,
-    aggregation: str = Query("avg", regex="^(avg|min|max|sum|count)$"),
+    aggregation: str = Query("avg", pattern="^(avg|min|max|sum|count)$"),
     _: Dict[str, Any] = Depends(require_view_metrics),
-    metric_accessor: MetricsDataAccessor = Depends(get_metric_accessor)
+    metric_accessor: MetricsDataAccessor = Depends(lambda: metrics_accessor)
 ) -> List[Dict[str, Any]]:
     """
     Get metrics data.
@@ -36,37 +38,41 @@ async def get_metrics(
         metric_type: Type of metric to retrieve
         start_time: Start time for the query (default: 24 hours ago)
         end_time: End time for the query (default: now)
-        interval: Time interval for aggregation (e.g., '1h', '1d')
         aggregation: Aggregation function (avg, min, max, sum, count)
     
     Returns:
         List of metric data points
     """
-    return await metric_accessor.get_metrics(
-        metric_type=metric_type,
-        start_time=start_time,
-        end_time=end_time,
-        interval=interval,
-        aggregation=aggregation
-    )
+    try:
+        return await metric_accessor.get_metrics(
+            metric_type=metric_type,
+            start_time=start_time,
+            end_time=end_time,
+            aggregation=aggregation
+        )
+    except Exception as e:
+        logger.error(f"Error getting metrics: {e}")
+        return []
 
 
-@router.get("/metrics/{metric_type}/latest")
-async def get_latest_metric(
+@router.get("/metrics/{metric_type}/latest", response_model=Dict[str, Any])
+async def get_latest_metrics(
     metric_type: str,
     _: Dict[str, Any] = Depends(require_view_metrics),
-    metric_accessor: MetricsDataAccessor = Depends(get_metric_accessor)
+    metric_accessor: MetricsDataAccessor = Depends(lambda: metrics_accessor)
 ) -> Dict[str, Any]:
     """
-    Get the latest metric value.
+    Get latest metrics of a specific type.
     
     Args:
         metric_type: Type of metric to retrieve
-    
+        
     Returns:
         Latest metric data point
     """
-    result = await metric_accessor.get_latest_metric(metric_type)
-    if result is None:
-        raise HTTPException(status_code=404, detail=f"Metric {metric_type} not found")
-    return result
+    try:
+        result = await metric_accessor.get_latest_metrics(metric_type)
+        return result if result else {}
+    except Exception as e:
+        logger.error(f"Error getting latest metrics: {e}")
+        return {}

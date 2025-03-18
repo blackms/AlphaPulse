@@ -17,7 +17,6 @@ class MetricsDataAccessor:
         metric_type: str,
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None,
-        interval: Optional[str] = None,
         aggregation: str = 'avg'
     ) -> List[Dict[str, Any]]:
         """
@@ -27,7 +26,6 @@ class MetricsDataAccessor:
             metric_type: Type of metric to retrieve
             start_time: Start time for query
             end_time: End time for query
-            interval: Time interval for aggregation
             aggregation: Aggregation method (e.g., "avg", "sum")
             
         Returns:
@@ -44,20 +42,8 @@ class MetricsDataAccessor:
             result = []
             current_time = start_time
             
-            # Determine step size based on interval
-            if interval == '1h':
-                step = timedelta(hours=1)
-            elif interval == '1d':
-                step = timedelta(days=1)
-            elif interval == '1w':
-                step = timedelta(weeks=1)
-            else:
-                # Default to 1 hour
-                step = timedelta(hours=1)
-            
             # Generate data points
-            while current_time <= end_time:
-                # Generate different values based on metric type
+            for _ in range(10):  # Generate 10 sample points
                 if metric_type == 'portfolio_value':
                     base_value = 1000000.0
                     variation = random.uniform(-50000, 50000)
@@ -80,16 +66,16 @@ class MetricsDataAccessor:
                     }
                 })
                 
-                current_time += step
+                current_time += timedelta(hours=1)
             
             return result
         except Exception as e:
             self.logger.error(f"Error retrieving metrics: {str(e)}")
             return []
     
-    async def get_latest_metric(self, metric_type: str) -> Dict[str, Any]:
+    async def get_latest_metrics(self, metric_type: str) -> Dict[str, Any]:
         """
-        Get latest metric of a specific type.
+        Get latest metrics of a specific type.
         
         Args:
             metric_type: Type of metric to retrieve
@@ -118,5 +104,5 @@ class MetricsDataAccessor:
                 }
             }
         except Exception as e:
-            self.logger.error(f"Error retrieving latest metric: {str(e)}")
+            self.logger.error(f"Error retrieving latest metrics: {str(e)}")
             return {}

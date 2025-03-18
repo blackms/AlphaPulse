@@ -25,7 +25,7 @@ from ..exchange_sync.portfolio_service import PortfolioService as ExchangeSyncPo
 logger = logging.getLogger(__name__)
 
 
-class MetricDataAccessor:
+class MetricsDataAccessor:
     """Accessor for metric data."""
     
     def __init__(self):
@@ -37,7 +37,6 @@ class MetricDataAccessor:
         metric_type: str,
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None,
-        interval: Optional[str] = None,
         aggregation: str = 'avg'
     ) -> List[Dict[str, Any]]:
         """Get metrics data."""
@@ -48,15 +47,6 @@ class MetricDataAccessor:
             if start_time is None:
                 start_time = end_time - timedelta(days=1)
             
-            # If interval is provided, use aggregation
-            if interval:
-                return await self.metric_repo.aggregate_by_time(
-                    metric_name=metric_type,
-                    start_time=start_time,
-                    end_time=end_time,
-                    interval=interval,
-                    aggregation=aggregation
-                )
             
             # Otherwise, return raw data
             return await self.metric_repo.find_by_name(
@@ -68,7 +58,7 @@ class MetricDataAccessor:
             logger.error(f"Error getting metrics: {e}")
             return []
     
-    async def get_latest_metric(self, metric_type: str) -> Optional[Dict[str, Any]]:
+    async def get_latest_metrics(self, metric_type: str) -> Dict[str, Any]:
         """Get the latest metric value."""
         try:
             return await self.metric_repo.find_latest_by_name(metric_type)
