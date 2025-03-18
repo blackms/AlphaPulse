@@ -264,7 +264,20 @@ class InMemoryStorage(TimeSeriesStorage):
             metric_type: Type of metrics to apply the policy to
         """
         # Calculate the cutoff time based on retention duration
-        cutoff_time = datetime.now() - self.retention_duration
+        # Ensure we use a timezone-aware or naive datetime consistently
+        if metric_type in self._timestamps and self._timestamps[metric_type]:
+            # Get timezone info from existing timestamps
+            sample_timestamp = self._timestamps[metric_type][0]
+            if sample_timestamp.tzinfo is not None:
+                # If timestamps have timezone info, use timezone-aware now()
+                from datetime import timezone
+                cutoff_time = datetime.now(timezone.utc) - self.retention_duration
+            else:
+                # If timestamps are naive, use naive now()
+                cutoff_time = datetime.now() - self.retention_duration
+        else:
+            # No timestamps yet, use naive datetime
+            cutoff_time = datetime.now() - self.retention_duration
         
         # Delete metrics older than the cutoff time
         await self.delete_metrics(metric_type, older_than=cutoff_time)

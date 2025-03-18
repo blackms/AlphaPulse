@@ -554,7 +554,7 @@ class TimescaleDBStorage(TimeSeriesStorage):
                 jsonb_object_agg(kv.key, AVG((kv.value)::float)) AS data
             FROM expanded
             WHERE time >= $1 AND time <= $2
-                AND (kv.value ~ '^-?[0-9]+(\.[0-9]+)?$')  -- Only aggregate numeric values
+                AND (kv.value ~ '^-?[0-9]+(\\.[0-9]+)?$')  -- Only aggregate numeric values
             GROUP BY bucket_time
             ORDER BY bucket_time
             """

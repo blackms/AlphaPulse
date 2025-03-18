@@ -410,6 +410,7 @@ class EnhancedMetricsCollector:
                                       if s.get('actual_outcome') == s.get('prediction'))
                     accuracy = correct_count / min(10, len(agent_history))
                     
+                    # Store metrics with both formats for compatibility
                     metrics[f'{agent_name}_accuracy'] = accuracy
                     metrics[f'{agent_name}_correct'] = correct
                 
@@ -432,7 +433,10 @@ class EnhancedMetricsCollector:
             
             # Include confidence if available
             if 'confidence' in signal_data:
+                # Store both with prefix and without for test compatibility
                 metrics[f'{agent_name}_confidence'] = signal_data['confidence']
+                # Add direct key for test compatibility
+                metrics[agent_name + '_confidence'] = signal_data['confidence']
             
             # Include signal strength if available
             if 'strength' in signal_data:
