@@ -149,6 +149,52 @@
               "type": "chart",
               "description": "Grid trading chart showing buy/sell zones on price action"
             }
+          },
+          {
+            "title": "Technical Signal Generation Deep Dive",
+            "key_message": "Sophisticated multi-factor analysis generates high-conviction trading signals",
+            "key_points": [
+              "Five key components with weighted importance: trend (30%), momentum (20%), volatility (20%), volume (15%), pattern recognition (15%)",
+              "Threshold-based filtering removes noise and low-confidence signals",
+              "Directional signals (buy/sell) include quantified confidence metrics",
+              "Real example of the algorithm's Python implementation directly from codebase"
+            ],
+            "visual": {
+              "type": "flowchart",
+              "description": "Signal generation flowchart with code snippet from AI_HEDGE_FUND_DOCUMENTATION.md (lines 171-196)",
+              "reference": "AI_HEDGE_FUND_DOCUMENTATION.md lines 171-196"
+            }
+          },
+          {
+            "title": "Position Sizing Algorithm",
+            "key_message": "Advanced risk-calibrated position sizing using modified Kelly Criterion",
+            "key_points": [
+              "Historical win rate and profit/loss ratio calculations per asset",
+              "Kelly fraction determines optimal allocation percentage",
+              "Confidence-based adjustment scales with signal strength",
+              "Volatility adjustment reduces exposure during high-volatility regimes",
+              "Maximum position cap ensures portfolio diversification (20% cap)"
+            ],
+            "visual": {
+              "type": "flow_diagram",
+              "description": "Position sizing calculation flow with math formulas from AI_HEDGE_FUND_DOCUMENTATION.md (lines 199-216)",
+              "reference": "AI_HEDGE_FUND_DOCUMENTATION.md lines 199-216"
+            }
+          },
+          {
+            "title": "Trading Decision Workflow",
+            "key_message": "End-to-end systematic process from market data to executed trade",
+            "key_points": [
+              "Sequential progression through 8 distinct steps: Data Processing → Feature Engineering → Agent Analysis → Signal Generation → Risk Evaluation → Position Sizing → Portfolio Check → Execution",
+              "Multiple validation checkpoints with explicit pass/fail criteria",
+              "Position size adjustments when portfolio limits are approached",
+              "Continuous position monitoring after execution"
+            ],
+            "visual": {
+              "type": "workflow_diagram",
+              "description": "Detailed trading decision flow diagram from AI_HEDGE_FUND_DOCUMENTATION.md (lines 222-237)",
+              "reference": "AI_HEDGE_FUND_DOCUMENTATION.md lines 222-237"
+            }
           }
         ]
       },

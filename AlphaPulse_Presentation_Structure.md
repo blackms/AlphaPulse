@@ -117,11 +117,39 @@
   - Profit locking and loss limitation
 - **Visual**: Grid trading chart showing buy/sell zones on price action
 
+### Slide 10: Technical Signal Generation Deep Dive
+- **Key Message**: Sophisticated multi-factor analysis generates high-conviction trading signals
+- **Key Points**:
+  - Five key components with weighted importance: trend (30%), momentum (20%), volatility (20%), volume (15%), pattern recognition (15%)
+  - Threshold-based filtering removes noise and low-confidence signals
+  - Directional signals (buy/sell) include quantified confidence metrics
+  - Real example of the algorithm's Python implementation directly from codebase
+- **Visual**: Signal generation flowchart with code snippet from AI_HEDGE_FUND_DOCUMENTATION.md (lines 171-196)
+
+### Slide 11: Position Sizing Algorithm
+- **Key Message**: Advanced risk-calibrated position sizing using modified Kelly Criterion
+- **Key Points**:
+  - Historical win rate and profit/loss ratio calculations per asset
+  - Kelly fraction determines optimal allocation percentage
+  - Confidence-based adjustment scales with signal strength
+  - Volatility adjustment reduces exposure during high-volatility regimes
+  - Maximum position cap ensures portfolio diversification (20% cap)
+- **Visual**: Position sizing calculation flow with math formulas from AI_HEDGE_FUND_DOCUMENTATION.md (lines 199-216)
+
+### Slide 12: Trading Decision Workflow
+- **Key Message**: End-to-end systematic process from market data to executed trade
+- **Key Points**:
+  - Sequential progression through 8 distinct steps: Data Processing → Feature Engineering → Agent Analysis → Signal Generation → Risk Evaluation → Position Sizing → Portfolio Check → Execution
+  - Multiple validation checkpoints with explicit pass/fail criteria
+  - Position size adjustments when portfolio limits are approached
+  - Continuous position monitoring after execution
+- **Visual**: Detailed trading decision flow diagram from AI_HEDGE_FUND_DOCUMENTATION.md (lines 222-237)
+
 ---
 
 ## 3. Machine Learning Integration
 
-### Slide 10: Reinforcement Learning Models
+### Slide 13: Reinforcement Learning Models
 - **Key Message**: Self-improving strategies that adapt to changing market conditions
 - **Key Points**:
   - Deep Q-Network for optimal entry/exit point determination
@@ -130,7 +158,7 @@
   - Experience replay for stable learning in volatile markets
 - **Visual**: Reinforcement learning flow diagram showing agent, environment, action, state, reward loop
 
-### Slide 11: Classification Algorithms
+### Slide 14: Classification Algorithms
 - **Key Message**: Pattern recognition for market regime detection and opportunity identification
 - **Key Points**:
   - Random Forest for market regime classification
@@ -139,7 +167,7 @@
   - Ensemble methods combining multiple classifiers
 - **Visual**: Confusion matrix showing algorithm prediction accuracy
 
-### Slide 12: Performance Metrics
+### Slide 15: Performance Metrics
 - **Key Message**: Measurable improvements from ML integration
 - **Key Points**:
   - Backtested Sharpe Ratio: 1.8
@@ -152,7 +180,7 @@
 
 ## 4. Risk Management Framework
 
-### Slide 13: Risk Controls Architecture
+### Slide 16: Risk Controls Architecture
 - **Key Message**: Multi-layered risk management at every step of the process
 - **Key Points**:
   - Pre-trade risk validation
@@ -161,7 +189,7 @@
   - System-wide risk constraints
 - **Visual**: Layered pyramid diagram showing risk control hierarchy
 
-### Slide 14: Drawdown Prevention
+### Slide 17: Drawdown Prevention
 - **Key Message**: Proactive approach to capital preservation during market stress
 - **Key Points**:
   - Volatility-based position sizing
@@ -170,7 +198,7 @@
   - Automatic deleveraging at defined drawdown thresholds
 - **Visual**: Graph showing automatic position reduction during market stress periods
 
-### Slide 15: Capital Preservation Techniques
+### Slide 18: Capital Preservation Techniques
 - **Key Message**: Systematic protection of investor capital through market cycles
 - **Key Points**:
   - Stop-loss implementation (ATR-based, 2% maximum loss per trade)
@@ -183,7 +211,7 @@
 
 ## 5. Modularity & Extensibility
 
-### Slide 16: Pluggable Architecture
+### Slide 19: Pluggable Architecture
 - **Key Message**: Easily extensible platform accommodating custom components
 - **Key Points**:
   - Strategy plugin framework
@@ -192,7 +220,7 @@
   - Risk control extensibility
 - **Visual**: Diagram showing plugin architecture with connection points
 
-### Slide 17: Custom Strategy Integration
+### Slide 20: Custom Strategy Integration
 - **Key Message**: Seamless addition of proprietary trading strategies
 - **Key Points**:
   - Standardized strategy interface
@@ -201,7 +229,7 @@
   - Gradual capital allocation mechanism
 - **Visual**: Strategy addition workflow showing integration process steps
 
-### Slide 18: Data Source Integration
+### Slide 21: Data Source Integration
 - **Key Message**: Flexible system accommodating diverse data sources
 - **Key Points**:
   - Support for traditional market data
@@ -210,7 +238,7 @@
   - Custom data source plugin development
 - **Visual**: Data source connection diagram showing various inputs
 
-### Slide 19: Execution Venue Flexibility
+### Slide 22: Execution Venue Flexibility
 - **Key Message**: Connect to multiple markets and execution venues
 - **Key Points**:
   - Support for major cryptocurrency exchanges
@@ -223,7 +251,7 @@
 
 ## 6. Implementation Timeline
 
-### Slide 20: Deployment Roadmap
+### Slide 23: Deployment Roadmap
 - **Key Message**: Structured, phased approach to system implementation
 - **Key Points**:
   - Phase 1: System setup and configuration (Weeks 1-2)
@@ -233,7 +261,7 @@
   - Phase 5: Gradual capital allocation (Weeks 9-12)
 - **Visual**: Gantt chart showing implementation timeline
 
-### Slide 21: Testing Methodology
+### Slide 24: Testing Methodology
 - **Key Message**: Comprehensive validation before capital deployment
 - **Key Points**:
   - Historical backtesting (multiple market regimes)
@@ -242,7 +270,7 @@
   - Controlled live testing
 - **Visual**: Testing workflow diagram showing validation steps
 
-### Slide 22: Performance Evaluation Framework
+### Slide 25: Performance Evaluation Framework
 - **Key Message**: Continuous assessment against defined objectives
 - **Key Points**:
   - Risk-adjusted return metrics
@@ -255,7 +283,7 @@
 
 ## 7. Competitive Advantages
 
-### Slide 23: Competitive Analysis
+### Slide 26: Competitive Analysis
 - **Key Message**: AlphaPulse outperforms alternatives across key dimensions
 - **Key Points**:
   - Multi-agent approach vs. single-model solutions
@@ -264,7 +292,7 @@
   - Transparency and explainability of decisions
 - **Visual**: Feature comparison table with AlphaPulse vs. competitors
 
-### Slide 24: Performance Comparison
+### Slide 27: Performance Comparison
 - **Key Message**: Superior risk-adjusted returns compared to benchmarks
 - **Key Points**:
   - Higher Sharpe ratio than competitors
@@ -273,7 +301,7 @@
   - Higher consistency across market regimes
 - **Visual**: Comparative performance chart showing AlphaPulse vs. benchmarks
 
-### Slide 25: Technological Edge
+### Slide 28: Technological Edge
 - **Key Message**: Best-in-class technology stack creates sustainable advantage
 - **Key Points**:
   - Advanced ML model architecture
@@ -286,7 +314,7 @@
 
 ## 8. Case Studies
 
-### Slide 26: Case Study 1 - Bull Market Performance
+### Slide 29: Case Study 1 - Bull Market Performance
 - **Key Message**: Effective capital deployment during uptrend
 - **Key Points**:
   - Signal accuracy during trending market
@@ -295,7 +323,7 @@
   - Comparative performance metrics
 - **Visual**: Bull market performance chart with entry/exit points
 
-### Slide 27: Case Study 2 - Market Correction Resilience
+### Slide 30: Case Study 2 - Market Correction Resilience
 - **Key Message**: Capital preservation during market stress
 - **Key Points**:
   - Early warning signal detection
@@ -304,7 +332,7 @@
   - Drawdown comparison to benchmarks
 - **Visual**: Market correction chart showing protective actions taken
 
-### Slide 28: Case Study 3 - Sideways Market Opportunity Capture
+### Slide 31: Case Study 3 - Sideways Market Opportunity Capture
 - **Key Message**: Alpha generation in non-trending markets
 - **Key Points**:
   - Range identification accuracy
@@ -317,7 +345,7 @@
 
 ## Conclusion Slides
 
-### Slide 29: Key Differentiators
+### Slide 32: Key Differentiators
 - **Key Message**: AlphaPulse represents the next generation of algorithmic trading
 - **Key Points**:
   - Multi-agent architecture combines diverse trading perspectives
@@ -326,7 +354,7 @@
   - Proven performance across market conditions
 - **Visual**: Summary infographic highlighting key system advantages
 
-### Slide 30: Next Steps
+### Slide 33: Next Steps
 - **Key Message**: Clear path to implementation and value realization
 - **Key Points**:
   - Initial consultation and requirements gathering
@@ -335,7 +363,7 @@
   - Ongoing support and optimization
 - **Visual**: Implementation roadmap with milestone markers
 
-### Slide 31: Contact Information
+### Slide 34: Contact Information
 - **Key Message**: Expert team ready to support your implementation
 - **Key Points**:
   - Key team member contacts
