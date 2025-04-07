@@ -240,7 +240,7 @@ def define_optuna_objective(
             try:
                 start_loc = train_price_series.index.get_loc(first_valid_index) + lookback_periods
                 if start_loc >= len(train_price_series.index):
-                     logger.warning(f"Trial {trial.number}: Not enough data for indicator warmup.")
+                     logger.debug(f"Trial {trial.number}: Not enough data for indicator warmup.")
                      return 1e9
                 actual_train_start_dt = train_price_series.index[start_loc]
             except KeyError:
