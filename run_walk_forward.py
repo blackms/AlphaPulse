@@ -271,10 +271,11 @@ def define_optuna_objective(
                 initial_capital=backtester_params.get('initial_capital', 100000.0),
                 commission=backtester_params.get('commission', 0.001)
             )
-            # Extract necessary data for backtester using prefixed column names
-            ohlc_cols = [f"{primary_symbol}_Open", f"{primary_symbol}_High", f"{primary_symbol}_Low", f"{primary_symbol}_Close"]
+            # Extract necessary data for backtester using prefixed column names (NOTE: Orchestrator currently hardcodes 'SP500_')
+            prefix = "SP500_" # Hardcoded prefix from orchestrator
+            ohlc_cols = [f"{prefix}Open", f"{prefix}High", f"{prefix}Low", f"{prefix}Close"]
             if not all(col in train_data_with_signals.columns for col in ohlc_cols):
-                logger.error(f"Trial {trial.number}: Missing one or more OHLC columns ({ohlc_cols}) in orchestrated data.")
+                logger.error(f"Trial {trial.number}: Missing one or more OHLC columns ({ohlc_cols}) in orchestrated data. Available: {train_data_with_signals.columns.tolist()}")
                 return 1e9 # Penalize failure
             # Rename columns to standard OHLC for the backtester
             train_ohlc_data = train_data_with_signals[ohlc_cols].loc[actual_train_start_dt:train_end_dt].copy() # Use .copy() to avoid SettingWithCopyWarning
@@ -518,10 +519,11 @@ async def main():
 
         # --- 5. Run Backtest on OOS Period ---
         logger.info("Running backtest on OOS period...")
-        # Extract OOS OHLC data and ATR series using prefixed column names
-        ohlc_cols = [f"{primary_symbol}_Open", f"{primary_symbol}_High", f"{primary_symbol}_Low", f"{primary_symbol}_Close"]
+        # Extract OOS OHLC data and ATR series using prefixed column names (NOTE: Orchestrator currently hardcodes 'SP500_')
+        prefix = "SP500_" # Hardcoded prefix from orchestrator
+        ohlc_cols = [f"{prefix}Open", f"{prefix}High", f"{prefix}Low", f"{prefix}Close"]
         if not all(col in oos_data_with_signals.columns for col in ohlc_cols):
-            logger.error(f"Missing one or more OHLC columns ({ohlc_cols}) in OOS orchestrated data. Skipping period.")
+            logger.error(f"Missing one or more OHLC columns ({ohlc_cols}) in OOS orchestrated data. Available: {oos_data_with_signals.columns.tolist()}. Skipping period.")
             continue
         oos_ohlc_data_full = oos_data_with_signals[ohlc_cols].copy() # Use .copy()
         oos_ohlc_data_full.columns = ['Open', 'High', 'Low', 'Close'] # Rename to standard names
