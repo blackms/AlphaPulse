@@ -8,6 +8,7 @@ and detect volatility regimes based on VIX.
 
 import logging
 import pandas as pd
+import numpy as np # Added import
 import ta
 from typing import Optional, Tuple
 
@@ -42,7 +43,14 @@ def calculate_moving_average(data: pd.DataFrame, window: int = 40, price_column:
 
     try:
         logger.info(f"Calculating {window}-period SMA on column '{price_column}'")
-        sma = ta.trend.sma_indicator(data[price_column], window=window, fillna=False)
+        # Ensure input is a Series
+        price_series = data[price_column]
+        if isinstance(price_series, pd.DataFrame):
+             price_series = price_series.squeeze() # Convert single-column DataFrame to Series
+        if not isinstance(price_series, pd.Series):
+             raise TypeError(f"Expected a pandas Series for SMA calculation, got {type(price_series)}")
+
+        sma = ta.trend.sma_indicator(price_series, window=window, fillna=False)
         return sma
     except Exception as e:
         logger.error(f"Error calculating SMA: {e}")
@@ -72,7 +80,14 @@ def calculate_rsi(data: pd.DataFrame, window: int = 14, price_column: str = 'SP5
 
     try:
         logger.info(f"Calculating {window}-period RSI on column '{price_column}'")
-        rsi = ta.momentum.rsi(data[price_column], window=window, fillna=False)
+        # Ensure input is a Series
+        price_series = data[price_column]
+        if isinstance(price_series, pd.DataFrame):
+             price_series = price_series.squeeze()
+        if not isinstance(price_series, pd.Series):
+             raise TypeError(f"Expected a pandas Series for RSI calculation, got {type(price_series)}")
+
+        rsi = ta.momentum.rsi(price_series, window=window, fillna=False)
         return rsi
     except Exception as e:
         logger.error(f"Error calculating RSI: {e}")
@@ -111,7 +126,7 @@ def detect_volatility_regime(data: pd.DataFrame, vix_column: str = 'VIX_Adj_Clos
         return None
 
 
-def calculate_atr(data: pd.DataFrame, window: int = 14, 
+def calculate_atr(data: pd.DataFrame, window: int = 14,
                   high_col: str = 'SP500_High', low_col: str = 'SP500_Low', close_col: str = 'SP500_Close') -> Optional[pd.Series]:
     """
     Calculates the Average True Range (ATR).
@@ -139,7 +154,26 @@ def calculate_atr(data: pd.DataFrame, window: int = 14,
 
     try:
         logger.info(f"Calculating {window}-period ATR using columns '{high_col}', '{low_col}', '{close_col}'")
-        atr = ta.volatility.average_true_range(data[high_col], data[low_col], data[close_col], window=window, fillna=False)
+
+        # Check for sufficient data length BEFORE accessing/squeezing
+        if len(data) < window:
+             logger.warning(f"Insufficient data ({len(data)} rows) for ATR calculation with window {window}. Returning NaNs.")
+             # Return a Series of NaNs with the same index as the input data
+             return pd.Series(np.nan, index=data.index)
+
+        # Ensure inputs are Series
+        high_series = data[high_col]
+        low_series = data[low_col]
+        close_series = data[close_col]
+
+        if isinstance(high_series, pd.DataFrame): high_series = high_series.squeeze()
+        if isinstance(low_series, pd.DataFrame): low_series = low_series.squeeze()
+        if isinstance(close_series, pd.DataFrame): close_series = close_series.squeeze()
+
+        if not all(isinstance(s, pd.Series) for s in [high_series, low_series, close_series]):
+             raise TypeError("Expected pandas Series for High, Low, Close in ATR calculation.")
+
+        atr = ta.volatility.average_true_range(high_series, low_series, close_series, window=window, fillna=False)
         return atr
     except Exception as e:
         logger.error(f"Error calculating ATR: {e}")
@@ -147,9 +181,9 @@ def calculate_atr(data: pd.DataFrame, window: int = 14,
 
 
 def add_indicators_to_data(data: pd.DataFrame, ma_window: int = 40, rsi_window: int = 14, atr_window: int = 14,
-                           vix_threshold: float = 25.0, price_column: str = 'SP500_Adj Close',
+                           vix_threshold: float = 25.0, price_column: str = 'SP500_Close', # Default to Close
                            high_col: str = 'SP500_High', low_col: str = 'SP500_Low', close_col: str = 'SP500_Close',
-                           vix_column: str = 'VIX_Adj Close') -> Optional[pd.DataFrame]:
+                           vix_column: str = 'VIX_Close') -> Optional[pd.DataFrame]: # Default to Close
     """
     Adds MA, RSI, ATR, and Volatility Regime indicators to the input DataFrame.
 
@@ -198,58 +232,4 @@ def add_indicators_to_data(data: pd.DataFrame, ma_window: int = 40, rsi_window: 
     logger.info("Successfully added MA, RSI, Volatility Regime, and ATR indicators.")
     return data_with_indicators
 
-
-if __name__ == '__main__':
-    # Example Usage (requires data_handler.py)
-    try:
-        from data_handler import LongShortDataHandler
-    except ImportError:
-        print("Run this script from the 'src/strategies/long_short' directory or ensure data_handler is in PYTHONPATH.")
-        exit()
-
-
-    config_example = {"cache_dir": "./data/cache/long_short_test"}
-    data_handler = LongShortDataHandler(config_example)
-
-    start = "2010-01-01" # Longer period for MA calculation
-    end = "2023-12-31"
-
-    # Fetch combined daily data
-    daily_data = data_handler.get_combined_data(start, end)
-
-    if daily_data is not None:
-        # Resample to Weekly
-        weekly_data = data_handler.resample_data(daily_data, timeframe='W')
-
-        if weekly_data is not None:
-            print("\n--- Weekly Data Before Indicators ---")
-            print(weekly_data.head())
-
-            # Add indicators to weekly data
-            # Note: Ensure column names match those generated by data_handler.py
-            weekly_data_with_indicators = add_indicators_to_data(
-                data=weekly_data,
-                ma_window=40,       # 40-week MA
-                rsi_window=14,      # 14-week RSI
-                atr_window=14,      # 14-week ATR
-                vix_threshold=25.0,
-                # Assuming default column names from data_handler are correct:
-                # price_column='SP500_Adj Close', high_col='SP500_High', low_col='SP500_Low',
-                # close_col='SP500_Close', vix_column='VIX_Adj Close'
-            )
-
-            if weekly_data_with_indicators is not None:
-                print("\n--- Weekly Data With Indicators (MA, RSI, Vol Regime, ATR) ---")
-                # Display relevant columns including the new ATR
-                cols_to_show = [col for col in ['SP500_Adj Close', 'MA_40', 'RSI_14', 'Vol_Regime', 'ATR_14', 'VIX_Adj Close'] if col in weekly_data_with_indicators.columns]
-                print(weekly_data_with_indicators[cols_to_show].head(45)) # Show more rows to see MA/ATR values
-                print(weekly_data_with_indicators[cols_to_show].tail())
-                print(f"Shape: {weekly_data_with_indicators.shape}")
-                print("\nIndicator Calculation Example Complete.")
-            else:
-                print("Failed to add indicators to weekly data.")
-        else:
-            print("Failed to resample data to weekly.")
-
-    else:
-        print("Failed to fetch or combine data.")
+# Removed the __main__ block as it depended on data_handler

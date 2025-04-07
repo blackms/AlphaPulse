@@ -60,3 +60,7 @@ binance_credentials.json
 .clinerules*
 
 .venv
+
+data
+
+results

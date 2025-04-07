@@ -34,16 +34,23 @@ metadata = MetaData(naming_convention=convention)
 Base = declarative_base(metadata=metadata)
 
 
+from sqlalchemy import PrimaryKeyConstraint # Import PrimaryKeyConstraint
+
 class OHLCVRecord(Base):
     """Database model for OHLCV market data."""
-    
+
     __tablename__ = 'ohlcv_data'
-    
-    id = Column(Integer, primary_key=True)
+    # Specify the schema and composite primary key for TimescaleDB compatibility
+    __table_args__ = (
+        PrimaryKeyConstraint('timestamp', 'symbol', 'timeframe', name='pk_ohlcv_data_ts_sym_tf'),
+        {'schema': 'backtesting'}
+    )
+
+    # id = Column(Integer, primary_key=True) # Remove separate ID PK
     exchange = Column(String(50), nullable=False, index=True)  # ExchangeType value
-    symbol = Column(String(20), nullable=False, index=True)
-    timeframe = Column(String(10), nullable=False)
-    timestamp = Column(DateTime(timezone=True), nullable=False, index=True)
+    symbol = Column(String(20), primary_key=True) # Part of composite PK
+    timeframe = Column(String(10), primary_key=True) # Part of composite PK
+    timestamp = Column(DateTime(timezone=True), primary_key=True) # Part of composite PK
     open = Column(Float, nullable=False)
     high = Column(Float, nullable=False)
     low = Column(Float, nullable=False)

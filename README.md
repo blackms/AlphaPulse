@@ -1,186 +1,126 @@
-# AlphaPulse - AI Hedge Fund
+# Backtest S&P 500 con AlphaPulse
 
-AlphaPulse is an advanced algorithmic trading system that combines multiple AI agents, sophisticated risk management, and portfolio optimization to make data-driven investment decisions in cryptocurrency markets.
+Questo progetto implementa un backtest completo dell'indice S&P 500 utilizzando il sistema multi-agente AlphaPulse, con focus sulla gestione del rischio e l'ottimizzazione del portafoglio.
 
-## Features
+## Configurazione Iniziale
 
-- Multi-agent architecture combining technical, fundamental, sentiment, and value analysis
-- Risk-first approach with multiple layers of risk controls
-- Portfolio optimization using modern portfolio theory
-- Extensible framework for adding new strategies and data sources
-- Real-time monitoring and performance analytics
-- Comprehensive alerting system with multiple notification channels
-
-## Getting Started
-
-### Prerequisites
-
+### Prerequisiti
 - Python 3.9+
-- Docker and Docker Compose
-- PostgreSQL with TimescaleDB (or use Docker setup)
-- Redis (or use Docker setup)
+- PostgreSQL con TimescaleDB
+- Redis (opzionale)
 
-### Installation
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/your-org/alpha-pulse.git
-   cd alpha-pulse
-   ```
-
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. Set up the database infrastructure:
-   ```bash
-   ./scripts/setup_database.sh
-   ```
-
-4. Initialize the database:
-   ```bash
-   python src/scripts/init_db.py
-   ```
-
-### Running the System
-
-1. Start the data pipeline:
-   ```bash
-   python -m alpha_pulse.data_pipeline
-   ```
-
-2. Launch the trading engine:
-   ```bash
-   python -m alpha_pulse.main
-   ```
-
-3. Monitor performance:
-   ```bash
-   python -m alpha_pulse.monitoring
-   ```
-## Database Infrastructure
-
-AlphaPulse uses a robust database infrastructure:
-
-- **PostgreSQL with TimescaleDB**: For relational data and time-series metrics
-- **Redis**: For caching and real-time messaging
-
-## Alerting System
-
-AlphaPulse includes a comprehensive alerting system:
-
-- **Rule-Based Alerts**: Define conditions that trigger alerts based on metric values
-- **Multiple Notification Channels**: Send alerts via email, Slack, SMS, and web interfaces
-- **Alert History**: Store and query alert history with filtering options
-- **Acknowledgment**: Track which alerts have been acknowledged and by whom
-
-### Alerting Configuration
-
-The alerting system is configured via YAML:
-
-```yaml
-alerting:
-  enabled: true
-  check_interval: 60  # seconds
-  
-  # Configure notification channels
-  channels:
-    email:
-      enabled: true
-      smtp_server: "smtp.example.com"
-      # Additional email configuration...
-    
-    slack:
-      enabled: true
-      webhook_url: "${AP_SLACK_WEBHOOK}"
-      # Additional Slack configuration...
-    
-    sms:
-      enabled: true
-      account_sid: "${AP_TWILIO_SID}"
-      # Additional SMS configuration...
-  
-  # Define alert rules
-  rules:
-    - rule_id: "sharpe_ratio_low"
-      name: "Low Sharpe Ratio"
-      metric_name: "sharpe_ratio"
-      condition: "< 0.5"
-      severity: "warning"
-      message_template: "Sharpe ratio is {value}, below threshold of 0.5"
-      channels: ["email", "slack", "web"]
-```
-
-### Running the Alerting System
-
-To start the alerting system:
+### Installazione Dipendenze
 
 ```bash
-python -m alpha_pulse.monitoring.alerting
+# Crea un ambiente virtuale
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# oppure
+venv\Scripts\activate  # Windows
+
+# Installa le dipendenze
+pip install -r requirements.txt
 ```
-- **Redis**: For caching and real-time messaging
 
-### Database Setup
+## API Keys
 
-The database infrastructure can be set up using Docker Compose:
+Le API keys sono memorizzate nel file `.env` che non deve essere condiviso o committato nel repository. Il file è già configurato con le seguenti chiavi:
+
+- **FRED API**: Per dati economici e dell'indice S&P 500
+- **NewsAPI**: Per dati di sentiment basati su notizie finanziarie
+
+### Test delle API
+
+Per verificare che le API keys funzionino correttamente, esegui lo script di esempio:
 
 ```bash
-docker-compose -f docker-compose.db.yml up -d
+python api_examples.py
 ```
 
-This will start:
-- PostgreSQL with TimescaleDB extension
-- Redis
-- PgAdmin (web interface for PostgreSQL)
+Questo script:
+1. Testa la connessione all'API FRED recuperando dati storici dell'S&P 500
+2. Testa la connessione a NewsAPI recuperando notizie recenti sull'S&P 500
+3. Salva esempi di dati in file locali per riferimento
 
-### Database Schema
+## Struttura del Progetto
 
-The database schema includes:
-- Users and authentication
-- Portfolios and positions
-- Trades and orders
-- Time-series metrics
-- Alerts and notifications
+- `SP500_Backtest_Requisiti.md`: Documento dettagliato dei requisiti
+- `.env`: File con le API keys (non committare)
+- `api_examples.py`: Script di esempio per l'utilizzo delle API
+- `requirements.txt`: Dipendenze Python
 
-### Database Access
+## Implementazione
 
-The database access layer provides:
-- Connection management
-- Repository pattern for data access
-- ORM models
-- Transaction support
-## Examples
+Per implementare il backtest completo, seguire le istruzioni dettagliate nel documento `SP500_Backtest_Requisiti.md`, che include:
 
-Check out the examples directory for sample scripts:
+1. Configurazione dell'infrastruttura
+2. Preparazione dei dati
+3. Adattamento degli agenti AlphaPulse
+4. Esecuzione del backtest
+5. Validazione e reporting
 
-- `examples/database/demo_database.py`: Demonstrates database operations
-- `examples/trading/demo_ai_hedge_fund.py`: Demonstrates the AI Hedge Fund
-- `examples/monitoring/demo_monitoring.py`: Demonstrates the monitoring system
-- `examples/alerting/demo_alerting.py`: Demonstrates the alerting system
+## Utilizzo delle API
 
-To run the database demo:
+### FRED API
 
-```bash
-cd examples/database
-./run_demo.sh
+```python
+import os
+import requests
+from dotenv import load_dotenv
+
+# Carica le variabili d'ambiente
+load_dotenv()
+FRED_API_KEY = os.getenv("FRED_API_KEY")
+
+# Esempio di richiesta per dati S&P 500
+base_url = "https://api.stlouisfed.org/fred/series/observations"
+params = {
+    "series_id": "SP500",  # Serie S&P 500
+    "api_key": FRED_API_KEY,
+    "file_type": "json",
+    "observation_start": "2020-01-01",
+    "observation_end": "2020-12-31"
+}
+
+response = requests.get(base_url, params=params)
+data = response.json()
 ```
 
-To run the alerting demo:
+### NewsAPI
 
-```bash
-cd examples/alerting
-./run_demo.sh
+```python
+import os
+import requests
+from datetime import datetime, timedelta
+from dotenv import load_dotenv
+
+# Carica le variabili d'ambiente
+load_dotenv()
+NEWS_API_KEY = os.getenv("NEWS_API_KEY")
+
+# Data di una settimana fa
+one_week_ago = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
+
+# Esempio di richiesta per notizie sull'S&P 500
+base_url = "https://newsapi.org/v2/everything"
+params = {
+    "q": "S&P 500 OR S&P500",
+    "from": one_week_ago,
+    "language": "en",
+    "sortBy": "popularity",
+    "apiKey": NEWS_API_KEY
+}
+
+response = requests.get(base_url, params=params)
+data = response.json()
 ```
-```
 
-## Documentation
+## Sicurezza
 
-- [API Documentation](API_DOCUMENTATION.md)
-- [System Architecture](SYSTEM_ARCHITECTURE.md)
-- [Hedge Fund Requirements](HEDGE_FUND_REQUIREMENTS.md)
-- [Deployment Guide](DEPLOYMENT.md)
+- Non committare mai il file `.env` nel repository
+- Ruotare periodicamente le API keys
+- Limitare l'accesso alle API keys solo a chi ne ha bisogno
 
-## License
+## Supporto
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+Per domande o problemi, contattare il team di sviluppo.

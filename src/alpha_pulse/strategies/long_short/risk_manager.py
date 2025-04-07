@@ -119,42 +119,4 @@ class RiskManager:
     # def check_position_size_limit(self, current_position_size, max_allowed_size):
     #     pass
 
-
-if __name__ == '__main__':
-    # Example Usage
-    risk_config_atr = {
-        'stop_loss_type': 'atr',
-        'stop_loss_atr_multiplier': 1.5
-    }
-    risk_manager_atr = RiskManager(risk_config_atr)
-
-    risk_config_pct = {
-        'stop_loss_type': 'percentage',
-        'stop_loss_pct': 0.03 # 3% stop
-    }
-    risk_manager_pct = RiskManager(risk_config_pct)
-
-    entry_long = 4500.0
-    entry_short = 4600.0
-    atr_value = 55.0
-
-    # ATR Stop Loss Examples
-    sl_long_atr = risk_manager_atr.calculate_stop_loss(entry_long, 'long', current_atr=atr_value)
-    sl_short_atr = risk_manager_atr.calculate_stop_loss(entry_short, 'short', current_atr=atr_value)
-    print(f"--- ATR Stop Loss (Multiplier: {risk_manager_atr.stop_loss_atr_multiplier}) ---")
-    print(f"Long Entry: {entry_long}, ATR: {atr_value}, Stop Loss: {sl_long_atr}")
-    print(f"Short Entry: {entry_short}, ATR: {atr_value}, Stop Loss: {sl_short_atr}")
-
-    # Percentage Stop Loss Examples
-    sl_long_pct = risk_manager_pct.calculate_stop_loss(entry_long, 'long')
-    sl_short_pct = risk_manager_pct.calculate_stop_loss(entry_short, 'short')
-    print(f"\n--- Percentage Stop Loss ({risk_manager_pct.stop_loss_pct:.1%}) ---")
-    print(f"Long Entry: {entry_long}, Stop Loss: {sl_long_pct}")
-    print(f"Short Entry: {entry_short}, Stop Loss: {sl_short_pct}")
-
-    # Example Drawdown Check (placeholder)
-    print("\n--- Drawdown Check ---")
-    dummy_equity = pd.Series([100, 105, 102, 110, 108, 95, 90]) # Example equity
-    risk_manager_atr.check_drawdown(dummy_equity)
-
-    print("\nRisk Management Example Complete.")
+# Removed the __main__ block

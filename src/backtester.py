@@ -48,6 +48,7 @@ from src.agents.base import ( # Importa definizioni base
 # Importa la nuova strategia
 from src.strategies.long_short.long_short_strategy import LongShortStrategyAgent
 
+
 # Configurazione logging
 logging.basicConfig(
     level=logging.INFO,
@@ -88,16 +89,18 @@ class Backtester:
     Motore di backtesting per simulare strategie di trading sull'S&P 500.
     """
 
-    def __init__(self, config: Dict[str, Any], data_manager: DataManager):
+    def __init__(self, config: Dict[str, Any], combined_daily_data: Optional[pd.DataFrame] = None):
         """
         Inizializza il Backtester.
 
         Args:
-            config: Configurazione del backtest
-            data_manager: Istanza del DataManager con i dati preparati
+            config: Configurazione del backtest.
+            combined_daily_data: DataFrame pre-fetched containing combined daily data
+                                 (e.g., SP500 OHLCV and VIX Close). Optional for backward compatibility.
         """
         self.config = config
-        self.data_manager = data_manager
+        self.all_daily_data = combined_daily_data # Store the pre-fetched data
+        # self.data_manager = data_manager # Remove old data_manager dependency
 
         # Parametri di backtest
         self.start_date = pd.to_datetime(config['backtest']['start_date'])
@@ -188,79 +191,60 @@ class Backtester:
         Returns:
             Oggetto MarketData o None se i dati non sono disponibili
         """
-        # Assumiamo che data_manager.data contenga i dati preparati
-        prices_df = self.data_manager.data.get("market", {}).get("sp500")
-        economic_data = self.data_manager.data.get("economic", {})
-        sentiment_data = self.data_manager.data.get("sentiment", {}).get("news")
-
-        if prices_df is None or prices_df.empty:
-            logger.error("DataFrame dei prezzi non disponibile nel DataManager.")
+        if self.all_daily_data is None or self.all_daily_data.empty:
+            logger.error("DataFrame 'all_daily_data' pre-fetched non disponibile nel Backtester.")
             return None
 
-        # Verifica se la data corrente esiste nell'indice dei prezzi
-        if date not in prices_df.index:
-            logger.warning(f"Data {date} non trovata nell'indice dei prezzi.")
-            return None
+        # Verifica se la data corrente esiste nell'indice dei dati pre-fetched
+        if date not in self.all_daily_data.index:
+            # Attempt to find the closest previous date if exact match is missing (e.g., weekend/holiday)
+            try:
+                loc = self.all_daily_data.index.get_loc(date, method='ffill')
+                closest_date = self.all_daily_data.index[loc]
+                logger.warning(f"Data {date} non trovata nell'indice. Using previous date: {closest_date}")
+                date = closest_date # Use the previous date for slicing
+            except KeyError:
+                 logger.error(f"Data {date} non trovata nell'indice e nessuna data precedente disponibile.")
+                 return None
 
-        # Estrai dati storici fino alla data corrente (finestra mobile)
-        start_slice_date = date - pd.Timedelta(days=self.max_agent_lookback * 2) # Prendi un po' più dati per sicurezza
+        # Estrai dati storici fino alla data corrente (finestra mobile) dalla fonte pre-fetched
+        # Calculate the actual start date needed based on lookback
+        # Ensure start_slice_date is within the bounds of the available data
+        min_data_date = self.all_daily_data.index.min()
+        required_start_date = date - pd.Timedelta(days=self.max_agent_lookback * 2) # Ideal start
+        start_slice_date = max(min_data_date, required_start_date) # Actual start based on available data
 
-        # Filtra i dati storici combinando le condizioni
-        historical_prices = prices_df.loc[(prices_df.index >= start_slice_date) & (prices_df.index <= date)].tail(self.max_agent_lookback + 1)
+        # Slice the pre-fetched data up to the current date
+        historical_data_slice = self.all_daily_data.loc[start_slice_date:date]
 
-        # Verifica se abbiamo abbastanza dati storici
-        if len(historical_prices) < self.max_agent_lookback:
-             logger.warning(f"Dati storici insufficienti per {date}: {len(historical_prices)} < {self.max_agent_lookback}")
-             # Se non ci sono abbastanza dati, potremmo decidere di non generare segnali
-             # Restituiamo comunque i dati disponibili, gli agenti gestiranno l'insufficienza
+        # Verifica se abbiamo abbastanza dati storici (considerando l'effettivo start_slice_date)
+        # The agent itself should handle insufficient data if the slice is too short
+        if len(historical_data_slice) < 2: # Need at least 2 points for some calcs
+             logger.warning(f"Slice dati storici troppo corta per {date}: {len(historical_data_slice)} punti.")
+             # Return the slice anyway, let the agent decide
+             # return None # Or decide to skip the day here
 
-        # Verifica se la data corrente è effettivamente presente dopo il slicing
-        if date not in historical_prices.index:
-             logger.warning(f"Data corrente {date} non presente nei dati storici filtrati.")
-             return None # Salta questo giorno se la data corrente non è nei dati filtrati
+        # --- Populate MarketData object ---
+        # The structure depends on what the agent expects.
+        # LongShortStrategyAgent expects combined data with prefixed columns.
+        # Other agents might expect separate prices/volumes/economic/sentiment.
+        # For now, prioritize LongShortStrategyAgent.
 
-        # Estrai volumi storici combinando le condizioni
-        historical_volumes = None
-        if 'Volume' in prices_df.columns:
-             # Applica lo stesso filtro combinato ai volumi
-             historical_volumes = prices_df.loc[(prices_df.index >= start_slice_date) & (prices_df.index <= date), ['Volume']].tail(self.max_agent_lookback + 1)
-             if date not in historical_volumes.index:
-                 historical_volumes = None # Assicura coerenza se la data manca
+        # Pass the *entire* historical slice to the agent.
+        # The agent's internal logic (resampling, indicator calc) will use this slice.
+        # We don't need to separate prices/volumes here if the agent handles the combined data.
 
-        # Estrai dati fondamentali (se disponibili per quella data)
-        current_fundamentals = {} # Da implementare se si usano dati fondamentali giornalieri
+        # TODO: Adapt this if supporting multiple agent types simultaneously with different data needs.
+        # If supporting old agents, we might need to extract SP500 OHLCV, economic, sentiment separately here.
 
-        # Estrai dati di sentiment (se disponibili per quella data)
-        current_sentiment = {}
-        if sentiment_data is not None and not sentiment_data.empty and isinstance(sentiment_data.index, pd.DatetimeIndex):
-             sentiment_for_date = sentiment_data[sentiment_data.index.date == date.date()]
-             if not sentiment_for_date.empty:
-                  # Potrebbe esserci più di una notizia, aggrega o prendi l'ultima
-                  # Qui prendiamo la media dei punteggi se ci sono più righe
-                  current_sentiment = sentiment_for_date.mean().to_dict()
-
-
-        # Estrai indicatori economici (utilizza l'ultimo valore disponibile)
-        current_economic = {}
-        for indicator, series in economic_data.items():
-            # Trova l'ultimo valore <= alla data corrente
-            last_value = series[series.index <= date].iloc[-1] if not series[series.index <= date].empty else None
-            if last_value is not None:
-                current_economic[indicator] = last_value
-
-        # Estrai la riga per il prezzo corrente (necessaria per data_by_symbol)
-        current_price_row = historical_prices.loc[[date]]
-
-        # Assicurati di passare le colonne necessarie per ADX (High, Low, Close)
-        # historical_prices già contiene OHLCV
         return MarketData(
-            prices=historical_prices, # Passa DataFrame storico OHLCV
-            volumes=historical_volumes, # Passa DataFrame storico Volume
-            fundamentals=current_fundamentals,
-            sentiment=current_sentiment, # Passa il dict aggregato o vuoto
-            economic=current_economic, # Aggiunto per completezza
-            technical_indicators={}, # Da calcolare se necessario
-            timestamp=date
+            prices=historical_data_slice, # Pass the combined slice
+            volumes=None, # Volume is within the slice if needed
+            fundamentals=None, # Not used by LS strategy
+            sentiment=None, # Not used by LS strategy
+            economic=None, # Not used by LS strategy
+            technical_indicators={}, # Agent calculates its own
+            timestamp=date # The current simulation date
         )
 
     async def _generate_signals(self, market_data: MarketData) -> List[TradeSignal]:
@@ -517,14 +501,13 @@ class Backtester:
         """Esegue il backtest."""
         logger.info(f"Avvio backtest da {self.start_date} a {self.end_date}")
 
-        # Carica tutti i dati necessari
-        all_data = self.data_manager.data.get("market", {}).get("sp500")
-        if all_data is None or all_data.empty:
-            logger.error("Dati di mercato non disponibili. Eseguire prima prepare_backtest_data.py")
+        # Use the pre-fetched combined daily data
+        if self.all_daily_data is None or self.all_daily_data.empty:
+            logger.error("Dati giornalieri combinati pre-fetched non disponibili nel Backtester.")
             return
 
-        # Filtra i dati per il periodo di backtest
-        backtest_data = all_data[(all_data.index >= self.start_date) & (all_data.index <= self.end_date)]
+        # Filtra i dati pre-fetched per il periodo di backtest effettivo
+        backtest_data = self.all_daily_data[(self.all_daily_data.index >= self.start_date) & (self.all_daily_data.index <= self.end_date)]
 
         if backtest_data.empty:
             logger.error("Nessun dato disponibile per il periodo di backtest specificato.")
@@ -536,11 +519,17 @@ class Backtester:
         # Ciclo principale del backtest
         for date, row in backtest_data.iterrows():
             self.current_date = date
-            # Assicurati che current_price sia uno scalare qui (usiamo Close per coerenza con snapshot)
-            current_price = _get_scalar(row['Close'])
+            # Assicurati che current_price sia uno scalare qui
+            # Use the correct prefixed column name
+            sp500_close_col = 'SP500_Close' # Assuming this is the correct prefix and column
+            if sp500_close_col not in row.index:
+                 logger.error(f"Colonna '{sp500_close_col}' non trovata nei dati per la data {date}. Colonne disponibili: {row.index.tolist()}")
+                 continue # Skip day if essential column is missing
+
+            current_price = _get_scalar(row[sp500_close_col])
             if np.isnan(current_price):
-                logger.error(f"Prezzo di Chiusura non valido per la data {date}. Salto il giorno.")
-                continue # Salta al giorno successivo se il prezzo non è valido
+                 logger.error(f"Prezzo '{sp500_close_col}' non valido per la data {date}. Salto il giorno.")
+                 continue # Salta al giorno successivo se il prezzo non è valido
 
             # --- Check Stop Loss BEFORE generating new signals ---
             stop_loss_triggered = False
@@ -766,10 +755,29 @@ class Backtester:
         Returns:
             Series con i rendimenti giornalieri del benchmark
         """
-        benchmark_data = self.data_manager.data.get("market", {}).get("sp500")
-        if benchmark_data is None or benchmark_data.empty:
-            logger.warning("Dati benchmark non disponibili")
+        # Use pre-fetched data, assuming it contains benchmark columns (e.g., SP500_Close)
+        if self.all_daily_data is None or self.all_daily_data.empty:
+            logger.warning("Dati giornalieri pre-fetched non disponibili per il benchmark.")
             return None
+
+        # Identify benchmark columns (assuming SP500 prefix)
+        benchmark_cols = [col for col in self.all_daily_data.columns if isinstance(col, str) and col.startswith('SP500_')]
+        if not benchmark_cols:
+             # Handle potential MultiIndex
+             benchmark_cols = [col for col in self.all_daily_data.columns if isinstance(col, tuple) and col[0].startswith('SP500_')]
+
+        if not benchmark_cols:
+            logger.warning("Nessuna colonna SP500 trovata nei dati pre-fetched per il benchmark.")
+            return None
+
+        # Select only the benchmark data
+        benchmark_data = self.all_daily_data[benchmark_cols]
+        # Rename columns to remove prefix for consistency if needed, or use prefixed names
+        # Example: benchmark_data.columns = [col[0].replace('SP500_', '') if isinstance(col, tuple) else col.replace('SP500_', '') for col in benchmark_data.columns]
+
+        # Ensure the benchmark data has the correct index type
+        if not isinstance(benchmark_data.index, pd.DatetimeIndex):
+             benchmark_data.index = pd.to_datetime(benchmark_data.index)
 
         # Filtra per il periodo di backtest
         benchmark_data_filtered = benchmark_data[(benchmark_data.index >= self.start_date) & (benchmark_data.index <= self.end_date)]
@@ -778,15 +786,24 @@ class Backtester:
              logger.warning("Nessun dato benchmark disponibile per il periodo di backtest.")
              return None
 
-        # Prova prima con 'Adj Close', poi con 'Close'
-        price_column = None
-        if 'Adj Close' in benchmark_data_filtered.columns:
-            price_column = 'Adj Close'
-        elif 'Close' in benchmark_data_filtered.columns:
-            price_column = 'Close'
-            
-        if price_column:
-            benchmark_returns = benchmark_data_filtered[price_column].pct_change().fillna(0)
+        # Use the correct prefixed 'Close' column
+        price_column_id = 'SP500_Close'
+        # Handle potential MultiIndex
+        if isinstance(benchmark_data_filtered.columns, pd.MultiIndex):
+             potential_ids = [('SP500_Close', ''), ('SP500_Close', 'SP500_^GSPC'), 'SP500_Close']
+             for pid in potential_ids:
+                  if pid in benchmark_data_filtered.columns:
+                       price_column_id = pid
+                       break
+             else:
+                  logger.warning(f"Colonna 'SP500_Close' non trovata per il benchmark nei dati filtrati: {benchmark_data_filtered.columns}")
+                  return None
+        elif price_column_id not in benchmark_data_filtered.columns:
+             logger.warning(f"Colonna 'SP500_Close' non trovata per il benchmark nei dati filtrati: {benchmark_data_filtered.columns}")
+             return None
+
+        if price_column_id:
+            benchmark_returns = benchmark_data_filtered[price_column_id].pct_change().fillna(0)
             # Assicura che l'indice sia allineato con i rendimenti del portafoglio
             portfolio_dates = self.get_results().index
             if not portfolio_dates.empty:
