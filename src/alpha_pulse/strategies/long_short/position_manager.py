@@ -33,18 +33,18 @@ class PositionManager:
         # For now, target_position represents desired allocation (-1 to 1)
         logger.debug(f"PositionManager initialized. Long Threshold: {self.long_threshold}, Short Threshold: {self.short_threshold}") # DEBUG
 
-    def calculate_target_position(self, signal_data: pd.DataFrame, signal_column: str = 'Composite_Signal') -> Optional[pd.Series]:
+    def calculate_target_position(self, signal_data: pd.DataFrame) -> Optional[pd.Series]:
         """
-        Calculates the target position allocation based on the composite signal.
+        Calculates the target position allocation based on the core signal and volatility adjustment.
 
         The target position represents the desired allocation fraction (-1.0 to 1.0).
-        - Signal > long_threshold: Long position, size proportional to signal strength.
-        - Signal < short_threshold: Short position, size proportional to signal strength.
+        - Core_Signal > long_threshold: Long position considered.
+        - Core_Signal < short_threshold: Short position considered.
         - Otherwise: Flat position (0).
+        - Final position size is scaled by Vol_Adjustment.
 
         Args:
-            signal_data: DataFrame containing the composite signal.
-            signal_column: Name of the column containing the composite signal.
+            signal_data: DataFrame containing 'Core_Signal' and 'Vol_Adjustment' columns.
 
         Returns:
             A pandas Series representing the target position allocation (-1.0 to 1.0)
@@ -53,32 +53,38 @@ class PositionManager:
         if signal_data is None or signal_data.empty:
             logger.error("Input signal data is empty or None.")
             return None
-        if signal_column not in signal_data.columns:
-            logger.error(f"Signal column '{signal_column}' not found in DataFrame.")
+        required_cols = ['Core_Signal', 'Vol_Adjustment']
+        if not all(col in signal_data.columns for col in required_cols):
+            missing = [col for col in required_cols if col not in signal_data.columns]
+            logger.error(f"Missing required columns {missing} in signal_data.")
             return None
 
         try:
-            logger.debug(f"Calculating target position based on signal '{signal_column}'") # DEBUG
-            signals = signal_data[signal_column]
-            target_position = pd.Series(0.0, index=signals.index) # Default to flat
+            logger.debug("Calculating target position based on Core_Signal and Vol_Adjustment") # DEBUG
+            core_signals = signal_data['Core_Signal']
+            vol_adjustments = signal_data['Vol_Adjustment']
+            initial_target_position = pd.Series(0.0, index=core_signals.index) # Default to flat
 
-            # Apply thresholds
-            long_mask = signals > self.long_threshold
-            short_mask = signals < self.short_threshold
+            # Apply thresholds to Core_Signal
+            long_mask = core_signals > self.long_threshold
+            short_mask = core_signals < self.short_threshold
 
-            # Target position is directly the signal value where thresholds are met
-            # The signal value already incorporates adjustments (MR, Volatility)
-            target_position[long_mask] = signals[long_mask]
-            target_position[short_mask] = signals[short_mask]
+            # Initial target position is the Core_Signal value where thresholds are met
+            initial_target_position[long_mask] = core_signals[long_mask]
+            initial_target_position[short_mask] = core_signals[short_mask]
 
-            # Ensure values are clipped between -1 and 1 (should already be the case from signal gen)
-            target_position = np.clip(target_position, -1.0, 1.0)
+            # Clip initial target between -1 and 1 (should already be the case from signal gen)
+            initial_target_position = np.clip(initial_target_position, -1.0, 1.0)
+
+            # Apply volatility adjustment to scale the position size
+            target_position = initial_target_position * vol_adjustments
 
             # --- TRACE LOGGING ---
             if not target_position.empty:
                  latest_target = target_position.iloc[-1]
-                 latest_signal = signal_data[signal_column].iloc[-1] if signal_column in signal_data else 'N/A'
-                 logger.trace(f"Latest Target Position: {latest_target:.2f} (based on signal: {latest_signal:.4f}, thresholds: L={self.long_threshold}, S={self.short_threshold})") # TRACE
+                 latest_core_signal = core_signals.iloc[-1]
+                 latest_vol_adj = vol_adjustments.iloc[-1]
+                 logger.trace(f"Latest Target Position: {latest_target:.2f} (Core Signal: {latest_core_signal:.4f}, Vol Adj: {latest_vol_adj:.2f}, Thresh: L={self.long_threshold}, S={self.short_threshold})") # TRACE
             # --- END TRACE LOGGING ---
 
             logger.debug("Target position calculation complete.") # DEBUG

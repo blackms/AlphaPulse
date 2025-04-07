@@ -156,8 +156,9 @@ def generate_composite_signal(
         weights: Dictionary defining weights for combining signals (e.g., {'trend': 1.0, 'mean_reversion': 0.3}).
 
     Returns:
-        DataFrame with intermediate signals and the final 'Composite_Signal' column
-        (ranging potentially from -1.0 to 1.0), or None on error.
+        DataFrame with intermediate signals ('Trend_Signal', 'MR_Adjustment'),
+        the volatility adjustment factor ('Vol_Adjustment'), and the core signal
+        strength ('Core_Signal') before volatility scaling, or None on error.
     """
     if data is None or data.empty:
         logger.error("Input data is empty or None for composite signal generation.")
@@ -198,37 +199,34 @@ def generate_composite_signal(
     if signal_df['Vol_Adjustment'] is None: return None
 
     # 4. Combine Signals
-    logger.debug("Combining signals into composite score...") # DEBUG
+    logger.debug("Combining signals into core signal...") # DEBUG
     try:
-        # Start with the base trend signal
-        composite = signal_df['Trend_Signal'] * weights.get('trend', 1.0)
+        # Calculate core signal based on Trend and Mean Reversion weights
+        core_signal = signal_df['Trend_Signal'] * weights.get('trend', 1.0)
+        core_signal += signal_df['MR_Adjustment'] * weights.get('mean_reversion', 0.3)
 
-        # Apply mean reversion adjustment additively (scaled)
-        # If trend is long (1) and RSI is overbought (MR=-1), composite decreases.
-        # If trend is short (-1) and RSI is oversold (MR=1), composite increases (becomes less negative).
-        composite += signal_df['MR_Adjustment'] * weights.get('mean_reversion', 0.3)
+        # Clip the core signal strength between -1 and 1
+        core_signal = np.clip(core_signal, -1.0, 1.0)
 
-        # Clip the signal strength between -1 and 1 after MR adjustment
-        composite = np.clip(composite, -1.0, 1.0)
-
-        # Apply volatility adjustment multiplicatively
-        # This scales the position size based on volatility
-        composite *= signal_df['Vol_Adjustment'] # No weight needed here, it's a direct scaling factor
-
-        # Final composite signal
-        signal_df['Composite_Signal'] = composite
+        # Store the core signal (before volatility adjustment)
+        signal_df['Core_Signal'] = core_signal
+        # Vol_Adjustment is already in signal_df
 
         # Handle NaNs introduced at the start due to indicators
-        signal_df.fillna(0, inplace=True) # Default to neutral signal if components are NaN
+        # Apply fillna individually to avoid overwriting Vol_Adjustment with 0
+        signal_df['Trend_Signal'].fillna(0, inplace=True)
+        signal_df['MR_Adjustment'].fillna(0, inplace=True)
+        signal_df['Core_Signal'].fillna(0, inplace=True)
+        # Vol_Adjustment should already handle its NaNs (defaulting to 1.0)
 
         # --- TRACE LOGGING ---
         if not signal_df.empty:
              latest_signals = signal_df.iloc[-1]
-             logger.trace(f"Latest Signals: Trend={latest_signals.get('Trend_Signal', 'N/A'):.2f}, MR_Adj={latest_signals.get('MR_Adjustment', 'N/A'):.2f}, Vol_Adj={latest_signals.get('Vol_Adjustment', 'N/A'):.2f}, Composite={latest_signals.get('Composite_Signal', 'N/A'):.4f}") # TRACE
+             logger.trace(f"Latest Signals: Trend={latest_signals.get('Trend_Signal', 'N/A'):.2f}, MR_Adj={latest_signals.get('MR_Adjustment', 'N/A'):.2f}, Vol_Adj={latest_signals.get('Vol_Adjustment', 'N/A'):.2f}, Core={latest_signals.get('Core_Signal', 'N/A'):.4f}") # TRACE
         # --- END TRACE LOGGING ---
 
-        logger.debug("Composite signal generated successfully.") # DEBUG
-        return signal_df
+        logger.debug("Core signal and Volatility Adjustment generated successfully.") # DEBUG
+        return signal_df # Return DataFrame containing Core_Signal and Vol_Adjustment
 
     except Exception as e:
         logger.error(f"Error generating composite signal: {e}")

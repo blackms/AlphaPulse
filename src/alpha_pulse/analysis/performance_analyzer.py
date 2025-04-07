@@ -478,14 +478,6 @@ def analyze_and_save_results(
 
 
         # --- Generazione Grafici Custom ---
-        logger.debug("Generating Equity Curve and Drawdown plot...") # DEBUG
-        plot_equity_curve_and_drawdown(
-            equity_curve=result.equity_curve,
-            output_path=output_dir / "quantstats_report.html",
-            title="Strategy Performance Analysis"
-        )
-
-        # --- Generazione Grafici Custom ---
         plot_equity_curve_and_drawdown(
             equity_curve=result.equity_curve,
             output_path=output_dir / "equity_drawdown.png"

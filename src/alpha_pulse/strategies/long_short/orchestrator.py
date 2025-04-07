@@ -152,12 +152,12 @@ class LongShortOrchestrator:
         logger.debug(f"Signal DataFrame shape: {signal_df.shape}")
 
         # Merge signals back for position/risk calculation
+        # signal_df now contains Core_Signal and Vol_Adjustment
         data_with_signals = pd.merge(data_with_indicators, signal_df, left_index=True, right_index=True, how='left')
 
-        # 4. Calculate Target Position
+        # 4. Calculate Target Position (using Core_Signal and Vol_Adjustment from signal_df/data_with_signals)
         target_position = self.position_manager.calculate_target_position(
-            signal_data=data_with_signals,
-            signal_column='Composite_Signal'
+            signal_data=data_with_signals # Pass the DataFrame with required columns
         )
         if target_position is None:
             logger.error("Failed to calculate target position.")
