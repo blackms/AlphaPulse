@@ -1,0 +1,105 @@
+# Configurazione Backtest S&P 500
+backtest:
+  start_date: "2021-01-01" # Periodo ridotto a 2 anni (2021-2022)
+  end_date: "2022-12-31"
+  initial_capital: 1000000
+  benchmark: "^GSPC"
+  rebalance_frequency: "daily"  # daily, weekly, monthly
+  transaction_costs:
+    commission_pct: 0.001  # 0.1%
+    slippage_pct: 0.0005  # 0.05%
+  
+data:
+  sources:
+    market: "yahoo_finance"  # yahoo_finance, fred, csv
+    fundamental: "sec_edgar"  # sec_edgar, financial_modeling_prep
+    economic: "fred"
+    sentiment: "newsapi"
+  cache_dir: "./data/cache"
+  
+agents:
+  # --- Existing agents disabled for Long/Short Strategy Test ---
+  technical:
+    enabled: false # Disabled
+    weight: 0.5
+    timeframes:
+      short: 20
+      medium: 50
+      long: 200
+  fundamental:
+    enabled: false # Disabled
+    weight: 0.25
+    indicators:
+      pe_ratio: 0.25
+      pb_ratio: 0.20
+      dividend_yield: 0.15
+      roe: 0.20
+      debt_to_equity: 0.20
+  sentiment:
+    enabled: false # Disabled
+    weight: 0.5
+    lookback_days: 7
+  value:
+    enabled: false # Disabled
+    weight: 0.15
+  activist:
+    enabled: false # Disabled
+    weight: 0.15
+
+  # --- New Long/Short Strategy Agent ---
+  long_short_strategy:
+    enabled: true
+    # No weight needed if running standalone
+    strategy_params:
+      # Indicator parameters (using defaults from class)
+      ma_window: 40
+      rsi_window: 14
+      atr_window: 14
+      vix_threshold: 25.0
+      # Signal generation parameters (using defaults from class)
+      signal_weights:
+        trend: 1.0
+        mean_reversion: 0.3
+      # Position manager parameters (using defaults from class)
+      long_threshold: 0.1
+      short_threshold: -0.1
+      # Risk manager parameters (using defaults from class)
+      stop_loss_type: 'atr' # 'percentage' or 'atr'
+      stop_loss_pct: 0.02
+      stop_loss_atr_multiplier: 2.0
+      # Rebalancing frequency
+      rebalance_freq: 'W' # 'W' or 'M'
+    
+risk_management:
+  max_position_size: 0.1  # 10% del portafoglio
+  max_portfolio_leverage: 1.0  # No leva
+  max_drawdown: 0.25  # 25% drawdown massimo
+  stop_loss: 0.05  # 5% stop loss
+  var_confidence: 0.95
+  
+portfolio:
+  strategy: "mpt"  # mpt, hrp, black_litterman
+  rebalancing_threshold: 0.05  # 5% deviazione
+  min_position: 0.01  # 1% minimo
+  max_position: 0.1  # 10% massimo
+  
+benchmarks:
+  strategies:
+    - "buy_and_hold"
+    - "balanced_60_40"
+    - "ma_crossover"
+    - "momentum"
+    - "vol_targeting"
+
+validation:
+  walk_forward:
+    enabled: false # Disabilitato per test iniziale
+    window_size: 504  # 2 anni (252 giorni di trading * 2)
+  monte_carlo:
+    enabled: false # Disabilitato per test iniziale
+    simulations: 1000
+  sensitivity:
+    enabled: false # Disabilitato per test iniziale
+    parameters:
+      - "max_position_size"
+      - "rebalancing_threshold"
