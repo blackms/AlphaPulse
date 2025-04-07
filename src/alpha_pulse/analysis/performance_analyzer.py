@@ -457,11 +457,22 @@ def analyze_and_save_results(
             yaml.dump(summary, f, default_flow_style=False)
         logger.info(f"Riepilogo metriche salvato in {output_dir / 'summary.yaml'}")
 
-        # --- Generazione Report QuantStats ---
+        # --- Generazione Report QuantStats (only if trades occurred) ---
         daily_returns = result.equity_curve.pct_change().fillna(0)
-        generate_quantstats_report(
-            returns=daily_returns,
-            benchmark_returns=benchmark_returns, # Pass benchmark here
+        if result.total_trades > 0:
+            generate_quantstats_report(
+                returns=daily_returns,
+                benchmark_returns=benchmark_returns, # Pass benchmark here
+                output_path=output_dir / "quantstats_report.html",
+                title="Strategy Performance Analysis"
+            )
+        else:
+            logger.warning("Skipping QuantStats report generation as no trades were executed.")
+
+
+        # --- Generazione Grafici Custom ---
+        plot_equity_curve_and_drawdown(
+            equity_curve=result.equity_curve,
             output_path=output_dir / "quantstats_report.html",
             title="Strategy Performance Analysis"
         )
