@@ -290,34 +290,34 @@ def define_optuna_objective(
                 atr_series=train_atr_series # Pass ATR series
             )
 
-            # 4. Calculate objective metric (Sortino Ratio)
+            # 4. Calculate objective metric (Sharpe Ratio)
             daily_returns = train_result.equity_curve.pct_change().fillna(0)
             # Ensure returns index is timezone-naive for QuantStats calculation
             if daily_returns.index.tz is not None:
                 daily_returns = daily_returns.tz_localize(None)
 
-            # Use quantstats to calculate Sortino
-            sortino = qs.stats.sortino(daily_returns)
+            # Use quantstats to calculate Sharpe Ratio
+            sharpe_ratio = qs.stats.sharpe(daily_returns) # Changed from sortino
 
-            # Handle NaN or infinite results from Sortino calculation
-            if pd.isna(sortino) or np.isinf(sortino):
-                # Check if it's due to no trades or no downside deviation
+            # Handle NaN or infinite results from Sharpe calculation
+            if pd.isna(sharpe_ratio) or np.isinf(sharpe_ratio):
+                # Check if it's due to no trades or zero standard deviation
                 if train_result.total_trades == 0:
-                    logger.debug(f"Trial {trial.number}: No trades executed. Assigning poor Sortino score (-10).") # Changed to DEBUG
+                    logger.debug(f"Trial {trial.number}: No trades executed. Assigning poor Sharpe score (-10).")
                     metric_value = -10.0 # Assign a poor score instead of failing
-                elif not (daily_returns < 0).any(): # No downside deviation
-                    logger.debug(f"Trial {trial.number}: No downside deviation detected. Assigning poor Sortino score (-10).") # Changed to DEBUG
+                elif daily_returns.std() == 0: # Check for zero standard deviation
+                    logger.debug(f"Trial {trial.number}: Zero standard deviation in returns. Assigning poor Sharpe score (-10).")
                     metric_value = -10.0 # Assign a poor score
                 else:
-                    logger.warning(f"Trial {trial.number}: Sortino calculation resulted in NaN/inf ({sortino}) for unknown reason. Returning large penalty.")
+                    logger.warning(f"Trial {trial.number}: Sharpe calculation resulted in NaN/inf ({sharpe_ratio}) for unknown reason. Returning large penalty.")
                     return 1e9 # Return penalty for other NaN/inf cases
             else:
-                 metric_value = sortino
+                 metric_value = sharpe_ratio
 
-            logger.debug(f"Trial {trial.number}: Params={trial_params}, Calculated Sortino={metric_value:.4f}") # Changed to DEBUG
+            logger.debug(f"Trial {trial.number}: Params={trial_params}, Calculated Sharpe Ratio={metric_value:.4f}") # Changed log message
 
-            # Optuna minimizes by default, but we want to MAXIMIZE Sortino.
-            # Return negative Sortino.
+            # Optuna minimizes by default, but we want to MAXIMIZE Sharpe Ratio.
+            # Return negative Sharpe Ratio.
             return_value = -metric_value
             logger.debug(f"Trial {trial.number}: Returning objective value: {return_value}")
             return return_value
@@ -446,7 +446,7 @@ async def main():
 
         # --- 2. Optimize Parameters on Training Data ---
         logger.info("Optimizing parameters using Optuna...")
-        study = optuna.create_study(direction="maximize") # Maximize objective (negative Sortino)
+        study = optuna.create_study(direction="maximize") # Maximize objective (negative Sharpe Ratio)
         objective_func = define_optuna_objective(
              train_data_period, # Pass data including buffer for indicator calculation
              strategy_config,
@@ -466,15 +466,15 @@ async def main():
         # --- END DEBUG ---
 
         # Handle cases where optimization might fail completely (e.g., all trials fail or best value is penalty)
-        # Optuna minimizes, so best_value should be negative (or zero) for valid Sortino. abs(value) >= 1e9 indicates failure.
+        # Optuna minimizes, so best_value should be negative (or zero) for valid Sharpe. abs(value) >= 1e9 indicates failure.
         if not study.best_trial or abs(study.best_value) >= 1e9: # Check if abs(best_value) is the penalty
              logger.error(f"Optuna optimization failed to find any valid trial for period {i+1}. Skipping.")
              continue
 
         best_params = study.best_params
-        best_value = study.best_value # This is the negative Sortino
-        best_params_per_period[f"Period_{i+1}"] = {'params': best_params, 'metric_value': -best_value} # Store actual metric value
-        logger.info(f"Optimization complete. Best Metric Value (Sortino): {-best_value:.4f}")
+        best_value = study.best_value # This is the negative Sharpe Ratio
+        best_params_per_period[f"Period_{i+1}"] = {'params': best_params, 'metric_value': -best_value} # Store actual metric value (Sharpe)
+        logger.info(f"Optimization complete. Best Metric Value (Sharpe Ratio): {-best_value:.4f}") # Updated log message
         logger.info(f"Best Parameters: {best_params}")
 
         # --- 3. Select OOS Data Subset (including buffer for indicators) ---
