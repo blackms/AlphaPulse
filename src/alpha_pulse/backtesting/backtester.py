@@ -410,12 +410,12 @@ class Backtester:
                             # TODO: Consider updating average entry price if increasing position size
                             self.current_position.size = new_size
                             # Log adjustment (no change needed for trailing stop vars here)
-                            logger.info(
-                                f"[{timestamp.date()}] ADJUST {'LONG' if new_size > 0 else 'SHORT'}. "
-                                f"Trade Qty: {quantity_to_trade:.4f} @ {current_close:.2f}. " # Use current_close for price ref
-                                f"New Size: {new_size:.4f}. Target: {target_allocation:.2f}. "
-                                f"Realized PnL: {realized_pnl_trade:.2f}. Equity: {self.equity:.2f}"
-                            )
+                            # logger.info(
+                            #    f"[{timestamp.date()}] ADJUST {'LONG' if new_size > 0 else 'SHORT'}. "
+                            #    f"Trade Qty: {quantity_to_trade:.4f} @ {current_close:.2f}. " # Use current_close for price ref
+                            #    f"New Size: {new_size:.4f}. Target: {target_allocation:.2f}. "
+                            #    f"Realized PnL: {realized_pnl_trade:.2f}. Equity: {self.equity:.2f}"
+                            # )
                             trade_executed_today = True
 
 
