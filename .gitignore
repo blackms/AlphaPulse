@@ -36,6 +36,7 @@ ENV/
 
 # Logs and databases
 *.log
+*.log.zip # Ignore compressed loguru logs
 *.sqlite
 logs/
 *.db

@@ -30,6 +30,7 @@ from typing import Dict, List, Any, Tuple, Optional
 import optuna # Import Optuna
 import copy # Import copy for deepcopy
 import warnings # Import warnings module
+import sys # Import sys for stderr logging
 
 # Import necessary AlphaPulse components
 from src.alpha_pulse.backtesting.backtester import Backtester, BacktestResult
@@ -45,7 +46,7 @@ import quantstats as qs # For benchmark fetching and stats calculation
 # Configure Loguru
 logger.remove() # Remove default handler
 logger.add("run_walk_forward.log", level="DEBUG", rotation="10 MB", compression="zip", format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} - {message}") # Log DEBUG+ to file with detailed format
-logger.add(lambda msg: print(msg, end=""), level="INFO", format="{message}") # Log INFO+ to console with minimal format
+logger.add(sys.stderr, level="INFO", format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} - {message}", colorize=True) # Log INFO+ to console with detailed format and color
 
 # Set Optuna logging level to WARNING to reduce verbosity during optimization
 optuna.logging.set_verbosity(optuna.logging.WARNING)
