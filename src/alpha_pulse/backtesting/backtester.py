@@ -362,64 +362,57 @@ class Backtester:
                             self.current_position = Position(
                                 entry_price=current_close, entry_time=timestamp, size=quantity_to_trade # Use current_close
                             )
-                           # Initialize trailing stop variables on entry
-                           active_stop_loss = initial_stop_loss # Use the SL provided for this day
-                           high_since_entry = current_close # Initialize with entry price (Close)
-                           low_since_entry = current_close  # Initialize with entry price (Close)
-                           logger.info(f"[{timestamp.date()}] ENTER {'LONG' if quantity_to_trade > 0 else 'SHORT'}. Size: {quantity_to_trade:.4f} @ {current_close:.2f}. Target: {target_allocation:.2f}. Initial SL: {active_stop_loss if pd.notna(active_stop_loss) else 'N/A'}. Equity: {self.equity:.2f}")
-                           trade_executed_today = True
-                   else: # Adjusting existing position
-                       if abs(new_size) < 1e-9: # Position closed completely
-                           self.current_position.exit_price = current_close # Use current_close
-                           self.current_position.exit_time = timestamp
-                           self.current_position.pnl = realized_pnl_trade # PnL from this closing trade
-                           self.positions.append(self.current_position)
-                           logger.info(f"[{timestamp.date()}] CLOSE {'LONG' if old_size > 0 else 'SHORT'}. Qty: {quantity_to_trade:.4f} @ {current_close:.2f}. PnL: {realized_pnl_trade:.2f}. Equity: {self.equity:.2f}")
-                           # Reset position state
-                           self.current_position = None
-                           active_stop_loss = None
-                           high_since_entry = None
-                           low_since_entry = None
-                           trade_executed_today = True
-                       elif is_flipping:
-                            # Record the closed part
-                           closed_pos_record = Position(
-                               entry_price=self.current_position.entry_price, entry_time=self.current_position.entry_time,
-                               size= -closed_quantity if old_size < 0 else closed_quantity,
-                               exit_price=current_close, exit_time=timestamp, pnl=realized_pnl_trade # Use current_close
-                           )
-                           self.positions.append(closed_pos_record)
-                           # Reset current_position for the new direction
-                           self.current_position.entry_price = current_close # Use current_close
-                           self.current_position.entry_time = timestamp
-                           self.current_position.size = new_size # Remaining size after flip
-                           self.current_position.exit_price = None
-                           self.current_position.exit_time = None
-                           self.current_position.pnl = None
-                           # Initialize trailing stop variables for the new position
-                           active_stop_loss = initial_stop_loss # Use the SL provided for this day
-                           high_since_entry = current_close # Initialize with entry price (Close)
-                           low_since_entry = current_close  # Initialize with entry price (Close)
-                           logger.info(
-                               f"[{timestamp.date()}] FLIP to {'LONG' if new_size > 0 else 'SHORT'}. "
-                               f"Close Qty: {closed_quantity:.4f}. Open Qty: {abs(new_size):.4f} @ {current_close:.2f}. "
-                               f"Realized PnL: {realized_pnl_trade:.2f}. Initial SL: {active_stop_loss if pd.notna(active_stop_loss) else 'N/A'}. Equity: {self.equity:.2f}"
-                           )
-                           trade_executed_today = True
-                       else: # Adjusting size (increasing or partial close without flip)
-                           # TODO: Consider updating average entry price if increasing position size
-                           self.current_position.size = new_size
-                           # Log adjustment (no change needed for trailing stop vars here)
-                           logger.info(
-                               f"[{timestamp.date()}] ADJUST {'LONG' if new_size > 0 else 'SHORT'}. "
-                               f"Trade Qty: {quantity_to_trade:.4f} @ {current_close:.2f}. " # Use current_close for price ref
-                               f"New Size: {new_size:.4f}. Target: {target_allocation:.2f}. "
-                               f"Realized PnL: {realized_pnl_trade:.2f}. Equity: {self.equity:.2f}"
-                           )
-                           trade_executed_today = True
+                            # Initialize trailing stop variables on entry
+                            active_stop_loss = initial_stop_loss # Use the SL provided for this day
+                            high_since_entry = current_close # Initialize with entry price (Close)
+                            low_since_entry = current_close  # Initialize with entry price (Close)
+                            logger.info(f"[{timestamp.date()}] ENTER {'LONG' if quantity_to_trade > 0 else 'SHORT'}. Size: {quantity_to_trade:.4f} @ {current_close:.2f}. Target: {target_allocation:.2f}. Initial SL: {active_stop_loss if pd.notna(active_stop_loss) else 'N/A'}. Equity: {self.equity:.2f}")
+                            trade_executed_today = True
+                    else: # Adjusting existing position
+                        if abs(new_size) < 1e-9: # Position closed completely
+                            self.current_position.exit_price = current_close # Use current_close
+                            self.current_position.exit_time = timestamp
+                            self.current_position.pnl = realized_pnl_trade # PnL from this closing trade
+                            self.positions.append(self.current_position)
+                            logger.info(f"[{timestamp.date()}] CLOSE {'LONG' if old_size > 0 else 'SHORT'}. Qty: {quantity_to_trade:.4f} @ {current_close:.2f}. PnL: {realized_pnl_trade:.2f}. Equity: {self.equity:.2f}")
+                            # Reset position state
+                            self.current_position = None
+                            active_stop_loss = None
+                            high_since_entry = None
+                            low_since_entry = None
+                            trade_executed_today = True
+                        elif is_flipping:
+                             # Record the closed part
+                            closed_pos_record = Position(
+                                entry_price=self.current_position.entry_price, entry_time=self.current_position.entry_time,
+                                size= -closed_quantity if old_size < 0 else closed_quantity,
+                                exit_price=current_close, exit_time=timestamp, pnl=realized_pnl_trade # Use current_close
+                            )
+                            self.positions.append(closed_pos_record)
+                            # Reset current_position for the new direction
+                            self.current_position.entry_price = current_close # Use current_close
+                            self.current_position.entry_time = timestamp
+                            self.current_position.size = new_size # Remaining size after flip
+                            self.current_position.exit_price = None
+                            self.current_position.exit_time = None
+                            self.current_position.pnl = None
+                            # Initialize trailing stop variables for the new position
+                            active_stop_loss = initial_stop_loss # Use the SL provided for this day
+                            high_since_entry = current_close # Initialize with entry price (Close)
+                            low_since_entry = current_close  # Initialize with entry price (Close)
+                            logger.info(
+                                f"[{timestamp.date()}] FLIP to {'LONG' if new_size > 0 else 'SHORT'}. "
+                                f"Close Qty: {closed_quantity:.4f}. Open Qty: {abs(new_size):.4f} @ {current_close:.2f}. "
+                                f"Realized PnL: {realized_pnl_trade:.2f}. Initial SL: {active_stop_loss if pd.notna(active_stop_loss) else 'N/A'}. Equity: {self.equity:.2f}"
+                            )
+                            trade_executed_today = True
+                        else: # Adjusting size (increasing or partial close without flip)
+                            # TODO: Consider updating average entry price if increasing position size
+                            self.current_position.size = new_size
+                            # Log adjustment (no change needed for trailing stop vars here)
                             logger.info(
                                 f"[{timestamp.date()}] ADJUST {'LONG' if new_size > 0 else 'SHORT'}. "
-                                f"Trade Qty: {quantity_to_trade:.4f} @ {current_price:.2f}. "
+                                f"Trade Qty: {quantity_to_trade:.4f} @ {current_close:.2f}. " # Use current_close for price ref
                                 f"New Size: {new_size:.4f}. Target: {target_allocation:.2f}. "
                                 f"Realized PnL: {realized_pnl_trade:.2f}. Equity: {self.equity:.2f}"
                             )
