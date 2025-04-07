@@ -572,7 +572,7 @@ async def main():
 
         logger.info(f"OOS Period {i+1} Backtest Complete. Return: {oos_result.total_return:.2%}, End Equity: {cumulative_equity:.2f}")
         all_oos_results.append(oos_result)
-        all_oos_prices.append(oos_price_series_test) # Store the prices used for this OOS backtest
+        all_oos_prices.append(oos_ohlc_data_test['Close']) # Store the Close prices used for this OOS backtest
 
     # --- 6. Aggregate & Analyze Results ---
     logger.info("\n=== Aggregating and Analyzing Walk-Forward Results ===")
