@@ -320,8 +320,8 @@ class Backtester:
                 min_trade_value = 1.0 # Example: minimum $1 trade value threshold
                 min_trade_qty_threshold = 1e-9 # Avoid trading dust
 
-                if abs(quantity_to_trade * current_price) > min_trade_value and abs(quantity_to_trade) > min_trade_qty_threshold:
-                    commission_cost = abs(quantity_to_trade * current_price) * self.commission
+                if abs(quantity_to_trade * current_close) > min_trade_value and abs(quantity_to_trade) > min_trade_qty_threshold:
+                    commission_cost = abs(quantity_to_trade * current_close) * self.commission
                     self.equity -= commission_cost # Commission always reduces equity
 
                     realized_pnl_trade = 0.0
@@ -343,7 +343,7 @@ class Backtester:
                         closed_quantity = min(closed_quantity, abs(old_size)) # Ensure we don't close more than held
 
                         if closed_quantity > 1e-9:
-                            exit_value_closed = closed_quantity * current_price * (1 - self.commission)
+                            exit_value_closed = closed_quantity * current_close * (1 - self.commission)
                             entry_value_closed = closed_quantity * self.current_position.entry_price * (1 + self.commission) # Cost basis of the closed part
                             pnl_closed = (exit_value_closed - entry_value_closed) if old_size > 0 else (entry_value_closed - exit_value_closed)
                             realized_pnl_trade += pnl_closed
