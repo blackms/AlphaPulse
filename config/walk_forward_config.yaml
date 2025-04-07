@@ -58,8 +58,8 @@ strategy:
       signal_weights.trend: { type: float, low: 0.0, high: 1.0, step: 0.1 } # Optimize trend weight
       signal_weights.mean_reversion: { type: float, low: 0.0, high: 1.0, step: 0.1 } # Optimize MR weight
       # Note: The objective function in run_walk_forward.py will need to handle normalization if weights must sum to 1.
-      position_manager.long_threshold: { type: float, low: 0.0, high: 0.5, step: 0.05 }
-      position_manager.short_threshold: { type: float, low: -0.5, high: 0.0, step: 0.05 }
+      position_manager.long_threshold: { type: float, low: 0.0, high: 0.3, step: 0.05 } # Relaxed upper bound from 0.5
+      position_manager.short_threshold: { type: float, low: -0.3, high: 0.0, step: 0.05 } # Relaxed lower bound from -0.5
 
 # data_loader: # Optional: Specific settings for data loader if needed
 #   exchange: 'yfinance'
