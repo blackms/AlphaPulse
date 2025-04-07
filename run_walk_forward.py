@@ -271,8 +271,15 @@ def define_optuna_objective(
                 initial_capital=backtester_params.get('initial_capital', 100000.0),
                 commission=backtester_params.get('commission', 0.001)
             )
-            # Extract necessary data for backtester
-            train_ohlc_data = train_data_with_signals[['Open', 'High', 'Low', 'Close']].loc[actual_train_start_dt:train_end_dt]
+            # Extract necessary data for backtester using prefixed column names
+            ohlc_cols = [f"{primary_symbol}_Open", f"{primary_symbol}_High", f"{primary_symbol}_Low", f"{primary_symbol}_Close"]
+            if not all(col in train_data_with_signals.columns for col in ohlc_cols):
+                logger.error(f"Trial {trial.number}: Missing one or more OHLC columns ({ohlc_cols}) in orchestrated data.")
+                return 1e9 # Penalize failure
+            # Rename columns to standard OHLC for the backtester
+            train_ohlc_data = train_data_with_signals[ohlc_cols].loc[actual_train_start_dt:train_end_dt].copy() # Use .copy() to avoid SettingWithCopyWarning
+            train_ohlc_data.columns = ['Open', 'High', 'Low', 'Close'] # Rename to standard names
+
             # Extract ATR series (assuming column name format like ATR_14)
             atr_col_name = f"ATR_{indicator_config.get('atr_window', 14)}"
             train_atr_series = train_data_with_signals[atr_col_name].loc[actual_train_start_dt:train_end_dt] if atr_col_name in train_data_with_signals else None
@@ -511,16 +518,22 @@ async def main():
 
         # --- 5. Run Backtest on OOS Period ---
         logger.info("Running backtest on OOS period...")
-        # Extract OOS OHLC data and ATR series from the orchestrated data
-        oos_ohlc_data = oos_data_with_signals[['Open', 'High', 'Low', 'Close']]
+        # Extract OOS OHLC data and ATR series using prefixed column names
+        ohlc_cols = [f"{primary_symbol}_Open", f"{primary_symbol}_High", f"{primary_symbol}_Low", f"{primary_symbol}_Close"]
+        if not all(col in oos_data_with_signals.columns for col in ohlc_cols):
+            logger.error(f"Missing one or more OHLC columns ({ohlc_cols}) in OOS orchestrated data. Skipping period.")
+            continue
+        oos_ohlc_data_full = oos_data_with_signals[ohlc_cols].copy() # Use .copy()
+        oos_ohlc_data_full.columns = ['Open', 'High', 'Low', 'Close'] # Rename to standard names
+
         atr_col_name = f"ATR_{optimized_strategy_config.get('indicators', {}).get('atr_window', 14)}"
-        oos_atr_series = oos_data_with_signals[atr_col_name] if atr_col_name in oos_data_with_signals else None
+        oos_atr_series_full = oos_data_with_signals[atr_col_name] if atr_col_name in oos_data_with_signals else None
 
         # Filter for the actual OOS test range (test_start to test_end)
-        oos_ohlc_data_test = oos_ohlc_data.loc[test_start:test_end]
+        oos_ohlc_data_test = oos_ohlc_data_full.loc[test_start:test_end]
         oos_target_allocations_test = oos_target_allocations.reindex(oos_ohlc_data_test.index)
         oos_stop_losses_test = oos_stop_losses.reindex(oos_ohlc_data_test.index)
-        oos_atr_series_test = oos_atr_series.reindex(oos_ohlc_data_test.index) if oos_atr_series is not None else pd.Series(np.nan, index=oos_ohlc_data_test.index)
+        oos_atr_series_test = oos_atr_series_full.reindex(oos_ohlc_data_test.index) if oos_atr_series_full is not None else pd.Series(np.nan, index=oos_ohlc_data_test.index)
 
 
         if oos_ohlc_data_test.empty:
