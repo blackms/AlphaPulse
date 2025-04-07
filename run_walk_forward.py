@@ -33,6 +33,7 @@ import copy # Import copy for deepcopy
 from src.alpha_pulse.backtesting.backtester import Backtester, BacktestResult
 from src.alpha_pulse.backtesting.data_loader import load_ohlcv_data
 from src.alpha_pulse.strategies.long_short.orchestrator import LongShortOrchestrator
+from src.alpha_pulse.strategies.long_short.risk_manager import RiskManager
 # Import the analysis function from the correct module
 from src.alpha_pulse.analysis.performance_analyzer import analyze_and_save_results
 import quantstats as qs # For benchmark fetching and stats calculation
@@ -189,18 +190,11 @@ def define_optuna_objective(
                  # Fail the trial if parameter setting fails
                  return 1e9 # Return large positive penalty for minimization
 
+         # Note: Optimized signal weights ('signal_weights.trend', 'signal_weights.mean_reversion')
+         # are used directly as suggested by Optuna. No normalization (e.g., sum to 1)
+         # is applied within this objective function, as the signal_generator uses them as is.
 
-        # TODO: Handle constraints like sum of weights = 1 if necessary
-        # Example: Normalize weights if they are optimized independently
-        # if 'signal_weights' in current_strategy_config:
-        #     weights = current_strategy_config['signal_weights']
-        #     total_weight = sum(weights.values())
-        #     if total_weight > 1e-6: # Avoid division by zero
-        #         for k in weights:
-        #             weights[k] /= total_weight
-
-
-        # 3. Run backtest on TRAINING data
+         # 3. Run backtest on TRAINING data
         try:
             # a. Generate signals/stops for training period
             # Ensure orchestrator uses the correct primary symbol
@@ -268,14 +262,26 @@ def define_optuna_objective(
 
             # c. Run backtester
             backtester_params = backtest_config.get('parameters', {})
+            # Instantiate RiskManager with the current trial's config
+            risk_manager_config = current_strategy_config.get('risk_manager', {})
+            risk_manager = RiskManager(config=risk_manager_config)
+            # Instantiate Backtester with RiskManager
             backtester = Backtester(
+                risk_manager=risk_manager, # Pass the risk manager
                 initial_capital=backtester_params.get('initial_capital', 100000.0),
                 commission=backtester_params.get('commission', 0.001)
             )
+            # Extract necessary data for backtester
+            train_ohlc_data = train_data_with_signals[['Open', 'High', 'Low', 'Close']].loc[actual_train_start_dt:train_end_dt]
+            # Extract ATR series (assuming column name format like ATR_14)
+            atr_col_name = f"ATR_{indicator_config.get('atr_window', 14)}"
+            train_atr_series = train_data_with_signals[atr_col_name].loc[actual_train_start_dt:train_end_dt] if atr_col_name in train_data_with_signals else None
+
             train_result = backtester.backtest(
-                prices=train_price_series,
+                ohlc_data=train_ohlc_data, # Pass OHLC DataFrame
                 signals=train_target_allocations,
-                stop_losses=train_stop_losses
+                stop_losses=train_stop_losses,
+                atr_series=train_atr_series # Pass ATR series
             )
 
             # 4. Calculate objective metric (Sortino Ratio)
@@ -505,29 +511,39 @@ async def main():
 
         # --- 5. Run Backtest on OOS Period ---
         logger.info("Running backtest on OOS period...")
-        oos_price_series = oos_data_with_signals[price_col_name]
+        # Extract OOS OHLC data and ATR series from the orchestrated data
+        oos_ohlc_data = oos_data_with_signals[['Open', 'High', 'Low', 'Close']]
+        atr_col_name = f"ATR_{optimized_strategy_config.get('indicators', {}).get('atr_window', 14)}"
+        oos_atr_series = oos_data_with_signals[atr_col_name] if atr_col_name in oos_data_with_signals else None
 
         # Filter for the actual OOS test range (test_start to test_end)
-        oos_price_series_test = oos_price_series[test_start:test_end]
-        oos_target_allocations_test = oos_target_allocations.reindex(oos_price_series_test.index)
-        oos_stop_losses_test = oos_stop_losses.reindex(oos_price_series_test.index)
+        oos_ohlc_data_test = oos_ohlc_data.loc[test_start:test_end]
+        oos_target_allocations_test = oos_target_allocations.reindex(oos_ohlc_data_test.index)
+        oos_stop_losses_test = oos_stop_losses.reindex(oos_ohlc_data_test.index)
+        oos_atr_series_test = oos_atr_series.reindex(oos_ohlc_data_test.index) if oos_atr_series is not None else pd.Series(np.nan, index=oos_ohlc_data_test.index)
 
-        if oos_price_series_test.empty:
-             logger.warning("No price data in OOS test range after filtering. Skipping period.")
+
+        if oos_ohlc_data_test.empty:
+             logger.warning("No OHLC data in OOS test range after filtering. Skipping period.")
              continue
 
         # Use equity from end of previous period as starting capital for this one
         current_initial_capital = cumulative_equity
 
-        backtester = Backtester(
+        # Instantiate RiskManager and Backtester for OOS run
+        oos_risk_manager_config = optimized_strategy_config.get('risk_manager', {})
+        oos_risk_manager = RiskManager(config=oos_risk_manager_config)
+        oos_backtester = Backtester(
+            risk_manager=oos_risk_manager, # Pass risk manager
             initial_capital=current_initial_capital, # Use carried-over capital
             commission=backtest_config.get('parameters', {}).get('commission', 0.001) # Get commission from backtest params
         )
 
-        oos_result = backtester.backtest(
-            prices=oos_price_series_test,
+        oos_result = oos_backtester.backtest(
+            ohlc_data=oos_ohlc_data_test, # Pass OHLC DataFrame
             signals=oos_target_allocations_test,
-            stop_losses=oos_stop_losses_test
+            stop_losses=oos_stop_losses_test,
+            atr_series=oos_atr_series_test # Pass ATR series
         )
         # Update cumulative equity for the next period
         cumulative_equity = oos_result.equity_curve.iloc[-1]

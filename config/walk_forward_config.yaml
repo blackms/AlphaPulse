@@ -13,7 +13,7 @@ walk_forward:
   train_months: 24           # Length of the training period in months
   test_months: 6             # Length of the out-of-sample (OOS) test period in months
   step_months: 6             # How many months to slide forward for the next period
-  optimization_trials: 50    # Number of Optuna trials per training period
+  optimization_trials: 150   # Number of Optuna trials per training period (Increased from 50)
   optimization_timeout_seconds: null # Optional: Max seconds per Optuna study (e.g., 3600 for 1 hour)
 
 backtest: # Overall settings and backtester parameters
@@ -37,9 +37,9 @@ strategy:
       atr_window: 14
       vix_threshold: 25.0
     signal_weights:
-      trend: 0.5
-      mean_reversion: 0.3
-      volatility: 0.2
+      trend: 0.5           # Base value, will be overridden by optimization
+      mean_reversion: 0.3  # Base value, will be overridden by optimization
+      # volatility: 0.2 # Removed - Volatility adjustment is multiplicative in signal_generator
     position_manager:
       long_threshold: 0.1
       short_threshold: -0.1
@@ -55,10 +55,9 @@ strategy:
       indicators.atr_window: { type: int, low: 5, high: 30, step: 1 }
       indicators.vix_threshold: { type: float, low: 15.0, high: 40.0, step: 1.0 }
       risk_manager.atr_multiplier: { type: float, low: 1.0, high: 5.0, step: 0.25 }
-      # Example: Optimizing weights (ensure constraints handled in objective if needed)
-      # signal_weights.trend: { type: float, low: 0.0, high: 1.0 }
-      # signal_weights.mean_reversion: { type: float, low: 0.0, high: 1.0 }
-      # signal_weights.volatility: { type: float, low: 0.0, high: 1.0 }
+      signal_weights.trend: { type: float, low: 0.0, high: 1.0, step: 0.1 } # Optimize trend weight
+      signal_weights.mean_reversion: { type: float, low: 0.0, high: 1.0, step: 0.1 } # Optimize MR weight
+      # Note: The objective function in run_walk_forward.py will need to handle normalization if weights must sum to 1.
       position_manager.long_threshold: { type: float, low: 0.0, high: 0.5, step: 0.05 }
       position_manager.short_threshold: { type: float, low: -0.5, high: 0.0, step: 0.05 }
 

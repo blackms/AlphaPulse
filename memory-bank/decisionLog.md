@@ -122,3 +122,35 @@ This file records architectural and implementation decisions using a list format
 * **Lookahead Prevention:** Data is loaded once, then sliced for each train/test period. Optimization runs only on train slice. Best params used to generate signals/stops on OOS slice (including buffer). Backtest runs only on the OOS test slice (without buffer).
 * **Analysis:** Aggregate OOS results, recalculate overall metrics, perform Monte Carlo on combined OOS returns, compare vs benchmark in `analyze_and_save_results`.
 * **Files:** `run_walk_forward.py`, `config/walk_forward_config.yaml`, enhancements to `src/alpha_pulse/analysis/performance_analyzer.py`.
+
+
+
+## 2025-04-07: Walk-Forward Improvement Plan - Phase 1 Implementation
+
+### Decision
+* Implement Phase 1 fixes identified during analysis of poor walk-forward results:
+    * Implement ATR/Percentage-based trailing stop loss mechanism.
+    * Optimize `signal_weights.trend` and `signal_weights.mean_reversion` during walk-forward training.
+    * Increase Optuna `optimization_trials` from 50 to 150.
+
+### Rationale
+* Trailing stop loss aims to let winners run while protecting profits, addressing the issue of premature exits caused by the previous static, tight stop loss.
+* Optimizing signal weights allows the strategy to adapt the balance between trend and mean reversion components based on market conditions in the training period.
+* Increasing optimization trials provides a better chance of finding optimal parameters, especially with the added weight parameters.
+
+### Implementation Details
+* **`config/walk_forward_config.yaml`**: 
+    * Added `signal_weights.trend` and `signal_weights.mean_reversion` to `optimization_params`.
+    * Increased `optimization_trials` to 150.
+    * Removed unused `volatility` weight from base `signal_weights`.
+* **`src/alpha_pulse/strategies/long_short/risk_manager.py`**: 
+    * Added `update_trailing_stop` method to calculate updated stop based on high/low since entry and ATR/percentage.
+* **`src/alpha_pulse/backtesting/backtester.py`**: 
+    * Modified `__init__` to accept a `RiskManager` instance.
+    * Modified `backtest` method to accept OHLC `DataFrame` and ATR `Series`.
+    * Added logic within the main loop to track high/low since entry, call `risk_manager.update_trailing_stop`, and use the updated stop loss for exit checks.
+    * Updated position entry/close/flip logic to initialize/reset trailing stop variables.
+* **`run_walk_forward.py`**: 
+    * Added `RiskManager` import.
+    * Modified `define_optuna_objective` to instantiate `RiskManager`, pass it to `Backtester`, extract OHLC/ATR data, and call `backtester.backtest` with OHLC/ATR.
+    * Modified OOS backtest section in `main` similarly to instantiate `RiskManager`, pass it to `Backtester`, extract OHLC/ATR data, and call `backtester.backtest` with OHLC/ATR.

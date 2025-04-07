@@ -91,6 +91,68 @@ class RiskManager:
 
         return stop_loss_price
 
+    def update_trailing_stop(
+        self,
+        current_stop_loss: float,
+        high_since_entry: float,
+        low_since_entry: float,
+        direction: Literal['long', 'short'],
+        current_atr: Optional[float] = None
+    ) -> float:
+        """
+        Updates the trailing stop loss level based on the high/low price reached.
+
+        The stop loss only moves in the direction of the trade (up for longs, down for shorts).
+
+        Args:
+            current_stop_loss: The current stop loss level for the position.
+            high_since_entry: The highest price reached since the position was opened.
+            low_since_entry: The lowest price reached since the position was opened.
+            direction: The direction of the trade ('long' or 'short').
+            current_atr: The current ATR value (required if stop_loss_type is 'atr').
+
+        Returns:
+            The updated (or original) stop loss level.
+        """
+        if pd.isna(current_stop_loss): # Cannot trail if no initial stop exists
+             return current_stop_loss
+
+        new_potential_stop = None
+
+        if self.stop_loss_type == 'percentage':
+            if direction == 'long':
+                new_potential_stop = high_since_entry * (1 - self.stop_loss_pct)
+            else: # short
+                new_potential_stop = low_since_entry * (1 + self.stop_loss_pct)
+            logger.debug(f"Trailing % Stop: Potential new stop={new_potential_stop:.2f} based on high/low={high_since_entry:.2f}/{low_since_entry:.2f}")
+
+        elif self.stop_loss_type == 'atr':
+            if current_atr is None or not isinstance(current_atr, (int, float)) or current_atr <= 0:
+                logger.warning(f"Cannot update ATR trailing stop: valid current_atr not provided or invalid: {current_atr}")
+                return current_stop_loss # Return current stop if ATR is invalid
+            atr_offset = self.stop_loss_atr_multiplier * current_atr
+            if direction == 'long':
+                new_potential_stop = high_since_entry - atr_offset
+            else: # short
+                new_potential_stop = low_since_entry + atr_offset
+            logger.debug(f"Trailing ATR Stop: Potential new stop={new_potential_stop:.2f} based on high/low={high_since_entry:.2f}/{low_since_entry:.2f}, ATR={current_atr:.2f}")
+
+        # Ensure potential stop is not negative
+        if new_potential_stop is not None and new_potential_stop < 0:
+            new_potential_stop = 0.0
+
+        # Update stop only if it moves favorably
+        updated_stop_loss = current_stop_loss
+        if new_potential_stop is not None:
+            if direction == 'long' and new_potential_stop > current_stop_loss:
+                updated_stop_loss = new_potential_stop
+                logger.debug(f"Trailing Stop Updated (Long): {current_stop_loss:.2f} -> {updated_stop_loss:.2f}")
+            elif direction == 'short' and new_potential_stop < current_stop_loss:
+                updated_stop_loss = new_potential_stop
+                logger.debug(f"Trailing Stop Updated (Short): {current_stop_loss:.2f} -> {updated_stop_loss:.2f}")
+
+        return updated_stop_loss
+
     def check_drawdown(self, equity_curve: pd.Series) -> bool:
         """
         Placeholder for drawdown control logic.
