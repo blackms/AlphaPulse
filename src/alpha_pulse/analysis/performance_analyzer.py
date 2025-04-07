@@ -71,13 +71,7 @@ def generate_quantstats_report(
     if returns.index.tz is not None:
         logger.debug("Converting returns index to timezone-naive for QuantStats.")
         returns = returns.tz_localize(None)
-        # Try setting frequency explicitly to 'B' (Business Day) as a workaround for potential QuantStats/Pandas issues
-        try:
-            returns = returns.asfreq('B').fillna(0) # Fill potential NaNs introduced by asfreq
-            logger.debug("Set returns frequency to 'B' and filled NaNs.")
-        except Exception as e:
-            logger.warning(f"Could not set frequency for returns index: {e}")
-
+        # Removed asfreq('B') attempt as it caused internal QuantStats errors
 
     # Prepare benchmark if provided
     benchmark = None
@@ -108,16 +102,9 @@ def generate_quantstats_report(
         # Extend QuantStats functionality if needed (e.g., custom metrics)
         qs.extend_pandas()
 
-        # Generate the HTML report, suppressing specific warnings
-        with warnings.catch_warnings():
-            # Suppress RuntimeWarning and FutureWarning from specific libraries during report generation
-            warnings.filterwarnings("ignore", category=RuntimeWarning, module="numpy")
-            warnings.filterwarnings("ignore", category=RuntimeWarning, module="scipy")
-            warnings.filterwarnings("ignore", category=RuntimeWarning, module="quantstats")
-            warnings.filterwarnings("ignore", category=FutureWarning, module="numpy")
-            warnings.filterwarnings("ignore", category=FutureWarning, module="scipy")
-            warnings.filterwarnings("ignore", category=FutureWarning, module="quantstats")
-
+        # Generate the HTML report
+        try:
+            # Wrap in try-except specifically for the ValueError from linregress with constant data
             qs.reports.html(
                 returns=returns,
                 benchmark=benchmark, # Pass the prepared benchmark series
@@ -125,11 +112,19 @@ def generate_quantstats_report(
                 title=title,
                 download_filename=str(output_path.name) # Use Path object's name attribute
             )
-        logger.info("QuantStats report generated successfully.")
+            logger.info("QuantStats report generated successfully.")
+        except ValueError as ve:
+            if "Cannot calculate a linear regression if all x values are identical" in str(ve):
+                logger.warning(f"Skipping QuantStats report generation due to constant returns: {ve}")
+            else:
+                raise # Re-raise other ValueErrors
+        except Exception as inner_e: # Catch other errors during qs.reports.html
+            logger.error(f"Error during qs.reports.html generation: {inner_e}", exc_info=True)
+
     except ImportError:
          logger.error("QuantStats not installed. Skipping report generation.")
     except Exception as e:
-        # Catch specific QuantStats/Pandas errors if possible
+        # Catch other potential errors (e.g., during qs.extend_pandas)
         logger.error(f"Error generating QuantStats report: {e}", exc_info=True) # Log traceback
 
 
