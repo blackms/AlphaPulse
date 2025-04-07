@@ -26,13 +26,15 @@ from datetime import datetime
 from src.alpha_pulse.backtesting.backtester import Backtester, BacktestResult
 from src.alpha_pulse.backtesting.data_loader import load_ohlcv_data
 from src.alpha_pulse.strategies.long_short.orchestrator import LongShortOrchestrator
-# Importa pyfolio se vuoi usarlo per l'analisi (assicurati sia installato)
-try:
-    import pyfolio as pf
-    PYFOLIO_AVAILABLE = True
-except ImportError:
-    PYFOLIO_AVAILABLE = False
-    logging.warning("Pyfolio non trovato. L'analisi dettagliata delle performance sarà limitata.")
+# Import analysis functions
+from src.alpha_pulse.analysis.performance_analyzer import (
+    generate_quantstats_report,
+    plot_equity_curve_and_drawdown,
+    plot_trades_on_price,
+    plot_rolling_sharpe
+)
+# Import quantstats for benchmark fetching if needed
+import quantstats as qs
 
 
 # Configurazione logging
@@ -69,22 +71,34 @@ def load_config(config_path: str) -> Dict:
         logger.error(f"Errore nel caricamento della configurazione: {e}")
         raise ValueError(f"Impossibile caricare la configurazione da {config_path}: {str(e)}")
 
-def save_results(output_dir: Path, result: BacktestResult):
-    """Salva i risultati del backtest."""
+def analyze_and_save_results(output_dir: Path, result: BacktestResult, price_series: pd.Series):
+    """Salva i risultati del backtest ed esegue l'analisi delle performance."""
+    if result is None:
+        logger.error("Backtest result is None. Cannot save or analyze.")
+        return
+    if not isinstance(result, BacktestResult):
+        logger.error(f"Expected BacktestResult object, got {type(result)}. Cannot save or analyze.")
+        return
+
+    logger.info("--- Analisi e Salvataggio Risultati ---")
     try:
-        # Salva curva equity
+        # --- Salvataggio Dati Grezzi ---
         result.equity_curve.to_csv(output_dir / "equity_curve.csv")
         logger.info(f"Curva equity salvata in {output_dir / 'equity_curve.csv'}")
 
-        # Salva storico posizioni
         if result.positions:
             positions_df = pd.DataFrame([p.__dict__ for p in result.positions])
+            # Convert datetime columns if needed (adjust format as necessary)
+            for col in ['entry_time', 'exit_time']:
+                 if col in positions_df.columns and positions_df[col].notna().any():
+                      # Ensure conversion handles potential NaT values gracefully
+                      positions_df[col] = pd.to_datetime(positions_df[col], errors='coerce').dt.strftime('%Y-%m-%d %H:%M:%S %Z')
             positions_df.to_csv(output_dir / "trades_history.csv", index=False)
             logger.info(f"Storia operazioni salvata in {output_dir / 'trades_history.csv'}")
         else:
             logger.info("Nessuna operazione eseguita, file trades_history.csv non creato.")
 
-        # Salva riepilogo metriche
+        # --- Salvataggio Riepilogo Metriche ---
         summary = {
             "Total Return": f"{result.total_return:.2%}",
             "Sharpe Ratio": f"{result.sharpe_ratio:.2f}",
@@ -101,27 +115,35 @@ def save_results(output_dir: Path, result: BacktestResult):
             yaml.dump(summary, f, default_flow_style=False)
         logger.info(f"Riepilogo metriche salvato in {output_dir / 'summary.yaml'}")
 
-        # Genera report Pyfolio se disponibile
-        if PYFOLIO_AVAILABLE:
-            logger.info("Generazione report Pyfolio...")
-            # Pyfolio richiede i rendimenti giornalieri semplici
-            returns = result.equity_curve.pct_change().fillna(0)
-            # Assicurati che l'indice sia timezone-naive per Pyfolio
-            if isinstance(returns.index, pd.DatetimeIndex) and returns.index.tz is not None:
-                 returns.index = returns.index.tz_localize(None)
+        # --- Generazione Report QuantStats ---
+        # Calculate daily returns for analysis functions
+        daily_returns = result.equity_curve.pct_change().fillna(0)
+        # TODO: Add benchmark fetching (e.g., SPY) if needed for QuantStats
+        benchmark = None # qs.utils.download_returns('SPY')
+        generate_quantstats_report(
+            returns=daily_returns,
+            benchmark_returns=benchmark,
+            output_path=output_dir / "quantstats_report.html",
+            title="Strategy Performance Analysis"
+        )
 
-            pf.create_full_tear_sheet(
-                returns,
-                positions=None, # Pyfolio positions format is complex, skip for now
-                transactions=None, # Pyfolio transactions format is complex, skip for now
-                round_trips=False, # Requires transaction data
-                live_start_date=None,
-                output=str(output_dir / 'pyfolio_report.pdf')
-            )
-            logger.info(f"Report Pyfolio salvato in {output_dir / 'pyfolio_report.pdf'}")
+        # --- Generazione Grafici Custom ---
+        plot_equity_curve_and_drawdown(
+            equity_curve=result.equity_curve,
+            output_path=output_dir / "equity_drawdown.png"
+        )
+        plot_trades_on_price(
+            prices=price_series, # Pass original price series used for backtest
+            positions=result.positions,
+            output_path=output_dir / "trades_on_price.png"
+        )
+        plot_rolling_sharpe(
+            returns=daily_returns,
+            output_path=output_dir / "rolling_sharpe.png"
+        )
 
     except Exception as e:
-        logger.error(f"Errore durante il salvataggio o l'analisi dei risultati: {e}")
+        logger.exception(f"Errore durante il salvataggio o l'analisi dei risultati: {e}")
 
 
 async def main():
@@ -150,7 +172,7 @@ async def main():
 
     start_date_naive = datetime.fromisoformat(backtest_config['start_date'])
     end_date_naive = datetime.fromisoformat(backtest_config['end_date'])
-    # Make dates timezone-aware (UTC) for comparison with DataFrame index
+    # Make dates timezone-aware (UTC) for slicing later
     start_date = pd.Timestamp(start_date_naive, tz='UTC')
     end_date = pd.Timestamp(end_date_naive, tz='UTC')
     symbols_needed = strategy_config.get('symbols', ['^GSPC', '^VIX']) # Simboli richiesti dalla strategia
@@ -158,19 +180,17 @@ async def main():
     exchange = data_loader_config.get('exchange', 'yfinance') # Exchange da cui caricare
 
     # Calcola una data di inizio leggermente precedente per permettere il calcolo degli indicatori iniziali
-    # Es: se MA è 40 periodi, servono almeno 40 periodi prima di start_date
     indicator_config = strategy_config.get('indicators', {})
     lookback_periods = max(
         indicator_config.get('ma_window', 40),
         indicator_config.get('rsi_window', 14),
-        indicator_config.get('atr_window', 14)
+        indicator_config.get('atr_window', 14),
+        1 # Ensure at least 1 period lookback
     )
     # Stima un buffer (es. 1.5x il lookback in giorni di calendario)
     buffer_days = int(lookback_periods * 1.5 * (7/5 if timeframe == '1d' else 1)) # Approssima giorni lavorativi
-    # Use the naive start date for calculating the buffer start
     load_start_date_naive = start_date_naive - pd.Timedelta(days=buffer_days)
-    # load_ohlcv_data expects naive datetimes based on its type hints
-    load_end_date_naive = end_date_naive
+    load_end_date_naive = end_date_naive # Load up to the end date
 
     loaded_data = await load_ohlcv_data(
         symbols=symbols_needed,
@@ -181,7 +201,7 @@ async def main():
     )
 
     # Check if data loading failed or if the primary symbol's DataFrame is missing or empty
-    primary_symbol = '^GSPC' # Define primary symbol for check
+    primary_symbol = strategy_config.get('primary_symbol', '^GSPC') # Get primary symbol from config or default
     if loaded_data is None or loaded_data.get(primary_symbol) is None or loaded_data[primary_symbol].empty:
         logger.error(f"Caricamento dati fallito o dati per il simbolo primario '{primary_symbol}' mancanti/vuoti. Impossibile continuare.")
         return
@@ -202,13 +222,22 @@ async def main():
     # --- 3. Esecuzione Backtest ---
     logger.info("=== Fase 3: Esecuzione Backtest ===")
     # Estrai la serie di prezzi necessaria per il backtester (es. Close del simbolo primario)
-    # Assicurati che le colonne preparate dall'orchestrator siano usate qui
-    price_series = data_with_signals['SP500_Close'] # Usa la colonna corretta
+    # Use the column name generated by the orchestrator's _prepare_input_data method
+    price_col_name = 'SP500_Close' # Hardcode based on orchestrator logic for now
+    if price_col_name not in data_with_signals.columns:
+         logger.error(f"Colonna prezzi '{price_col_name}' non trovata nei dati con segnali. Colonne disponibili: {data_with_signals.columns.tolist()}")
+         return
+    price_series_full = data_with_signals[price_col_name] # Keep full series for plotting later
 
     # Filtra i dati per il range di backtest effettivo (escludendo il buffer iniziale)
-    price_series = price_series[start_date:end_date]
-    target_allocations = target_allocations[start_date:end_date]
-    stop_losses = stop_losses[start_date:end_date]
+    # Use the timezone-aware start/end dates for slicing the timezone-aware index
+    price_series_backtest = price_series_full[start_date:end_date]
+    target_allocations = target_allocations.reindex(price_series_backtest.index) # Align to potentially sliced prices
+    stop_losses = stop_losses.reindex(price_series_backtest.index) # Align to potentially sliced prices
+
+    if price_series_backtest.empty:
+        logger.error(f"Nessun dato di prezzo disponibile per il range di backtest effettivo: {start_date} - {end_date}")
+        return
 
     # Inizializza il Backtester
     backtester_params = backtest_config.get('parameters', {})
@@ -219,7 +248,7 @@ async def main():
 
     # Esegui il backtest
     backtest_result = backtester.backtest(
-        prices=price_series,
+        prices=price_series_backtest,
         signals=target_allocations, # Passa le allocazioni target
         stop_losses=stop_losses     # Passa gli stop loss calcolati
     )
@@ -227,8 +256,11 @@ async def main():
 
     # --- 4. Analisi e Salvataggio Risultati ---
     logger.info("=== Fase 4: Analisi e Salvataggio Risultati ===")
+    print("\n" + "="*30 + " BACKTEST SUMMARY " + "="*30)
     print(backtest_result) # Stampa il riepilogo base
-    save_results(output_dir, backtest_result)
+    print("="*80)
+    # Pass original price series (filtered for backtest range) for plotting
+    analyze_and_save_results(output_dir, backtest_result, price_series_backtest)
     logger.info("Analisi e salvataggio risultati completati.")
 
 
