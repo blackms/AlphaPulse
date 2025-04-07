@@ -149,7 +149,7 @@ class Backtester:
         Returns:
             BacktestResult containing performance metrics and trade history.
         """
-        logger.info("Starting backtest...") # Keep INFO for overall start
+        logger.debug("Starting backtest...") # Keep INFO for overall start
         self._reset()
 
         # --- Input Alignment and Validation ---
@@ -490,7 +490,7 @@ class Backtester:
         gross_loss = abs(sum(losses))
         profit_factor = gross_profit / gross_loss if gross_loss != 0 else float('inf')
 
-        logger.info(f"Backtest completed. Total return: {total_return:.2%}") # Keep INFO
+        logger.debug(f"Backtest completed. Total return: {total_return:.2%}") # Keep INFO
 
         return BacktestResult(
             total_return=total_return,

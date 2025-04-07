@@ -109,7 +109,7 @@ class LongShortOrchestrator:
             3. Series with calculated stop-loss prices (or NaN).
             Returns None if any critical step fails.
         """
-        logger.info("Starting signal and target calculation pipeline...")
+        logger.debug("Starting signal and target calculation pipeline...")
 
         # 1. Prepare Data
         # TODO: Make symbols configurable
@@ -198,7 +198,7 @@ class LongShortOrchestrator:
                         stop_loss.iloc[i] = sl_price
                         logger.trace(f"Index {i} ({stop_loss.index[i].date()}): Target={current_target:.2f}, Prev={prev_target:.2f}. Calculated SL={sl_price:.2f}") # Use TRACE for per-row SL calc
 
-        logger.info("Signal and target calculation pipeline finished.")
+        logger.debug("Signal and target calculation pipeline finished.")
         return data_with_signals, target_position, stop_loss
 
 # Example usage (if needed for testing, requires data loader)

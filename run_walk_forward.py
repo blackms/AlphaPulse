@@ -303,10 +303,10 @@ def define_optuna_objective(
             if pd.isna(sortino) or np.isinf(sortino):
                 # Check if it's due to no trades or no downside deviation
                 if train_result.total_trades == 0:
-                    logger.warning(f"Trial {trial.number}: No trades executed. Assigning poor Sortino score (-10).")
+                    logger.debug(f"Trial {trial.number}: No trades executed. Assigning poor Sortino score (-10).") # Changed to DEBUG
                     metric_value = -10.0 # Assign a poor score instead of failing
                 elif not (daily_returns < 0).any(): # No downside deviation
-                    logger.warning(f"Trial {trial.number}: No downside deviation detected. Assigning poor Sortino score (-10).")
+                    logger.debug(f"Trial {trial.number}: No downside deviation detected. Assigning poor Sortino score (-10).") # Changed to DEBUG
                     metric_value = -10.0 # Assign a poor score
                 else:
                     logger.warning(f"Trial {trial.number}: Sortino calculation resulted in NaN/inf ({sortino}) for unknown reason. Returning large penalty.")
