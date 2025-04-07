@@ -12,6 +12,7 @@ import quantstats as qs
 from pathlib import Path
 from typing import List, Optional
 import yaml # Add yaml import
+import warnings # Import warnings module
 
 # Assuming BacktestResult and Position are defined elsewhere (e.g., backtester module)
 # Adjust import if necessary
@@ -101,14 +102,23 @@ def generate_quantstats_report(
         # Extend QuantStats functionality if needed (e.g., custom metrics)
         qs.extend_pandas()
 
-        # Generate the HTML report
-        qs.reports.html(
-            returns=returns,
-            benchmark=benchmark, # Pass the prepared benchmark series
-            output=str(output_path), # QuantStats expects string path
-            title=title,
-            download_filename=str(output_path.name) # Use Path object's name attribute
-        )
+        # Generate the HTML report, suppressing specific warnings
+        with warnings.catch_warnings():
+            # Suppress RuntimeWarning and FutureWarning from specific libraries during report generation
+            warnings.filterwarnings("ignore", category=RuntimeWarning, module="numpy")
+            warnings.filterwarnings("ignore", category=RuntimeWarning, module="scipy")
+            warnings.filterwarnings("ignore", category=RuntimeWarning, module="quantstats")
+            warnings.filterwarnings("ignore", category=FutureWarning, module="numpy")
+            warnings.filterwarnings("ignore", category=FutureWarning, module="scipy")
+            warnings.filterwarnings("ignore", category=FutureWarning, module="quantstats")
+
+            qs.reports.html(
+                returns=returns,
+                benchmark=benchmark, # Pass the prepared benchmark series
+                output=str(output_path), # QuantStats expects string path
+                title=title,
+                download_filename=str(output_path.name) # Use Path object's name attribute
+            )
         logger.info("QuantStats report generated successfully.")
     except ImportError:
          logger.error("QuantStats not installed. Skipping report generation.")
