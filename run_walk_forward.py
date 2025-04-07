@@ -29,6 +29,7 @@ from datetime import datetime
 from typing import Dict, List, Any, Tuple, Optional
 import optuna # Import Optuna
 import copy # Import copy for deepcopy
+import warnings # Import warnings module
 
 # Import necessary AlphaPulse components
 from src.alpha_pulse.backtesting.backtester import Backtester, BacktestResult
@@ -296,8 +297,28 @@ def define_optuna_objective(
             if daily_returns.index.tz is not None:
                 daily_returns = daily_returns.tz_localize(None)
 
-            # Use quantstats to calculate Sharpe Ratio
-            sharpe_ratio = qs.stats.sharpe(daily_returns) # Changed from sortino
+            # Use quantstats to calculate Sharpe Ratio, suppressing specific warnings
+            sharpe_ratio = np.nan # Default to NaN
+            with warnings.catch_warnings():
+                # Suppress RuntimeWarning: invalid value encountered in scalar divide
+                # Originating from quantstats/stats.py lines 294 and 349 (Sharpe/Sortino)
+                warnings.filterwarnings(
+                    'ignore',
+                    message='invalid value encountered in scalar divide',
+                    category=RuntimeWarning,
+                    module='quantstats\.stats' # Match the module where the warning originates
+                )
+                try:
+                    sharpe_ratio = qs.stats.sharpe(daily_returns) # Changed from sortino
+                except RuntimeWarning as rw:
+                    # Log if the specific warning we tried to suppress still occurred (shouldn't happen)
+                    if 'invalid value encountered in scalar divide' in str(rw):
+                         logger.warning(f"Trial {trial.number}: Suppressed RuntimeWarning occurred during Sharpe calculation: {rw}")
+                    else:
+                         raise # Re-raise other RuntimeWarnings
+                except Exception as e:
+                     logger.error(f"Trial {trial.number}: Error during Sharpe calculation: {e}")
+                     # Keep sharpe_ratio as NaN
 
             # Handle NaN or infinite results from Sharpe calculation
             if pd.isna(sharpe_ratio) or np.isinf(sharpe_ratio):
@@ -685,14 +706,37 @@ async def main():
         benchmark_returns = None
 
     # --- Save aggregated results and perform final analysis ---
-    # Pass the combined result object and benchmark
-    analyze_and_save_results(
-        output_dir,
-        combined_oos_result,
-        combined_prices, # Pass combined prices for plotting trades over full OOS period
-        benchmark_returns,
-        initial_capital_run # Pass initial capital for MC sim scaling
-    )
+    # Pass the combined result object and benchmark, suppressing specific warnings
+    logger.info("Performing final analysis on combined OOS results...")
+    with warnings.catch_warnings():
+        # Suppress RuntimeWarning: invalid value encountered in scalar divide
+        # Originating from quantstats/stats.py lines 294 and 349 (Sharpe/Sortino)
+        # Note: This will only suppress the warning if it's triggered directly by this call
+        # or within quantstats functions called *during* this execution context.
+        warnings.filterwarnings(
+            'ignore',
+            message='invalid value encountered in scalar divide',
+            category=RuntimeWarning,
+            module='quantstats\.stats' # Match the module where the warning originates
+        )
+        try:
+            analyze_and_save_results(
+                output_dir,
+                combined_oos_result,
+                combined_prices, # Pass combined prices for plotting trades over full OOS period
+                benchmark_returns,
+                initial_capital_run # Pass initial capital for MC sim scaling
+            )
+        except RuntimeWarning as rw:
+             # Log if the specific warning we tried to suppress still occurred
+             if 'invalid value encountered in scalar divide' in str(rw):
+                  logger.warning(f"Suppressed RuntimeWarning occurred during final analysis: {rw}")
+             else:
+                  raise # Re-raise other RuntimeWarnings
+        except Exception as e:
+             logger.error(f"Error during final analysis execution: {e}")
+             # Decide if processing should stop or continue
+
     logger.info("Walk-forward analysis complete.")
     # Save best parameters found per period
     with open(output_dir / "best_params_per_period.yaml", 'w') as f:
