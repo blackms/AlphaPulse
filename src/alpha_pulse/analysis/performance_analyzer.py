@@ -74,6 +74,13 @@ def generate_quantstats_report(
     if returns.index.tz is not None:
         logger.debug("Converting returns index to timezone-naive for QuantStats.")
         returns = returns.tz_localize(None)
+        # Try setting frequency explicitly to 'B' (Business Day) as a workaround for potential QuantStats/Pandas issues
+        try:
+            returns = returns.asfreq('B').fillna(0) # Fill potential NaNs introduced by asfreq
+            logger.debug("Set returns frequency to 'B' and filled NaNs.")
+        except Exception as e:
+            logger.warning(f"Could not set frequency for returns index: {e}")
+
 
     # Prepare benchmark if provided
     benchmark = None
