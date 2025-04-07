@@ -93,3 +93,32 @@ This file records architectural and implementation decisions using a list format
 * Created risk_manager.py for risk control implementation
 * Created long_short_strategy.py as the main strategy class
 * Updated configuration files to support the new strategy
+
+
+
+## 2025-04-07: Walk-Forward Backtesting Framework Design
+
+### Decision
+* Implement a walk-forward backtesting framework to provide more robust strategy evaluation.
+* Utilize rolling training and testing windows.
+* Integrate parameter optimization using Optuna within each training window.
+* Optimize parameters based on Sortino Ratio.
+* Implement strict lookahead bias prevention by calculating signals/indicators only on data available up to the current point in each step (training or OOS).
+* Perform Monte Carlo simulation on aggregated OOS results for statistical validation.
+* Compare aggregated OOS performance against a Buy-and-Hold benchmark (^GSPC).
+* Create a new script (`run_walk_forward.py`) and configuration (`config/walk_forward_config.yaml`) for this process.
+
+### Rationale
+* Walk-forward analysis provides a more realistic assessment of strategy performance by simulating how it would adapt to changing market conditions over time.
+* Optimizing parameters only on past (training) data prevents overfitting to the entire dataset.
+* Sortino Ratio is chosen as the optimization metric as it focuses on downside deviation, which is often more relevant for risk management.
+* Strict lookahead bias prevention is crucial for valid backtest results.
+* Monte Carlo simulation helps assess the likelihood of the observed performance occurring by chance.
+* Benchmark comparison provides context for the strategy's performance.
+
+### Implementation Details
+* **Walk-Forward Structure:** Rolling Window (24 months train, 6 months test, 6 months step).
+* **Optimization:** Optuna library, maximizing Sortino Ratio, optimizing key strategy parameters (MA, RSI, ATR windows, VIX threshold, ATR multiplier, position thresholds) with defined ranges.
+* **Lookahead Prevention:** Data is loaded once, then sliced for each train/test period. Optimization runs only on train slice. Best params used to generate signals/stops on OOS slice (including buffer). Backtest runs only on the OOS test slice (without buffer).
+* **Analysis:** Aggregate OOS results, recalculate overall metrics, perform Monte Carlo on combined OOS returns, compare vs benchmark in `analyze_and_save_results`.
+* **Files:** `run_walk_forward.py`, `config/walk_forward_config.yaml`, enhancements to `src/alpha_pulse/analysis/performance_analyzer.py`.

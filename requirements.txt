@@ -56,3 +56,4 @@ joblib>=1.1.0
 ipython>=7.0.0 # Aggiunto per dipendenza quantstats
 pyarrow>=10.0.0 # Aggiunto per supporto Parquet
 loguru>=0.6.0 # Added for logging within alpha_pulse modules
+optuna>=3.0.0 # Added for parameter optimization

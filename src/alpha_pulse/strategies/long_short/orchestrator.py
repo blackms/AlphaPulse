@@ -44,6 +44,10 @@ class LongShortOrchestrator:
         self.signal_weights = config.get('signal_weights', None) # Use defaults in generator if None
         self.position_manager = PositionManager(config.get('position_manager', {}))
         self.risk_manager = RiskManager(config.get('risk_manager', {}))
+        # Store specific indicator params needed later
+        self.ma_window = self.indicator_params.get('ma_window', 40)
+        self.rsi_window = self.indicator_params.get('rsi_window', 14)
+        self.atr_window = self.indicator_params.get('atr_window', 14) # Store ATR window too
         logger.info("LongShortOrchestrator initialized.")
 
     def _prepare_input_data(
@@ -139,11 +143,12 @@ class LongShortOrchestrator:
         logger.debug(f"Data with indicators shape: {data_with_indicators.shape}")
 
         # 3. Generate Composite Signal
-        # Pass correct indicator column names
+        # Pass correct indicator column names dynamically
         signal_df = generate_composite_signal(
             data=data_with_indicators,
-            weights=self.signal_weights # Pass configured weights
-            # generate_composite_signal uses hardcoded indicator names for now, ensure they match add_indicators_to_data
+            weights=self.signal_weights, # Pass configured weights
+            ma_window=self.ma_window,   # Pass MA window
+            rsi_window=self.rsi_window  # Pass RSI window
         )
         if signal_df is None:
             logger.error("Failed to generate composite signal.")
@@ -183,8 +188,13 @@ class LongShortOrchestrator:
                     direction = 'long' if current_target > 0 else 'short'
                     current_atr = data_with_signals[atr_col].iloc[i] if self.risk_manager.stop_loss_type == 'atr' else None
 
-                    sl_price = self.risk_manager.calculate_stop_loss(
-                        entry_price=entry_price,
+                    # Check if ATR is valid before calculating stop loss
+                    if self.risk_manager.stop_loss_type == 'atr' and (pd.isna(current_atr) or current_atr <= 0):
+                         logger.warning(f"Index {i} ({stop_loss.index[i].date()}): Invalid ATR ({current_atr}) for stop loss calculation. Skipping SL for this entry.")
+                         sl_price = np.nan # Set SL to NaN if ATR is invalid
+                    else:
+                         sl_price = self.risk_manager.calculate_stop_loss(
+                             entry_price=entry_price,
                         direction=direction,
                         current_atr=current_atr
                     )

@@ -25,9 +25,10 @@ except ImportError as e:
 async def load_ohlcv_data(
     symbols: List[str],
     timeframe: str,
-    start_dt: dt.datetime, # Use dt.datetime for type hint
-    end_dt: dt.datetime,   # Use dt.datetime for type hint
-    exchange: str = 'yfinance' # Default to yfinance for now
+    start_dt: dt.datetime,
+    end_dt: dt.datetime,
+    exchange: str = 'yfinance', # Default to yfinance for now
+    db_config: Optional[Dict] = None # Add db_config parameter
 ) -> Optional[Dict[str, pd.DataFrame]]:
     """
     Loads OHLCV data for specified symbols and timeframe from the database.
@@ -51,7 +52,8 @@ async def load_ohlcv_data(
     all_data: Dict[str, pd.DataFrame] = {}
 
     try:
-        async with get_session_context() as session: # Use async context manager
+        # Pass db_config to the session context manager
+        async with get_session_context(config=db_config) as session:
             for symbol in symbols:
                 logger.debug(f"Querying data for {symbol}...")
                 stmt = (

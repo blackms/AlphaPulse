@@ -1,0 +1,66 @@
+# Configuration for Walk-Forward Backtesting
+
+database:
+  host: localhost      # Default host
+  port: 5432          # Default port
+  database: backtesting # Default database name
+  user: devuser         # Default user
+  password: devpassword # Default password
+  # NOTE: Placeholders like ${DB_HOST:localhost} were removed.
+  # The session.py module will use these values directly when passed the config dict.
+
+walk_forward:
+  train_months: 24           # Length of the training period in months
+  test_months: 6             # Length of the out-of-sample (OOS) test period in months
+  step_months: 6             # How many months to slide forward for the next period
+  optimization_trials: 50    # Number of Optuna trials per training period
+  optimization_timeout_seconds: null # Optional: Max seconds per Optuna study (e.g., 3600 for 1 hour)
+
+backtest: # Overall settings and backtester parameters
+  start_date: "2015-01-01"   # Overall start date for the entire walk-forward process
+  end_date: "2022-12-31"     # Overall end date
+  benchmark_ticker: "^GSPC"  # Ticker for benchmark comparison (e.g., S&P 500)
+  parameters:
+    initial_capital: 100000.0
+    commission: 0.001        # Commission per trade (e.g., 0.1%)
+
+strategy:
+  long_short: # Configuration specific to the long/short strategy
+    symbols: ['^GSPC', '^VIX'] # Symbols required by the strategy
+    timeframe: '1d'
+    primary_symbol: '^GSPC'    # Symbol used for primary price series in backtester
+
+    # Base parameters (used if not optimized or as starting point)
+    indicators:
+      ma_window: 40
+      rsi_window: 14
+      atr_window: 14
+      vix_threshold: 25.0
+    signal_weights:
+      trend: 0.5
+      mean_reversion: 0.3
+      volatility: 0.2
+    position_manager:
+      long_threshold: 0.1
+      short_threshold: -0.1
+    risk_manager:
+      stop_loss_type: 'atr' # 'atr' or 'percent'
+      atr_multiplier: 2.0   # Used if stop_loss_type is 'atr'
+      percent: 0.02         # Used if stop_loss_type is 'percent'
+
+    # Parameters to optimize with Optuna and their ranges/types
+    optimization_params:
+      indicators.ma_window: { type: int, low: 10, high: 100, step: 5 }
+      indicators.rsi_window: { type: int, low: 5, high: 30, step: 1 }
+      indicators.atr_window: { type: int, low: 5, high: 30, step: 1 }
+      indicators.vix_threshold: { type: float, low: 15.0, high: 40.0, step: 1.0 }
+      risk_manager.atr_multiplier: { type: float, low: 1.0, high: 5.0, step: 0.25 }
+      # Example: Optimizing weights (ensure constraints handled in objective if needed)
+      # signal_weights.trend: { type: float, low: 0.0, high: 1.0 }
+      # signal_weights.mean_reversion: { type: float, low: 0.0, high: 1.0 }
+      # signal_weights.volatility: { type: float, low: 0.0, high: 1.0 }
+      position_manager.long_threshold: { type: float, low: 0.0, high: 0.5, step: 0.05 }
+      position_manager.short_threshold: { type: float, low: -0.5, high: 0.0, step: 0.05 }
+
+# data_loader: # Optional: Specific settings for data loader if needed
+#   exchange: 'yfinance'

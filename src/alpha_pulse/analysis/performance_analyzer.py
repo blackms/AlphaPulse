@@ -7,12 +7,13 @@ Provides functions to generate reports and visualizations based on backtest resu
 
 import logging
 import pandas as pd
-import numpy as np # Add numpy import
+import numpy as np
 import quantstats as qs
 from pathlib import Path
 from typing import List, Optional
- 
- # Assuming BacktestResult and Position are defined elsewhere (e.g., backtester module)
+import yaml # Add yaml import
+
+# Assuming BacktestResult and Position are defined elsewhere (e.g., backtester module)
 # Adjust import if necessary
 try:
     from ..backtesting.backtester import BacktestResult
@@ -30,6 +31,20 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger("PerformanceAnalyzer")
+
+# Import plotting libraries here to keep them contained
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+import seaborn as sns
+import matplotlib # Import matplotlib base
+
+# Set default font to avoid Arial warnings on Linux
+try:
+    matplotlib.rcParams['font.sans-serif'] = ['DejaVu Sans']
+    matplotlib.rcParams['font.family'] = 'sans-serif'
+except Exception as e:
+    logger.warning(f"Could not set default Matplotlib font: {e}")
+
 
 def generate_quantstats_report(
     returns: pd.Series,
@@ -86,7 +101,7 @@ def generate_quantstats_report(
         # Generate the HTML report
         qs.reports.html(
             returns=returns,
-            benchmark=benchmark,
+            benchmark=benchmark, # Pass the prepared benchmark series
             output=str(output_path), # QuantStats expects string path
             title=title,
             download_filename=str(output_path.name) # Use Path object's name attribute
@@ -97,21 +112,6 @@ def generate_quantstats_report(
     except Exception as e:
         # Catch specific QuantStats/Pandas errors if possible
         logger.error(f"Error generating QuantStats report: {e}", exc_info=True) # Log traceback
-
-
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
-import seaborn as sns
-import matplotlib # Import matplotlib base
-
-# Set default font to avoid Arial warnings on Linux
-try:
-    matplotlib.rcParams['font.sans-serif'] = ['DejaVu Sans']
-    matplotlib.rcParams['font.family'] = 'sans-serif'
-except Exception as e:
-    logger.warning(f"Could not set default Matplotlib font: {e}")
 
 
 # --- Custom Plotting Functions ---
@@ -301,7 +301,188 @@ def plot_rolling_sharpe(
     except Exception as e:
         logger.error(f"Error generating rolling Sharpe plot: {e}")
 
+def run_monte_carlo_simulation(
+   returns: pd.Series,
+   initial_capital: float = 100000.0,
+   simulations: int = 1000,
+   output_path: Optional[Path] = None,
+   title: str = "Monte Carlo Simulation"
+):
+   """
+   Performs a Monte Carlo simulation by shuffling daily returns.
+
+   Args:
+       returns: Series of daily returns.
+       initial_capital: Starting capital for simulations.
+       simulations: Number of simulation paths to generate.
+       output_path: Path object to save the plot.
+       title: Title for the plot.
+   """
+   if not isinstance(returns, pd.Series) or returns.empty:
+       logger.error("Returns series is empty or not a Series. Cannot run Monte Carlo.")
+       return
+   if simulations <= 0:
+       logger.error("Number of simulations must be positive.")
+       return
+
+   logger.info(f"Running Monte Carlo simulation ({simulations} paths)...")
+   try:
+       # Ensure returns index is datetime
+       if not isinstance(returns.index, pd.DatetimeIndex):
+            returns.index = pd.to_datetime(returns.index)
+
+       # Collect simulation results in a dictionary first
+       sim_data = {}
+       returns_array = returns.to_numpy()
+
+       for i in range(simulations):
+           # Shuffle daily returns
+           shuffled_returns = np.random.choice(returns_array, size=len(returns_array), replace=True)
+           # Calculate cumulative equity path
+           sim_equity = initial_capital * (1 + pd.Series(shuffled_returns, index=returns.index)).cumprod()
+           sim_data[f'Sim_{i+1}'] = sim_equity
+
+       # Create DataFrame from the dictionary in one go
+       sim_results = pd.DataFrame(sim_data)
+
+       # Plotting the simulation paths
+       fig, ax = plt.subplots(figsize=(12, 7))
+       sim_results.plot(ax=ax, legend=False, alpha=0.1, color='grey') # Plot individual simulations faintly
+
+       # Plot the actual equity curve (need to recalculate or pass it)
+       actual_equity = initial_capital * (1 + returns).cumprod()
+       ax.plot(actual_equity.index, actual_equity, color='red', linewidth=2, label='Actual Equity Curve')
+
+       # Plot median and percentiles (e.g., 5th and 95th)
+       median_equity = sim_results.median(axis=1)
+       percentile_5 = sim_results.quantile(0.05, axis=1)
+       percentile_95 = sim_results.quantile(0.95, axis=1)
+
+       ax.plot(median_equity.index, median_equity, color='blue', linestyle='--', linewidth=2, label='Median Simulation')
+       ax.plot(percentile_5.index, percentile_5, color='cyan', linestyle=':', linewidth=1.5, label='5th Percentile')
+       ax.plot(percentile_95.index, percentile_95, color='cyan', linestyle=':', linewidth=1.5, label='95th Percentile')
+
+
+       ax.set_title(title)
+       ax.set_ylabel('Portfolio Value ($)')
+       ax.set_xlabel('Date')
+       ax.grid(True, linestyle='--', alpha=0.6)
+       ax.legend()
+       ax.ticklabel_format(style='plain', axis='y')
+
+       # Format x-axis dates
+       fig.autofmt_xdate()
+       ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+
+       plt.tight_layout()
+
+       if output_path:
+           plt.savefig(output_path, dpi=300)
+           logger.info(f"Monte Carlo plot saved to: {output_path}")
+       else:
+           plt.show()
+       plt.close(fig)
+
+       # Log some summary stats from the simulation
+       final_equity_dist = sim_results.iloc[-1]
+       logger.info(f"Monte Carlo Final Equity Summary:")
+       logger.info(f"  Actual: {actual_equity.iloc[-1]:,.2f}")
+       logger.info(f"  Median: {final_equity_dist.median():,.2f}")
+       logger.info(f"  5th Pctl: {final_equity_dist.quantile(0.05):,.2f}")
+       logger.info(f"  95th Pctl: {final_equity_dist.quantile(0.95):,.2f}")
+
+   except Exception as e:
+       logger.error(f"Error running Monte Carlo simulation: {e}")
+
+
 # --- End Custom Plotting Functions ---
+
+
+# --- Main Analysis Function ---
+def analyze_and_save_results(
+    output_dir: Path,
+    result: BacktestResult,
+    price_series: pd.Series, # Prices used for the backtest (for plotting trades)
+    benchmark_returns: Optional[pd.Series] = None, # Add benchmark returns
+    initial_capital: float = 100000.0 # Add initial capital for MC sim
+):
+    """Salva i risultati del backtest ed esegue l'analisi delle performance."""
+    if result is None:
+        logger.error("Backtest result is None. Cannot save or analyze.")
+        return
+    if not isinstance(result, BacktestResult):
+        logger.error(f"Expected BacktestResult object, got {type(result)}. Cannot save or analyze.")
+        return
+
+    logger.info("--- Analisi e Salvataggio Risultati ---")
+    try:
+        # --- Salvataggio Dati Grezzi ---
+        result.equity_curve.to_csv(output_dir / "equity_curve.csv")
+        logger.info(f"Curva equity salvata in {output_dir / 'equity_curve.csv'}")
+
+        if result.positions:
+            positions_df = pd.DataFrame([p.__dict__ for p in result.positions])
+            # Convert datetime columns if needed (adjust format as necessary)
+            for col in ['entry_time', 'exit_time']:
+                 if col in positions_df.columns and positions_df[col].notna().any():
+                      # Ensure conversion handles potential NaT values gracefully
+                      positions_df[col] = pd.to_datetime(positions_df[col], errors='coerce').dt.strftime('%Y-%m-%d %H:%M:%S %Z')
+            positions_df.to_csv(output_dir / "trades_history.csv", index=False)
+            logger.info(f"Storia operazioni salvata in {output_dir / 'trades_history.csv'}")
+        else:
+            logger.info("Nessuna operazione eseguita, file trades_history.csv non creato.")
+
+        # --- Salvataggio Riepilogo Metriche ---
+        summary = {
+            "Total Return": f"{result.total_return:.2%}",
+            "Sharpe Ratio": f"{result.sharpe_ratio:.2f}",
+            "Sortino Ratio": f"{qs.stats.sortino(result.equity_curve.pct_change()):.2f}", # Calculate Sortino here too
+            "Max Drawdown": f"{result.max_drawdown:.2%}",
+            "Total Trades": result.total_trades,
+            "Winning Trades": result.winning_trades,
+            "Losing Trades": result.losing_trades,
+            "Win Rate": f"{result.win_rate:.2%}",
+            "Avg Win Pct": f"{result.avg_win:.2%}",
+            "Avg Loss Pct": f"{result.avg_loss:.2%}",
+            "Profit Factor": f"{result.profit_factor:.2f}",
+        }
+        with open(output_dir / "summary.yaml", 'w') as f:
+            yaml.dump(summary, f, default_flow_style=False)
+        logger.info(f"Riepilogo metriche salvato in {output_dir / 'summary.yaml'}")
+
+        # --- Generazione Report QuantStats ---
+        daily_returns = result.equity_curve.pct_change().fillna(0)
+        generate_quantstats_report(
+            returns=daily_returns,
+            benchmark_returns=benchmark_returns, # Pass benchmark here
+            output_path=output_dir / "quantstats_report.html",
+            title="Strategy Performance Analysis"
+        )
+
+        # --- Generazione Grafici Custom ---
+        plot_equity_curve_and_drawdown(
+            equity_curve=result.equity_curve,
+            output_path=output_dir / "equity_drawdown.png"
+        )
+        plot_trades_on_price(
+            prices=price_series, # Pass original price series used for backtest
+            positions=result.positions,
+            output_path=output_dir / "trades_on_price.png"
+        )
+        plot_rolling_sharpe(
+            returns=daily_returns,
+            output_path=output_dir / "rolling_sharpe.png"
+        )
+
+        # --- Esecuzione Simulazione Monte Carlo ---
+        run_monte_carlo_simulation(
+            returns=daily_returns,
+            initial_capital=initial_capital,
+            output_path=output_dir / "monte_carlo_simulation.png"
+        )
+
+    except Exception as e:
+        logger.exception(f"Errore durante il salvataggio o l'analisi dei risultati: {e}", exc_info=True) # Add traceback
 
 
 if __name__ == '__main__':
@@ -321,20 +502,29 @@ if __name__ == '__main__':
     dummy_positions = [
         # Example Position objects would go here if needed for plot_trades_on_price
     ]
+    # Create dummy BacktestResult
+    dummy_result = BacktestResult(
+        total_return=(dummy_equity_curve.iloc[-1] / initial_equity) - 1,
+        sharpe_ratio=qs.stats.sharpe(dummy_returns),
+        max_drawdown=qs.stats.max_drawdown(dummy_equity_curve),
+        total_trades=0, winning_trades=0, losing_trades=0, win_rate=0,
+        avg_win=0, avg_loss=0, profit_factor=0,
+        positions=dummy_positions, equity_curve=dummy_equity_curve
+    )
+
 
     # Define output directory
     example_output_dir = Path("./temp_analysis_output")
     example_output_dir.mkdir(exist_ok=True)
 
-    # 1. Generate QuantStats Report
-    qs_report_path = example_output_dir / "example_quantstats_report.html"
-    generate_quantstats_report(dummy_returns, benchmark_returns=dummy_benchmark, output_path=qs_report_path, title="Example Strategy")
+    # Call the main analysis function
+    analyze_and_save_results(
+        example_output_dir,
+        dummy_result,
+        dummy_equity_curve, # Use equity as proxy for price
+        dummy_benchmark,
+        initial_equity
+    )
 
-    # 2. Generate Custom Plots (Placeholders)
-    plot_equity_curve_and_drawdown(dummy_equity_curve, output_path=example_output_dir / "equity_drawdown.png")
-    # Need dummy prices aligned with returns for trade plot
-    dummy_prices = dummy_equity_curve # Use equity as proxy for price for example
-    plot_trades_on_price(dummy_prices, dummy_positions, output_path=example_output_dir / "trades_on_price.png")
-    plot_rolling_sharpe(dummy_returns, output_path=example_output_dir / "rolling_sharpe.png")
 
     logger.info(f"Example analysis complete. Check output in: {example_output_dir}")
