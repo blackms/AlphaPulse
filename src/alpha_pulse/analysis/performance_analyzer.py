@@ -97,6 +97,12 @@ def generate_quantstats_report(
             logger.info("Using benchmark for QuantStats report.")
 
 
+    # Check for zero or near-zero standard deviation in returns
+    std_dev = returns.std()
+    if std_dev < 1e-9:
+        logger.warning(f"Returns standard deviation is near zero ({std_dev:.2e}). Skipping QuantStats report generation to avoid errors.")
+        return
+
     logger.info(f"Generating QuantStats report to: {output_path}")
     try:
         # Extend QuantStats functionality if needed (e.g., custom metrics)
