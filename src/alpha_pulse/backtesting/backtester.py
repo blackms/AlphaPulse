@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Tuple, TYPE_CHECKING
 import numpy as np
 import pandas as pd
-from loguru import logger
+from loguru import logger # Use loguru
 
 # Keep for potential future use? Or remove if BaseStrategy is not used here.
 # from .strategy import BaseStrategy, DefaultStrategy
@@ -149,7 +149,7 @@ class Backtester:
         Returns:
             BacktestResult containing performance metrics and trade history.
         """
-        logger.info("Starting backtest...")
+        logger.info("Starting backtest...") # Keep INFO for overall start
         self._reset()
 
         # --- Input Alignment and Validation ---
@@ -275,10 +275,10 @@ class Backtester:
                 if pd.notna(active_stop_loss):
                     if self.current_position.size > 0 and current_low <= active_stop_loss: # Long SL hit (check against Low)
                         exit_price = active_stop_loss # Assume execution at SL price
-                        logger.info(f"[{timestamp.date()}] LONG TRAILING STOP LOSS hit at {exit_price:.2f} (Entry: {self.current_position.entry_price:.2f}, High: {high_since_entry:.2f})")
+                        logger.debug(f"[{timestamp.date()}] LONG TRAILING STOP LOSS hit at {exit_price:.2f} (Entry: {self.current_position.entry_price:.2f}, High: {high_since_entry:.2f})") # DEBUG
                     elif self.current_position.size < 0 and current_high >= active_stop_loss: # Short SL hit (check against High)
                         exit_price = active_stop_loss
-                        logger.info(f"[{timestamp.date()}] SHORT TRAILING STOP LOSS hit at {exit_price:.2f} (Entry: {self.current_position.entry_price:.2f}, Low: {low_since_entry:.2f})")
+                        logger.debug(f"[{timestamp.date()}] SHORT TRAILING STOP LOSS hit at {exit_price:.2f} (Entry: {self.current_position.entry_price:.2f}, Low: {low_since_entry:.2f})") # DEBUG
 
                 if exit_price is not None:
                     # Calculate PnL for the closing trade (using exit_price)
@@ -347,7 +347,7 @@ class Backtester:
                             entry_value_closed = closed_quantity * self.current_position.entry_price * (1 + self.commission) # Cost basis of the closed part
                             pnl_closed = (exit_value_closed - entry_value_closed) if old_size > 0 else (entry_value_closed - exit_value_closed)
                             realized_pnl_trade += pnl_closed
-                            logger.debug(f"[{timestamp.date()}] Realized PnL on partial close/flip: {pnl_closed:.2f}")
+                            logger.trace(f"[{timestamp.date()}] Realized PnL on partial close/flip: {pnl_closed:.2f}") # TRACE
                             # Update equity immediately with realized PnL
                             self.equity += realized_pnl_trade
                             realized_pnl_today += realized_pnl_trade # Add to daily total
@@ -366,7 +366,7 @@ class Backtester:
                             active_stop_loss = initial_stop_loss # Use the SL provided for this day
                             high_since_entry = current_close # Initialize with entry price (Close)
                             low_since_entry = current_close  # Initialize with entry price (Close)
-                            logger.info(f"[{timestamp.date()}] ENTER {'LONG' if quantity_to_trade > 0 else 'SHORT'}. Size: {quantity_to_trade:.4f} @ {current_close:.2f}. Target: {target_allocation:.2f}. Initial SL: {active_stop_loss if pd.notna(active_stop_loss) else 'N/A'}. Equity: {self.equity:.2f}")
+                            logger.debug(f"[{timestamp.date()}] ENTER {'LONG' if quantity_to_trade > 0 else 'SHORT'}. Size: {quantity_to_trade:.4f} @ {current_close:.2f}. Target: {target_allocation:.2f}. Initial SL: {active_stop_loss if pd.notna(active_stop_loss) else 'N/A'}. Equity: {self.equity:.2f}") # DEBUG
                             trade_executed_today = True
                     else: # Adjusting existing position
                         if abs(new_size) < 1e-9: # Position closed completely
@@ -400,7 +400,7 @@ class Backtester:
                             active_stop_loss = initial_stop_loss # Use the SL provided for this day
                             high_since_entry = current_close # Initialize with entry price (Close)
                             low_since_entry = current_close  # Initialize with entry price (Close)
-                            logger.info(
+                            logger.debug( # DEBUG
                                 f"[{timestamp.date()}] FLIP to {'LONG' if new_size > 0 else 'SHORT'}. "
                                 f"Close Qty: {closed_quantity:.4f}. Open Qty: {abs(new_size):.4f} @ {current_close:.2f}. "
                                 f"Realized PnL: {realized_pnl_trade:.2f}. Initial SL: {active_stop_loss if pd.notna(active_stop_loss) else 'N/A'}. Equity: {self.equity:.2f}"
@@ -410,12 +410,12 @@ class Backtester:
                             # TODO: Consider updating average entry price if increasing position size
                             self.current_position.size = new_size
                             # Log adjustment (no change needed for trailing stop vars here)
-                            # logger.info(
-                            #    f"[{timestamp.date()}] ADJUST {'LONG' if new_size > 0 else 'SHORT'}. "
-                            #    f"Trade Qty: {quantity_to_trade:.4f} @ {current_close:.2f}. " # Use current_close for price ref
-                            #    f"New Size: {new_size:.4f}. Target: {target_allocation:.2f}. "
-                            #    f"Realized PnL: {realized_pnl_trade:.2f}. Equity: {self.equity:.2f}"
-                            # )
+                            logger.debug( # DEBUG
+                                f"[{timestamp.date()}] ADJUST {'LONG' if new_size > 0 else 'SHORT'}. "
+                                f"Trade Qty: {quantity_to_trade:.4f} @ {current_close:.2f}. " # Use current_close for price ref
+                                f"New Size: {new_size:.4f}. Target: {target_allocation:.2f}. "
+                                f"Realized PnL: {realized_pnl_trade:.2f}. Equity: {self.equity:.2f}"
+                            )
                             trade_executed_today = True
 
 
@@ -490,7 +490,7 @@ class Backtester:
         gross_loss = abs(sum(losses))
         profit_factor = gross_profit / gross_loss if gross_loss != 0 else float('inf')
 
-        logger.info(f"Backtest completed. Total return: {total_return:.2%}")
+        logger.info(f"Backtest completed. Total return: {total_return:.2%}") # Keep INFO
 
         return BacktestResult(
             total_return=total_return,

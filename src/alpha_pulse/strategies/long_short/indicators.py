@@ -6,18 +6,14 @@ Provides functions to calculate technical indicators like Moving Average, RSI,
 and detect volatility regimes based on VIX.
 """
 
-import logging
+from loguru import logger # Use loguru
 import pandas as pd
 import numpy as np # Added import
 import ta
 from typing import Optional, Tuple
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger("LongShortIndicators")
+# Loguru logger is imported directly
+# logger = logger.bind(name="LongShortIndicators") # Optional binding
 
 def calculate_moving_average(data: pd.DataFrame, window: int = 40, price_column: str = 'SP500_Adj_Close') -> Optional[pd.Series]:
     """
@@ -42,7 +38,7 @@ def calculate_moving_average(data: pd.DataFrame, window: int = 40, price_column:
         return None
 
     try:
-        logger.info(f"Calculating {window}-period SMA on column '{price_column}'")
+        logger.debug(f"Calculating {window}-period SMA on column '{price_column}'") # DEBUG
         # Ensure input is a Series
         price_series = data[price_column]
         if isinstance(price_series, pd.DataFrame):
@@ -79,7 +75,7 @@ def calculate_rsi(data: pd.DataFrame, window: int = 14, price_column: str = 'SP5
         return None
 
     try:
-        logger.info(f"Calculating {window}-period RSI on column '{price_column}'")
+        logger.debug(f"Calculating {window}-period RSI on column '{price_column}'") # DEBUG
         # Ensure input is a Series
         price_series = data[price_column]
         if isinstance(price_series, pd.DataFrame):
@@ -117,7 +113,7 @@ def detect_volatility_regime(data: pd.DataFrame, vix_column: str = 'VIX_Adj_Clos
         return None
 
     try:
-        logger.info(f"Detecting volatility regime using VIX column '{vix_column}' and threshold {threshold}")
+        logger.debug(f"Detecting volatility regime using VIX column '{vix_column}' and threshold {threshold}") # DEBUG
         # High volatility regime = 1, Low volatility regime = 0
         volatility_regime = (data[vix_column] > threshold).astype(int)
         return volatility_regime
@@ -153,7 +149,7 @@ def calculate_atr(data: pd.DataFrame, window: int = 14,
         return None
 
     try:
-        logger.info(f"Calculating {window}-period ATR using columns '{high_col}', '{low_col}', '{close_col}'")
+        logger.debug(f"Calculating {window}-period ATR using columns '{high_col}', '{low_col}', '{close_col}'") # DEBUG
 
         # Check for sufficient data length BEFORE accessing/squeezing
         if len(data) < window:
@@ -229,7 +225,7 @@ def add_indicators_to_data(data: pd.DataFrame, ma_window: int = 40, rsi_window: 
     if atr_series is None: return None # Error logged in calculate_atr
     data_with_indicators[f'ATR_{atr_window}'] = atr_series
 
-    logger.info("Successfully added MA, RSI, Volatility Regime, and ATR indicators.")
+    logger.debug("Successfully added MA, RSI, Volatility Regime, and ATR indicators.") # DEBUG
     return data_with_indicators
 
 # Removed the __main__ block as it depended on data_handler

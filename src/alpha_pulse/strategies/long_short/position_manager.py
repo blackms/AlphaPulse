@@ -5,17 +5,13 @@ Position Management Module for the Long/Short S&P 500 Strategy.
 Determines target position direction and size based on the composite signal.
 """
 
-import logging
+from loguru import logger # Use loguru
 import pandas as pd
 import numpy as np
 from typing import Optional, Dict
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger("LongShortPositionManager")
+# Loguru logger is imported directly
+# logger = logger.bind(name="LongShortPositionManager") # Optional binding
 
 class PositionManager:
     """
@@ -35,7 +31,7 @@ class PositionManager:
         self.short_threshold = self.config.get('short_threshold', -0.1)
         # Note: Position sizing logic might depend on portfolio context (e.g., capital)
         # For now, target_position represents desired allocation (-1 to 1)
-        logger.info(f"PositionManager initialized. Long Threshold: {self.long_threshold}, Short Threshold: {self.short_threshold}")
+        logger.debug(f"PositionManager initialized. Long Threshold: {self.long_threshold}, Short Threshold: {self.short_threshold}") # DEBUG
 
     def calculate_target_position(self, signal_data: pd.DataFrame, signal_column: str = 'Composite_Signal') -> Optional[pd.Series]:
         """
@@ -62,7 +58,7 @@ class PositionManager:
             return None
 
         try:
-            logger.info(f"Calculating target position based on signal '{signal_column}'")
+            logger.debug(f"Calculating target position based on signal '{signal_column}'") # DEBUG
             signals = signal_data[signal_column]
             target_position = pd.Series(0.0, index=signals.index) # Default to flat
 
@@ -78,14 +74,14 @@ class PositionManager:
             # Ensure values are clipped between -1 and 1 (should already be the case from signal gen)
             target_position = np.clip(target_position, -1.0, 1.0)
 
-            # --- DEBUG LOGGING ---
+            # --- TRACE LOGGING ---
             if not target_position.empty:
                  latest_target = target_position.iloc[-1]
                  latest_signal = signal_data[signal_column].iloc[-1] if signal_column in signal_data else 'N/A'
-                 logger.debug(f"Latest Target Position: {latest_target:.2f} (based on signal: {latest_signal:.4f}, thresholds: L={self.long_threshold}, S={self.short_threshold})")
-            # --- END DEBUG LOGGING ---
+                 logger.trace(f"Latest Target Position: {latest_target:.2f} (based on signal: {latest_signal:.4f}, thresholds: L={self.long_threshold}, S={self.short_threshold})") # TRACE
+            # --- END TRACE LOGGING ---
 
-            logger.info("Target position calculation complete.")
+            logger.debug("Target position calculation complete.") # DEBUG
             return target_position
 
         except Exception as e:

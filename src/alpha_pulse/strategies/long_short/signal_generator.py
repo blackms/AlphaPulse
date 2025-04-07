@@ -6,17 +6,13 @@ Combines trend-following, mean reversion, and volatility signals
 to generate a composite trading signal.
 """
 
-import logging
+from loguru import logger # Use loguru
 import pandas as pd
 import numpy as np
 from typing import Optional, Dict
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger("LongShortSignalGenerator")
+# Loguru logger is imported directly
+# logger = logger.bind(name="LongShortSignalGenerator") # Optional binding
 
 def generate_trend_signal(data: pd.DataFrame, price_column: str, ma_column: str) -> Optional[pd.Series]:
     """
@@ -40,7 +36,7 @@ def generate_trend_signal(data: pd.DataFrame, price_column: str, ma_column: str)
         return None
 
     try:
-        logger.info(f"Generating trend signal based on '{price_column}' vs '{ma_column}'")
+        logger.debug(f"Generating trend signal based on '{price_column}' vs '{ma_column}'") # DEBUG
         # Initialize signal with 0
         signal = pd.Series(0.0, index=data.index) # Initialize with float
         price_series = data[price_column]
@@ -89,7 +85,7 @@ def generate_mean_reversion_adjustment(data: pd.DataFrame, rsi_column: str,
         return None
 
     try:
-        logger.info(f"Generating mean reversion adjustment based on '{rsi_column}' (OB: {overbought_threshold}, OS: {oversold_threshold})")
+        logger.debug(f"Generating mean reversion adjustment based on '{rsi_column}' (OB: {overbought_threshold}, OS: {oversold_threshold})") # DEBUG
         adjustment = pd.Series(0, index=data.index)
         # Reduce long strength if overbought
         adjustment[data[rsi_column] > overbought_threshold] = -1
@@ -124,7 +120,7 @@ def generate_volatility_adjustment(data: pd.DataFrame, vol_regime_column: str) -
         return None
 
     try:
-        logger.info(f"Generating volatility adjustment based on '{vol_regime_column}'")
+        logger.debug(f"Generating volatility adjustment based on '{vol_regime_column}'") # DEBUG
         # Default to 1.0 (low volatility)
         adjustment = pd.Series(1.0, index=data.index)
         # Reduce factor to 0.5 if high volatility (regime == 1)
@@ -202,7 +198,7 @@ def generate_composite_signal(
     if signal_df['Vol_Adjustment'] is None: return None
 
     # 4. Combine Signals
-    logger.info("Combining signals into composite score...")
+    logger.debug("Combining signals into composite score...") # DEBUG
     try:
         # Start with the base trend signal
         composite = signal_df['Trend_Signal'] * weights.get('trend', 1.0)
@@ -225,13 +221,13 @@ def generate_composite_signal(
         # Handle NaNs introduced at the start due to indicators
         signal_df.fillna(0, inplace=True) # Default to neutral signal if components are NaN
 
-        # --- DEBUG LOGGING ---
+        # --- TRACE LOGGING ---
         if not signal_df.empty:
              latest_signals = signal_df.iloc[-1]
-             logger.debug(f"Latest Signals: Trend={latest_signals.get('Trend_Signal', 'N/A'):.2f}, MR_Adj={latest_signals.get('MR_Adjustment', 'N/A'):.2f}, Vol_Adj={latest_signals.get('Vol_Adjustment', 'N/A'):.2f}, Composite={latest_signals.get('Composite_Signal', 'N/A'):.4f}")
-        # --- END DEBUG LOGGING ---
+             logger.trace(f"Latest Signals: Trend={latest_signals.get('Trend_Signal', 'N/A'):.2f}, MR_Adj={latest_signals.get('MR_Adjustment', 'N/A'):.2f}, Vol_Adj={latest_signals.get('Vol_Adjustment', 'N/A'):.2f}, Composite={latest_signals.get('Composite_Signal', 'N/A'):.4f}") # TRACE
+        # --- END TRACE LOGGING ---
 
-        logger.info("Composite signal generated successfully.")
+        logger.debug("Composite signal generated successfully.") # DEBUG
         return signal_df
 
     except Exception as e:

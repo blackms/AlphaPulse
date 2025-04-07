@@ -5,16 +5,12 @@ Risk Management Module for the Long/Short S&P 500 Strategy.
 Defines rules for stop-loss calculation and potentially drawdown control.
 """
 
-import logging
+from loguru import logger # Use loguru
 import pandas as pd
 from typing import Optional, Dict, Literal
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger("LongShortRiskManager")
+# Loguru logger is imported directly
+# logger = logger.bind(name="LongShortRiskManager") # Optional binding
 
 class RiskManager:
     """
@@ -42,8 +38,8 @@ class RiskManager:
             logger.warning(f"Invalid stop_loss_type '{self.stop_loss_type}'. Defaulting to 'atr'.")
             self.stop_loss_type = 'atr'
 
-        logger.info(f"RiskManager initialized. Stop Loss Type: {self.stop_loss_type}, "
-                    f"Percent: {self.stop_loss_pct}, ATR Multiplier: {self.stop_loss_atr_multiplier}")
+        logger.debug(f"RiskManager initialized. Stop Loss Type: {self.stop_loss_type}, " # DEBUG
+                     f"Percent: {self.stop_loss_pct}, ATR Multiplier: {self.stop_loss_atr_multiplier}")
 
     def calculate_stop_loss(self, entry_price: float, direction: Literal['long', 'short'],
                             current_atr: Optional[float] = None) -> Optional[float]:
@@ -72,7 +68,7 @@ class RiskManager:
                 stop_loss_price = entry_price * (1 - self.stop_loss_pct)
             else: # short
                 stop_loss_price = entry_price * (1 + self.stop_loss_pct)
-            logger.debug(f"Calculated percentage stop loss: {stop_loss_price} for {direction} entry at {entry_price}")
+            logger.trace(f"Calculated percentage stop loss: {stop_loss_price} for {direction} entry at {entry_price}") # TRACE
 
         elif self.stop_loss_type == 'atr':
             if current_atr is None or not isinstance(current_atr, (int, float)) or current_atr <= 0:
@@ -83,7 +79,7 @@ class RiskManager:
                 stop_loss_price = entry_price - atr_offset
             else: # short
                 stop_loss_price = entry_price + atr_offset
-            logger.debug(f"Calculated ATR stop loss: {stop_loss_price} (ATR={current_atr}, Mult={self.stop_loss_atr_multiplier}) for {direction} entry at {entry_price}")
+            logger.trace(f"Calculated ATR stop loss: {stop_loss_price} (ATR={current_atr}, Mult={self.stop_loss_atr_multiplier}) for {direction} entry at {entry_price}") # TRACE
 
         # Ensure stop loss is not negative (though unlikely for SP500)
         if stop_loss_price is not None and stop_loss_price < 0:
@@ -124,7 +120,7 @@ class RiskManager:
                 new_potential_stop = high_since_entry * (1 - self.stop_loss_pct)
             else: # short
                 new_potential_stop = low_since_entry * (1 + self.stop_loss_pct)
-            logger.debug(f"Trailing % Stop: Potential new stop={new_potential_stop:.2f} based on high/low={high_since_entry:.2f}/{low_since_entry:.2f}")
+            logger.trace(f"Trailing % Stop: Potential new stop={new_potential_stop:.2f} based on high/low={high_since_entry:.2f}/{low_since_entry:.2f}") # TRACE
 
         elif self.stop_loss_type == 'atr':
             if current_atr is None or not isinstance(current_atr, (int, float)) or current_atr <= 0:

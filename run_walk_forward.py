@@ -17,7 +17,8 @@ Orchestrates the process of:
 
 import os
 import argparse
-import logging
+# import logging # Replaced with loguru
+from loguru import logger # Use loguru
 import yaml
 import asyncio
 import numpy as np
@@ -40,17 +41,14 @@ import quantstats as qs # For benchmark fetching and stats calculation
 
 # --- Configuration & Setup ---
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler("run_walk_forward.log"),
-        logging.StreamHandler()
-    ]
-)
+# Configure Loguru
+logger.remove() # Remove default handler
+logger.add("run_walk_forward.log", level="DEBUG", rotation="10 MB", compression="zip", format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} - {message}") # Log DEBUG+ to file with detailed format
+logger.add(lambda msg: print(msg, end=""), level="INFO", format="{message}") # Log INFO+ to console with minimal format
+
 # Set Optuna logging level to WARNING to reduce verbosity during optimization
 optuna.logging.set_verbosity(optuna.logging.WARNING)
-logger = logging.getLogger("RunWalkForward")
+# logger instance is now handled by loguru directly
 
 
 load_dotenv()
@@ -316,7 +314,7 @@ def define_optuna_objective(
             else:
                  metric_value = sortino
 
-            logger.info(f"Trial {trial.number}: Params={trial_params}, Calculated Sortino={metric_value:.4f}")
+            logger.debug(f"Trial {trial.number}: Params={trial_params}, Calculated Sortino={metric_value:.4f}") # Changed to DEBUG
 
             # Optuna minimizes by default, but we want to MAXIMIZE Sortino.
             # Return negative Sortino.

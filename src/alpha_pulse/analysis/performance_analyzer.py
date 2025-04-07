@@ -5,7 +5,7 @@ Performance Analysis Module for AlphaPulse Backtests.
 Provides functions to generate reports and visualizations based on backtest results.
 """
 
-import logging
+from loguru import logger # Use loguru
 import pandas as pd
 import numpy as np
 import quantstats as qs
@@ -20,17 +20,13 @@ try:
     from ..backtesting.models import Position
 except ImportError:
     # Define dummy classes if imports fail, to allow module loading
-    logging.error("Could not import BacktestResult or Position from backtesting module.")
+    logger.error("Could not import BacktestResult or Position from backtesting module.") # Use logger
     class BacktestResult: pass
     class Position: pass
 
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger("PerformanceAnalyzer")
+# Loguru logger is imported directly
+# logger = logger.bind(name="PerformanceAnalyzer") # Optional binding
 
 # Import plotting libraries here to keep them contained
 import matplotlib.pyplot as plt
@@ -425,7 +421,7 @@ def analyze_and_save_results(
     try:
         # --- Salvataggio Dati Grezzi ---
         result.equity_curve.to_csv(output_dir / "equity_curve.csv")
-        logger.info(f"Curva equity salvata in {output_dir / 'equity_curve.csv'}")
+        logger.debug(f"Curva equity salvata in {output_dir / 'equity_curve.csv'}") # DEBUG
 
         if result.positions:
             positions_df = pd.DataFrame([p.__dict__ for p in result.positions])
@@ -435,9 +431,9 @@ def analyze_and_save_results(
                       # Ensure conversion handles potential NaT values gracefully
                       positions_df[col] = pd.to_datetime(positions_df[col], errors='coerce').dt.strftime('%Y-%m-%d %H:%M:%S %Z')
             positions_df.to_csv(output_dir / "trades_history.csv", index=False)
-            logger.info(f"Storia operazioni salvata in {output_dir / 'trades_history.csv'}")
+            logger.debug(f"Storia operazioni salvata in {output_dir / 'trades_history.csv'}") # DEBUG
         else:
-            logger.info("Nessuna operazione eseguita, file trades_history.csv non creato.")
+            logger.info("Nessuna operazione eseguita, file trades_history.csv non creato.") # Keep INFO for this case
 
         # --- Salvataggio Riepilogo Metriche ---
         summary = {
@@ -455,7 +451,7 @@ def analyze_and_save_results(
         }
         with open(output_dir / "summary.yaml", 'w') as f:
             yaml.dump(summary, f, default_flow_style=False)
-        logger.info(f"Riepilogo metriche salvato in {output_dir / 'summary.yaml'}")
+        logger.debug(f"Riepilogo metriche salvato in {output_dir / 'summary.yaml'}") # DEBUG
 
         # --- Generazione Report QuantStats (only if trades occurred) ---
         daily_returns = result.equity_curve.pct_change().fillna(0)
@@ -471,6 +467,7 @@ def analyze_and_save_results(
 
 
         # --- Generazione Grafici Custom ---
+        logger.debug("Generating Equity Curve and Drawdown plot...") # DEBUG
         plot_equity_curve_and_drawdown(
             equity_curve=result.equity_curve,
             output_path=output_dir / "quantstats_report.html",
@@ -482,17 +479,20 @@ def analyze_and_save_results(
             equity_curve=result.equity_curve,
             output_path=output_dir / "equity_drawdown.png"
         )
+        logger.debug("Generating Trades on Price plot...") # DEBUG
         plot_trades_on_price(
             prices=price_series, # Pass original price series used for backtest
             positions=result.positions,
             output_path=output_dir / "trades_on_price.png"
         )
+        logger.debug("Generating Rolling Sharpe Ratio (252-period) plot...") # DEBUG
         plot_rolling_sharpe(
             returns=daily_returns,
             output_path=output_dir / "rolling_sharpe.png"
         )
 
         # --- Esecuzione Simulazione Monte Carlo ---
+        logger.debug("Running Monte Carlo simulation (1000 paths)...") # DEBUG
         run_monte_carlo_simulation(
             returns=daily_returns,
             initial_capital=initial_capital,

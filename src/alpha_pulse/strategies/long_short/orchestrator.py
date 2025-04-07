@@ -6,7 +6,7 @@ Combines data loading, indicator calculation, signal generation,
 position sizing, and risk management.
 """
 
-import logging
+from loguru import logger # Use loguru
 import pandas as pd
 import numpy as np # Add numpy import
 from typing import Optional, Dict, Tuple, List
@@ -17,12 +17,8 @@ from .signal_generator import generate_composite_signal
 from .position_manager import PositionManager
 from .risk_manager import RiskManager
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger("LongShortOrchestrator")
+# Loguru logger is imported directly, no need for getLogger
+# logger = logger.bind(name="LongShortOrchestrator") # Optional: bind name if needed elsewhere
 
 class LongShortOrchestrator:
     """
@@ -48,7 +44,7 @@ class LongShortOrchestrator:
         self.ma_window = self.indicator_params.get('ma_window', 40)
         self.rsi_window = self.indicator_params.get('rsi_window', 14)
         self.atr_window = self.indicator_params.get('atr_window', 14) # Store ATR window too
-        logger.info("LongShortOrchestrator initialized.")
+        logger.debug("LongShortOrchestrator initialized.") # Changed to DEBUG
 
     def _prepare_input_data(
         self,
@@ -92,7 +88,7 @@ class LongShortOrchestrator:
             logger.error("Combined DataFrame is empty after merging and cleaning.")
             return None
 
-        logger.debug(f"Prepared combined data shape: {combined_df.shape}")
+        logger.trace(f"Prepared combined data shape: {combined_df.shape}") # Use TRACE for shape/intermediate data
         return combined_df
 
 
@@ -140,7 +136,7 @@ class LongShortOrchestrator:
         if data_with_indicators is None:
             logger.error("Failed to add indicators.")
             return None
-        logger.debug(f"Data with indicators shape: {data_with_indicators.shape}")
+        logger.trace(f"Data with indicators shape: {data_with_indicators.shape}") # Use TRACE
 
         # 3. Generate Composite Signal
         # Pass correct indicator column names dynamically
@@ -166,7 +162,7 @@ class LongShortOrchestrator:
         if target_position is None:
             logger.error("Failed to calculate target position.")
             return None
-        logger.debug(f"Target Position Series shape: {target_position.shape}")
+        logger.trace(f"Target Position Series shape: {target_position.shape}") # Use TRACE
 
         # 5. Calculate Stop Loss (conditionally based on target position)
         stop_loss = pd.Series(np.nan, index=data_with_signals.index)
@@ -200,7 +196,7 @@ class LongShortOrchestrator:
                     )
                     if sl_price is not None:
                         stop_loss.iloc[i] = sl_price
-                        logger.debug(f"Index {i} ({stop_loss.index[i].date()}): Target={current_target:.2f}, Prev={prev_target:.2f}. Calculated SL={sl_price:.2f}")
+                        logger.trace(f"Index {i} ({stop_loss.index[i].date()}): Target={current_target:.2f}, Prev={prev_target:.2f}. Calculated SL={sl_price:.2f}") # Use TRACE for per-row SL calc
 
         logger.info("Signal and target calculation pipeline finished.")
         return data_with_signals, target_position, stop_loss
