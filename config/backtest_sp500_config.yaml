@@ -1,7 +1,7 @@
 # Configurazione Backtest S&P 500
 backtest:
-  start_date: "2021-01-01" # Periodo ridotto a 2 anni (2021-2022)
-  end_date: "2022-12-31"
+  start_date: "2021-01-01" # Data di inizio backtest
+  end_date: "2025-03-31"   # Data di fine backtest estesa
   initial_capital: 1000000
   benchmark: "^GSPC"
   rebalance_frequency: "daily"  # daily, weekly, monthly
