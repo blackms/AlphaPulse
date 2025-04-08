@@ -1,10 +1,17 @@
-Avg Loss Pct: 0.81%
-Avg Win Pct: 9.73%
-Losing Trades: 3
-Max Drawdown: 4.71%
-Profit Factor: '236.03'
-Sharpe Ratio: '14.79'
-Total Return: 888.56%
+Alpha: 210.08%
+Avg Loss Pct: 0.36%
+Avg Win Pct: 2.49%
+Benchmark Max DD: 25.43%
+Benchmark Return: 50.81%
+Benchmark Sharpe: '0.67'
+Beta: '-0.00'
+Calmar Ratio: '67.10'
+Losing Trades: 4
+Max Drawdown: 3.14%
+Profit Factor: '100.82'
+Sharpe Ratio: '14.52'
+Sortino Ratio: '5.65'
+Total Return: 210.38%
 Total Trades: 62
-Win Rate: 95.16%
-Winning Trades: 59
+Win Rate: 93.55%
+Winning Trades: 58
