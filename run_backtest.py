@@ -110,6 +110,15 @@ def analyze_and_save_results(output_dir: Path, result: BacktestResult, price_ser
             "Avg Win Pct": f"{result.avg_win:.2%}",
             "Avg Loss Pct": f"{result.avg_loss:.2%}",
             "Profit Factor": f"{result.profit_factor:.2f}",
+            # Add benchmark comparison metrics
+            "Benchmark Return": f"{result.benchmark_return:.2%}",
+            "Alpha": f"{result.alpha:.2%}",
+            "Beta": f"{result.beta:.2f}",
+            "Benchmark Sharpe": f"{result.benchmark_sharpe:.2f}",
+            "Benchmark Max DD": f"{result.benchmark_max_drawdown:.2%}",
+            # Add additional risk metrics
+            "Sortino Ratio": f"{result.sortino_ratio:.2f}",
+            "Calmar Ratio": f"{result.calmar_ratio:.2f}",
         }
         with open(output_dir / "summary.yaml", 'w') as f:
             yaml.dump(summary, f, default_flow_style=False)
@@ -239,18 +248,43 @@ async def main():
         logger.error(f"Nessun dato di prezzo disponibile per il range di backtest effettivo: {start_date} - {end_date}")
         return
 
-    # Inizializza il Backtester
+    # Load benchmark data (S&P 500)
+    benchmark_symbol = backtest_config.get('benchmark', '^GSPC')
+    benchmark_data = None
+    try:
+        # Try to get benchmark data from loaded_data if it's the same as the primary symbol
+        if benchmark_symbol in loaded_data:
+            benchmark_data = loaded_data[benchmark_symbol]['Close']
+            logger.info(f"Using loaded data for benchmark {benchmark_symbol}")
+        else:
+            # Otherwise, load it separately
+            import yfinance as yf
+            benchmark = yf.download(benchmark_symbol, start=load_start_date_naive, end=load_end_date_naive)
+            if not benchmark.empty:
+                benchmark_data = benchmark['Close']
+                logger.info(f"Downloaded benchmark data for {benchmark_symbol}")
+            else:
+                logger.warning(f"Could not download benchmark data for {benchmark_symbol}")
+    except Exception as e:
+        logger.warning(f"Error loading benchmark data: {e}")
+
+    # Inizializza il Backtester with more realistic parameters
     backtester_params = backtest_config.get('parameters', {})
     backtester = Backtester(
         initial_capital=backtester_params.get('initial_capital', 100000.0),
-        commission=backtester_params.get('commission', 0.001)
+        commission=backtester_params.get('commission', 0.002),  # Increased commission
+        slippage=backtester_params.get('slippage', 0.001),      # Added slippage
+        use_fixed_position_sizing=backtester_params.get('use_fixed_position_sizing', True),  # Use fixed position sizing
+        stop_loss_slippage=backtester_params.get('stop_loss_slippage', 0.002),  # Added stop loss slippage
+        market_impact_factor=backtester_params.get('market_impact_factor', 0.0001)  # Added market impact
     )
 
     # Esegui il backtest
     backtest_result = backtester.backtest(
         prices=price_series_backtest,
-        signals=target_allocations, # Passa le allocazioni target
-        stop_losses=stop_losses     # Passa gli stop loss calcolati
+        signals=target_allocations,     # Passa le allocazioni target
+        stop_losses=stop_losses,        # Passa gli stop loss calcolati
+        benchmark_prices=benchmark_data # Passa i dati del benchmark
     )
     logger.info("Esecuzione backtest completata.")
 

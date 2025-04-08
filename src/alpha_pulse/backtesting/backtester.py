@@ -28,9 +28,33 @@ class BacktestResult:
     profit_factor: float
     positions: List[Position]
     equity_curve: pd.Series
-
+    
+    # Benchmark comparison fields
+    benchmark_return: float = 0.0
+    benchmark_sharpe: float = 0.0
+    benchmark_max_drawdown: float = 0.0
+    alpha: float = 0.0  # Strategy return - Benchmark return
+    beta: float = 0.0   # Correlation with benchmark * (strategy volatility / benchmark volatility)
+    
+    # Risk-adjusted metrics
+    sortino_ratio: float = 0.0  # Like Sharpe but only considers downside volatility
+    calmar_ratio: float = 0.0   # Annualized return / Max drawdown
+    
     def __str__(self) -> str:
         """Returns a formatted string of the backtest results."""
+        benchmark_comparison = (
+            f"Benchmark Return: {self.benchmark_return:.2%}\n"
+            f"Alpha: {self.alpha:.2%}\n"
+            f"Beta: {self.beta:.2f}\n"
+            f"Benchmark Sharpe: {self.benchmark_sharpe:.2f}\n"
+            f"Benchmark Max DD: {self.benchmark_max_drawdown:.2%}\n"
+        )
+        
+        risk_metrics = (
+            f"Sortino Ratio: {self.sortino_ratio:.2f}\n"
+            f"Calmar Ratio: {self.calmar_ratio:.2f}\n"
+        )
+        
         return (
             f"Backtest Results:\n"
             f"Total Return: {self.total_return:.2%}\n"
@@ -41,6 +65,10 @@ class BacktestResult:
             f"Profit Factor: {self.profit_factor:.2f}\n"
             f"Avg Win Pct: {self.avg_win:.2%}\n"
             f"Avg Loss Pct: {self.avg_loss:.2%}\n"
+            f"\n--- Benchmark Comparison ---\n"
+            f"{benchmark_comparison}"
+            f"\n--- Risk Metrics ---\n"
+            f"{risk_metrics}"
         )
 
 
@@ -49,23 +77,33 @@ class Backtester:
 
     def __init__(
         self,
-        commission: float = 0.001,  # 0.1% commission per trade
+        commission: float = 0.002,  # 0.2% commission per trade (increased for realism)
         initial_capital: float = 100000.0,
-        # position_size: float = 1.0, # No longer used directly, allocation comes from signals
+        slippage: float = 0.001,  # 0.1% slippage per trade
+        use_fixed_position_sizing: bool = True,  # Use initial capital for position sizing
+        stop_loss_slippage: float = 0.002,  # Additional slippage for stop losses (0.2%)
+        market_impact_factor: float = 0.0001,  # Market impact as a fraction of position size
+        benchmark_symbol: str = "^GSPC",  # Default benchmark is S&P 500
     ):
         """
         Initialize the backtester with trading parameters.
 
         Args:
-            commission: Trading commission as a fraction (e.g., 0.001 for 0.1%)
+            commission: Trading commission as a fraction (e.g., 0.002 for 0.2%)
             initial_capital: Starting capital for the backtest
+            slippage: Slippage as a fraction (e.g., 0.001 for 0.1%)
+            use_fixed_position_sizing: Whether to use initial capital for position sizing
+            stop_loss_slippage: Additional slippage for stop loss orders
+            market_impact_factor: Market impact as a fraction of position size
+            benchmark_symbol: Symbol for benchmark comparison
         """
-        # if position_size < 0.0 or position_size > 1.0:
-        #     raise ValueError("Position size must be between 0.0 and 1.0")
-
         self.commission = commission
         self.initial_capital = initial_capital
-        # self.position_size = position_size # Removed
+        self.slippage = slippage
+        self.use_fixed_position_sizing = use_fixed_position_sizing
+        self.stop_loss_slippage = stop_loss_slippage
+        self.market_impact_factor = market_impact_factor
+        self.benchmark_symbol = benchmark_symbol
         self._reset()
 
     def _reset(self) -> None:
@@ -115,6 +153,83 @@ class Backtester:
         sharpe = mean_return / std_dev
         annualized_sharpe = sharpe * np.sqrt(periods_per_year)
         return annualized_sharpe
+        
+    def _calculate_sortino_ratio(self, returns: np.ndarray, periods_per_year: int = 252) -> float:
+        """
+        Calculate the Sortino ratio, which only penalizes downside volatility.
+        
+        Args:
+            returns: Array of returns
+            periods_per_year: Number of trading periods in a year
+            
+        Returns:
+            float: Sortino ratio
+        """
+        if len(returns) < 2:
+            return 0.0
+            
+        mean_return = np.mean(returns)
+        
+        # Calculate downside deviation (only negative returns)
+        downside_returns = returns[returns < 0]
+        if len(downside_returns) == 0:
+            return float('inf')  # No downside, return infinity
+            
+        downside_deviation = np.std(downside_returns, ddof=1)
+        
+        if downside_deviation == 0:
+            return 0.0
+            
+        sortino = mean_return / downside_deviation
+        annualized_sortino = sortino * np.sqrt(periods_per_year)
+        return annualized_sortino
+        
+    def _calculate_benchmark_metrics(self, benchmark_prices: pd.Series, strategy_equity: pd.Series) -> dict:
+        """
+        Calculate benchmark performance metrics for comparison.
+        
+        Args:
+            benchmark_prices: Series of benchmark prices
+            strategy_equity: Series of strategy equity values
+            
+        Returns:
+            dict: Dictionary of benchmark metrics
+        """
+        # Align benchmark with strategy dates
+        benchmark_aligned = benchmark_prices.reindex(strategy_equity.index, method='ffill')
+        
+        # Calculate benchmark returns
+        benchmark_returns = benchmark_aligned.pct_change().fillna(0)
+        strategy_returns = strategy_equity.pct_change().fillna(0)
+        
+        # Calculate benchmark metrics
+        benchmark_total_return = (benchmark_aligned.iloc[-1] / benchmark_aligned.iloc[0]) - 1
+        
+        # Calculate benchmark drawdown
+        benchmark_peak = benchmark_aligned.expanding(min_periods=1).max()
+        benchmark_drawdown = (benchmark_aligned - benchmark_peak) / benchmark_peak
+        benchmark_max_drawdown = abs(benchmark_drawdown.min())
+        
+        # Calculate benchmark Sharpe ratio
+        benchmark_sharpe = self._calculate_sharpe_ratio(benchmark_returns.values)
+        
+        # Calculate beta (correlation * strategy_vol / benchmark_vol)
+        correlation = np.corrcoef(strategy_returns.iloc[1:], benchmark_returns.iloc[1:])[0, 1]
+        strategy_vol = np.std(strategy_returns.iloc[1:], ddof=1)
+        benchmark_vol = np.std(benchmark_returns.iloc[1:], ddof=1)
+        beta = correlation * (strategy_vol / benchmark_vol) if benchmark_vol > 0 else 0
+        
+        # Calculate alpha (strategy return - beta * benchmark return)
+        strategy_total_return = (strategy_equity.iloc[-1] / strategy_equity.iloc[0]) - 1
+        alpha = strategy_total_return - (beta * benchmark_total_return)
+        
+        return {
+            'benchmark_return': benchmark_total_return,
+            'benchmark_sharpe': benchmark_sharpe,
+            'benchmark_max_drawdown': benchmark_max_drawdown,
+            'alpha': alpha,
+            'beta': beta
+        }
 
     def _generate_empty_result(self, index: pd.Index) -> 'BacktestResult':
         """Helper to return an empty result set."""
@@ -131,6 +246,7 @@ class Backtester:
         prices: pd.Series,
         signals: pd.Series, # Interpreted as TARGET ALLOCATION (-1.0 to +1.0)
         stop_losses: Optional[pd.Series] = None, # Optional series of stop-loss prices
+        benchmark_prices: Optional[pd.Series] = None, # Optional benchmark prices for comparison
     ) -> BacktestResult:
         """
         Run a backtest using price data and target allocation signals.
@@ -139,6 +255,7 @@ class Backtester:
             prices: Time series of asset prices (e.g., Close prices).
             signals: Time series of target allocation signals (-1.0 to +1.0).
             stop_losses: Optional time series of stop-loss prices for open positions.
+            benchmark_prices: Optional benchmark prices for comparison.
 
         Returns:
             BacktestResult containing performance metrics and trade history.
@@ -223,8 +340,16 @@ class Backtester:
                     logger.info(f"[{timestamp.date()}] SHORT STOP LOSS hit at {exit_price:.2f} (Entry: {self.current_position.entry_price:.2f})")
 
                 if exit_price is not None:
+                    # Apply additional slippage for stop loss orders (worse for the trader)
+                    # For long positions (selling): price decreases
+                    # For short positions (buying): price increases
+                    direction = np.sign(self.current_position.size)
+                    exit_price_with_slippage = exit_price * (1 - self.stop_loss_slippage * direction)
+                    
+                    logger.debug(f"[{timestamp.date()}] Stop Loss Slippage: {exit_price} -> {exit_price_with_slippage} ({(exit_price_with_slippage - exit_price) / exit_price * 100:.3f}%)")
+                    
                     # Calculate PnL for the closing trade
-                    exit_value = abs(self.current_position.size) * exit_price * (1 - self.commission)
+                    exit_value = abs(self.current_position.size) * exit_price_with_slippage * (1 - self.commission)
                     entry_value_basis = abs(self.current_position.size) * self.current_position.entry_price * (1 + self.commission) # Cost basis includes entry commission
                     # PnL calculation depends on direction
                     pnl = (exit_value - entry_value_basis) if self.current_position.size > 0 else (entry_value_basis - exit_value)
@@ -250,8 +375,10 @@ class Backtester:
             # --- 2. Adjust Position based on Target Allocation (if no SL triggered) ---
             if not trade_executed_today:
                 current_position_size = self.current_position.size if self.current_position else 0.0
-                # Calculate target size based on current equity and price
-                target_position_size = (self.equity * target_allocation) / current_price if abs(current_price) > 1e-9 else 0.0
+                
+                # Calculate target size based on initial capital (if fixed sizing) or current equity
+                capital_base = self.initial_capital if self.use_fixed_position_sizing else self.equity
+                target_position_size = (capital_base * target_allocation) / current_price if abs(current_price) > 1e-9 else 0.0
                 quantity_to_trade = target_position_size - current_position_size
 
                 # Execute trade if change is significant enough (e.g., > 0.01% of portfolio or minimum quantity/value)
@@ -259,8 +386,21 @@ class Backtester:
                 min_trade_qty_threshold = 1e-9 # Avoid trading dust
 
                 if abs(quantity_to_trade * current_price) > min_trade_value and abs(quantity_to_trade) > min_trade_qty_threshold:
-                    commission_cost = abs(quantity_to_trade * current_price) * self.commission
+                    # Calculate market impact based on position size
+                    market_impact = abs(quantity_to_trade * current_price) * self.market_impact_factor
+                    
+                    # Calculate effective execution price with slippage and market impact
+                    # For buys: price increases, for sells: price decreases
+                    effective_price = current_price * (1 + self.slippage * np.sign(quantity_to_trade))
+                    effective_price += market_impact / abs(quantity_to_trade) * np.sign(quantity_to_trade)
+                    
+                    # Calculate commission cost
+                    commission_cost = abs(quantity_to_trade * effective_price) * self.commission
                     self.equity -= commission_cost # Commission always reduces equity
+                    
+                    # Log the slippage and market impact
+                    if abs(effective_price - current_price) > 1e-6:
+                        logger.debug(f"[{timestamp.date()}] Slippage+Impact: {(effective_price - current_price):.2f} ({(effective_price - current_price) / current_price * 100:.3f}%)")
 
                     realized_pnl_trade = 0.0
                     entry_value_closed = 0.0
@@ -281,7 +421,13 @@ class Backtester:
                         closed_quantity = min(closed_quantity, abs(old_size)) # Ensure we don't close more than held
 
                         if closed_quantity > 1e-9:
-                            exit_value_closed = closed_quantity * current_price * (1 - self.commission)
+                            # Apply slippage and market impact to the closing price
+                            # For long positions (selling): price decreases
+                            # For short positions (buying): price increases
+                            direction = np.sign(old_size)
+                            closing_price = effective_price  # Use the effective price calculated earlier
+                            
+                            exit_value_closed = closed_quantity * closing_price * (1 - self.commission)
                             entry_value_closed = closed_quantity * self.current_position.entry_price * (1 + self.commission) # Cost basis of the closed part
                             pnl_closed = (exit_value_closed - entry_value_closed) if old_size > 0 else (entry_value_closed - exit_value_closed)
                             realized_pnl_trade += pnl_closed
@@ -410,7 +556,21 @@ class Backtester:
         gross_loss = abs(sum(losses))
         profit_factor = gross_profit / gross_loss if gross_loss != 0 else float('inf')
 
-        logger.info(f"Backtest completed. Total return: {total_return:.2%}")
+        # Calculate additional risk metrics
+        daily_returns = equity_curve.pct_change().fillna(0)
+        sortino_ratio = self._calculate_sortino_ratio(daily_returns.values)
+        calmar_ratio = (total_return / max_drawdown) if max_drawdown > 0 else float('inf')
+        
+        # Calculate benchmark metrics if benchmark prices are provided
+        benchmark_metrics = {}
+        if benchmark_prices is not None:
+            try:
+                benchmark_metrics = self._calculate_benchmark_metrics(benchmark_prices, equity_curve)
+                logger.info(f"Benchmark comparison: Alpha: {benchmark_metrics['alpha']:.2%}, Beta: {benchmark_metrics['beta']:.2f}")
+            except Exception as e:
+                logger.error(f"Error calculating benchmark metrics: {e}")
+        
+        logger.info(f"Backtest completed. Total return: {total_return:.2%}, Sharpe: {sharpe_ratio:.2f}, Max DD: {max_drawdown:.2%}")
 
         return BacktestResult(
             total_return=total_return,
@@ -424,5 +584,14 @@ class Backtester:
             avg_loss=avg_loss_pct, # Return percentage value
             profit_factor=profit_factor,
             positions=self.positions,
-            equity_curve=equity_curve
+            equity_curve=equity_curve,
+            # Add benchmark comparison metrics
+            benchmark_return=benchmark_metrics.get('benchmark_return', 0.0),
+            benchmark_sharpe=benchmark_metrics.get('benchmark_sharpe', 0.0),
+            benchmark_max_drawdown=benchmark_metrics.get('benchmark_max_drawdown', 0.0),
+            alpha=benchmark_metrics.get('alpha', 0.0),
+            beta=benchmark_metrics.get('beta', 0.0),
+            # Add additional risk metrics
+            sortino_ratio=sortino_ratio,
+            calmar_ratio=calmar_ratio
         )
