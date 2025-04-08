@@ -11,6 +11,7 @@ import numpy as np # Add numpy import
 import quantstats as qs
 from pathlib import Path
 from typing import List, Optional
+import pandas.errors # Add explicit import for pandas errors
  
  # Assuming BacktestResult and Position are defined elsewhere (e.g., backtester module)
 # Adjust import if necessary
@@ -84,13 +85,41 @@ def generate_quantstats_report(
         qs.extend_pandas()
 
         # Generate the HTML report
-        qs.reports.html(
-            returns=returns,
-            benchmark=benchmark,
-            output=str(output_path), # QuantStats expects string path
-            title=title,
-            download_filename=str(output_path.name) # Use Path object's name attribute
-        )
+        # Workaround for pandas resampling issue in QuantStats
+        try:
+            qs.reports.html(
+                returns=returns,
+                benchmark=benchmark,
+                output=str(output_path), # QuantStats expects string path
+                title=title,
+                download_filename=str(output_path.name) # Use Path object's name attribute
+            )
+        except pandas.errors.UnsupportedFunctionCall as e:
+            # Handle the specific resampling error
+            if "numpy operations are not valid with resample" in str(e):
+                logger.warning("Encountered pandas resampling issue in QuantStats. Using alternative approach.")
+                # Create a simpler report without the problematic resampling operations
+                with open(str(output_path), 'w') as f:
+                    f.write(f"<html><head><title>{title}</title></head><body>")
+                    f.write("<h1>Strategy Performance Summary</h1>")
+                    
+                    # Calculate key metrics manually
+                    total_return = ((returns + 1).prod() - 1) * 100
+                    annual_return = ((returns + 1).prod() ** (252/len(returns)) - 1) * 100
+                    sharpe = (returns.mean() / returns.std()) * (252 ** 0.5)
+                    max_dd = (returns.cumsum() - returns.cumsum().cummax()).min() * 100
+                    
+                    # Write metrics to HTML
+                    f.write(f"<p>Total Return: {total_return:.2f}%</p>")
+                    f.write(f"<p>Annualized Return: {annual_return:.2f}%</p>")
+                    f.write(f"<p>Sharpe Ratio: {sharpe:.2f}</p>")
+                    f.write(f"<p>Max Drawdown: {max_dd:.2f}%</p>")
+                    
+                    f.write("</body></html>")
+                logger.info("Generated simplified performance report due to QuantStats compatibility issue.")
+            else:
+                # Re-raise if it's a different error
+                raise
         logger.info("QuantStats report generated successfully.")
     except ImportError:
          logger.error("QuantStats not installed. Skipping report generation.")
