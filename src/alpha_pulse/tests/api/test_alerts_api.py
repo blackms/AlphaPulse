@@ -302,7 +302,7 @@ def test_acknowledge_alert_not_found(client, auth_override, admin_user):
     """Test acknowledgment of non-existent alert."""
     with auth_override(admin_user):
         # Mock the AlertDataAccessor dependency
-        mock_accessor = MagicMock()
+        mock_accessor = AsyncMock()
         mock_accessor.acknowledge_alert.return_value = {
             "success": False,
             "error": "Alert not found or already acknowledged"
