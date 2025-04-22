@@ -8,7 +8,7 @@ from contextlib import contextmanager
 
 # Application imports
 from alpha_pulse.api.main import app
-from alpha_pulse.api.dependencies import get_current_user
+from alpha_pulse.api.dependencies import get_current_user, get_portfolio_accessor
 from alpha_pulse.api.data import PortfolioDataAccessor
 
 
@@ -20,9 +20,17 @@ def client():
 
 @pytest.fixture
 def mock_portfolio_accessor():
-    """Mock the PortfolioDataAccessor."""
-    with patch("alpha_pulse.api.dependencies.get_portfolio_accessor") as mock:
-        yield mock
+    """Override the get_portfolio_accessor dependency with a mock."""
+    mock_accessor_instance = MagicMock(spec=PortfolioDataAccessor)
+    original_override = app.dependency_overrides.get(get_portfolio_accessor)
+    app.dependency_overrides[get_portfolio_accessor] = lambda: mock_accessor_instance
+    try:
+        yield mock_accessor_instance
+    finally:
+        if original_override is None:
+            del app.dependency_overrides[get_portfolio_accessor]
+        else:
+            app.dependency_overrides[get_portfolio_accessor] = original_override
 
 
 @pytest.fixture
@@ -133,7 +141,7 @@ def test_get_portfolio_success(client, mock_portfolio_accessor, sample_portfolio
         mock_portfolio_accessor.get_portfolio.return_value = sample_portfolio
         
         # Make request
-        response = client.get("/api/v1/portfolio")
+        response = client.get("/api/v1/portfolio", params={"refresh": "false"})
         
         # Verify response
         assert response.status_code == 200
@@ -154,7 +162,7 @@ def test_get_portfolio_with_history(client, mock_portfolio_accessor, sample_port
         mock_portfolio_accessor.get_portfolio.return_value = portfolio_with_history
         
         # Make request with include_history parameter
-        response = client.get("/api/v1/portfolio", params={"include_history": "true"})
+        response = client.get("/api/v1/portfolio", params={"include_history": "true", "refresh": "false"})
         
         # Verify response
         assert response.status_code == 200
@@ -201,10 +209,10 @@ def test_get_portfolio_error(client, mock_portfolio_accessor, auth_override, adm
         mock_portfolio_accessor.get_portfolio.side_effect = Exception("Database error")
         
         # Make request
-        response = client.get("/api/v1/portfolio")
+        response = client.get("/api/v1/portfolio", params={"refresh": "false"})
         
         # Verify response (should return error object, not fail)
-        assert response.status_code == 500
+        assert response.status_code == 200
         assert "error" in response.json()
         assert response.json()["total_value"] == 0
         assert response.json()["cash"] == 0
@@ -237,7 +245,7 @@ def test_portfolio_endpoint_performance(client, mock_portfolio_accessor, sample_
         # Make request and measure time
         import time
         start_time = time.time()
-        response = client.get("/api/v1/portfolio")
+        response = client.get("/api/v1/portfolio", params={"refresh": "false"})
         end_time = time.time()
         
         # Verify response
