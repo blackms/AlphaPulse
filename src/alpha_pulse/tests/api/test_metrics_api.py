@@ -102,7 +102,7 @@ def test_get_metrics_success(client, mock_metrics_accessor, sample_metrics, auth
             metric_type="portfolio_value",
             start_time=None,
             end_time=None,
-            aggregation=None
+            aggregation="avg"
         )
 
 
