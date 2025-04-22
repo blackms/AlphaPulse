@@ -21,10 +21,8 @@ def client():
 @pytest.fixture
 def mock_metrics_accessor():
     """Mock the MetricsDataAccessor."""
-    with patch("alpha_pulse.api.routers.metrics.metrics_accessor", new_callable=MagicMock) as mock:
-        # Replace MagicMock with AsyncMock for async methods
-        mock.get_metrics = MagicMock(side_effect=mock.get_metrics) # Keep original MagicMock behavior for non-async methods if any
-        mock.get_latest_metrics = MagicMock(side_effect=mock.get_latest_metrics) # Keep original MagicMock behavior for non-async methods if any
+    from unittest.mock import patch, MagicMock, AsyncMock
+    with patch("alpha_pulse.api.routers.metrics.metrics_accessor", new_callable=AsyncMock) as mock:
         yield mock
 
 
@@ -125,7 +123,7 @@ def test_get_metrics_with_params(client, mock_metrics_accessor, sample_metrics, 
             params={
                 "start_time": start_time.isoformat(),
                 "end_time": end_time.isoformat(),
-                "aggregation": "mean"
+                "aggregation": "sum"
             }
         )
         
@@ -137,7 +135,7 @@ def test_get_metrics_with_params(client, mock_metrics_accessor, sample_metrics, 
         mock_metrics_accessor.get_metrics.assert_called_once()
         call_args = mock_metrics_accessor.get_metrics.call_args[1]
         assert call_args["metric_type"] == "portfolio_value"
-        assert call_args["aggregation"] == "mean"
+        assert call_args["aggregation"] == "sum"
         # Check that datetime objects were properly parsed
         assert isinstance(call_args["start_time"], datetime)
         assert isinstance(call_args["end_time"], datetime)
