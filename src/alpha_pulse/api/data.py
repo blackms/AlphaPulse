@@ -70,9 +70,14 @@ class MetricsDataAccessor:
 class AlertDataAccessor:
     """Accessor for alert data."""
     
-    def __init__(self):
-        """Initialize the accessor."""
+    def __init__(self, alert_manager=None):
+        """Initialize the accessor.
+        
+        Args:
+            alert_manager: Optional AlertManager instance for direct alert access
+        """
         self.alert_repo = AlertRepository()
+        self.alert_manager = alert_manager
     
     async def get_alerts(
         self,

@@ -4,10 +4,11 @@ from fastapi.testclient import TestClient
 from datetime import datetime, timedelta
 import json
 from unittest.mock import patch, MagicMock, AsyncMock
+from contextlib import contextmanager
 
 # Application imports
 from alpha_pulse.api.main import app
-from alpha_pulse.api.dependencies import get_current_user
+from alpha_pulse.api.dependencies import get_current_user, get_user
 
 
 @pytest.fixture
@@ -92,11 +93,17 @@ def restricted_user():
 
 @pytest.fixture
 def auth_override():
-    """Override the get_current_user dependency."""
+    """Override the get_current_user and get_user dependencies."""
+    @contextmanager
     def _override_dependency(user):
-        app.dependency_overrides[get_current_user] = lambda: user
-        yield
-        app.dependency_overrides = {}
+        app.dependency_overrides = {
+            get_current_user: lambda: user,
+            get_user: lambda: user # Simplified override
+        }
+        try:
+            yield
+        finally:
+            app.dependency_overrides = {}
     return _override_dependency
 
 
