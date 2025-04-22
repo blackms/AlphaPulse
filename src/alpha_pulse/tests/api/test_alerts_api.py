@@ -5,7 +5,7 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 import json
 from contextlib import contextmanager
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, AsyncMock
 
 # Application imports
 from alpha_pulse.api.main import app

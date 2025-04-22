@@ -1,7 +1,7 @@
 +++
 id = "TASK-FIXER-ALERTS-API-TESTS-20250422"
 title = "Fix Non-Passing Alerts API Tests"
-status = "⚪ To Do"
+status = "🟣 Review"
 created_date = "2025-04-22"
 updated_date = "2025-04-22"
 assigned_to = "dev-fixer"
