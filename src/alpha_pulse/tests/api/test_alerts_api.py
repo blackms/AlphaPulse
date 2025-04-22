@@ -97,7 +97,7 @@ def test_get_alerts_success(client, sample_alerts, auth_override, admin_user):
     """Test successful alerts retrieval."""
     with auth_override(admin_user):
         # Mock the AlertDataAccessor dependency
-        mock_accessor = MagicMock()
+        mock_accessor = AsyncMock()
         mock_accessor.get_alerts.return_value = sample_alerts
         
         # Override the dependency for this test
@@ -129,7 +129,7 @@ def test_get_alerts_with_filters(client, sample_alerts, auth_override, admin_use
         filtered_alerts = [alert for alert in sample_alerts if not alert["acknowledged"]]
         
         # Mock the AlertDataAccessor dependency
-        mock_accessor = MagicMock()
+        mock_accessor = AsyncMock()
         mock_accessor.get_alerts.return_value = filtered_alerts
 
         # Override the dependency for this test
@@ -161,7 +161,7 @@ def test_get_alerts_with_time_range(client, sample_alerts, auth_override, admin_
     """Test alerts retrieval with time range."""
     with auth_override(admin_user):
         # Mock the AlertDataAccessor dependency
-        mock_accessor = MagicMock()
+        mock_accessor = AsyncMock()
         mock_accessor.get_alerts.return_value = sample_alerts
 
         # Override the dependency for this test
@@ -236,7 +236,7 @@ def test_get_alerts_error(client, auth_override, admin_user):
     """Test error handling in alerts endpoint."""
     with auth_override(admin_user):
         # Mock the AlertDataAccessor dependency
-        mock_accessor = MagicMock()
+        mock_accessor = AsyncMock()
         mock_accessor.get_alerts.side_effect = Exception("Database error")
 
         # Override the dependency for this test
@@ -258,7 +258,7 @@ def test_acknowledge_alert_success(client, auth_override, admin_user):
     """Test successful alert acknowledgment."""
     with auth_override(admin_user):
         # Mock the AlertDataAccessor dependency
-        mock_accessor = MagicMock()
+        mock_accessor = AsyncMock()
         mock_accessor.acknowledge_alert.return_value = {
             "success": True,
             "alert": {
@@ -348,7 +348,7 @@ def test_acknowledge_alert_error(client, auth_override, admin_user):
     """Test error handling in acknowledge endpoint."""
     with auth_override(admin_user):
         # Mock the AlertDataAccessor dependency
-        mock_accessor = MagicMock()
+        mock_accessor = AsyncMock()
         mock_accessor.acknowledge_alert.side_effect = Exception("Database error")
 
         # Override the dependency for this test
