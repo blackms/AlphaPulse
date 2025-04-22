@@ -21,7 +21,10 @@ def client():
 @pytest.fixture
 def mock_metrics_accessor():
     """Mock the MetricsDataAccessor."""
-    with patch("alpha_pulse.api.routers.metrics.metrics_accessor") as mock:
+    with patch("alpha_pulse.api.routers.metrics.metrics_accessor", new_callable=MagicMock) as mock:
+        # Replace MagicMock with AsyncMock for async methods
+        mock.get_metrics = MagicMock(side_effect=mock.get_metrics) # Keep original MagicMock behavior for non-async methods if any
+        mock.get_latest_metrics = MagicMock(side_effect=mock.get_latest_metrics) # Keep original MagicMock behavior for non-async methods if any
         yield mock
 
 
