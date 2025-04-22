@@ -79,16 +79,8 @@ async def get_user(
     """
     # Add permissions to the user object
     if token_user:
-        token_user["permissions"] = [
-            "view_metrics",
-            "view_alerts",
-            "acknowledge_alerts",
-            "view_portfolio",
-            "view_trades",
-            "view_system"
-        ]
         return token_user
-        
+
     if api_key_user:
         return api_key_user
     

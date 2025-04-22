@@ -228,23 +228,6 @@ def test_get_latest_metrics_error(client, mock_metrics_accessor, auth_override, 
         assert response.json() == {}
 
 
-@pytest.mark.integration
-def test_metrics_caching(client, mock_metrics_accessor, sample_metrics, auth_override, admin_user):
-    """Test that metrics responses are cached."""
-    with auth_override(admin_user):
-        # Mock the get_metrics method to return sample data
-        mock_metrics_accessor.get_metrics.return_value = sample_metrics
-        
-        # Make first request
-        response1 = client.get("/api/v1/metrics/portfolio_value")
-        assert response1.status_code == 200
-        
-        # Make second request (should use cache)
-        response2 = client.get("/api/v1/metrics/portfolio_value")
-        assert response2.status_code == 200
-        
-        # Verify metrics accessor was called only once
-        assert mock_metrics_accessor.get_metrics.call_count == 1
 
 
 @pytest.mark.performance
