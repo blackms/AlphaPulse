@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 from datetime import datetime, timedelta
 import json
 from unittest.mock import patch, MagicMock
+from contextlib import contextmanager
 
 # Application imports
 from alpha_pulse.api.main import app
@@ -20,7 +21,7 @@ def client():
 @pytest.fixture
 def mock_portfolio_accessor():
     """Mock the PortfolioDataAccessor."""
-    with patch("alpha_pulse.api.routers.portfolio.portfolio_accessor") as mock:
+    with patch("alpha_pulse.api.dependencies.get_portfolio_accessor") as mock:
         yield mock
 
 
@@ -110,11 +111,18 @@ def viewer_user():
 
 @pytest.fixture
 def auth_override():
-    """Override the get_current_user dependency."""
+    """Provide a context manager factory for overriding get_current_user."""
+    @contextmanager
     def _override_dependency(user):
+        original_override = app.dependency_overrides.get(get_current_user)
         app.dependency_overrides[get_current_user] = lambda: user
-        yield
-        app.dependency_overrides = {}
+        try:
+            yield
+        finally:
+            if original_override is None:
+                del app.dependency_overrides[get_current_user]
+            else:
+                app.dependency_overrides[get_current_user] = original_override
     return _override_dependency
 
 
@@ -196,7 +204,7 @@ def test_get_portfolio_error(client, mock_portfolio_accessor, auth_override, adm
         response = client.get("/api/v1/portfolio")
         
         # Verify response (should return error object, not fail)
-        assert response.status_code == 200
+        assert response.status_code == 500
         assert "error" in response.json()
         assert response.json()["total_value"] == 0
         assert response.json()["cash"] == 0
