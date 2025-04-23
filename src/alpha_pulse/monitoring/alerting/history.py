@@ -67,15 +67,20 @@ class MemoryAlertHistory(AlertHistoryStorage):
         """
         self.alerts = deque(maxlen=max_alerts)
         self.logger = logging.getLogger("alpha_pulse.alerting.history.memory")
+        self._next_id = 1  # Add a counter for integer IDs
     
     async def store_alert(self, alert: Alert) -> None:
+        """Store an alert in memory. Assigns an integer ID."""
         """Store an alert in memory.
         
         Args:
             alert: The alert to store
         """
+        # Assign an integer ID before storing
+        alert.id = self._next_id
+        self._next_id += 1
         self.alerts.append(alert)
-        self.logger.debug(f"Stored alert in memory: {alert.alert_id}")
+        self.logger.debug(f"Stored alert in memory with ID: {alert.id}")
     
     async def get_alerts(
         self,
@@ -112,29 +117,31 @@ class MemoryAlertHistory(AlertHistoryStorage):
                     filtered_alerts = [a for a in filtered_alerts if a.rule_id == value]
                 elif key == "metric_name":
                     filtered_alerts = [a for a in filtered_alerts if a.metric_name == value]
-        
+                elif key == "id":  # Add filter for integer ID
+                    filtered_alerts = [a for a in filtered_alerts if a.id == value]
+         
         # Sort by timestamp (newest first)
         filtered_alerts.sort(key=lambda a: a.timestamp, reverse=True)
         return filtered_alerts
     
-    async def update_alert(self, alert_id: str, updates: Dict[str, Any]) -> bool:
-        """Update an alert record.
+    async def update_alert(self, alert_id: int, updates: Dict[str, Any]) -> bool:
+        """Update an alert record by integer ID.
         
         Args:
-            alert_id: ID of the alert to update
+            alert_id: Integer ID of the alert to update
             updates: Dictionary of fields to update
             
         Returns:
             bool: True if update was successful, False otherwise
         """
         for alert in self.alerts:
-            if alert.alert_id == alert_id:
+            if alert.id == alert_id:  # Use integer ID for lookup
                 # Update fields
                 for key, value in updates.items():
                     if hasattr(alert, key):
                         setattr(alert, key, value)
                 
-                self.logger.debug(f"Updated alert in memory: {alert_id}")
+                self.logger.debug(f"Updated alert in memory with ID: {alert_id}")
                 return True
         
         return False

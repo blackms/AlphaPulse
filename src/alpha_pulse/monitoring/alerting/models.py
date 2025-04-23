@@ -144,6 +144,7 @@ class Alert:
     def to_dict(self) -> Dict[str, Any]:
         """Convert the alert to a dictionary."""
         return {
+            "id": self.id,  # Add integer ID
             "alert_id": self.alert_id,
             "rule_id": self.rule_id,
             "metric_name": self.metric_name,
@@ -160,6 +161,7 @@ class Alert:
     def from_dict(cls, data: Dict[str, Any]) -> "Alert":
         """Create an alert from a dictionary."""
         return cls(
+            id=data.get("id"),  # Get integer ID
             alert_id=data["alert_id"],
             rule_id=data["rule_id"],
             metric_name=data["metric_name"],

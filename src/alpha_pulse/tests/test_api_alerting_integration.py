@@ -100,10 +100,13 @@ async def test_alert_acknowledgment(authenticated_client):
     
     # Store the alert in the alert history
     await alert_manager.alert_history.store_alert(test_alert)
-    
-    # Acknowledge the alert through the API
+
+    # Get the integer ID assigned by the history
+    alert_id_int = test_alert.id
+
+    # Acknowledge the alert through the API using the integer ID
     response = authenticated_client.post(
-        f"/api/v1/alerts/test_alert_456/acknowledge"
+        f"/api/v1/alerts/{alert_id_int}/acknowledge"
     )
     
     # Check that the response is successful
@@ -113,7 +116,7 @@ async def test_alert_acknowledgment(authenticated_client):
     
     # Verify that the alert is acknowledged in the alerting system
     alerts = await alert_manager.get_alert_history(
-        filters={"alert_id": "test_alert_456"}
+        filters={"id": alert_id_int}  # Filter by integer ID
     )
     assert len(alerts) == 1
     assert alerts[0].acknowledged is True
