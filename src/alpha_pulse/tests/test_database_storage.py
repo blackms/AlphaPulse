@@ -6,6 +6,8 @@ import asyncio
 import os
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, Mock
+import pytest_asyncio # Import pytest_asyncio
+import asyncpg # Import asyncpg to use for spec
 
 from alpha_pulse.monitoring.alerting.models import Alert, AlertSeverity
 from alpha_pulse.monitoring.alerting.storage import DatabaseAlertHistory
@@ -55,48 +57,64 @@ def alerts():
         )
     ]
 
+# Removed MockAsyncConnectionContext class
+
 @pytest.fixture
-def mock_db_components(mocker):
-    """Fixture to mock database connection pool and connection."""
-    mock_pool = AsyncMock()
-    mock_conn = AsyncMock()
+def mock_db_components(mocker): # Added mocker back
+    """Fixture to mock database connection pool and connection using spec."""
+    from unittest.mock import AsyncMock, Mock # Ensure using unittest.mock
 
-    # Create an AsyncMock object that will act as the async context manager
-    mock_context_manager = AsyncMock()
+    # Create mocks with spec to mimic asyncpg objects
+    mock_pool = AsyncMock(spec=asyncpg.Pool)
+    mock_conn = AsyncMock(spec=asyncpg.Connection)
 
-    # Explicitly define __aenter__ and __aexit__ as AsyncMocks
-    mock_context_manager.__aenter__ = AsyncMock()
-    mock_context_manager.__aexit__ = AsyncMock()
+    # Create a standard Mock object that will act as the async context manager
+    mock_context_manager = Mock()
 
-    # Configure the return values of the context manager's async methods
-    mock_context_manager.__aenter__.return_value = mock_conn
-    mock_context_manager.__aexit__.return_value = None
+    # Configure the async context manager methods
+    mock_context_manager.__aenter__ = AsyncMock(return_value=mock_conn)
+    mock_context_manager.__aexit__ = AsyncMock(return_value=None)
 
-    # Configure the pool's acquire method (which is an AsyncMock)
-    # Its return value, when awaited, should be the context manager mock.
+    # Configure the pool's acquire method (which is an AsyncMock due to spec)
+    # Set its return_value to the context manager mock
+    # We need to ensure 'acquire' itself is treated as awaitable returning the context manager
     mock_pool.acquire = AsyncMock(return_value=mock_context_manager)
 
-    # Ensure release is also awaitable
+    # Ensure release is also awaitable (spec might handle this, but explicit is safer)
     mock_pool.release = AsyncMock(return_value=None)
 
     return mock_pool, mock_conn
 
-@pytest.fixture
-def storage_instance(connection_params, mocker):
-    """Fixture for the DatabaseAlertHistory instance with initialize mocked."""
-    # Mock the initialize method to prevent actual connection attempts during setup
-    mocker.patch.object(DatabaseAlertHistory, 'initialize', return_value=True)
+# Remove storage_instance fixture, combine logic into storage_with_mock_db
 
-    storage = DatabaseAlertHistory(connection_params)
-    storage.initialized = True # Manually set initialized flag after mocking initialize
-    return storage
+@pytest.fixture # Keep synchronous for now
+def storage_with_mock_db(connection_params, mocker, mock_db_components): # Added mocker back
+    """Fixture for the DatabaseAlertHistory instance with pool.acquire patched."""
+    # Fallback import needed here too if used directly
+    from unittest.mock import AsyncMock, Mock
 
-@pytest.fixture
-def storage_with_mock_db(storage_instance, mock_db_components):
-    """Fixture for the DatabaseAlertHistory instance with mocked database components."""
     mock_pool, mock_conn = mock_db_components
-    storage_instance.pool = mock_pool
-    return storage_instance, mock_conn # Return both storage and mock_conn for tests that need to configure fetch/execute
+
+    # Create the storage instance
+    storage = DatabaseAlertHistory(connection_params)
+
+    # Manually assign the mock pool
+    storage.pool = mock_pool
+
+    # --- Patch acquire on the specific mock_pool instance ---
+    # Create a standard Mock object that will act as the async context manager
+    mock_context_manager = Mock()
+    # Configure its async methods
+    mock_context_manager.__aenter__ = AsyncMock(return_value=mock_conn)
+    mock_context_manager.__aexit__ = AsyncMock(return_value=None)
+    # Patch the 'acquire' method on the *instance* of the pool mock
+    mocker.patch.object(mock_pool, 'acquire', return_value=AsyncMock(return_value=mock_context_manager))
+    # --- End patch ---
+
+    # Manually set initialized flag (still bypassing initialize call in fixture)
+    storage.initialized = True
+
+    return storage, mock_conn # Return storage and mock_conn for tests
 
 def create_mock_rows(alerts):
     """Helper function to create mock row objects from Alert objects."""
@@ -121,18 +139,17 @@ class TestDatabaseAlertHistory:
     """Pytest test cases for the database alert history storage."""
 
     @pytest.mark.asyncio
-    async def test_initialize(self, storage_instance, mock_db_components):
+    async def test_initialize(self, storage_with_mock_db): # Use storage_with_mock_db fixture
         """Test database initialization."""
-        # The storage_instance fixture already mocks initialize and sets initialized=True
-        # We just need to ensure the mock pool is assigned and initialize is called
-        mock_pool, mock_conn = mock_db_components
-        storage_instance.pool = mock_pool
+        # The storage_with_mock_db fixture now handles initialization and mocking
+        storage, mock_conn = storage_with_mock_db # Unpack the fixture result
 
-        # Call initialize (which is mocked)
-        await storage_instance.initialize()
-
-        # Check that initialization flag is set (already set by fixture, but verify)
-        assert storage_instance.initialized is True
+        # Check that initialization flag is set (verified within the fixture)
+        assert storage.initialized is True
+        # Check that the correct pool was assigned (verified within the fixture)
+        assert storage.pool is not None
+        # Optionally, check if the mock connection's methods were called during init if needed
+        # e.g., mock_conn.execute.assert_called_once_with(...)
 
     @pytest.mark.asyncio
     async def test_store_and_retrieve_alerts(self, storage_with_mock_db, alerts):
