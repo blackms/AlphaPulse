@@ -14,7 +14,15 @@ DEMO_USERS = {
         "password": "password",
         "full_name": "Admin User",
         "email": "admin@example.com",
-        "role": "admin"
+        "role": "admin",
+        "permissions": [
+            "view_metrics",
+            "view_alerts",
+            "acknowledge_alerts",
+            "view_portfolio",
+            "view_trades",
+            "view_system"
+        ]
     }
 }
 

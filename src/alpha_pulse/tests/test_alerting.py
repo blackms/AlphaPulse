@@ -4,7 +4,7 @@ Tests for the alerting system.
 import asyncio
 import unittest
 from datetime import datetime, timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, AsyncMock
 
 from alpha_pulse.monitoring.alerting import (
     Alert, 
@@ -477,7 +477,7 @@ class TestAlertManager(unittest.IsolatedAsyncioTestCase):
         alert_id = alerts[0].alert_id
         
         # Mock the alert history update method
-        self.alert_manager.alert_history.update_alert = MagicMock(return_value=True)
+        self.alert_manager.alert_history.update_alert = AsyncMock(return_value=True)
         
         # Acknowledge the alert
         result = await self.alert_manager.acknowledge_alert(alert_id, "test_user")

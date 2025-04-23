@@ -19,8 +19,25 @@ def client():
     return TestClient(app)
 
 
+@pytest.fixture
+def authenticated_client():
+    """Create a test client with a valid access token."""
+    client = TestClient(app)
+    # Use the demo user credentials for testing
+    response = client.post(
+        "/token",
+        data={"username": "admin", "password": "password"}
+    )
+    assert response.status_code == 200
+    token_data = response.json()
+    access_token = token_data["access_token"]
+
+    client.headers.update({"Authorization": f"Bearer {access_token}"})
+    return client
+
+
 @pytest.mark.asyncio
-async def test_alert_api_integration():
+async def test_alert_api_integration(authenticated_client):
     """Test that alerts from the alerting system appear in the API."""
     # Get the alert manager
     alert_manager = get_alert_manager()
@@ -39,13 +56,9 @@ async def test_alert_api_integration():
     # Store the alert in the alert history
     await alert_manager.alert_history.store_alert(test_alert)
     
-    # Create a test client
-    client = TestClient(app)
-    
     # Get alerts from the API
-    response = client.get(
-        "/api/v1/alerts",
-        headers={"Authorization": "Bearer mock_token"}
+    response = authenticated_client.get(
+        "/api/v1/alerts"
     )
     
     # Check that the response is successful
@@ -69,7 +82,7 @@ async def test_alert_api_integration():
 
 
 @pytest.mark.asyncio
-async def test_alert_acknowledgment():
+async def test_alert_acknowledgment(authenticated_client):
     """Test that alert acknowledgment works through the API."""
     # Get the alert manager
     alert_manager = get_alert_manager()
@@ -88,13 +101,9 @@ async def test_alert_acknowledgment():
     # Store the alert in the alert history
     await alert_manager.alert_history.store_alert(test_alert)
     
-    # Create a test client
-    client = TestClient(app)
-    
     # Acknowledge the alert through the API
-    response = client.post(
-        f"/api/v1/alerts/test_alert_456/acknowledge",
-        headers={"Authorization": "Bearer mock_token"}
+    response = authenticated_client.post(
+        f"/api/v1/alerts/test_alert_456/acknowledge"
     )
     
     # Check that the response is successful
@@ -112,7 +121,7 @@ async def test_alert_acknowledgment():
 
 
 @pytest.mark.asyncio
-async def test_alert_filtering():
+async def test_alert_filtering(authenticated_client):
     """Test that alert filtering works through the API."""
     # Get the alert manager
     alert_manager = get_alert_manager()
@@ -153,13 +162,9 @@ async def test_alert_filtering():
     await alert_manager.alert_history.store_alert(warning_alert)
     await alert_manager.alert_history.store_alert(critical_alert)
     
-    # Create a test client
-    client = TestClient(app)
-    
     # Test filtering by severity
-    response = client.get(
-        "/api/v1/alerts?severity=critical",
-        headers={"Authorization": "Bearer mock_token"}
+    response = authenticated_client.get(
+        "/api/v1/alerts?severity=critical"
     )
     
     # Check that the response is successful
