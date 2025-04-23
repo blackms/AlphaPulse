@@ -77,7 +77,8 @@ class TestDatabaseAlertHistory(unittest.TestCase):
             mock_context_manager.__aenter__.return_value = self.mock_conn
             self.mock_pool.acquire.return_value = mock_context_manager
             
-            self.storage.pool = self.mock_pool # Assign the mock pool to the storage instance
+            # Assign the mock pool to the storage instance
+            self.storage.pool = self.mock_pool
             
             # Initialize the database (this will call the mocked initialize)
             asyncio.run(self.storage.initialize())
@@ -101,7 +102,8 @@ class TestDatabaseAlertHistory(unittest.TestCase):
             mock_context_manager.__aenter__.return_value = self.mock_conn
             self.mock_pool.acquire.return_value = mock_context_manager
             
-            self.storage.pool = self.mock_pool # Assign the mock pool to the storage instance
+            # Assign the mock pool to the storage instance
+            self.storage.pool = self.mock_pool
             
             # Configure mock connection methods
             self.mock_conn.execute.return_value = None # Simulate successful execute
@@ -145,6 +147,48 @@ class TestDatabaseAlertHistory(unittest.TestCase):
     
     def test_filter_by_severity(self):
         """Test filtering alerts by severity."""
+        with unittest.mock.patch.object(self.storage, 'initialize') as mock_initialize:
+            # Configure the mock initialize method
+            mock_initialize.return_value = True
+            self.storage.initialized = True # Manually set initialized flag
+            
+            # Mock the connection pool and connection
+            self.mock_pool = unittest.mock.AsyncMock()
+            self.mock_conn = unittest.mock.AsyncMock()
+            
+            # Configure the mock pool to return an async context manager
+            mock_context_manager = unittest.mock.AsyncMock()
+            mock_context_manager.__aenter__.return_value = self.mock_conn
+            self.mock_pool.acquire.return_value = mock_context_manager
+            
+            # Assign the mock pool to the storage instance
+            self.storage.pool = self.mock_pool
+            
+            # Configure mock connection methods
+            self.mock_conn.execute.return_value = None # Simulate successful execute
+            
+            # Simulate fetch returning filtered alerts
+            mock_rows = []
+            for alert in self.alerts:
+                if alert.severity.value == "warning":
+                    mock_row = unittest.mock.Mock()
+                    mock_row.alert_id = alert.alert_id
+                    mock_row.rule_id = alert.rule_id
+                    mock_row.metric_name = alert.metric_name
+                    mock_row.metric_value = str(alert.metric_value)
+                    mock_row.severity = alert.severity.value
+                    mock_row.message = alert.message
+                    mock_row.timestamp = alert.timestamp
+                    mock_row.acknowledged = alert.acknowledged
+                    mock_row.acknowledged_by = alert.acknowledged_by
+                    mock_row.acknowledged_at = alert.acknowledged_at
+                    mock_rows.append(mock_row)
+            
+            self.mock_conn.fetch.return_value = mock_rows
+            
+            # Initialize the database (this will call the mocked initialize)
+            asyncio.run(self.storage.initialize())
+        
         # Store test alerts
         for alert in self.alerts:
             asyncio.run(self.storage.store_alert(alert))
