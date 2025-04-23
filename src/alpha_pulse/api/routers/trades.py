@@ -38,8 +38,13 @@ async def get_trades(
     Returns:
         List of trades
     """
-    return await trade_accessor.get_trades(
-        symbol=symbol,
-        start_time=start_time,
-        end_time=end_time
-    )
+    try:
+        return await trade_accessor.get_trades(
+            symbol=symbol,
+            start_time=start_time,
+            end_time=end_time
+        )
+    except Exception as e:
+        logger.error(f"Error retrieving trades: {e}")
+        # Return an empty list on error, as per test expectation
+        return []

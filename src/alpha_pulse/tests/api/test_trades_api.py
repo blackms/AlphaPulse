@@ -3,6 +3,7 @@ import pytest
 from fastapi.testclient import TestClient
 from datetime import datetime, timedelta
 import json
+import contextlib
 from unittest.mock import patch, MagicMock
 
 # Application imports
@@ -19,9 +20,9 @@ def client():
 
 @pytest.fixture
 def mock_trade_accessor():
-    """Mock the TradeDataAccessor."""
-    with patch("alpha_pulse.api.routers.trades.trade_accessor") as mock:
-        yield mock
+    """Mock the TradeDataAccessor instance in dependencies."""
+    with patch("alpha_pulse.api.dependencies.trade_accessor", spec=TradeDataAccessor) as mock_accessor_instance:
+        yield mock_accessor_instance
 
 
 @pytest.fixture
@@ -76,7 +77,7 @@ def sample_trades():
     ]
 
 
-@pytest.fixture
+@pytest.fixture(scope="function")
 def admin_user():
     """Generate admin user authentication."""
     return {
@@ -86,7 +87,7 @@ def admin_user():
     }
 
 
-@pytest.fixture
+@pytest.fixture(scope="function")
 def trader_user():
     """Generate trader user authentication."""
     return {
@@ -96,7 +97,7 @@ def trader_user():
     }
 
 
-@pytest.fixture
+@pytest.fixture(scope="function")
 def viewer_user():
     """Generate viewer user authentication."""
     return {
@@ -107,28 +108,38 @@ def viewer_user():
 
 
 @pytest.fixture
-def auth_override():
-    """Override the get_current_user dependency."""
-    def _override_dependency(user):
-        app.dependency_overrides[get_current_user] = lambda: user
-        yield
-        app.dependency_overrides = {}
-    return _override_dependency
+def auth_override(request):
+    """Override the get_current_user dependency for a test."""
+    # Get the user fixture result using the fixture name from parametrize
+    user = request.getfixturevalue(request.param)
+    print(f"auth_override fixture: resolved user = {user}") # Debug print
+
+    @contextlib.contextmanager
+    def override_context():
+        try:
+            app.dependency_overrides[get_current_user] = lambda: user
+            yield
+        finally:
+            # Ensure the override is removed even if the test fails
+            app.dependency_overrides.pop(get_current_user, None)
+
+    return override_context()
 
 
-def test_get_trades_success(client, mock_trade_accessor, sample_trades, auth_override, admin_user):
+@pytest.mark.parametrize("auth_override", ["admin_user"], indirect=True)
+def test_get_trades_success(client, mock_trade_accessor, sample_trades, auth_override):
     """Test successful trades retrieval."""
-    with auth_override(admin_user):
+    with auth_override:
         # Mock the get_trades method to return sample data
         mock_trade_accessor.get_trades.return_value = sample_trades
-        
+
         # Make request
         response = client.get("/api/v1/trades")
-        
+
         # Verify response
         assert response.status_code == 200
         assert response.json() == sample_trades
-        
+
         # Verify the trade accessor was called with correct parameters
         mock_trade_accessor.get_trades.assert_called_once_with(
             symbol=None,
@@ -137,21 +148,22 @@ def test_get_trades_success(client, mock_trade_accessor, sample_trades, auth_ove
         )
 
 
-def test_get_trades_with_symbol(client, mock_trade_accessor, sample_trades, auth_override, admin_user):
+@pytest.mark.parametrize("auth_override", ["admin_user"], indirect=True)
+def test_get_trades_with_symbol(client, mock_trade_accessor, sample_trades, auth_override):
     """Test trades retrieval filtered by symbol."""
-    with auth_override(admin_user):
+    with auth_override:
         # Filter trades by symbol
         btc_trades = [trade for trade in sample_trades if trade["symbol"] == "BTC-USD"]
         mock_trade_accessor.get_trades.return_value = btc_trades
-        
+
         # Make request with symbol filter
         response = client.get("/api/v1/trades", params={"symbol": "BTC-USD"})
-        
+
         # Verify response
         assert response.status_code == 200
         assert response.json() == btc_trades
         assert all(trade["symbol"] == "BTC-USD" for trade in response.json())
-        
+
         # Verify the trade accessor was called with correct parameters
         mock_trade_accessor.get_trades.assert_called_once_with(
             symbol="BTC-USD",
@@ -160,16 +172,17 @@ def test_get_trades_with_symbol(client, mock_trade_accessor, sample_trades, auth
         )
 
 
-def test_get_trades_with_time_range(client, mock_trade_accessor, sample_trades, auth_override, admin_user):
+@pytest.mark.parametrize("auth_override", ["admin_user"], indirect=True)
+def test_get_trades_with_time_range(client, mock_trade_accessor, sample_trades, auth_override):
     """Test trades retrieval with time range."""
-    with auth_override(admin_user):
+    with auth_override:
         # Mock the get_trades method to return sample data
         mock_trade_accessor.get_trades.return_value = sample_trades
-        
+
         # Calculate time range
         end_time = datetime.now()
         start_time = end_time - timedelta(days=1)
-        
+
         # Make request with time range
         response = client.get(
             "/api/v1/trades",
@@ -178,11 +191,11 @@ def test_get_trades_with_time_range(client, mock_trade_accessor, sample_trades, 
                 "end_time": end_time.isoformat()
             }
         )
-        
+
         # Verify response
         assert response.status_code == 200
         assert response.json() == sample_trades
-        
+
         # Verify the trade accessor was called with correct parameters
         mock_trade_accessor.get_trades.assert_called_once()
         call_args = mock_trade_accessor.get_trades.call_args[1]
@@ -200,39 +213,42 @@ def test_get_trades_unauthorized(client):
     assert "Not authenticated" in response.json().get("detail", "")
 
 
-def test_get_trades_forbidden(client, auth_override, viewer_user):
+@pytest.mark.parametrize("auth_override", ["viewer_user"], indirect=True)
+def test_get_trades_forbidden(client, auth_override):
     """Test access with insufficient permissions."""
-    with auth_override(viewer_user):
+    with auth_override:
         # Make request (viewer doesn't have view_trades permission)
         response = client.get("/api/v1/trades")
-        
+
         # Verify response
         assert response.status_code == 403
-        assert "Not authorized" in response.json().get("detail", "")
+        assert "Not authorized to access this resource" in response.json().get("detail", "")
 
 
-def test_get_trades_error(client, mock_trade_accessor, auth_override, admin_user):
+@pytest.mark.parametrize("auth_override", ["admin_user"], indirect=True)
+def test_get_trades_error(client, mock_trade_accessor, auth_override):
     """Test error handling in trades endpoint."""
-    with auth_override(admin_user):
+    with auth_override:
         # Mock the get_trades method to raise an exception
         mock_trade_accessor.get_trades.side_effect = Exception("Database error")
-        
+
         # Make request
         response = client.get("/api/v1/trades")
-        
+
         # Verify response (should return empty list on error, not fail)
         assert response.status_code == 200
         assert response.json() == []
 
 
 @pytest.mark.performance
-def test_trades_endpoint_performance(client, mock_trade_accessor, auth_override, admin_user):
+@pytest.mark.parametrize("auth_override", ["admin_user"], indirect=True)
+def test_trades_endpoint_performance(client, mock_trade_accessor, auth_override):
     """Test performance of trades endpoint with large dataset."""
-    with auth_override(admin_user):
+    with auth_override:
         # Generate large dataset (e.g., 1000 trades)
         large_dataset = []
         now = datetime.now()
-        
+
         for i in range(1000):
             large_dataset.append({
                 "id": f"trade-{i:04d}",
@@ -245,20 +261,20 @@ def test_trades_endpoint_performance(client, mock_trade_accessor, auth_override,
                 "order_type": "market" if i % 2 == 0 else "limit",
                 "fees": 10.0 + i * 0.1
             })
-        
+
         # Mock the get_trades method
         mock_trade_accessor.get_trades.return_value = large_dataset
-        
+
         # Make request and measure time
         import time
         start_time = time.time()
         response = client.get("/api/v1/trades")
         end_time = time.time()
-        
+
         # Verify response
         assert response.status_code == 200
         assert len(response.json()) == 1000
-        
+
         # Check performance (should be under 200ms for processing)
         # This is a guideline and might need adjustment based on actual performance
         assert (end_time - start_time) < 0.2
