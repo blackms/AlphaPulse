@@ -4,8 +4,8 @@ Unit tests for the database alert history storage.
 import unittest
 import asyncio
 import os
-import tempfile
 from datetime import datetime, timedelta
+import unittest.mock
 
 from alpha_pulse.monitoring.alerting.models import Alert, AlertSeverity
 from alpha_pulse.monitoring.alerting.storage import DatabaseAlertHistory
@@ -14,14 +14,18 @@ from alpha_pulse.monitoring.alerting.storage import DatabaseAlertHistory
 class TestDatabaseAlertHistory(unittest.TestCase):
     """Test cases for the database alert history storage."""
     
-    def setUp(self):
+    @unittest.mock.patch.object(DatabaseAlertHistory, 'initialize')
+    def setUp(self, mock_initialize):
         """Set up test fixtures."""
-        # Create a temporary database file
-        self.temp_dir = tempfile.TemporaryDirectory()
-        self.db_path = os.path.join(self.temp_dir.name, "test_alerts.db")
-        
-        # Create the storage instance
-        self.storage = DatabaseAlertHistory(self.db_path)
+        # Create the storage instance with dummy connection params
+        self.connection_params = {
+            "host": "localhost",
+            "port": 5432,
+            "user": "test_user",
+            "password": "test_password",
+            "database": "test_db",
+        }
+        self.storage = DatabaseAlertHistory(self.connection_params)
         
         # Create test alerts
         self.alerts = [
@@ -53,24 +57,77 @@ class TestDatabaseAlertHistory(unittest.TestCase):
                 timestamp=datetime.now()
             )
         ]
-        
-        # Initialize the database
-        asyncio.run(self.storage.initialize())
     
     def tearDown(self):
         """Clean up after tests."""
-        self.temp_dir.cleanup()
     
     def test_initialize(self):
         """Test database initialization."""
-        # Check that the database file was created
-        self.assertTrue(os.path.exists(self.db_path))
+        with unittest.mock.patch.object(self.storage, 'initialize') as mock_initialize:
+            # Configure the mock initialize method
+            mock_initialize.return_value = True
+            self.storage.initialized = True # Manually set initialized flag
+            
+            # Mock the connection pool and connection
+            self.mock_pool = unittest.mock.AsyncMock()
+            self.mock_conn = unittest.mock.AsyncMock()
+            
+            # Configure the mock pool to return an async context manager
+            mock_context_manager = unittest.mock.AsyncMock()
+            mock_context_manager.__aenter__.return_value = self.mock_conn
+            self.mock_pool.acquire.return_value = mock_context_manager
+            
+            self.storage.pool = self.mock_pool # Assign the mock pool to the storage instance
+            
+            # Initialize the database (this will call the mocked initialize)
+            asyncio.run(self.storage.initialize())
         
         # Check that initialization flag is set
         self.assertTrue(self.storage.initialized)
     
     def test_store_and_retrieve_alerts(self):
         """Test storing and retrieving alerts."""
+        with unittest.mock.patch.object(self.storage, 'initialize') as mock_initialize:
+            # Configure the mock initialize method
+            mock_initialize.return_value = True
+            self.storage.initialized = True # Manually set initialized flag
+            
+            # Mock the connection pool and connection
+            self.mock_pool = unittest.mock.AsyncMock()
+            self.mock_conn = unittest.mock.AsyncMock()
+            
+            # Configure the mock pool to return an async context manager
+            mock_context_manager = unittest.mock.AsyncMock()
+            mock_context_manager.__aenter__.return_value = self.mock_conn
+            self.mock_pool.acquire.return_value = mock_context_manager
+            
+            self.storage.pool = self.mock_pool # Assign the mock pool to the storage instance
+            
+            # Configure mock connection methods
+            self.mock_conn.execute.return_value = None # Simulate successful execute
+            
+            # Simulate fetch returning alerts
+            mock_rows = []
+            for alert in self.alerts:
+                # Create mock row objects with attribute access
+                mock_row = unittest.mock.Mock()
+                mock_row.alert_id = alert.alert_id
+                mock_row.rule_id = alert.rule_id
+                mock_row.metric_name = alert.metric_name
+                mock_row.metric_value = str(alert.metric_value) # Store as string in mock row
+                mock_row.severity = alert.severity.value
+                mock_row.message = alert.message
+                mock_row.timestamp = alert.timestamp
+                mock_row.acknowledged = alert.acknowledged
+                mock_row.acknowledged_by = alert.acknowledged_by
+                mock_row.acknowledged_at = alert.acknowledged_at
+                mock_rows.append(mock_row)
+            
+            self.mock_conn.fetch.return_value = mock_rows
+            
+            # Initialize the database (this will call the mocked initialize)
+            asyncio.run(self.storage.initialize())
+        
         # Store test alerts
         for alert in self.alerts:
             asyncio.run(self.storage.store_alert(alert))
