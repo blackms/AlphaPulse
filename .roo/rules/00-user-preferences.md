@@ -11,7 +11,7 @@ last_updated = "2025-04-17"
 # version = "1.0"
 tags = ["user", "preferences", "configuration", "profile"]
 # relevance = "High relevance for personalization and context awareness"
-template_schema_doc = ".templates/toml-md/17_user_preferences.README.md" # Points to schema documentation
+template_schema_doc = ".ruru/templates/toml-md/17_user_preferences.README.md" # Points to schema documentation
 
 # --- User Information ---
 user_name = "" # << REQUIRED >>

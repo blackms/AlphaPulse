@@ -12,12 +12,12 @@ last_updated = ""
 tags = ["kb", "knowledge-base", "lookup", "design-diagramer"]
 # relevance = ""
 target_mode_slug = "design-diagramer"
-kb_directory = ".modes/design-diagramer/kb/"
+kb_directory = ".ruru/modes/design-diagramer/kb/"
 +++
 
 # Knowledge Base Lookup Rule
 
-Before responding to a user request, **ALWAYS** check the files within your dedicated Knowledge Base (KB) directory: `.modes/design-diagramer/kb/`.
+Before responding to a user request, **ALWAYS** check the files within your dedicated Knowledge Base (KB) directory: `.ruru/modes/design-diagramer/kb/`.
 
 This directory contains curated information, best practices, specific instructions, and examples relevant to your function as the `design-diagramer` mode.
 
@@ -29,4 +29,4 @@ Consult the KB to:
 *   Retrieve specific instructions or constraints related to the current project or task.
 *   Learn about preferred tools or techniques.
 
-Even if the KB directory `.modes/design-diagramer/kb/` appears empty or contains only a `README.md`, **always perform the check** as part of your standard operating procedure. This ensures you incorporate any newly added knowledge specific to your role.
+Even if the KB directory `.ruru/modes/design-diagramer/kb/` appears empty or contains only a `README.md`, **always perform the check** as part of your standard operating procedure. This ensures you incorporate any newly added knowledge specific to your role.

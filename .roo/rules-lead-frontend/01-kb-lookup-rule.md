@@ -17,6 +17,6 @@ tags = ["kb", "lookup", "lead-frontend"]
 
 When performing tasks, especially those involving established patterns, best practices, or specific project conventions relevant to frontend leadership, consult the dedicated knowledge base for the `lead-frontend` mode.
 
-**Knowledge Base Location:** `.modes/lead-frontend/kb/`
+**Knowledge Base Location:** `.ruru/modes/lead-frontend/kb/`
 
 Refer to the documents within this directory to ensure consistency and leverage existing knowledge before proceeding.

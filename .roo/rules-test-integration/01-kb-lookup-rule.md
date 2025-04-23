@@ -12,7 +12,7 @@ last_updated = "2025-04-20" # Using today's date
 tags = ["kb-lookup", "test-integration", "knowledge-base", "test", "integration", "qa", "testing"]
 # relevance = ""
 target_mode_slug = "test-integration"
-kb_directory = ".modes/test-integration/kb/"
+kb_directory = ".ruru/modes/test-integration/kb/"
 +++
 
 # Knowledge Base (KB) Lookup Rule

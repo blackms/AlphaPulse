@@ -14,7 +14,7 @@ tags = ["kb-lookup", "util-performance", "rules"]
 
 # --- KB Lookup Specific Fields ---
 target_mode_slug = "util-performance"
-kb_directory = ".modes/util-performance/kb/"
+kb_directory = ".ruru/modes/util-performance/kb/"
 +++
 
 # Knowledge Base Lookup Rule

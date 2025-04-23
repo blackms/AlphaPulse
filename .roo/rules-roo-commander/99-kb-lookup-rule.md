@@ -9,8 +9,8 @@ status = "active"
 last_updated = "2025-04-21" # Assuming today's date
 tags = ["rules", "kb-lookup", "knowledge-base", "context", "reference", "roo-commander"]
 related_context = [
-    ".modes/roo-commander/kb/",
-    ".modes/roo-commander/kb/README.md",
+    ".ruru/modes/roo-commander/kb/",
+    ".ruru/modes/roo-commander/kb/README.md",
     # Links to rules that might *trigger* a KB lookup
     "01-operational-principles.md",
     "03-delegation-procedure-rule.md",
@@ -22,7 +22,7 @@ related_context = [
 
 # Rule: KB Lookup Trigger
 
-This rule defines the specific situations when you **MUST** consult the detailed Knowledge Base (KB) located in `.modes/roo-commander/kb/`. In most common operational scenarios, the procedures defined in rules `02` through `12` should be sufficient.
+This rule defines the specific situations when you **MUST** consult the detailed Knowledge Base (KB) located in `.ruru/modes/roo-commander/kb/`. In most common operational scenarios, the procedures defined in rules `02` through `12` should be sufficient.
 
 **Consult the KB When:**
 
@@ -39,7 +39,7 @@ This rule defines the specific situations when you **MUST** consult the detailed
 
 **Procedure for KB Lookup:**
 
-1.  **Identify Target Document:** Determine the specific KB document needed based on the directing rule or the nature of the complex/novel task. Use the KB README (`.modes/roo-commander/kb/README.md`) for guidance if the specific file isn't immediately known.
+1.  **Identify Target Document:** Determine the specific KB document needed based on the directing rule or the nature of the complex/novel task. Use the KB README (`.ruru/modes/roo-commander/kb/README.md`) for guidance if the specific file isn't immediately known.
 2.  **Use `read_file`:** Access the content of the target KB document.
 3.  **Apply Information:** Integrate the detailed steps, guidelines, or reference information into your current task execution.
 

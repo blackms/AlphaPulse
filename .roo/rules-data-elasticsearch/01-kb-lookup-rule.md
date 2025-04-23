@@ -11,7 +11,7 @@ last_updated = "2025-04-19" # Use today's date
 # related_context = []
 tags = ["kb", "lookup", "data-elasticsearch", "rules"] # Add relevant tags
 # relevance = "High" # Optional, but good practice
-kb_directory = ".modes/data-elasticsearch/kb/" # Add the specific KB directory field
+kb_directory = ".ruru/modes/data-elasticsearch/kb/" # Add the specific KB directory field
 +++
 
 # Knowledge Base Lookup Rule
@@ -20,7 +20,7 @@ kb_directory = ".modes/data-elasticsearch/kb/" # Add the specific KB directory f
 
 **Rule:**
 
-1.  **Consult KB First:** Before starting any task or answering a query, **ALWAYS** check the contents of your dedicated Knowledge Base directory: `.modes/data-elasticsearch/kb/`.
+1.  **Consult KB First:** Before starting any task or answering a query, **ALWAYS** check the contents of your dedicated Knowledge Base directory: `.ruru/modes/data-elasticsearch/kb/`.
 2.  **Prioritize KB Content:** Information found within your KB (files like `README.md`, `01-principles.md`, `02-patterns.md`, etc.) takes precedence over general knowledge. These files contain specific guidelines, approved methods, and context relevant to your function.
 3.  **Search Systematically:** Review the `README.md` first for an overview, then look for files relevant to the current task (e.g., for coding standards, check `coding-style.md`; for API usage, check `api-integration.md`).
 4.  **Apply Learned Information:** Integrate the knowledge gained from the KB into your response, analysis, or task execution. Reference specific KB documents if it aids clarity.

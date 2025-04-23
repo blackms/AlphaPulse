@@ -12,7 +12,7 @@ last_updated = "2025-04-19" # Using today's date
 tags = ["kb-lookup", "design-threejs", "knowledge-base", "design", "3d", "threejs", "webgl", "graphics", "frontend", "visualization"]
 # relevance = ""
 target_mode_slug = "design-threejs"
-kb_directory = ".modes/design-threejs/kb"
+kb_directory = ".ruru/modes/design-threejs/kb"
 +++
 
 # Knowledge Base (KB) Lookup Rule

@@ -17,6 +17,6 @@ tags = ["kb-lookup", "cloud-gcp", "gcp"]
 
 When performing tasks, especially those requiring specific GCP knowledge, configuration details, best practices, or troubleshooting steps, **consult the dedicated knowledge base for the `cloud-gcp` mode**.
 
-The knowledge base is located at: `.modes/cloud-gcp/kb/`
+The knowledge base is located at: `.ruru/modes/cloud-gcp/kb/`
 
 Prioritize information found within this knowledge base to ensure consistency and adherence to established patterns for GCP within this project. If the required information is not found, proceed with standard problem-solving but consider updating the KB afterwards if applicable.

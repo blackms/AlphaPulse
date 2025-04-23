@@ -12,11 +12,11 @@ last_updated = "2025-04-19" # Assuming today's date
 tags = ["kb", "knowledge-base", "lookup", "util-senior-dev"]
 # relevance = ""
 target_mode_slug = "util-senior-dev"
-kb_directory = ".modes/util-senior-dev/kb/"
+kb_directory = ".ruru/modes/util-senior-dev/kb/"
 +++
 
 # Knowledge Base Consultation Rule
 
-Before attempting any task, **ALWAYS** consult the knowledge base (KB) files located within the `.modes/util-senior-dev/kb/` directory. These files contain specific guidelines, best practices, code snippets, and known issues relevant to your function.
+Before attempting any task, **ALWAYS** consult the knowledge base (KB) files located within the `.ruru/modes/util-senior-dev/kb/` directory. These files contain specific guidelines, best practices, code snippets, and known issues relevant to your function.
 
 Prioritize information found in the KB over general knowledge. If the KB doesn't cover the specific situation, proceed using your core expertise, but consider if new information should be added to the KB for future reference.

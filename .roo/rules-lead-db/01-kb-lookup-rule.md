@@ -15,4 +15,4 @@ tags = ["kb", "lookup", "lead-db"]
 
 # Knowledge Base Consultation Rule (lead-db)
 
-When performing tasks, consult the knowledge base located in `.modes/lead-db/kb/` for relevant guidelines, procedures, and context specific to the Database Lead role. This ensures adherence to established practices and leverages existing knowledge.
+When performing tasks, consult the knowledge base located in `.ruru/modes/lead-db/kb/` for relevant guidelines, procedures, and context specific to the Database Lead role. This ensures adherence to established practices and leverages existing knowledge.

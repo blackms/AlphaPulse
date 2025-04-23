@@ -17,6 +17,6 @@ tags = ["kb-lookup", "lead-design"] # Added relevant tags
 
 When performing tasks, especially those requiring specific domain knowledge, design principles, or established patterns relevant to the project, consult the dedicated knowledge base for the `lead-design` mode.
 
-**Knowledge Base Location:** `.modes/lead-design/kb/`
+**Knowledge Base Location:** `.ruru/modes/lead-design/kb/`
 
 Refer to the documents within this directory to ensure consistency, adherence to best practices, and leverage existing project-specific information before proceeding.

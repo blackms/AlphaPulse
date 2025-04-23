@@ -12,7 +12,7 @@ last_updated = "2025-04-19" # Using today's date
 tags = ["kb", "knowledge-base", "lookup", "edge-workers"] # Inferred tags
 # relevance = ""
 target_mode_slug = "edge-workers"
-kb_directory = ".modes/edge-workers/kb/"
+kb_directory = ".ruru/modes/edge-workers/kb/"
 +++
 
 # Knowledge Base (KB) Lookup Rule
@@ -21,7 +21,7 @@ kb_directory = ".modes/edge-workers/kb/"
 
 **Rule:**
 
-1.  **Identify Need:** Before generating a response or executing a plan, determine if the task could benefit from specialized knowledge, best practices, or context stored in your dedicated KB directory: `.modes/edge-workers/kb/`.
+1.  **Identify Need:** Before generating a response or executing a plan, determine if the task could benefit from specialized knowledge, best practices, or context stored in your dedicated KB directory: `.ruru/modes/edge-workers/kb/`.
 2.  **Consult KB:**
     *   If relevant files might exist in the KB, use the `read_file` tool to examine their contents. Start with the `README.md` if present, as it might provide an index or overview.
     *   Prioritize files whose names suggest relevance to the current task.

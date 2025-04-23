@@ -15,4 +15,4 @@ tags = ["kb", "lookup", "lead-qa", "rule"]
 
 # Knowledge Base Lookup Rule
 
-When performing tasks, consult the knowledge base located at `.modes/lead-qa/kb/` for relevant guidelines, procedures, and best practices specific to the QA Lead role.
+When performing tasks, consult the knowledge base located at `.ruru/modes/lead-qa/kb/` for relevant guidelines, procedures, and best practices specific to the QA Lead role.

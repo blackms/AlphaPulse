@@ -12,7 +12,7 @@ last_updated = "2025-04-19" # Using today's date
 tags = ["kb-lookup", "design-shadcn", "knowledge-base", "design", "shadcn", "ui-library", "react", "tailwind-css", "component-library", "frontend"]
 # relevance = ""
 target_mode_slug = "design-shadcn"
-kb_directory = ".modes/design-shadcn/kb/"
+kb_directory = ".ruru/modes/design-shadcn/kb/"
 +++
 
 # Knowledge Base (KB) Lookup Rule

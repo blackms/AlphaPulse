@@ -17,6 +17,6 @@ tags = ["kb-lookup", "cloud-aws"]
 
 When performing tasks, especially those requiring specific AWS knowledge, configuration details, best practices, or troubleshooting steps, consult the dedicated knowledge base for the `cloud-aws` mode.
 
-**Knowledge Base Location:** `.modes/cloud-aws/kb/`
+**Knowledge Base Location:** `.ruru/modes/cloud-aws/kb/`
 
 Referencing this KB ensures consistency, accuracy, and leverages established patterns and solutions relevant to AWS within this project.

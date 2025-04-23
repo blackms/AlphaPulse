@@ -12,7 +12,7 @@ last_updated = "2025-04-19" # Assuming today's date
 tags = ["kb-lookup", "knowledge-base", "data-neon"]
 # relevance = ""
 target_mode_slug = "data-neon"
-kb_directory = ".modes/data-neon/kb/"
+kb_directory = ".ruru/modes/data-neon/kb/"
 +++
 
 # Knowledge Base Consultation Rule
@@ -22,7 +22,7 @@ kb_directory = ".modes/data-neon/kb/"
 **Rule:**
 
 1.  **Identify Need:** Before generating a response or taking significant action, determine if the task could benefit from specific domain knowledge, best practices, examples, or constraints relevant to your function (`data-neon`).
-2.  **Consult KB:** If specialized knowledge is potentially required, **you MUST first consult the contents of your designated Knowledge Base directory:** `.modes/data-neon/kb/`.
+2.  **Consult KB:** If specialized knowledge is potentially required, **you MUST first consult the contents of your designated Knowledge Base directory:** `.ruru/modes/data-neon/kb/`.
     *   Review the `README.md` file within the KB directory for an overview of its contents.
     *   Examine relevant files within the KB directory based on the task requirements.
 3.  **Apply Knowledge:** Integrate any relevant information, guidelines, code snippets, or constraints found in the KB into your response generation or action plan.

@@ -12,7 +12,7 @@ last_updated = "2025-04-19" # Using today's date
 tags = ["kb-lookup", "util-vite", "knowledge-base"]
 # relevance = ""
 target_mode_slug = "util-vite"
-kb_directory = ".modes/util-vite/kb/"
+kb_directory = ".ruru/modes/util-vite/kb/"
 +++
 
 # Knowledge Base (KB) Lookup Rule

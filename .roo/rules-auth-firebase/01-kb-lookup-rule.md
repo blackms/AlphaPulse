@@ -17,6 +17,6 @@ tags = ["kb", "lookup", "auth-firebase"] # Added relevant tags
 
 When performing tasks, especially those involving specific implementation details, best practices, or troubleshooting related to Firebase Authentication, consult the dedicated knowledge base for the `auth-firebase` mode.
 
-**Knowledge Base Location:** `.modes/auth-firebase/kb/`
+**Knowledge Base Location:** `.ruru/modes/auth-firebase/kb/`
 
 Refer to the documents within this directory for guidance before proceeding or if encountering uncertainty.

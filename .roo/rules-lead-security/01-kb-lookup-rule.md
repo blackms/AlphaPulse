@@ -15,7 +15,7 @@ tags = ["kb-lookup", "lead-security"]
 
 # Knowledge Base Consultation Rule
 
-When addressing tasks or answering questions related to security best practices, threat modeling, vulnerability assessment, compliance, or specific security tools/technologies, **always** consult the dedicated knowledge base for the `lead-security` mode located at `.modes/lead-security/kb/`.
+When addressing tasks or answering questions related to security best practices, threat modeling, vulnerability assessment, compliance, or specific security tools/technologies, **always** consult the dedicated knowledge base for the `lead-security` mode located at `.ruru/modes/lead-security/kb/`.
 
 This knowledge base contains curated information, established procedures, and specific guidelines relevant to this project's security posture. Prioritize information found within the KB over general knowledge.
 

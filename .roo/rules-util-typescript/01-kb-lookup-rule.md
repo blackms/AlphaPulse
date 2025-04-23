@@ -12,7 +12,7 @@ last_updated = "2025-04-19" # Using today's date
 tags = ["kb-lookup", "util-typescript", "knowledge-base", "typescript", "types", "javascript", "code-quality"]
 # relevance = ""
 target_mode_slug = "util-typescript"
-kb_directory = ".modes/util-typescript/kb"
+kb_directory = ".ruru/modes/util-typescript/kb/"
 +++
 
 # Knowledge Base (KB) Lookup Rule

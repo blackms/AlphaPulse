@@ -12,7 +12,7 @@ last_updated = "2025-04-18"
 tags = ["kb", "lookup", "rules", "spec-crawl4ai"]
 # relevance = ""
 target_mode_slug = "spec-crawl4ai"
-kb_directory = ".modes/spec-crawl4ai/kb"
+kb_directory = ".ruru/modes/spec-crawl4ai/kb"
 +++
 
 # Knowledge Base Lookup Rule

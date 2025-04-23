@@ -12,7 +12,7 @@ last_updated = "2025-04-19" # Using today's date
 tags = ["kb-lookup", "util-jquery", "knowledge-base", "rules"]
 # relevance = ""
 target_mode_slug = "util-jquery"
-kb_directory = ".modes/util-jquery/kb/"
+kb_directory = ".ruru/modes/util-jquery/kb/"
 +++
 
 # Knowledge Base (KB) Lookup Rule

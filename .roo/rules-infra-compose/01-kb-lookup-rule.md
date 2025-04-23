@@ -5,7 +5,7 @@ context_type = "rules"
 scope = "Mode-specific knowledge base access"
 target_audience = ["infra-compose"]
 target_mode_slug = "infra-compose"
-kb_directory = ".modes/infra-compose/kb/"
+kb_directory = ".ruru/modes/infra-compose/kb/"
 granularity = "ruleset"
 status = "active"
 last_updated = "2025-04-19"
@@ -21,7 +21,7 @@ tags = ["kb", "lookup", "infra-compose", "rules"]
 
 **Rule:**
 
-1.  **Consult KB First:** Before starting any task, **ALWAYS** consult the contents of your dedicated Knowledge Base directory: `.modes/infra-compose/kb/`.
+1.  **Consult KB First:** Before starting any task, **ALWAYS** consult the contents of your dedicated Knowledge Base directory: `.ruru/modes/infra-compose/kb/`.
 2.  **Identify Relevant Documents:** Look for documents within the KB that relate to the current task, keywords, or concepts involved. Pay attention to file names and content summaries (if available, e.g., in a `README.md`).
 3.  **Prioritize KB Guidance:** If relevant information, instructions, patterns, or constraints are found in the KB, prioritize them in your approach.
 4.  **Proceed if No Relevant KB:** If no relevant documents are found after a reasonable check, proceed with the task using your general knowledge and the provided instructions.

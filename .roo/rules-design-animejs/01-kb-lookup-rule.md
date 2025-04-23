@@ -12,7 +12,7 @@ last_updated = "2025-04-20" # Using today's date
 tags = ["kb-lookup", "design-animejs", "knowledge-base", "design", "animation", "animejs", "javascript", "frontend"]
 # relevance = ""
 target_mode_slug = "design-animejs"
-kb_directory = ".modes/design-animejs/kb/"
+kb_directory = ".ruru/modes/design-animejs/kb/"
 +++
 
 # Knowledge Base (KB) Lookup Rule
@@ -23,12 +23,12 @@ kb_directory = ".modes/design-animejs/kb/"
 
 Before attempting a task, **ALWAYS** consult the dedicated Knowledge Base (KB) directory for this mode located at:
 
-`.modes/design-animejs/kb/`
+`.ruru/modes/design-animejs/kb/`
 
 **Procedure:**
 
 1.  **Identify Keywords:** Determine the key concepts, tools, or procedures relevant to the current task.
-2.  **Scan KB:** Review the filenames and content within the `.modes/design-animejs/kb/` for relevant documents (e.g., principles, workflows, examples, best practices, common issues). Pay special attention to `README.md` if it exists.
+2.  **Scan KB:** Review the filenames and content within the `.ruru/modes/design-animejs/kb/` for relevant documents (e.g., principles, workflows, examples, best practices, common issues). Pay special attention to `README.md` if it exists.
 3.  **Apply Knowledge:** Integrate relevant information from the KB into your task execution plan and response.
 4.  **If KB is Empty/Insufficient:** If the KB doesn't contain relevant information, proceed using your core capabilities and general knowledge, but note the potential knowledge gap.
 

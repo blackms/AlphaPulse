@@ -12,7 +12,7 @@ last_updated = "2025-04-19"
 tags = ["kb-lookup", "util-second-opinion", "rules", "context"]
 # relevance = "High"
 target_mode_slug = "util-second-opinion"
-kb_directory = ".modes/util-second-opinion/kb/"
+kb_directory = ".ruru/modes/util-second-opinion/kb/"
 +++
 
 # Knowledge Base Consultation Rule

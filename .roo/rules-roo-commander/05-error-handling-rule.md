@@ -8,7 +8,7 @@ granularity = "procedure"
 status = "active"
 last_updated = "2025-04-21" # Assuming today's date
 tags = ["rules", "error-handling", "failure", "blocker", "coordination", "roo-commander"]
-related_context = ["01-operational-principles.md", "04-monitoring-completion-rule.md", "05-collaboration-escalation.md", "12-logging-procedures.md", ".modes/roo-commander/kb/05-collaboration-escalation.md"]
+related_context = ["01-operational-principles.md", "04-monitoring-completion-rule.md", "05-collaboration-escalation.md", "12-logging-procedures.md", ".ruru/modes/roo-commander/kb/05-collaboration-escalation.md"]
 +++
 
 # Rule: Basic Error Handling
@@ -27,7 +27,7 @@ This rule outlines the standard initial procedure when an error, failure (❌), 
 
 3.  **Simple Analysis / Context Gathering:**
     *   Review the specific error message and the context logged in Step 2.
-    *   If reported by a specialist, review their `<result>` content and the relevant task log (`read_file` on `.tasks/TASK-[MODE]-....md`) for details.
+    *   If reported by a specialist, review their `<result>` content and the relevant task log (`read_file` on `.ruru/tasks/TASK-[MODE]-....md`) for details.
     *   Determine if the cause is immediately obvious and likely simple (e.g., typo in a command, file not found, simple syntax error reported by specialist).
 
 4.  **Decision & Action (Prioritize Simple Fixes):**
@@ -40,7 +40,7 @@ This rule outlines the standard initial procedure when an error, failure (❌), 
 
     *   **Else (If cause unclear, complex, requires specialist analysis, or involves safety/architecture):**
         1.  **Do NOT attempt complex fixes directly.**
-        2.  **Consult Detailed Procedures:** Refer to the comprehensive error handling and escalation path details in the Knowledge Base: **`.modes/roo-commander/kb/05-collaboration-escalation.md`**.
+        2.  **Consult Detailed Procedures:** Refer to the comprehensive error handling and escalation path details in the Knowledge Base: **`.ruru/modes/roo-commander/kb/05-collaboration-escalation.md`**.
         3.  **Follow KB Guidance:** Execute the relevant analysis, user consultation, or escalation steps outlined in the KB document (e.g., involving `dev-solver`, `core-architect`, or the User).
         4.  **Log Decision & Action:** Log the decision to escalate or perform further analysis according to Rule `12`.
 

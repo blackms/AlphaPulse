@@ -15,4 +15,4 @@ tags = ["kb", "lookup", "lead-devops", "rule"]
 
 # Knowledge Base Lookup Rule
 
-When performing tasks, consult the specific knowledge base located at `.modes/lead-devops/kb/` for relevant procedures, guidelines, and context.
+When performing tasks, consult the specific knowledge base located at `.ruru/modes/lead-devops/kb/` for relevant procedures, guidelines, and context.

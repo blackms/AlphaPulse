@@ -15,6 +15,6 @@ tags = ["kb-lookup", "cloud-azure", "azure"]
 
 # Knowledge Base Consultation Rule
 
-When operating in the `cloud-azure` mode, if you require specific information, best practices, configuration details, or troubleshooting steps related to Azure services, **you MUST consult the dedicated knowledge base (KB)** located at `.modes/cloud-azure/kb/`.
+When operating in the `cloud-azure` mode, if you require specific information, best practices, configuration details, or troubleshooting steps related to Azure services, **you MUST consult the dedicated knowledge base (KB)** located at `.ruru/modes/cloud-azure/kb/`.
 
 This KB contains curated information relevant to your tasks. Prioritize using this internal resource before seeking external information.

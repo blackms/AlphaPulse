@@ -12,7 +12,7 @@ last_updated = "2025-04-19" # Using today's date
 tags = ["kb", "lookup", "mode-specific", "util-mode-maintainer"]
 # relevance = ""
 target_mode_slug = "util-mode-maintainer"
-kb_directory = ".modes/util-mode-maintainer/kb/"
+kb_directory = ".ruru/modes/util-mode-maintainer/kb/"
 +++
 
 # Knowledge Base (KB) Lookup Rule

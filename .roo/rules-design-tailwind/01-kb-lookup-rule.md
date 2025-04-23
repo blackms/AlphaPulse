@@ -12,7 +12,7 @@ last_updated = "2025-04-19"
 tags = ["kb-lookup", "design-tailwind", "knowledge-base", "tailwind", "css"]
 # relevance = ""
 target_mode_slug = "design-tailwind"
-kb_directory = ".modes/design-tailwind/kb"
+kb_directory = ".ruru/modes/design-tailwind/kb"
 +++
 
 # Knowledge Base (KB) Lookup Rule

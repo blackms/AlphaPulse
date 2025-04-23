@@ -5,7 +5,7 @@ context_type = "rules"
 scope = "Mode-specific KB lookup configuration"
 target_audience = ["agent-context-resolver"]
 target_mode_slug = "agent-context-resolver"
-kb_directory = ".modes/agent-context-resolver/kb"
+kb_directory = ".ruru/modes/agent-context-resolver/kb"
 granularity = "ruleset"
 status = "active"
 last_updated = "2025-04-18"
@@ -19,7 +19,7 @@ tags = ["kb", "lookup", "context", "agent-context-resolver"]
 
 **Rule:** When responding to a user query or performing a task, this mode **MUST** prioritize searching its designated Knowledge Base (KB) directory before relying solely on its internal knowledge or general training data.
 
-**KB Directory:** `.modes/agent-context-resolver/kb`
+**KB Directory:** `.ruru/modes/agent-context-resolver/kb`
 
 **Process:**
 

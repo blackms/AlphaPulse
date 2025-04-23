@@ -12,7 +12,7 @@ last_updated = "2025-04-18" # Updated date
 tags = ["kb-lookup", "core-architect", "rules"] # Added relevant tags
 # relevance = ""
 target_mode_slug = "core-architect"
-kb_directory = ".modes/core-architect/kb"
+kb_directory = ".ruru/modes/core-architect/kb"
 +++
 
 # Knowledge Base Lookup Rule
@@ -21,7 +21,7 @@ This rule defines how the `core-architect` mode should access its dedicated Know
 
 **Purpose:** To ensure the mode consistently retrieves relevant architectural principles, patterns, best practices, and project-specific context stored within its KB.
 
-**Mechanism:** When the `core-architect` mode needs to consult its knowledge base (e.g., before making a design decision, evaluating options, or providing guidance), it should perform a lookup within the `.modes/core-architect/kb` directory. The lookup mechanism might involve:
+**Mechanism:** When the `core-architect` mode needs to consult its knowledge base (e.g., before making a design decision, evaluating options, or providing guidance), it should perform a lookup within the `.ruru/modes/core-architect/kb` directory. The lookup mechanism might involve:
 
 1.  **Semantic Search:** Searching the content of files within the KB directory based on the current task or query.
 2.  **Keyword Search:** Searching for specific keywords or concepts.

@@ -12,7 +12,7 @@ last_updated = ""
 tags = ["kb", "knowledge-base", "lookup", "data-mysql"]
 # relevance = ""
 target_mode_slug = "data-mysql"
-kb_directory = ".modes/data-mysql/kb/"
+kb_directory = ".ruru/modes/data-mysql/kb/"
 +++
 
 # Knowledge Base Lookup Rule for data-mysql
@@ -22,7 +22,7 @@ kb_directory = ".modes/data-mysql/kb/"
 **Rule:**
 
 1.  **Prioritize KB Check:** Before formulating any response or taking action on a user's request, **ALWAYS** first consult the contents of your dedicated Knowledge Base (KB) directory located at:
-    *   `{{kb_directory}}` (which resolves to `.modes/data-mysql/kb/`)
+    *   `{{kb_directory}}` (which resolves to `.ruru/modes/data-mysql/kb/`)
 
 2.  **Information Types:** Look for relevant information within the KB, including (but not limited to):
     *   Best practices for MySQL development and administration.

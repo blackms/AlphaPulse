@@ -15,6 +15,6 @@ tags = ["kb", "lookup", "auth-supabase"]
 
 # Knowledge Base Consultation Rule
 
-When faced with uncertainty, complex implementation details, or the need for specific patterns related to Supabase authentication, **always** consult the dedicated knowledge base located at `.modes/auth-supabase/kb/`.
+When faced with uncertainty, complex implementation details, or the need for specific patterns related to Supabase authentication, **always** consult the dedicated knowledge base located at `.ruru/modes/auth-supabase/kb/`.
 
 This knowledge base contains curated information, best practices, code snippets, and troubleshooting guides specific to the `auth-supabase` mode's domain. Prioritize information found within this KB over general knowledge.

@@ -14,7 +14,7 @@ tags = ["kb-lookup", "design-ui", "rules"] # Keywords for categorization and sea
 
 # --- KB Lookup Specific Fields ---
 target_mode_slug = "design-ui" # The mode this rule specifically targets
-kb_directory = ".modes/design-ui/kb/" # The designated knowledge base directory for the target mode
+kb_directory = ".ruru/modes/design-ui/kb/" # The designated knowledge base directory for the target mode
 +++
 
 # Knowledge Base Consultation Rule for design-ui

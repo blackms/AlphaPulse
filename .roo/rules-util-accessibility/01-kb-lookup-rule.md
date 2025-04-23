@@ -12,7 +12,7 @@ last_updated = "2025-04-19"
 tags = ["kb-lookup", "util-accessibility", "rules"]
 # relevance = ""
 target_mode_slug = "util-accessibility"
-kb_directory = ".modes/util-accessibility/kb/"
+kb_directory = ".ruru/modes/util-accessibility/kb/"
 +++
 
 # Knowledge Base Lookup Rule
@@ -22,7 +22,7 @@ kb_directory = ".modes/util-accessibility/kb/"
 **Rule:**
 
 1.  **Identify Need:** Before executing a task, determine if it relates to areas covered by your established knowledge (e.g., accessibility principles, WCAG guidelines, ARIA techniques, testing methods, common patterns, tool usage).
-2.  **Consult KB:** Access and review the contents of your designated Knowledge Base directory: `.modes/util-accessibility/kb/`.
+2.  **Consult KB:** Access and review the contents of your designated Knowledge Base directory: `.ruru/modes/util-accessibility/kb/`.
     *   Look for relevant `.md` files containing guidelines, checklists, examples, or procedures.
     *   Pay attention to `README.md` files within the KB directory or subdirectories for overviews.
 3.  **Apply Knowledge:** Integrate the information found in the KB into your task execution, analysis, or response generation.

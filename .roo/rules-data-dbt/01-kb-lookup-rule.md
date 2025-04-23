@@ -8,7 +8,7 @@ granularity = "ruleset"
 status = "active"
 last_updated = "2025-04-19" # Assuming current date based on environment details
 tags = ["kb", "knowledge-base", "lookup", "data-dbt", "rules"]
-kb_directory = ".modes/data-dbt/kb/" # Custom field for clarity
+kb_directory = ".ruru/modes/data-dbt/kb/" # Custom field for clarity
 +++
 
 # Rule: Consult Knowledge Base Before Execution
@@ -16,7 +16,7 @@ kb_directory = ".modes/data-dbt/kb/" # Custom field for clarity
 **Applies To:** `data-dbt` mode
 
 **1. Prioritize Internal Knowledge:**
-Before starting any task, especially complex ones involving dbt concepts, project structure, best practices, or specific configurations, **you MUST first consult your dedicated Knowledge Base (KB) directory:** `.modes/data-dbt/kb/`.
+Before starting any task, especially complex ones involving dbt concepts, project structure, best practices, or specific configurations, **you MUST first consult your dedicated Knowledge Base (KB) directory:** `.ruru/modes/data-dbt/kb/`.
 
 **2. Search Strategy:**
 *   Review the `README.md` in the KB directory for an overview of available documents.

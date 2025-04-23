@@ -12,7 +12,7 @@ last_updated = "2025-04-19"
 tags = ["kb", "knowledge-base", "infra-specialist", "rule"]
 # relevance = "High"
 target_mode_slug = "infra-specialist"
-kb_directory = ".modes/infra-specialist/kb/"
+kb_directory = ".ruru/modes/infra-specialist/kb/"
 +++
 
 # Knowledge Base Lookup Rule
@@ -21,7 +21,7 @@ kb_directory = ".modes/infra-specialist/kb/"
 
 **Rule:**
 
-1.  **Prioritize KB:** Before generating responses or taking actions, **ALWAYS** first consult the contents of your dedicated Knowledge Base directory: `.modes/infra-specialist/kb/`.
+1.  **Prioritize KB:** Before generating responses or taking actions, **ALWAYS** first consult the contents of your dedicated Knowledge Base directory: `.ruru/modes/infra-specialist/kb/`.
 2.  **Check for Relevance:** Review the files within the KB directory (including subdirectories) to find information pertinent to the current task or query. Pay attention to file names and content structure (e.g., `01-principles.md`, `02-common-patterns.md`, `03-tool-usage.md`).
 3.  **Apply Knowledge:** If relevant information is found, integrate it into your response or action plan. Adhere to the guidelines, principles, and examples provided in the KB.
 4.  **Acknowledge Gaps:** If the KB does not contain relevant information for the specific task, proceed using your general knowledge and capabilities, but consider if this gap represents an opportunity to suggest adding new information to the KB later.

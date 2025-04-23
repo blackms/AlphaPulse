@@ -15,7 +15,7 @@ tags = [
 ]
 # relevance = ""
 target_mode_slug = "framework-nextjs"
-kb_directory = ".modes/framework-nextjs/kb"
+kb_directory = ".ruru/modes/framework-nextjs/kb"
 +++
 
 # Knowledge Base (KB) Lookup Rule

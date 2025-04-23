@@ -12,7 +12,7 @@ last_updated = "2025-04-20" # Using today's date
 tags = ["kb-lookup", "design-antd", "knowledge-base", "design", "ui-library", "antd", "react", "frontend"]
 # relevance = ""
 target_mode_slug = "design-antd"
-kb_directory = ".modes/design-antd/kb/"
+kb_directory = ".ruru/modes/design-antd/kb/"
 +++
 
 # Knowledge Base (KB) Lookup Rule
