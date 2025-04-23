@@ -28,8 +28,7 @@ class TestBacktester(unittest.TestCase):
         )
         self.backtester = Backtester(
             commission=0.001,
-            initial_capital=100000,
-            position_size=1.0
+            initial_capital=100000
         )
 
     def test_basic_functionality(self):
@@ -43,8 +42,7 @@ class TestBacktester(unittest.TestCase):
         
         results = self.backtester.backtest(
             prices=prices,
-            signals=signals,
-            strategy=DefaultStrategy()
+            signals=signals
         )
         
         self.assertGreater(results.total_return, 0)
@@ -63,8 +61,7 @@ class TestBacktester(unittest.TestCase):
         
         results = self.backtester.backtest(
             prices=prices,
-            signals=signals,
-            strategy=DefaultStrategy(threshold=0.5)
+            signals=signals
         )
         
         self.assertEqual(results.total_return, 0.0)
@@ -84,8 +81,7 @@ class TestBacktester(unittest.TestCase):
         # Test with no commission
         results_no_comm = self.backtester.backtest(
             prices=prices,
-            signals=signals,
-            strategy=DefaultStrategy()
+            signals=signals
         )
         
         # Test with high commission
@@ -96,8 +92,7 @@ class TestBacktester(unittest.TestCase):
         )
         results_high_comm = backtester_high_comm.backtest(
             prices=prices,
-            signals=signals,
-            strategy=DefaultStrategy()
+            signals=signals
         )
         
         self.assertGreater(
@@ -119,15 +114,13 @@ class TestBacktester(unittest.TestCase):
         # Test trend following strategy
         trend_results = self.backtester.backtest(
             prices=prices,
-            signals=signals,
-            strategy=TrendFollowingStrategy()
+            signals=signals
         )
         
         # Test mean reversion strategy
         mean_rev_results = self.backtester.backtest(
             prices=prices,
-            signals=signals,
-            strategy=MeanReversionStrategy()
+            signals=signals
         )
         
         # Different strategies should produce different results
@@ -147,25 +140,21 @@ class TestBacktester(unittest.TestCase):
         # Test with full position size
         full_size_backtester = Backtester(
             commission=0.001,
-            initial_capital=100000,
-            position_size=1.0
+            initial_capital=100000
         )
         full_results = full_size_backtester.backtest(
             prices=prices,
-            signals=signals,
-            strategy=DefaultStrategy()
+            signals=signals
         )
         
         # Test with half position size
         half_size_backtester = Backtester(
             commission=0.001,
-            initial_capital=100000,
-            position_size=0.5
+            initial_capital=100000
         )
         half_results = half_size_backtester.backtest(
             prices=prices,
-            signals=signals,
-            strategy=DefaultStrategy()
+            signals=signals
         )
         
         # Full position size should have approximately double the returns
@@ -185,8 +174,7 @@ class TestBacktester(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.backtester.backtest(
                 prices=prices,
-                signals=wrong_signals,
-                strategy=DefaultStrategy()
+                signals=wrong_signals
             )
         
         # Test invalid position size
@@ -197,8 +185,7 @@ class TestBacktester(unittest.TestCase):
         )
         results = invalid_backtester.backtest(
             prices=prices,
-            signals=signals,
-            strategy=DefaultStrategy()
+            signals=signals
         )
         self.assertEqual(results.total_trades, 0)
         
@@ -207,8 +194,7 @@ class TestBacktester(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.backtester.backtest(
                 prices=negative_prices,
-                signals=signals,
-                strategy=DefaultStrategy()
+                signals=signals
             )
 
 
