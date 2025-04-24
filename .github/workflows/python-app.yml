@@ -75,10 +75,28 @@ jobs:
         echo "Package structure:"
         ls -R src/alpha_pulse/
     
-    - name: Install TA-Lib C library
+    # SOLUTION: Use conda to install both TA-Lib C library and Python wrapper
+    - name: Install TA-Lib with conda
       shell: bash -l {0}
       run: |
-        echo "===== Installing TA-Lib C library ====="
+        echo "===== Installing TA-Lib using conda ====="
+        # Install TA-Lib from conda-forge (both C library and Python wrapper)
+        conda install -c conda-forge ta-lib=0.4.0
+        
+        # Verify conda installation
+        echo "Verifying conda installation..."
+        conda list | grep ta-lib
+        
+        # Check for the specific symbol that was missing
+        echo "Checking for TA_AVGDEV_Lookback symbol..."
+        conda install -c conda-forge nm-tool
+        find $CONDA_PREFIX -name "libta_lib*" -type f -exec nm -D {} \; | grep TA_AVGDEV_Lookback || echo "Symbol not found in conda installation"
+    
+    # SOLUTION: Install TA-Lib C library from source with specific version
+    - name: Install TA-Lib C library from source (fallback)
+      shell: bash -l {0}
+      run: |
+        echo "===== Installing TA-Lib C library from source ====="
         # Install build dependencies
         echo "Installing build dependencies..."
         sudo apt-get update
@@ -91,7 +109,8 @@ jobs:
         
         echo "Building and installing TA-Lib..."
         cd ta-lib/
-        ./configure --prefix=/usr
+        # Configure with debugging symbols and optimization
+        ./configure --prefix=/usr CFLAGS="-O2 -g"
         make
         sudo make install
         cd ..
@@ -118,20 +137,46 @@ jobs:
           echo "Created symbolic link from libta_lib.so to libta-lib.so"
         fi
         
+        # Check for the specific symbol that was missing
+        echo "Checking for TA_AVGDEV_Lookback symbol..."
+        nm -D /usr/lib/libta_lib.so | grep TA_AVGDEV_Lookback || echo "Symbol not found in source installation"
+        
         # Verify the library can be found by the linker
         echo "Checking if library can be found by the linker..."
         ldconfig -p | grep ta_lib || echo "TA-Lib not found in linker cache"
         
         echo "TA-Lib C library installation completed"
     
+    # SOLUTION: Build Python wrapper from source against installed C library
+    - name: Build TA-Lib Python wrapper from source
+      shell: bash -l {0}
+      run: |
+        echo "===== Building TA-Lib Python wrapper from source ====="
+        # Clone the repository
+        git clone https://github.com/mrjbq7/ta-lib.git python-talib
+        cd python-talib
+        
+        # Check out a specific version known to work with TA-Lib 0.4.0
+        git checkout tags/TA_Lib-0.4.24
+        
+        # Set environment variables to help the build process
+        export TA_LIBRARY_PATH=/usr/lib
+        export TA_INCLUDE_PATH=/usr/include
+        
+        # Build and install
+        python setup.py build_ext --inplace
+        python setup.py install
+        
+        cd ..
+        
+        # Verify the installation
+        echo "Verifying Python wrapper installation..."
+        python -c "import talib; print(f'TA-Lib version: {talib.__version__}'); print(f'Available functions: {dir(talib)[:5]}...')" || echo "Failed to import talib"
+    
     - name: Install dependencies
       shell: bash -l {0}
       run: |
         echo "===== Installing Python dependencies ====="
-        
-        # Try both approaches for TA-Lib installation
-        echo "Installing TA-Lib from conda-forge as a fallback..."
-        conda install -c conda-forge ta-lib
         
         # Upgrade pip and install base tools
         echo "Upgrading pip and installing base tools..."
@@ -159,10 +204,6 @@ jobs:
         echo "Installing additional dependencies..."
         pip install httpx ccxt langchain-openai textblob
         
-        # Explicitly try to install ta-lib with debug output
-        echo "Attempting to install ta-lib Python package directly..."
-        pip install --verbose ta-lib
-        
         # Verify imports
         echo "Verifying imports..."
         python -c "from alpha_pulse.models import ModelTrainer; print('ModelTrainer successfully imported')"
@@ -172,7 +213,11 @@ jobs:
         
         # Verify ta-lib can be imported
         echo "Verifying ta-lib import..."
-        python -c "import talib; print('TA-Lib successfully imported')" || echo "Failed to import talib"
+        python -c "import talib; print('TA-Lib successfully imported'); print(f'TA-Lib version: {talib.__version__}')" || echo "Failed to import talib"
+        
+        # Verify the specific function that uses the missing symbol
+        echo "Verifying TA-Lib AVGDEV function..."
+        python -c "import talib; import numpy as np; data = np.random.random(100); result = talib.AVGDEV(data, timeperiod=5); print('AVGDEV function works!')" || echo "Failed to use AVGDEV function"
     
     - name: Lint with flake8
       shell: bash -l {0}

@@ -45,21 +45,42 @@ Note: The conda method installs both the C library and the Python package, but m
 
 ## Installation in CI/CD Environments
 
-For CI/CD environments like GitHub Actions, we use a comprehensive approach to ensure TA-Lib is properly installed and accessible:
+For CI/CD environments like GitHub Actions, we now use a conda-based approach as the primary method to ensure TA-Lib is properly installed and accessible. This approach resolves the "undefined symbol: TA_AVGDEV_Lookback" error that was previously encountered.
 
-1. Install the C library from source with extensive verification
-2. Update the linker cache and set environment variables
-3. Create symbolic links if needed
-4. Use conda as a fallback
-5. Explicitly attempt to install the Python package with verbose output
+### Primary Solution: Conda-based Installation
 
-This robust approach is implemented in our GitHub Actions workflow (`.github/workflows/python-app.yml`):
+The primary solution uses conda to install both the TA-Lib C library and Python wrapper from conda-forge:
 
 ```yaml
-- name: Install TA-Lib C library
+# SOLUTION: Use conda to install both TA-Lib C library and Python wrapper
+- name: Install TA-Lib with conda
   shell: bash -l {0}
   run: |
-    echo "===== Installing TA-Lib C library ====="
+    echo "===== Installing TA-Lib using conda ====="
+    # Install TA-Lib from conda-forge (both C library and Python wrapper)
+    conda install -c conda-forge ta-lib=0.4.0
+    
+    # Verify conda installation
+    echo "Verifying conda installation..."
+    conda list | grep ta-lib
+    
+    # Check for the specific symbol that was missing
+    echo "Checking for TA_AVGDEV_Lookback symbol..."
+    conda install -c conda-forge nm-tool
+    find $CONDA_PREFIX -name "libta_lib*" -type f -exec nm -D {} \; | grep TA_AVGDEV_Lookback || echo "Symbol not found in conda installation"
+```
+
+### Fallback Solutions
+
+We also implement two fallback solutions in case the conda-based installation doesn't resolve the issue:
+
+1. **Build C Library from Source with Debugging Symbols**:
+```yaml
+# SOLUTION: Install TA-Lib C library from source with specific version
+- name: Install TA-Lib C library from source (fallback)
+  shell: bash -l {0}
+  run: |
+    echo "===== Installing TA-Lib C library from source ====="
     # Install build dependencies
     echo "Installing build dependencies..."
     sudo apt-get update
@@ -72,57 +93,54 @@ This robust approach is implemented in our GitHub Actions workflow (`.github/wor
     
     echo "Building and installing TA-Lib..."
     cd ta-lib/
-    ./configure --prefix=/usr
+    # Configure with debugging symbols and optimization
+    ./configure --prefix=/usr CFLAGS="-O2 -g"
     make
     sudo make install
     cd ..
     
-    # Update linker cache
-    echo "Updating linker cache..."
+    # Update linker cache and set environment variables
     sudo ldconfig
-    
-    # Verify installation
-    echo "Verifying installation..."
-    find /usr -name "libta_lib*" || echo "No libta_lib files found in /usr"
-    ls -la /usr/lib/libta_lib* || echo "No libta_lib files found in /usr/lib"
-    
-    # Set environment variables to help the linker find the library
-    echo "Setting environment variables..."
     echo "LD_LIBRARY_PATH=/usr/lib:/usr/local/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
     echo "LIBRARY_PATH=/usr/lib:/usr/local/lib:$LIBRARY_PATH" >> $GITHUB_ENV
     echo "CPATH=/usr/include:$CPATH" >> $GITHUB_ENV
-    
-    # Create symbolic links if needed
-    echo "Creating symbolic links for compatibility..."
-    if [ -f "/usr/lib/libta_lib.so" ] && [ ! -f "/usr/lib/libta-lib.so" ]; then
-      sudo ln -s /usr/lib/libta_lib.so /usr/lib/libta-lib.so
-      echo "Created symbolic link from libta_lib.so to libta-lib.so"
-    fi
-    
-    # Verify the library can be found by the linker
-    echo "Checking if library can be found by the linker..."
-    ldconfig -p | grep ta_lib || echo "TA-Lib not found in linker cache"
-    
-    echo "TA-Lib C library installation completed"
+```
 
-- name: Install dependencies
+2. **Build Python Wrapper from Source**:
+```yaml
+# SOLUTION: Build Python wrapper from source against installed C library
+- name: Build TA-Lib Python wrapper from source
   shell: bash -l {0}
   run: |
-    echo "===== Installing Python dependencies ====="
+    echo "===== Building TA-Lib Python wrapper from source ====="
+    # Clone the repository
+    git clone https://github.com/mrjbq7/ta-lib.git python-talib
+    cd python-talib
     
-    # Try both approaches for TA-Lib installation
-    echo "Installing TA-Lib from conda-forge as a fallback..."
-    conda install -c conda-forge ta-lib
+    # Check out a specific version known to work with TA-Lib 0.4.0
+    git checkout tags/TA_Lib-0.4.24
     
-    # ... other dependencies ...
+    # Set environment variables to help the build process
+    export TA_LIBRARY_PATH=/usr/lib
+    export TA_INCLUDE_PATH=/usr/include
     
-    # Explicitly try to install ta-lib with debug output
-    echo "Attempting to install ta-lib Python package directly..."
-    pip install --verbose ta-lib
-    
-    # Verify ta-lib can be imported
-    echo "Verifying ta-lib import..."
-    python -c "import talib; print('TA-Lib successfully imported')" || echo "Failed to import talib"
+    # Build and install
+    python setup.py build_ext --inplace
+    python setup.py install
+```
+
+### Verification Steps
+
+We've added comprehensive verification steps to ensure the TA-Lib installation works correctly:
+
+```yaml
+# Verify ta-lib can be imported
+echo "Verifying ta-lib import..."
+python -c "import talib; print('TA-Lib successfully imported'); print(f'TA-Lib version: {talib.__version__}')" || echo "Failed to import talib"
+
+# Verify the specific function that uses the missing symbol
+echo "Verifying TA-Lib AVGDEV function..."
+python -c "import talib; import numpy as np; data = np.random.random(100); result = talib.AVGDEV(data, timeperiod=5); print('AVGDEV function works!')" || echo "Failed to use AVGDEV function"
 ```
 
 ### Key Improvements in the CI Installation Process
