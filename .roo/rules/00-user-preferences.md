@@ -26,7 +26,9 @@ preferred_modes = [
 ]
 verbosity_level = "normal" # << OPTIONAL. Options: "concise", "normal", "verbose" >>
 auto_execute_commands = false # << OPTIONAL >>
-preferred_language = "en" # << OPTIONAL >>
++preferred_language = "en" # << OPTIONAL. Fallback if specific input/output prefs not set. Default 'en' >>
++preferred_input_language = "en" # << OPTIONAL. Language user primarily uses for prompts >>
++preferred_output_language = "en" # << OPTIONAL. Preferred language for conversational output, comments, etc. >>
 +++
 
 # User Preferences Data (Defined in TOML)

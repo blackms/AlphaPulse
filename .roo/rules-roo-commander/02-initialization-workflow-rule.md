@@ -1,16 +1,17 @@
 +++
-id = "ROO-CMD-RULE-INIT-V3" # Incremented version
+id = "ROO-CMD-RULE-INIT-V4" # Incremented version
 title = "Roo Commander: Rule - Initial Request Processing (Explicit KB Routing)"
 context_type = "rules"
 scope = "Initial user interaction handling, presenting comprehensive starting options and routing to specific KB procedures"
 target_audience = ["roo-commander"]
 granularity = "procedure"
 status = "active"
-last_updated = "2025-04-22" # Use current date
+last_updated = "2025-04-24" # Use current date
 tags = ["rules", "workflow", "initialization", "onboarding", "intent", "options", "kb-routing", "roo-commander"]
 related_context = [
     "01-operational-principles.md",
     # Specific KB Action files
+    ".ruru/modes/roo-commander/kb/initial-actions/00-install-mcp.md", # Added MCP Install option
     ".ruru/modes/roo-commander/kb/initial-actions/01-start-new-project.md",
     ".ruru/modes/roo-commander/kb/initial-actions/02-onboard-existing-project.md",
     ".ruru/modes/roo-commander/kb/initial-actions/03-clone-onboard.md",
@@ -52,20 +53,21 @@ This rule governs how you handle the **first user message** in a session, presen
  <ask_followup_question>
   <question>Welcome to Roo Commander v7 (Wallaby)! How can I assist you today?</question>
   <follow_up>
-    <suggest>🚀 Start a NEW project from scratch</suggest> <!-- Option 1 -->
+    <suggest>🔌 Install/Manage MCP Servers</suggest> <!-- Option 0 -->
+    <suggest>🎩 Start a NEW project from scratch</suggest> <!-- Option 1 -->
     <suggest>📂 Analyze/Onboard the CURRENT project workspace</suggest> <!-- Option 2 -->
     <suggest>🌐 Clone a Git repository & onboard</suggest> <!-- Option 3 -->
-    <suggest>📄 Use existing project files/plans to define the work</suggest> <!-- Option 4 -->
-    <suggest>💡 Plan/Design a new feature or project</suggest> <!-- Option 5 -->
+    <suggest>🗃️ Use existing project files/plans to define the work</suggest> <!-- Option 4 -->
+    <suggest>📑 Plan/Design a new feature or project</suggest> <!-- Option 5 -->
     <suggest>🐞 Fix a specific bug</suggest> <!-- Option 6 -->
     <suggest>♻️ Refactor or improve existing code</suggest> <!-- Option 7 -->
     <suggest>✍️ Write or update documentation</suggest> <!-- Option 8 -->
-    <suggest>📊 Review project status / Manage tasks (MDTM)</suggest> <!-- Option 9 -->
+    <suggest>📟 Review project status / Manage tasks (MDTM)</suggest> <!-- Option 9 -->
     <suggest>❓ Research a topic / Ask a technical question</suggest> <!-- Option 10 -->
-    <suggest>🛠️ Execute a command / Delegate a specific known task</suggest> <!-- Option 11 -->
-    <suggest>⚙️ Manage Roo Configuration (Advanced)</suggest> <!-- Option 12 -->
-    <suggest>⚙️ Update my preferences / profile</suggest> <!-- Option 13 -->
-    <suggest>📖 Learn about Roo Commander capabilities</suggest> <!-- Option 14 -->
+    <suggest>🎺 Execute a command / Delegate a specific known task</suggest> <!-- Option 11 -->
+    <suggest>🪃 Manage Roo Configuration (Advanced)</suggest> <!-- Option 12 -->
+    <suggest>🖲️ Update my preferences / profile</suggest> <!-- Option 13 -->
+    <suggest>🦘 Learn about Roo Commander capabilities</suggest> <!-- Option 14 -->
     <suggest>🐾 Join the Roo Commander Community (Discord)</suggest> <!-- Option 15 -->
     <suggest>🤔 Something else... (Describe your goal)</suggest> <!-- Option 16 -->
   </follow_up>
@@ -96,10 +98,11 @@ This rule governs how you handle the **first user message** in a session, presen
         *   Await user's selection. Proceed to Step 3.
 
 3.  **Handle User Selection (from Standard Initial Prompt):**
-    *   Once the user selects an option (identified 1-16) from the standard prompt:
+    *   Once the user selects an option (identified 0-16) from the standard prompt:
         1.  Identify the selected option number.
         2.  Log the chosen starting path (Rule `08`).
         3.  **Execute the detailed procedure defined in the corresponding KB file**:
+            *   Option 0: Execute KB `.ruru/modes/roo-commander/kb/initial-actions/00-install-mcp.md`.
             *   Option 1: Execute KB `.ruru/modes/roo-commander/kb/initial-actions/01-start-new-project.md`.
             *   Option 2: Execute KB `.ruru/modes/roo-commander/kb/initial-actions/02-onboard-existing-project.md`.
             *   Option 3: Execute KB `.ruru/modes/roo-commander/kb/initial-actions/03-clone-onboard.md`.

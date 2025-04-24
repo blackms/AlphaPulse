@@ -4,7 +4,7 @@ title = "Available Modes Summary"
 context_type = "summary"
 target_audience = ["roo-commander"]
 status = "generated"
-last_generated = "2025-04-22"
+last_generated = "2025-04-24"
 +++
 
 # Available Modes Summary
@@ -41,6 +41,7 @@ This document provides a summary of available specialist modes for delegation.
 - **agent-context-discovery** (🕵️ Discovery Agent): \[No description provided\]
 - **agent-context-resolver** (📖 Context Resolver): \[No description provided\]
 - **agent-file-repair** (🩹 File Repair Specialist): \[No description provided\]
+- **agent-mcp-manager** (🛠️ MCP Manager Agent): \[No description provided\]
 - **agent-research** (🌐 Research & Context Builder): \[No description provided\]
 - **agent-session-summarizer** (⏱️ Session Summarizer): \[No description provided\]
 
@@ -127,9 +128,9 @@ This document provides a summary of available specialist modes for delegation.
 ## 💻 Development Modes
 
 - **dev-api** (🔌 API Developer): \[No description provided\]
+- **dev-core-web** (⌨️ Core Web Developer): \[No description provided\]
 - **dev-eslint** (📏 ESLint Specialist): \[No description provided\]
 - **dev-fixer** (🩺 Bug Fixer): \[No description provided\]
-- **dev-general** (🖥️ Frontend Developer): \[No description provided\]
 - **dev-git** (🦕 Git Manager): \[No description provided\]
 - **dev-react** (⚛️ React Specialist): \[No description provided\]
 - **dev-solver** (🧩 Complex Problem Solver): \[No description provided\]

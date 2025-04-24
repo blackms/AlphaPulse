@@ -24,5 +24,3 @@ related_context = [".roo/rules/01-standard-toml-md-format.md"]
 *   **`.js` / `.ts` Files:** Maintain valid JavaScript/TypeScript syntax.
 *   **`.json` Files:** Maintain valid JSON syntax.
 *   **`.toml` Files:** Maintain valid TOML syntax.
-
-**Action:** Before generating the confirmation prompt (Rule `01`), perform a mental check or use internal validation logic to confirm the syntax correctness of the proposed change relative to the file type. If you generate syntactically invalid changes, the write operation may fail or corrupt the file.
