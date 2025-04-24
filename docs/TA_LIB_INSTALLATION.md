@@ -1,245 +1,139 @@
-# TA-Lib Installation Guide
+# TA-Lib Installation Guide for CI Environment
 
-This document provides guidance on installing the TA-Lib library, which is required for technical analysis functionality in AlphaPulse.
+This document explains how to install TA-Lib in the CI environment using Poetry, addressing the "package not found" error previously encountered with conda.
 
-## Overview
+## Problem Description
 
-TA-Lib (Technical Analysis Library) is a widely used open-source library that provides technical analysis functions. It consists of two main components:
+When trying to install TA-Lib using conda in the CI environment, the following error was encountered:
 
-1. **C/C++ library**: The core implementation written in C
-2. **Python wrapper**: A Python package that provides bindings to the C library
+```
+PackagesNotFoundError: The following packages are not available from current channels:
 
-The Python package (`ta-lib`) requires the C library to be installed on the system before it can be built and used.
+  - ta-lib=0.4.0
 
-## Installation Methods
+Current channels:
 
-### Method 1: Using Package Managers (Recommended for Development)
-
-#### On Ubuntu/Debian:
-```bash
-sudo apt-get update
-sudo apt-get install -y build-essential
-wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
-tar -xzf ta-lib-0.4.0-src.tar.gz
-cd ta-lib/
-./configure --prefix=/usr
-make
-sudo make install
+  - https://conda.anaconda.org/conda-forge
+  - defaults
+  - https://repo.anaconda.com/pkgs/main
+  - https://repo.anaconda.com/pkgs/r
 ```
 
-#### On macOS (using Homebrew):
-```bash
-brew install ta-lib
+## Solution
+
+We implemented a solution that uses Poetry instead of conda for managing Python dependencies, while still building the TA-Lib C library from source:
+
+### 1. Configure Poetry in pyproject.toml
+
+We updated the `pyproject.toml` file to use Poetry as the build system and added TA-Lib as a dependency:
+
+```toml
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "alpha-pulse"
+version = "0.1.0"
+description = "AlphaPulse Trading System"
+authors = ["AlphaPulse Team"]
+readme = "README.md"
+packages = [{include = "alpha_pulse", from = "src"}]
+
+[tool.poetry.dependencies]
+python = ">=3.11,<3.12"
+ta-lib = "^0.6.3"
+# ... other dependencies ...
 ```
 
-#### On Windows:
-Download the pre-built binary from [TA-Lib's SourceForge page](http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-msvc.zip), extract it, and add the library location to your PATH.
+### 2. Install TA-Lib C Library from Source
 
-### Method 2: Using Conda (Alternative)
-
-```bash
-conda install -c conda-forge ta-lib
-```
-
-Note: The conda method installs both the C library and the Python package, but may not work in all environments.
-
-## Installation in CI/CD Environments
-
-For CI/CD environments like GitHub Actions, we now use a conda-based approach as the primary method to ensure TA-Lib is properly installed and accessible. This approach resolves the "undefined symbol: TA_AVGDEV_Lookback" error that was previously encountered.
-
-### Primary Solution: Conda-based Installation
-
-The primary solution uses conda to install both the TA-Lib C library and Python wrapper from conda-forge:
+The TA-Lib Python package requires the C library to be installed first. We build it from source:
 
 ```yaml
-# SOLUTION: Use conda to install both TA-Lib C library and Python wrapper
-- name: Install TA-Lib with conda
-  shell: bash -l {0}
-  run: |
-    echo "===== Installing TA-Lib using conda ====="
-    # Install TA-Lib from conda-forge (both C library and Python wrapper)
-    conda install -c conda-forge ta-lib=0.4.0
-    
-    # Verify conda installation
-    echo "Verifying conda installation..."
-    conda list | grep ta-lib
-    
-    # Check for the specific symbol that was missing
-    echo "Checking for TA_AVGDEV_Lookback symbol..."
-    conda install -c conda-forge nm-tool
-    find $CONDA_PREFIX -name "libta_lib*" -type f -exec nm -D {} \; | grep TA_AVGDEV_Lookback || echo "Symbol not found in conda installation"
-```
-
-### Fallback Solutions
-
-We also implement two fallback solutions in case the conda-based installation doesn't resolve the issue:
-
-1. **Build C Library from Source with Debugging Symbols**:
-```yaml
-# SOLUTION: Install TA-Lib C library from source with specific version
-- name: Install TA-Lib C library from source (fallback)
-  shell: bash -l {0}
+- name: Install TA-Lib C library from source
   run: |
     echo "===== Installing TA-Lib C library from source ====="
     # Install build dependencies
-    echo "Installing build dependencies..."
     sudo apt-get update
     sudo apt-get install -y build-essential wget pkg-config
     
     # Download and install TA-Lib C library
-    echo "Downloading TA-Lib source..."
     wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
     tar -xzf ta-lib-0.4.0-src.tar.gz
     
-    echo "Building and installing TA-Lib..."
     cd ta-lib/
-    # Configure with debugging symbols and optimization
     ./configure --prefix=/usr CFLAGS="-O2 -g"
     make
     sudo make install
     cd ..
     
-    # Update linker cache and set environment variables
+    # Update linker cache
     sudo ldconfig
+    
+    # Set environment variables to help the linker find the library
     echo "LD_LIBRARY_PATH=/usr/lib:/usr/local/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
     echo "LIBRARY_PATH=/usr/lib:/usr/local/lib:$LIBRARY_PATH" >> $GITHUB_ENV
     echo "CPATH=/usr/include:$CPATH" >> $GITHUB_ENV
 ```
 
-2. **Build Python Wrapper from Source**:
+### 3. Install Python Dependencies with Poetry
+
+After the C library is installed, we use Poetry to install all Python dependencies, including the TA-Lib Python wrapper:
+
 ```yaml
-# SOLUTION: Build Python wrapper from source against installed C library
-- name: Build TA-Lib Python wrapper from source
-  shell: bash -l {0}
+- name: Install dependencies with Poetry
   run: |
-    echo "===== Building TA-Lib Python wrapper from source ====="
-    # Clone the repository
-    git clone https://github.com/mrjbq7/ta-lib.git python-talib
-    cd python-talib
+    echo "===== Installing Python dependencies with Poetry ====="
+    poetry install --no-interaction
     
-    # Check out a specific version known to work with TA-Lib 0.4.0
-    git checkout tags/TA_Lib-0.4.24
-    
-    # Set environment variables to help the build process
-    export TA_LIBRARY_PATH=/usr/lib
-    export TA_INCLUDE_PATH=/usr/include
-    
-    # Build and install
-    python setup.py build_ext --inplace
-    python setup.py install
+    # Verify the TA-Lib installation
+    poetry run python -c "import talib; print(f'TA-Lib version: {talib.__version__}')"
 ```
 
-### Verification Steps
+### 4. Verify the Installation
 
-We've added comprehensive verification steps to ensure the TA-Lib installation works correctly:
+We added verification steps to ensure the library is properly installed and all required functions work:
 
 ```yaml
-# Verify ta-lib can be imported
-echo "Verifying ta-lib import..."
-python -c "import talib; print('TA-Lib successfully imported'); print(f'TA-Lib version: {talib.__version__}')" || echo "Failed to import talib"
-
 # Verify the specific function that uses the missing symbol
-echo "Verifying TA-Lib AVGDEV function..."
-python -c "import talib; import numpy as np; data = np.random.random(100); result = talib.AVGDEV(data, timeperiod=5); print('AVGDEV function works!')" || echo "Failed to use AVGDEV function"
+poetry run python -c "import talib; import numpy as np; data = np.random.random(100); result = talib.AVGDEV(data, timeperiod=5); print('AVGDEV function works!')"
 ```
 
-### Key Improvements in the CI Installation Process
+## Implementation Details
 
-1. **Verbose Logging**: Added detailed logging at each step to identify exactly where any failures occur.
+The solution is implemented in the GitHub Actions workflow file: `.github/workflows/python-app.yml`
 
-2. **Linker Cache Update**: Added `sudo ldconfig` to update the dynamic linker run-time bindings after installation.
+Key changes from the original workflow:
 
-3. **Environment Variables**: Set `LD_LIBRARY_PATH`, `LIBRARY_PATH`, and `CPATH` to help the compiler and linker find the library and headers.
+1. Replaced conda with Poetry for dependency management
+2. Updated the pyproject.toml file to use Poetry as the build system
+3. Kept the C library installation from source
+4. Added verification steps to ensure TA-Lib works correctly
 
-4. **Symbolic Links**: Created a symbolic link from `libta_lib.so` to `libta-lib.so` if needed, as some builds might look for the library with a different name.
+## Verification
 
-5. **Verification Steps**: Added multiple verification steps to confirm the library is installed and accessible:
-   - Using `find` to locate all instances of the library
-   - Checking the linker cache with `ldconfig -p`
-   - Attempting to import the Python package
+The solution can be verified by:
 
-6. **Multiple Installation Methods**: Tried multiple approaches to install the Python package:
-   - Via conda-forge
-   - Via pip with verbose output
-   - As part of the project dependencies
+1. Running the updated GitHub Actions workflow
+2. Checking that the TA-Lib import succeeds without errors
+3. Verifying that the AVGDEV function works correctly
+4. Ensuring all tests that depend on TA-Lib pass
 
-## Installation in Docker
+## Future Considerations
 
-In our Docker environment, we install the necessary build tools but rely on pip to install the Python package:
+To prevent similar issues in the future:
 
-```dockerfile
-# Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    git \
-    && rm -rf /var/lib/apt/lists/*
-```
+1. **Pin specific versions**: Ensure that both the C library and Python wrapper versions are pinned to specific, compatible versions.
 
-## Troubleshooting
+2. **Use Poetry for dependency management**: Poetry provides more reliable dependency resolution than conda for Python packages.
 
-### Common Issues
+3. **Add comprehensive tests**: Include tests that specifically exercise functions like AVGDEV to catch compatibility issues early.
 
-1. **Missing C Library**:
-   ```
-   error: command '/usr/bin/gcc' failed with exit code 1
-   ```
-   Solution: Install the C library as described above.
-
-2. **Linker Cannot Find Library**:
-   ```
-   /usr/share/miniconda/envs/test-env/compiler_compat/ld: cannot find -lta-lib: No such file or directory
-   ```
-   Solution:
-   - Update the linker cache with `sudo ldconfig`
-   - Set environment variables: `LD_LIBRARY_PATH=/usr/lib:/usr/local/lib:$LD_LIBRARY_PATH`
-   - Create a symbolic link if needed: `sudo ln -s /usr/lib/libta_lib.so /usr/lib/libta-lib.so`
-
-3. **Outdated Build Tools**:
-   ```
-   error: command 'x86_64-linux-gnu-gcc' failed with exit code 1
-   ```
-   Solution: Ensure you have the latest build-essential package installed.
-
-4. **Path Issues on Windows**:
-   ```
-   fatal error C1083: Cannot open include file: 'ta-lib.h': No such file or directory
-   ```
-   Solution: Ensure the TA-Lib headers are in your include path.
-
-### Debugging TA-Lib Installation
-
-If you're having issues with TA-Lib installation, these commands can help diagnose the problem:
-
-1. **Find all instances of the library**:
-   ```bash
-   find / -name "libta_lib*" 2>/dev/null
-   ```
-
-2. **Check if the library is in the linker cache**:
-   ```bash
-   ldconfig -p | grep ta_lib
-   ```
-
-3. **Verify the library can be loaded**:
-   ```bash
-   ldd /path/to/libta_lib.so
-   ```
-
-4. **Check environment variables**:
-   ```bash
-   echo $LD_LIBRARY_PATH
-   echo $LIBRARY_PATH
-   echo $CPATH
-   ```
-
-5. **Verify Python package installation**:
-   ```bash
-   pip show ta-lib
-   python -c "import talib; print(talib.__file__)"
-   ```
+4. **Document dependencies**: Keep track of the relationship between the C library and Python wrapper versions to make troubleshooting easier.
 
 ## References
 
+- [TA-Lib Python Wrapper GitHub Repository](https://github.com/mrjbq7/ta-lib)
 - [TA-Lib Official Website](https://ta-lib.org/)
-- [TA-Lib Python Wrapper on GitHub](https://github.com/mrjbq7/ta-lib)
-- [TA-Lib on SourceForge](https://sourceforge.net/projects/ta-lib/)
+- [Poetry Documentation](https://python-poetry.org/docs/)
