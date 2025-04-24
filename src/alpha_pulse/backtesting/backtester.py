@@ -269,6 +269,10 @@ class Backtester:
         if not isinstance(prices.index, pd.DatetimeIndex) or not isinstance(signals.index, pd.DatetimeIndex):
              raise TypeError("Prices and signals must have a DatetimeIndex.")
 
+        # --- Input Alignment and Validation --- ADDED LENGTH CHECK
+        if len(prices) != len(signals):
+             raise ValueError(f"Price ({len(prices)}) and signal ({len(signals)}) data have different lengths.")
+
         if not prices.index.equals(signals.index):
             logger.warning("Price and signal indices do not match. Aligning using inner join...")
             prices, signals = prices.align(signals, join='inner', copy=False)
@@ -292,10 +296,10 @@ class Backtester:
              stop_losses = pd.Series(np.nan, index=prices.index)
 
         if (prices <= 0).any():
-            logger.error("Prices must be positive. Check data source.")
             first_invalid_idx = prices[prices <= 0].index[0]
-            logger.error(f"First non-positive price found at: {first_invalid_idx}")
-            return self._generate_empty_result(prices.index)
+            error_msg = f"Prices must be positive. First non-positive price found at: {first_invalid_idx}"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
 
         if self.initial_capital <= 0:
              logger.error("Initial capital must be positive.")

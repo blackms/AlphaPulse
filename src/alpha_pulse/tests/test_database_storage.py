@@ -101,14 +101,13 @@ def storage_with_mock_db(connection_params, mocker, mock_db_components): # Added
     # Manually assign the mock pool
     storage.pool = mock_pool
 
-    # --- Patch acquire on the specific mock_pool instance ---
-    # Create a standard Mock object that will act as the async context manager
+    # --- Patch acquire on the specific mock_pool instance (Simplified) ---
     mock_context_manager = Mock()
-    # Configure its async methods
     mock_context_manager.__aenter__ = AsyncMock(return_value=mock_conn)
     mock_context_manager.__aexit__ = AsyncMock(return_value=None)
-    # Patch the 'acquire' method on the *instance* of the pool mock
-    mocker.patch.object(mock_pool, 'acquire', return_value=AsyncMock(return_value=mock_context_manager))
+    # Patch 'acquire' to be an AsyncMock that returns the context manager mock when awaited
+    acquire_mock = AsyncMock(return_value=mock_context_manager)
+    mocker.patch.object(mock_pool, 'acquire', return_value=acquire_mock)
     # --- End patch ---
 
     # Manually set initialized flag (still bypassing initialize call in fixture)
@@ -306,8 +305,13 @@ class TestDatabaseAlertHistory:
         storage, mock_conn = storage_with_mock_db
 
         # Configure mock connection methods
-        # Simulate successful execute for store_alert and update_alert
-        mock_conn.execute.return_value = None
+        # Simulate successful execute for store_alert
+        mock_conn.execute.side_effect = [
+            None, # First store
+            None, # Second store
+            None, # Third store
+            "UPDATE 1" # Simulate successful update
+        ]
 
         # Simulate fetch returning the updated alert
         updated_alert_data = {
@@ -367,7 +371,7 @@ class TestDatabaseAlertHistory:
 
         # Configure mock connection methods
         # Simulate execute returning 0 rows affected for the update
-        mock_conn.execute.return_value = None # Or potentially a mock result object indicating no rows updated
+        mock_conn.execute.return_value = "UPDATE 0" # Simulate 0 rows updated
 
         # Try to update a non-existent alert (calls use mocked connection)
         update_result = await storage.update_alert(

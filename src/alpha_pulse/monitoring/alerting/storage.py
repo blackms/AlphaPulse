@@ -47,7 +47,6 @@ class DatabaseAlertHistory(AlertHistoryStorage):
                 self.logger.debug(f"Type of acquire_result: {type(acquire_result)}")
                 self.logger.debug(f"Has __aenter__: {hasattr(acquire_result, '__aenter__')}")
                 self.logger.debug(f"Has __aexit__: {hasattr(acquire_result, '__aexit__')}")
-                import pdb; pdb.set_trace() # Debugger breakpoint
                 async with acquire_result as conn:
                     await conn.execute('''
                         CREATE TABLE IF NOT EXISTS alerts (
@@ -174,7 +173,6 @@ class DatabaseAlertHistory(AlertHistoryStorage):
             self.logger.debug(f"get_alerts: Type of acquire_result: {type(acquire_result)}")
             self.logger.debug(f"get_alerts: Has __aenter__: {hasattr(acquire_result, '__aenter__')}")
             self.logger.debug(f"get_alerts: Has __aexit__: {hasattr(acquire_result, '__aexit__')}")
-            import pdb; pdb.set_trace() # Debugger breakpoint
             async with acquire_result as conn:
                 rows = await conn.fetch(query, *params)
                 for row in rows:

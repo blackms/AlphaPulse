@@ -1,7 +1,8 @@
 """
 Authentication utilities for the API.
 """
-import jwt
+# import jwt # Original import
+from jose import jwt # Use python-jose
 from datetime import datetime, timedelta
 from typing import Dict, Optional
 from fastapi import Depends, HTTPException, status
@@ -88,7 +89,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> Dict:
         username: str = payload.get("sub")
         if username is None or username not in DEMO_USERS:
             raise credentials_exception
-    except jwt.PyJWTError:
+    except jwt.JWTError: # Use jose.JWTError
         raise credentials_exception
     
     return DEMO_USERS[username]
