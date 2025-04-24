@@ -13,6 +13,8 @@ setup(
         "pyyaml>=6.0",
         "fastapi>=0.115.0",
         "uvicorn>=0.34.0",
+        "aiohttp>=3.8.0",
+        "aiofiles>=0.8.0",
     ],
     extras_require={
         "dev": [
@@ -21,6 +23,17 @@ setup(
             "pytest-asyncio>=0.26.0",
             "black>=25.0.0",
             "flake8>=7.0.0",
+            "httpx>=0.24.0",  # Required for FastAPI/Starlette test client
+            "ccxt>=3.0.0",    # Required for exchange adapters
+            "langchain-openai>=0.0.1",  # Required for LLM analysis
+            "textblob>=0.17.0",  # Required for sentiment analysis
+        ],
+        "exchange": [
+            "ccxt>=3.0.0",
+        ],
+        "llm": [
+            "langchain>=0.0.1",
+            "langchain-openai>=0.0.1",
         ],
     },
     python_requires=">=3.11",
