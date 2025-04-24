@@ -105,9 +105,8 @@ def storage_with_mock_db(connection_params, mocker, mock_db_components): # Added
     mock_context_manager = Mock()
     mock_context_manager.__aenter__ = AsyncMock(return_value=mock_conn)
     mock_context_manager.__aexit__ = AsyncMock(return_value=None)
-    # Patch 'acquire' to be an AsyncMock that returns the context manager mock when awaited
-    acquire_mock = AsyncMock(return_value=mock_context_manager)
-    mocker.patch.object(mock_pool, 'acquire', return_value=acquire_mock)
+    # Patch 'acquire' to BE an AsyncMock that returns the context manager when awaited
+    mocker.patch.object(mock_pool, 'acquire', new_callable=AsyncMock, return_value=mock_context_manager)
     # --- End patch ---
 
     # Manually set initialized flag (still bypassing initialize call in fixture)
@@ -120,6 +119,7 @@ def create_mock_rows(alerts):
     mock_rows = []
     for alert in alerts:
         mock_row = Mock()
+        # Set attributes
         mock_row.alert_id = alert.alert_id
         mock_row.rule_id = alert.rule_id
         mock_row.metric_name = alert.metric_name
@@ -130,6 +130,8 @@ def create_mock_rows(alerts):
         mock_row.acknowledged = alert.acknowledged
         mock_row.acknowledged_by = alert.acknowledged_by
         mock_row.acknowledged_at = alert.acknowledged_at
+        # Configure dictionary access (__getitem__)
+        mock_row.__getitem__ = lambda self, key: getattr(self, key)
         mock_rows.append(mock_row)
     return mock_rows
 
@@ -158,8 +160,9 @@ class TestDatabaseAlertHistory:
         # Configure mock connection methods
         mock_conn.execute.return_value = None # Simulate successful execute
 
-        # Simulate fetch returning alerts
+        # Simulate fetch returning alerts (sorted newest first)
         mock_rows = create_mock_rows(alerts)
+        mock_rows.sort(key=lambda x: x.timestamp, reverse=True) # Sort mock rows
         mock_conn.fetch.return_value = mock_rows
 
         # Store test alerts (these calls will use the mocked connection)
@@ -323,21 +326,24 @@ class TestDatabaseAlertHistory:
         alert_to_update = next((a for a in alerts if a.alert_id == "alert-002"), None)
         assert alert_to_update is not None # Ensure the alert exists in the fixture
 
-        # Create a mock row representing the updated alert
-        mock_updated_row = Mock()
-        mock_updated_row.alert_id = alert_to_update.alert_id
-        mock_updated_row.rule_id = alert_to_update.rule_id
-        mock_updated_row.metric_name = alert_to_update.metric_name
-        mock_updated_row.metric_value = str(alert_to_update.metric_value)
-        mock_updated_row.severity = alert_to_update.severity.value
-        mock_updated_row.message = alert_to_update.message
-        mock_updated_row.timestamp = alert_to_update.timestamp
-        mock_updated_row.acknowledged = updated_alert_data["acknowledged"]
-        mock_updated_row.acknowledged_by = updated_alert_data["acknowledged_by"]
-        mock_updated_row.acknowledged_at = updated_alert_data["acknowledged_at"]
+        # Create an Alert object representing the updated state
+        updated_alert_obj = Alert(
+            alert_id=alert_to_update.alert_id,
+            rule_id=alert_to_update.rule_id,
+            metric_name=alert_to_update.metric_name,
+            metric_value=alert_to_update.metric_value,
+            severity=alert_to_update.severity,
+            message=alert_to_update.message,
+            timestamp=alert_to_update.timestamp,
+            acknowledged=updated_alert_data["acknowledged"],
+            acknowledged_by=updated_alert_data["acknowledged_by"],
+            acknowledged_at=updated_alert_data["acknowledged_at"]
+        )
+        # Use create_mock_rows to ensure __getitem__ is configured
+        mock_updated_rows = create_mock_rows([updated_alert_obj])
 
         # Configure mock.fetch to return the single updated row when queried for acknowledged=True
-        mock_conn.fetch.return_value = [mock_updated_row]
+        mock_conn.fetch.return_value = mock_updated_rows
 
         # Store test alerts (calls use mocked connection)
         for alert in alerts:

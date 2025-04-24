@@ -42,7 +42,7 @@ class DatabaseAlertHistory(AlertHistoryStorage):
                 self.pool = await asyncpg.create_pool(**self.connection_params)
                 
                 # Create alerts table if it doesn't exist
-                acquire_result = self.pool.acquire()
+                acquire_result = await self.pool.acquire() # Added await
                 self.logger.debug(f"pool.acquire() returned: {acquire_result}")
                 self.logger.debug(f"Type of acquire_result: {type(acquire_result)}")
                 self.logger.debug(f"Has __aenter__: {hasattr(acquire_result, '__aenter__')}")
@@ -82,7 +82,7 @@ class DatabaseAlertHistory(AlertHistoryStorage):
             
         async with self.lock:
             try:
-                acquire_result = self.pool.acquire()
+                acquire_result = await self.pool.acquire() # Added await
                 self.logger.debug(f"store_alert: pool.acquire() returned: {acquire_result}")
                 self.logger.debug(f"store_alert: Type of acquire_result: {type(acquire_result)}")
                 self.logger.debug(f"store_alert: Has __aenter__: {hasattr(acquire_result, '__aenter__')}")
@@ -168,7 +168,7 @@ class DatabaseAlertHistory(AlertHistoryStorage):
         query += " ORDER BY timestamp DESC"
         
         try:
-            acquire_result = self.pool.acquire()
+            acquire_result = await self.pool.acquire() # Added await
             self.logger.debug(f"get_alerts: pool.acquire() returned: {acquire_result}")
             self.logger.debug(f"get_alerts: Type of acquire_result: {type(acquire_result)}")
             self.logger.debug(f"get_alerts: Has __aenter__: {hasattr(acquire_result, '__aenter__')}")
@@ -241,7 +241,7 @@ class DatabaseAlertHistory(AlertHistoryStorage):
                 params.append(alert_id)
                 
                 # Execute update
-                acquire_result = self.pool.acquire()
+                acquire_result = await self.pool.acquire() # Added await
                 self.logger.debug(f"update_alert: pool.acquire() returned: {acquire_result}")
                 self.logger.debug(f"update_alert: Type of acquire_result: {type(acquire_result)}")
                 self.logger.debug(f"update_alert: Has __aenter__: {hasattr(acquire_result, '__aenter__')}")
