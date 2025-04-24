@@ -42,12 +42,11 @@ class DatabaseAlertHistory(AlertHistoryStorage):
                 self.pool = await asyncpg.create_pool(**self.connection_params)
                 
                 # Create alerts table if it doesn't exist
-                acquire_result = self.pool.acquire()
+                acquire_result = await self.pool.acquire() # Added await
                 self.logger.debug(f"pool.acquire() returned: {acquire_result}")
                 self.logger.debug(f"Type of acquire_result: {type(acquire_result)}")
                 self.logger.debug(f"Has __aenter__: {hasattr(acquire_result, '__aenter__')}")
                 self.logger.debug(f"Has __aexit__: {hasattr(acquire_result, '__aexit__')}")
-                import pdb; pdb.set_trace() # Debugger breakpoint
                 async with acquire_result as conn:
                     await conn.execute('''
                         CREATE TABLE IF NOT EXISTS alerts (
@@ -83,12 +82,11 @@ class DatabaseAlertHistory(AlertHistoryStorage):
             
         async with self.lock:
             try:
-                acquire_result = self.pool.acquire()
+                acquire_result = await self.pool.acquire() # Added await
                 self.logger.debug(f"store_alert: pool.acquire() returned: {acquire_result}")
                 self.logger.debug(f"store_alert: Type of acquire_result: {type(acquire_result)}")
                 self.logger.debug(f"store_alert: Has __aenter__: {hasattr(acquire_result, '__aenter__')}")
                 self.logger.debug(f"store_alert: Has __aexit__: {hasattr(acquire_result, '__aexit__')}")
-                import pdb; pdb.set_trace() # Debugger breakpoint
                 async with acquire_result as conn:
                     await conn.execute('''
                         INSERT INTO alerts (
@@ -170,12 +168,11 @@ class DatabaseAlertHistory(AlertHistoryStorage):
         query += " ORDER BY timestamp DESC"
         
         try:
-            acquire_result = self.pool.acquire()
+            acquire_result = await self.pool.acquire() # Added await
             self.logger.debug(f"get_alerts: pool.acquire() returned: {acquire_result}")
             self.logger.debug(f"get_alerts: Type of acquire_result: {type(acquire_result)}")
             self.logger.debug(f"get_alerts: Has __aenter__: {hasattr(acquire_result, '__aenter__')}")
             self.logger.debug(f"get_alerts: Has __aexit__: {hasattr(acquire_result, '__aexit__')}")
-            import pdb; pdb.set_trace() # Debugger breakpoint
             async with acquire_result as conn:
                 rows = await conn.fetch(query, *params)
                 for row in rows:
@@ -244,12 +241,11 @@ class DatabaseAlertHistory(AlertHistoryStorage):
                 params.append(alert_id)
                 
                 # Execute update
-                acquire_result = self.pool.acquire()
+                acquire_result = await self.pool.acquire() # Added await
                 self.logger.debug(f"update_alert: pool.acquire() returned: {acquire_result}")
                 self.logger.debug(f"update_alert: Type of acquire_result: {type(acquire_result)}")
                 self.logger.debug(f"update_alert: Has __aenter__: {hasattr(acquire_result, '__aenter__')}")
                 self.logger.debug(f"update_alert: Has __aexit__: {hasattr(acquire_result, '__aexit__')}")
-                import pdb; pdb.set_trace() # Debugger breakpoint
                 async with acquire_result as conn:
                     status = await conn.execute(
                         f"UPDATE alerts SET {', '.join(set_clauses)} WHERE alert_id = ${param_index}",
@@ -263,10 +259,9 @@ class DatabaseAlertHistory(AlertHistoryStorage):
                     else:
                         self.logger.debug(f"Updated alert in database: {alert_id}")
                         return True
-    
-                except Exception as e:
-                    self.logger.error(f"Failed to update alert in database: {str(e)}")
-                    return False
+            except Exception as e:
+                self.logger.error(f"Failed to update alert in database: {str(e)}")
+                return False
 
 
 # Update the create_alert_history function in history.py to include the database option

@@ -115,8 +115,8 @@ if __name__ == '__main__':
 
         symbols_to_load = ["^GSPC", "^VIX"]
         timeframe_to_load = "1d"
-        start_date = datetime(2022, 1, 1)
-        end_date = datetime(2023, 1, 1)
+        start_date = dt.datetime(2022, 1, 1)
+        end_date = dt.datetime(2023, 1, 1)
 
         loaded_data = await load_ohlcv_data(
             symbols=symbols_to_load,
