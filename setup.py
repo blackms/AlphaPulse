@@ -15,6 +15,7 @@ setup(
         "uvicorn>=0.34.0",
         "aiohttp>=3.8.0",
         "aiofiles>=0.8.0",
+        "aiosmtplib>=2.0.0",  # Required for email notifications
     ],
     extras_require={
         "dev": [
@@ -25,8 +26,10 @@ setup(
             "flake8>=7.0.0",
             "httpx>=0.24.0",  # Required for FastAPI/Starlette test client
             "ccxt>=3.0.0",    # Required for exchange adapters
+            "langchain>=0.0.1",  # Base langchain package
             "langchain-openai>=0.0.1",  # Required for LLM analysis
             "textblob>=0.17.0",  # Required for sentiment analysis
+            "aiosmtplib>=2.0.0",  # Required for email notifications
         ],
         "exchange": [
             "ccxt>=3.0.0",
@@ -34,6 +37,11 @@ setup(
         "llm": [
             "langchain>=0.0.1",
             "langchain-openai>=0.0.1",
+        ],
+        "monitoring": [
+            "aiosmtplib>=2.0.0",
+            "aiofiles>=0.8.0",
+            "aiohttp>=3.8.0",
         ],
     },
     python_requires=">=3.11",
