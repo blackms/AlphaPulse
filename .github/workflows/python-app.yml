@@ -92,11 +92,19 @@ jobs:
         # Install ML optimization dependencies
         pip install optuna
         
-        # Install the package in editable mode
-        pip install -e .
+        # Install all requirements from requirements-ci.txt first
+        pip install -r requirements-ci.txt
+        
+        # Install the package in editable mode with dev dependencies
+        pip install -e .[dev]
+        
+        # Explicitly install the missing dependencies to ensure they're available
+        pip install httpx ccxt langchain-openai textblob
         
         # Verify imports
         python -c "from alpha_pulse.models import ModelTrainer; print('ModelTrainer successfully imported')"
+        # Verify the previously missing dependencies are installed
+        python -c "import httpx; import ccxt; import langchain_openai; import textblob; print('All required dependencies successfully imported')"
     
     - name: Lint with flake8
       shell: bash -l {0}

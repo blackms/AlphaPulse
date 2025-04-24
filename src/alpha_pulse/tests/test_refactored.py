@@ -7,11 +7,11 @@ from datetime import datetime, timedelta, UTC
 from decimal import Decimal
 from typing import List, Optional
 
-from ..exchanges.interfaces import BaseExchange, ExchangeConfiguration
-from ..exchanges.adapters.ccxt_adapter import CCXTAdapter
-from ..exchanges.factories import ExchangeFactory, ExchangeType
-from ..exchanges.base import OHLCV, Balance
-from ..data_pipeline.data_fetcher import DataFetcher, IDataStorage
+from alpha_pulse.exchanges.interfaces import BaseExchange, ExchangeConfiguration
+from alpha_pulse.exchanges.adapters.ccxt_adapter import CCXTAdapter
+from alpha_pulse.exchanges.factories import ExchangeFactory, ExchangeType
+from alpha_pulse.exchanges.base import OHLCV, Balance
+from alpha_pulse.data_pipeline.data_fetcher import DataFetcher, IDataStorage
 
 
 class InMemoryStorage(IDataStorage):
