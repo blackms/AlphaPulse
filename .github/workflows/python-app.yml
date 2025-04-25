@@ -74,15 +74,26 @@ jobs:
         echo "Package structure:"
         ls -R src/alpha_pulse/
     
-    # Install TA-Lib C library development package
-    - name: Install TA-Lib C library
+    # Install TA-Lib C library v0.4.28 from source
+    - name: Install TA-Lib C library v0.4.28
       run: |
-        echo "===== Installing TA-Lib C library via apt ====="
-        sudo apt-get install -y software-properties-common
-        sudo add-apt-repository universe -y
+        echo "===== Installing TA-Lib C library v0.4.28 from source ====="
+        # Install build dependencies
         sudo apt-get update
-        apt-cache search ta-lib
-        echo "TA-Lib package search completed. Check build log for results."
+        sudo apt-get install -y build-essential wget
+
+        # Download and install TA-Lib C library v0.4.28
+        wget https://github.com/TA-Lib/ta-lib/archive/refs/tags/ta-lib-0.4.28.tar.gz -O ta-lib-0.4.28.tar.gz
+        tar -xzf ta-lib-0.4.28.tar.gz
+        cd ta-lib-ta-lib-0.4.28/
+        ./configure --prefix=/usr
+        make
+        sudo make install
+        cd ..
+
+        # Update linker cache
+        sudo ldconfig
+        echo "TA-Lib C library v0.4.28 installation completed"
     
     # Install Python dependencies with Poetry
     - name: Install dependencies with Poetry
