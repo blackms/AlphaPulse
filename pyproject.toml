@@ -31,6 +31,9 @@ optuna = "^4.3.0"
 yfinance = "^0.2.56"
 ta = "^0.11.0"
 loguru = "^0.7.0"
+psutil = "^5.9.8"  # Or latest compatible version
+langchain = "^0.3.0" # Or latest compatible version
+asyncpg = "^0.29.0" # Or latest compatible version
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.5"
