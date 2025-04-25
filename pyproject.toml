@@ -35,7 +35,7 @@ psutil = "^5.9.8"  # Or latest compatible version
 langchain = "^0.3.0" # Or latest compatible version
 asyncpg = "^0.29.0" # Or latest compatible version
 aiofiles = "^23.2.1" # Or latest compatible version
-aiosmtplib = "^3.3.1" # Added to fix build error
+aiosmtplib = ">=3.3" # Broadened version constraint to resolve conflict
 python-jose = "^3.3.0" # Added to fix build error
 
 [tool.poetry.group.dev.dependencies]
