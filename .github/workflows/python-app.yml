@@ -81,8 +81,8 @@ jobs:
         sudo apt-get install -y software-properties-common
         sudo add-apt-repository universe -y
         sudo apt-get update
-        sudo apt-get install -y libta-lib-dev
-        echo "TA-Lib C library installation completed via apt"
+        apt-cache search ta-lib
+        echo "TA-Lib package search completed. Check build log for results."
     
     # Install Python dependencies with Poetry
     - name: Install dependencies with Poetry
