@@ -30,6 +30,7 @@ stable-baselines3 = "^2.6.0"
 optuna = "^4.3.0"
 yfinance = "^0.2.56"
 ta = "^0.11.0"
+loguru = "^0.7.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.5"

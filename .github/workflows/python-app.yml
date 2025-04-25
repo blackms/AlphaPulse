@@ -140,7 +140,7 @@ jobs:
         
         # Verify the dependencies are installed
         echo "Verifying dependencies..."
-        poetry run python -c "import httpx; import ccxt; import langchain_openai; import textblob; print('All required dependencies successfully imported')"
+        poetry run python -c "import httpx; import ccxt; import langchain_openai; import textblob; import loguru; print('All required dependencies successfully imported')"
     
     - name: Lint with flake8
       run: |
