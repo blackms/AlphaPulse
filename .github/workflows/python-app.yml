@@ -74,46 +74,13 @@ jobs:
         echo "Package structure:"
         ls -R src/alpha_pulse/
     
-    # Install TA-Lib C library from source
-    - name: Install TA-Lib C library from source
+    # Install TA-Lib C library development package
+    - name: Install TA-Lib C library
       run: |
-        echo "===== Installing TA-Lib C library from source ====="
-        # Install build dependencies
-        echo "Installing build dependencies..."
+        echo "===== Installing TA-Lib C library via apt ====="
         sudo apt-get update
-        sudo apt-get install -y build-essential wget pkg-config
-        
-        # Download and install TA-Lib C library
-        echo "Downloading TA-Lib source..."
-        wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
-        tar -xzf ta-lib-0.4.0-src.tar.gz
-        
-        echo "Building and installing TA-Lib..."
-        cd ta-lib/
-        # Configure with debugging symbols and optimization
-        ./configure --prefix=/usr CFLAGS="-O2 -g"
-        make
-        sudo make install
-        cd ..
-        
-        # Update linker cache
-        echo "Updating linker cache..."
-        sudo ldconfig
-        
-        # Set environment variables to help the linker find the library
-        echo "Setting environment variables..."
-        echo "LD_LIBRARY_PATH=/usr/lib:/usr/local/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
-        echo "LIBRARY_PATH=/usr/lib:/usr/local/lib:$LIBRARY_PATH" >> $GITHUB_ENV
-        echo "CPATH=/usr/include:$CPATH" >> $GITHUB_ENV
-        
-        # Create symbolic links if needed
-        echo "Creating symbolic links for compatibility..."
-        if [ -f "/usr/lib/libta_lib.so" ] && [ ! -f "/usr/lib/libta-lib.so" ]; then
-          sudo ln -s /usr/lib/libta_lib.so /usr/lib/libta-lib.so
-          echo "Created symbolic link from libta_lib.so to libta-lib.so"
-        fi
-        
-        echo "TA-Lib C library installation completed"
+        sudo apt-get install -y libta-lib-dev
+        echo "TA-Lib C library installation completed via apt"
     
     # Install Python dependencies with Poetry
     - name: Install dependencies with Poetry
