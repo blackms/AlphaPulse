@@ -38,7 +38,7 @@ aiofiles = "^23.2.1" # Or latest compatible version
 aiosmtplib = ">=3.3" # Broadened version constraint to resolve conflict
 python-jose = "^3.3.0" # Added to fix build error
 
-python-multipart = "^0.7.0"
+python-multipart = "^0.0.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.5"
