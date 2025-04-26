@@ -38,6 +38,8 @@ aiofiles = "^23.2.1" # Or latest compatible version
 aiosmtplib = ">=3.3" # Broadened version constraint to resolve conflict
 python-jose = "^3.3.0" # Added to fix build error
 tensorboard = "^2.16.2"  # Added for RL trainer tests
+tqdm = "^4.66.2"  # Added for stable-baselines3 progress bar
+rich = "^14.0.0"  # Added for stable-baselines3 progress bar
 python-multipart = "^0.0.9"
 
 [tool.poetry.group.dev.dependencies]
