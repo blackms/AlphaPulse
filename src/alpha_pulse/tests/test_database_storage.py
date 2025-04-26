@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, Mock
 import pytest_asyncio # Import pytest_asyncio
 import asyncpg # Import asyncpg to use for spec
+import pytest_mock
 
 from alpha_pulse.monitoring.alerting.models import Alert, AlertSeverity
 from alpha_pulse.monitoring.alerting.storage import DatabaseAlertHistory
