@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, Mock
 import pytest_asyncio # Import pytest_asyncio
 import asyncpg # Import asyncpg to use for spec
-import pytest_mock
+from pytest_mock import MockerFixture  # Import MockerFixture from pytest-mock
 
 from alpha_pulse.monitoring.alerting.models import Alert, AlertSeverity
 from alpha_pulse.monitoring.alerting.storage import DatabaseAlertHistory
@@ -61,7 +61,7 @@ def alerts():
 # Removed MockAsyncConnectionContext class
 
 @pytest.fixture
-def mock_db_components(mocker): # Added mocker back
+def mock_db_components(mocker: MockerFixture):  # Add type hint for mocker
     """Fixture to mock database connection pool and connection using spec."""
     from unittest.mock import AsyncMock, Mock # Ensure using unittest.mock
 
