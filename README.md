@@ -5,7 +5,7 @@
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/release/python-3110/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/blackms/AlphaPulse/blob/main/LICENSE)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-[![Documentation Status](https://readthedocs.org/projects/alphapulse/badge/?version=latest)](https://alphapulse.readthedocs.io/en/latest/?badge=latest)
+[![Documentation](https://img.shields.io/badge/docs-github_pages-blue.svg)](https://blackms.github.io/AlphaPulse/)
 
 AlphaPulse is a sophisticated algorithmic trading system that combines multiple specialized AI trading agents, advanced risk management controls, modern portfolio optimization techniques, and real-time monitoring and analytics to create a comprehensive hedge fund solution.
 
