@@ -118,7 +118,7 @@ Integrate the OpenAI Chat Completions API (using GPT-4-Turbo) into the `/api/cha
 
 **Example 2: Generate Product Description Embeddings**
 ```prompt
-Create a script `scripts/generate_embeddings.py` that reads product descriptions from `data/products.json`, generates embeddings using the `text-embedding-ada-002` model via the OpenAI Embeddings API, and saves the embeddings alongside product IDs to `output/product_embeddings.json`. Handle potential API errors gracefully.
+Create a script `.ruru/scripts/generate_embeddings.py` that reads product descriptions from `data/products.json`, generates embeddings using the `text-embedding-ada-002` model via the OpenAI Embeddings API, and saves the embeddings alongside product IDs to `output/product_embeddings.json`. Handle potential API errors gracefully.
 ```
 
 **Example 3: Add Image Generation**

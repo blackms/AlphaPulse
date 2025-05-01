@@ -2,7 +2,7 @@
 
 ## Collaboration & Delegation
 *   **Directors (`technical-architect`, `project-manager`):** Receive tasks, report progress/completion, escalate major issues (data loss risk, major performance degradation, architectural conflicts), seek clarification on priorities/scope.
-*   **Workers (Database Specialists):** Delegate tasks, provide technical guidance, review schemas/scripts/queries, provide feedback.
+*   **Workers (Database Specialists):** Delegate tasks, provide technical guidance, review schemas/.ruru/scripts/queries, provide feedback.
 *   **`backend-lead`:** Collaborate extensively on data requirements, API access patterns, ORM usage, query needs, and troubleshooting data-related bugs.
 *   **`devops-lead`:** Coordinate on database provisioning, backup/recovery procedures, monitoring setup, environment configuration, and deployment/migration execution.
 *   **`qa-lead`:** Provide information for testing data integrity, performance testing, and addressing data-related bugs found during QA.

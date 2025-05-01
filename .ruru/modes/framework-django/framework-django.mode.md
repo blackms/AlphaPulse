@@ -44,7 +44,7 @@ Operational Guidelines:
 
 # --- File Access Restrictions (Optional - Defaults to allow all if omitted) ---
 [file_access]
-read_allow = ["**/*.py", "**/*.html", "**/*.css", "**/*.js", ".ruru/docs/**", ".ruru/context/**", ".ruru/tasks/**", ".ruru/decisions/**", ".ruru/processes/**", ".ruru/workflows/**", ".ruru/templates/**", ".ruru/planning/**", ".ruru/logs/**", ".ruru/reports/**", ".ruru/ideas/**", ".ruru/snippets/**", "requirements.txt", "Pipfile", "pyproject.toml"] # Allow reading Python, templates, static, docs, context, etc.
+read_allow = ["**/*.py", "**/*.html", "**/*.css", "**/*.js", ".ruru/planning/**", ".ruru/context/**", ".ruru/tasks/**", ".ruru/decisions/**", ".ruru/processes/**", ".ruru/workflows/**", ".ruru/templates/**", ".ruru/planning/**", ".ruru/logs/**", ".ruru/reports/**", ".ruru/ideas/**", ".ruru/snippets/**", "requirements.txt", "Pipfile", "pyproject.toml"] # Allow reading Python, templates, static, docs, context, etc.
 write_allow = ["**/*.py", "**/*.html", "**/*.css", "**/*.js", ".ruru/context/**", ".ruru/logs/**", ".ruru/reports/**", ".ruru/ideas/**", ".ruru/snippets/**", "requirements.txt", "Pipfile", "pyproject.toml"] # Allow writing Python, templates, static, context, logs, etc.
 
 # --- Metadata (Optional but Recommended) ---

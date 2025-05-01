@@ -40,6 +40,7 @@ Operational Guidelines:
 # --- File Access Restrictions (Optional - Defaults to allow all if omitted) ---
 # [file_access]
 # read_allow = ["**/*.py", ".ruru/docs/**"] # Example: Glob patterns for allowed read paths
+related_context = ["kb/debugging_techniques/index.toml"] # << ADDED >>
 # write_allow = ["**/*.py"] # Example: Glob patterns for allowed write paths
 
 # --- Metadata (Optional but Recommended) ---

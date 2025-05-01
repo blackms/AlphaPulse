@@ -13,7 +13,7 @@
 3. **Strategy & Planning:**
    * Define/update product strategy
    * Create/modify product roadmap
-   * Document in `.ruru/planning/`
+   * Document in `.ruru/docs/planning/`
 
 4. **Requirements Creation:**
    * Write detailed requirements/user stories

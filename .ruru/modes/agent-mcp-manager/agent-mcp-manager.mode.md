@@ -43,7 +43,7 @@ Operational Guidelines:
 read_allow = [
   ".ruru/templates/**",
   ".ruru/modes/agent-mcp-manager/kb/**",
-  ".ruru/planning/**",
+  ".ruru/docs/planning/**",
   ".roo/mcp.json"
   ]
 # Allow writing/editing the target config file and creating .env files in MCP server dirs
@@ -62,7 +62,7 @@ reports_to = ["roo-commander"] # << OPTIONAL >> Modes this mode typically report
 documentation_urls = [] # << OPTIONAL >> Links to relevant external documentation
 context_files = [ # << OPTIONAL >> Relative paths to key context files within the workspace
   ".roo/mcp.json",
-  ".ruru/planning/vertex-ai-mcp-server/server-install-flow.md" # Example flow
+  ".ruru/docs/planning/vertex-ai-mcp-server/server-install-flow.md" # Example flow
 ]
 context_urls = [] # << OPTIONAL >> URLs for context gathering (less common now with KB)
 

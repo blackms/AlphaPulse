@@ -18,6 +18,7 @@ related_context = [
     ]
 template_schema_doc = ".ruru/templates/toml-md/16_ai_rule.README.md"
 relevance = "Critical: Defines the entry point for the MCP installer mode"
+readme_url = "" # Optional URL to the MCP server's primary README/documentation
 +++
 
 # Rule: Initial Request Processing (MCP Manager Agent)
@@ -31,11 +32,11 @@ This rule governs how you handle the initial interaction when activated, present
   <question>Welcome to the MCP Manager Agent! What would you like to do?</question>
   <follow_up>
     <suggest>🔌 Install Vertex AI Server</suggest> <!-- Option 1 -->
-    <suggest>🖼️ Install Unsplash Image Server (Placeholder)</suggest> <!-- Option 2 -->
-    <suggest>🌐 Install Custom Server from Git URL (Placeholder)</suggest> <!-- Option 3 -->
-    <suggest>🗑️ Remove an existing MCP Server</suggest> <!-- Option 4 -->
-    <suggest>🔄 Check for MCP Server Updates (Placeholder)</suggest> <!-- Option 5 -->
-    <suggest>❌ Cancel</suggest> <!-- Option 6 -->
+    <suggest>🌐 Install Custom Server from Github URL (Placeholder)</suggest> <!-- Option 3 -->
+    <suggest>📚 Install Other MCP Servers...</suggest> <!-- Option 4 (New) -->
+    <suggest>�️ Remove an existing MCP Server</suggest> <!-- Option 5 -->
+    <suggest>🔄 Check for MCP Server Updates (Placeholder)</suggest> <!-- Option 6 -->
+    <suggest>❌ Cancel</suggest> <!-- Option 7 -->
   </follow_up>
  </ask_followup_question>
 ```
@@ -52,9 +53,18 @@ This rule governs how you handle the initial interaction when activated, present
             *   Option 1 (Vertex AI): Execute KB `.ruru/modes/agent-mcp-manager/kb/install-vertex-ai.md`.
             *   Option 2 (Unsplash): Execute KB `.ruru/modes/agent-mcp-manager/kb/install-unsplash.md`. (Currently a placeholder).
             *   Option 3 (Custom URL): Execute KB `.ruru/modes/agent-mcp-manager/kb/install-custom-url.md`. (Currently a placeholder).
-            *   Option 4 (Remove): Execute KB `.ruru/modes/agent-mcp-manager/kb/remove-mcp-server.md`.
-            *   Option 5 (Update): Execute KB `.ruru/modes/agent-mcp-manager/kb/check-updates.md`. (Placeholder).
-            *   Option 6 (Cancel): Report cancellation to the coordinator (`roo-commander`) using `<attempt_completion>`. **Stop.**
+            *   Option 4 (Other Servers):
+                1. Use `<list_files>` on path `.ruru/modes/agent-mcp-manager/kb/` to get all `install-*.md` files.
+                2. Parse the list, extracting server names (e.g., "atlassian" from "install-atlassian.md"). Exclude "install-custom-url.md" if present as it's handled separately.
+                3. Construct a *new* `<ask_followup_question>`:
+                   *   Question: "Which specific MCP server would you like to install?"
+                   *   Follow-up suggestions: Dynamically generate suggestions like `<suggest>Install Atlassian Server</suggest>`, `<suggest>Install Brave Search Server</suggest>`, etc., based on the parsed filenames. Include a `<suggest>Cancel</suggest>` option.
+                4. Await user selection from this second prompt.
+                5. If user selects a server: Map the selection back to the corresponding KB filename (e.g., "Install Atlassian Server" -> `install-atlassian.md`). Execute the selected KB file: `.ruru/modes/agent-mcp-manager/kb/[filename]`.
+                6. If user selects Cancel: Report cancellation to the coordinator (`roo-commander`) using `<attempt_completion>`. **Stop.**
+            *   Option 5 (Remove): Execute KB `.ruru/modes/agent-mcp-manager/kb/remove-mcp-server.md`.
+            *   Option 6 (Update): Execute KB `.ruru/modes/agent-mcp-manager/kb/check-updates.md`. (Placeholder).
+            *   Option 7 (Cancel): Report cancellation to the coordinator (`roo-commander`) using `<attempt_completion>`. **Stop.**
         4.  Follow the steps within that specific KB procedure. **End this initialization workflow** upon completion or cancellation of the KB procedure.
 
 **Key Objective:** To provide clear installation and management options and route the user interaction to the precise, detailed procedure stored in the relevant Knowledge Base file for the selected MCP server or management task.

@@ -1,4 +1,4 @@
-## GOAL: Generate YouTube Video Metadata for a Roo Code AI Demo
+## GOAL: Generate YouTube Video Metadata for a Roo Commander on Roo Code the AI Web Development Platform in VS Code
 
 Based on the specific video details provided below, generate the following YouTube metadata:
 1.  **Multiple distinct title suggestions** (4-5 options)
@@ -49,6 +49,12 @@ Please generate the following based on the details above:
     *   **Demo Overview:** Briefly explain the main tasks/challenges shown (use `[Key Tasks/Challenges Demonstrated]`). Include the clickable timestamps provided in `[Key Timestamps]`.
     *   **Key Features/Modes:** Detail the specific Roo Code capabilities showcased (use `[Specific Roo Code Features/Modes Highlighted]`). Use bullet points or emoji markers (🔹).
     *   **Tools/Tech:** List the relevant tools and technologies used (use `[Assets/Tools Used (if notable)]`).
+    *   **🔗 Useful Links:**
+        *   Roo Code: https://roocode.com/
+        *   Roo Code Docs: https://docs.roocode.com/
+        *   Roo Commander (GitHub): https://github.com/jezweb/roo-commander
+        *   Roo Commander Community (Discord): https://discord.gg/ESaJBnw7As
+        *   Buy Me a Coffee: https://buymeacoffee.com/jezweb
     *   **Timestamps Section:** Clearly list the key moments using the provided `[Key Timestamps]`.
     *   **Call to Action:** Include a prompt for comments, likes, and subscriptions.
     *   **Hashtags:** Generate relevant hashtags (e.g., #RooCode, #RooCommander, #AICodingAssistant, #VSCode, #CodeGeneration, #[SpecificTechnology], #AIDemo, #Programming).

@@ -8,9 +8,9 @@ As the File Repair Specialist:
 
         **Goal:** Attempt repair of corrupted file `[file_path]`. Issue: [description], Suspected Type: [e.g., encoding]. Caller: [Caller Task ID/Mode].
         ```
-2.  **Path Safety Check:** Check if `[file_path]` (normalized) starts with `.ruru/tasks/`, `.ruru/decisions/`, `.ruru/docs/`, `.ruru/context/`, `.ruru/templates/`, `.ruru/planning/`, `.ruru/reports/`, `.ruru/logs/`, `.ruru/ideas/`, `.ruru/archive/`, `.git/`, or `node_modules/`.
+2.  **Path Safety Check:** Check if `[file_path]` (normalized) starts with `.ruru/tasks/`, `.ruru/decisions/`, `.ruru/docs/`, `.ruru/context/`, `.ruru/templates/`, `.ruru/docs/planning/`, `.ruru/reports/`, `.ruru/logs/`, `.ruru/ideas/`, `.ruru/archive/`, `.git/`, or `node_modules/`.
     *   **If YES (Sensitive Path):** Use `ask_followup_question` to confirm before proceeding:
-        *   **Question:** "⚠️ WARNING: The file `[file_path]` is in a potentially sensitive location (`.ruru/tasks/`, `.ruru/decisions/`, `.ruru/docs/`, `.ruru/context/`, `.ruru/templates/`, `.ruru/planning/`, `.ruru/reports/`, `.ruru/logs/`, `.ruru/ideas/`, `.ruru/archive/`, `.git/`, or `node_modules/`). Repairing it could corrupt project history, Git state, or dependencies. Are you sure you want to proceed with the repair attempt?"
+        *   **Question:** "⚠️ WARNING: The file `[file_path]` is in a potentially sensitive location (`.ruru/tasks/`, `.ruru/decisions/`, `.ruru/docs/`, `.ruru/context/`, `.ruru/templates/`, `.ruru/docs/planning/`, `.ruru/reports/`, `.ruru/logs/`, `.ruru/ideas/`, `.ruru/archive/`, `.git/`, or `node_modules/`). Repairing it could corrupt project history, Git state, or dependencies. Are you sure you want to proceed with the repair attempt?"
         *   **Suggestions:** "Yes, proceed with repair.", "No, cancel the repair.".
         *   **If user confirms 'Yes':** Proceed to Step 3.
         *   **If user confirms 'No':** Log cancellation in task log (`.ruru/tasks/[TaskID].md`) using `insert_content`, then use `attempt_completion` to report "❌ Cancelled: Repair of sensitive file path `[file_path]` cancelled by user." back to the caller. **STOP.**

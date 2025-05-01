@@ -43,6 +43,7 @@ reports_to = ["frontend-lead", "project-manager", "roo-commander"] # From source
 documentation_urls = [] # From source
 context_files = [] # From source
 context_urls = [] # From source
+related_context = ["kb/context7/_index.json"] # << ADDED >>
 
 # --- Custom Instructions Pointer (Optional) ---
 # Specifies the location of the *source* directory for custom instructions (now KB).

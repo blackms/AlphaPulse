@@ -56,6 +56,8 @@ Templates are organized into subdirectories within `.ruru/templates/`:
 *   **`16_ai_rule.md`**: A minimalist template for defining rules intended for AI context injection (e.g., in `.roo/rules/`). See `16_ai_rule.README.md` for schema and usage details.
 
     *   **`17_feature_proposal.md`**: For defining and tracking feature planning proposals. Typically stored in `.ruru/planning/`. See `17_feature_proposal.README.md` for schema and usage details.
+*   **`18_release_notes.md`**: Standard Release Notes/Changelog File. See `18_release_notes.README.md` for schema and usage details.
+*   **`18_release_notes.md`**: Standard Release Notes/Changelog File. See `18_release_notes.README.md` for schema and usage details.
 
 ### Workflow Templates (`.ruru/templates/workflows/`)
 

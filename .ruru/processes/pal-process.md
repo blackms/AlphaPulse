@@ -35,7 +35,7 @@
     2.  **Identify Actors & Roles:** List the primary agents involved and their responsibilities.
     3.  **Select Template:** Choose the appropriate template (`.ruru/templates/toml-md/15_sop.md` for simple processes, `.ruru/templates/workflows/00_workflow_boilerplate.md` for complex workflows).
     4.  **Outline Steps:** Draft the initial sequence of actions using the chosen template, including inputs, tools, decision points, outputs, and basic error handling.
-    5.  **Store Draft:** Save the initial version in `.ruru/planning/` (e.g., `draft-my-process.md`).
+    5.  **Store Draft:** Save the initial version in `.ruru/docs/planning/` (e.g., `draft-my-process.md`).
 
 *   **Phase 2: Conceptual Review**
     1.  **Delegate Review:** Author delegates a review task (`new_task`) to a Conceptual Reviewer. Provide the draft path and objectives.
@@ -64,9 +64,9 @@
     1.  **User Approval:** Present the refined SOP/Workflow to the user for final review and approval via `ask_followup_question`.
     2.  **Determine Final Location:** Based on the document type (SOP vs. Workflow) and content, confirm the correct final directory (e.g., `.ruru/processes/`, `.ruru/workflows/`, `.ruru/docs/standards/`).
     3.  **Store Official Version:**
-        *   Use `read_file` on the final draft in `.ruru/planning/`.
+        *   Use `read_file` on the final draft in `.ruru/docs/planning/`.
         *   Use `write_to_file` to save the content to the determined official path (e.g., `.ruru/processes/pal-process.md`). Ensure correct `line_count`.
-    4.  **Cleanup Draft:** Use `execute_command rm` to delete the draft version from `.ruru/planning/`.
+    4.  **Cleanup Draft:** Use `execute_command rm` to delete the draft version from `.ruru/docs/planning/`.
     5.  **Update Related Docs:** Ensure any documents referencing the SOP/Workflow are updated with the new path if necessary.
     6.  **Internal Knowledge:** (Future) Update internal knowledge base for relevant agents about the new/updated SOP/Workflow.
 

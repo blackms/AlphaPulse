@@ -1,160 +1,120 @@
 +++
-# --- Basic Metadata ---
-id = "KB-MCP-MANAGER-VERTEX-AI-V1"
-title = "KB: Install Vertex AI MCP Server (Interactive)"
+id = "KB-MCP-VERTEX-INSTALL-V2"
+title = "Installing and Configuring the Vertex AI MCP Server (NPM Method)"
+context_type = "knowledge_base"
+scope = "Instructions for setting up the Vertex AI MCP server"
+target_audience = ["prime-coordinator", "developer"]
+granularity = "procedure"
 status = "active"
-created_date = "2025-04-24"
-updated_date = "2025-04-24"
-version = "1.0"
-tags = ["kb", "agent-mcp-manager", "workflow", "mcp", "install", "vertex-ai", "configuration", "setup", "interactive"]
-
-# --- Ownership & Context ---
-owner = "agent-mcp-manager" # Changed
-related_docs = [
-    ".roo/rules-agent-mcp-manager/01-initialization-rule.md", # Changed
-    ".roo/mcp.json"
-]
-related_templates = []
-
-# --- Workflow Specific Fields ---
-objective = "Interactively guide the user through installing and configuring the Vertex AI MCP server (`https://github.com/shariqriazz/vertex-ai-mcp-server`), handling prerequisites, cloning, dependencies, environment configuration, and updating Cline's `.roo/mcp.json`."
-scope = "Executed when user selects 'Install Vertex AI Server'. Performs checks, file system operations, user prompts, and configuration updates."
-roles = ["Agent (agent-mcp-manager)", "User"] # Changed
-trigger = "User selection of 'Install Vertex AI Server' from the initial prompt."
-success_criteria = [
-    "Prerequisites (git, bun, GCP Auth method) confirmed/checked.",
-    "Vertex AI MCP server repository is successfully cloned into `.ruru/mcp-servers/vertex-ai` (or skipped if existing and confirmed).",
-    "Dependencies are successfully installed using `bun install`.",
-    "User provides necessary GCP configuration details (Project ID, Location, Auth method/path).",
-    "`.ruru/mcp-servers/vertex-ai/.env` file is created with user-provided details.",
-    "Existing `.roo/mcp.json` is backed up (if present).",
-    "`.roo/mcp.json` is created or updated with valid JSON for the server, including dynamic `alwaysAllow` list.",
-    "User is instructed to reload Cline."
-]
-failure_criteria = [
-    "User cancels.",
-    "Prerequisites not met or check fails.",
-    "Clone, directory creation, install, or file copy/write commands fail.",
-    "User provides invalid or incomplete configuration details.",
-    "Agent fails to read/write/parse `.roo/mcp.json` correctly.", # Changed
-    "Dynamic tool list generation fails."
-]
-
-# --- Integration ---
-acqa_applicable = false
-pal_validated = false
-validation_notes = "Needs thorough testing for different scenarios (new install, existing dir, existing mcp.json, different OS, ADC vs Key auth)."
-
-# --- AI Interaction Hints (Optional) ---
-context_type = "workflow_step_details"
-target_audience = ["agent-mcp-manager"] # Changed
-granularity = "detailed"
+last_updated = "2025-04-27" # Use current date
+tags = ["kb", "mcp", "vertex-ai", "installation", "configuration", "npm", "mcp.json"]
+related_context = [
+    ".roo/mcp.json",
+    ".roo/rules/10-vertex-mcp-usage-guideline.md"
+    ]
+template_schema_doc = ".ruru/templates/toml-md/15_kb_article.README.md"
+relevance = "High: Core setup for Vertex AI integration"
 +++
 
-# KB Procedure: Install Vertex AI MCP Server (Interactive)
+# Installing and Configuring the Vertex AI MCP Server (NPM Method)
 
-This procedure interactively installs and configures the Vertex AI MCP server.
+This document outlines the simplified process for installing and configuring the `vertex-ai-mcp-server` using NPM and the central `.roo/mcp.json` configuration file. This method replaces older approaches involving repository cloning and local `.env` files.
 
-## 1. Objective 🎯
-*   Interactively guide the user to install and configure the Vertex AI MCP server, ensuring correct setup and configuration in `.roo/mcp.json`.
+## 1. Installation via NPM
 
-## 2. Roles & Responsibilities 👤
-*   **Agent (agent-mcp-installer):** Manages the flow, checks prerequisites, executes commands, prompts user, handles configuration files.
-*   **User:** Confirms actions, provides GCP details.
+Install the server as a development dependency in your Roo Commander project:
 
-## 3. Procedure Steps 🪜
+```bash
+npm install vertex-ai-mcp-server --save-dev
+```
 
-*   **Step 1: Prerequisite Check (Agent Task)**
-    *   **Description:** Inform the user and check for `git`, `bun`, and GCP auth readiness.
-    *   **Inputs:** Triggered by user selecting Option 1.
-    *   **Tool:** `ask_followup_question`, `execute_command`
-    *   **Procedure:**
-        1.  Inform: "This flow will install the Vertex AI MCP server from GitHub. Requires `git` and `bun` installed, plus Google Cloud access."
-        2.  Ask Auth Method:
-            ```xml
-            <ask_followup_question>
-             <question>First, how will you authenticate with Google Cloud?
-             1. Application Default Credentials (ADC - requires `gcloud auth application-default login` run previously)
-             2. Service Account Key file (JSON)
-             </question>
-             <follow_up>
-               <suggest>1. Use Application Default Credentials (ADC)</suggest>
-               <suggest>2. Use a Service Account Key file</suggest>
-               <suggest>Help me check git/bun prerequisites first</suggest>
-               <suggest>Cancel installation</suggest>
-             </follow_up>
-            </ask_followup_question>
-            ```
-        3.  **Handle Response:**
-            *   If "Cancel": Report cancellation to coordinator using `<attempt_completion>`. **Stop.**
-            *   If "Help": Execute `git --version` and `bun --version` (check OS Rule 05). Report output. If fails, guide user to install manually and restart flow. If succeeds, re-ask the Auth Method question above.
-            *   If "ADC" chosen: Store `[Auth Method]` = "ADC". Proceed to Step 2.
-            *   If "Service Account Key" chosen: Store `[Auth Method]` = "Key". Inform: "Okay, you'll need the full path to your key file later. Here's a video guide on creating one if needed: https://vimeo.com/1075028909/098f77b209?share=copy (Note: link may need updating for specific MCP setup)". Proceed to Step 2.
-    *   **Outputs:** User confirmation to proceed, `[Auth Method]` stored.
+This command downloads and installs the necessary package into your `node_modules` directory.
 
-*   **Step 2: Check/Create Target Directory & Clone (Agent Task)**
-    *   **Description:** Ensure the target directory exists or clone into it.
-    *   **Inputs:** User confirmation. Workspace root path (`{Current Working Directory}`).
-    *   **Tool:** `list_files`, `ask_followup_question`, `execute_command`
-    *   **Procedure:**
-        1.  Set `target_dir_rel = ".ruru/mcp-servers/vertex-ai"`
-        2.  Set `parent_dir_rel = ".ruru/mcp-servers"`
-        3.  Check if `target_dir_rel` exists: `<list_files><path>[target_dir_rel]</path></list_files>`
-        4.  **If** `list_files` succeeds (directory exists):
-            *   Use `<ask_followup_question>`: "Directory `[target_dir_rel]` already exists. Skip cloning and proceed assuming it contains the server code, or remove and re-clone?" Options: "Skip cloning", "Remove and re-clone", "Cancel".
-            *   If "Skip cloning": Proceed to Step 3.
-            *   If "Remove and re-clone":
-                *   Confirm: Use `<ask_followup_question>` "⚠️ **Confirm:** Really remove directory `[target_dir_rel]` and all its contents?" Options: "Yes, remove and clone", "Cancel".
-                *   If "Yes": Execute `rm -rf [target_dir_rel]` (Check OS Rule 05!). Handle errors. If successful, proceed to clone step below.
-                *   If "Cancel": Report cancellation to coordinator. **Stop.**
-            *   If "Cancel": Report cancellation to coordinator. **Stop.**
-        5.  **Else (If `list_files` fails - directory likely doesn't exist):**
-            *   Explain: "Creating parent directory `[parent_dir_rel]` if it doesn't exist..."
-            *   Execute `mkdir -p [parent_dir_rel]` (Check OS Rule 05!). Handle errors.
-            *   Explain: "Cloning repository into `[target_dir_rel]`..."
-            *   Execute: `<execute_command><command>git clone https://github.com/shariqriazz/vertex-ai-mcp-server [target_dir_rel]</command><cwd>{Current Working Directory}</cwd></execute_command>`
-            *   Await result. If `exit_code` != 0: Report specific error to coordinator. **Stop.**
-    *   **Outputs:** Cloned repository in `.ruru/mcp-servers/vertex-ai`.
+## 2. Configuration via `.roo/mcp.json`
 
-*   **Step 3: Install Dependencies (Agent Task)**
-    *   **Description:** Install Node.js dependencies using Bun.
-    *   **Inputs:** Successful clone/skip in Step 2.
-    *   **Tool:** `execute_command`
-    *   **Procedure:**
-        1.  Explain: "Installing dependencies using Bun (this includes a build step)..."
-        2.  Execute: `<execute_command><command>bun install</command><cwd>.ruru/mcp-servers/vertex-ai</cwd></execute_command>`
-        3.  Await result.
-    *   **Outputs:** Dependencies installed.
-    *   **Error Handling:** If `exit_code` != 0 or `stderr` shows errors: Report specific error to coordinator. **Stop.**
+All configuration for the `vertex-ai-mcp-server` is now managed centrally within the main Roo Commander MCP configuration file: `.roo/mcp.json`.
 
-*   **Step 4: Prompt for GCP Config & Write `.env` (Agent Task)**
-    *   **Description:** Get user's GCP details and write them to the `.env` file directly.
-    *   **Inputs:** Successful install in Step 3, `[Auth Method]` from Step 1.
-    *   **Tool:** `ask_followup_question`, `write_to_file`
-    *   **Procedure:**
-        1.  Ask for details:
-            ```xml
-            <ask_followup_question>
-             <question>Please provide your Google Cloud configuration:
-             - Google Cloud Project ID?
-             - Google Cloud Location (e.g., us-central1)?
-             - { If [Auth Method] == 'Key': "The FULL, ABSOLUTE path to your Service Account Key JSON file?" Else: "" }
-             </question>
-             <follow_up>
-               <suggest>Project ID: [Your-Project-ID], Location: [Your-Location]{ If [Auth Method] == 'Key': ", Key Path: [/full/path/to/your/key.json]" Else: "" }</suggest>
-             </follow_up>
-            </ask_followup_question>
-            ```
-        2.  Await response. Parse and store `[Project ID]`, `[Location]`, and optional `[Credentials Path]`. Validate inputs (e.g., path looks like a path if provided). If invalid, re-prompt.
-        3.  Construct `.env` content string:
-            ```env
-            # Required
-            GOOGLE_CLOUD_PROJECT="[Project ID]"
-            GOOGLE_CLOUD_LOCATION="[Location]"
+Locate or add the `vertex-ai-mcp-server` entry within the `servers` object in `.roo/mcp.json`. Configure it as follows, ensuring you replace placeholder values with your actual Google Cloud Platform (GCP) project details and credentials path.
 
-            # Optional Authentication (set if using Service Account Key)
-            { If [Auth Method] == 'Key': 'GOOGLE_APPLICATION_CREDENTIALS="[Credentials Path]"' Else: '# GOOGLE_APPLICATION_CREDENTIALS="/path/to/your/service-account-key.json"' }
-            ```
-            (Replace placeholders, ensure path is quoted if it contains spaces, handle commenting correctly based on auth method).
-        4.  Explain: "Creating/updating the environment file at `.ruru/mcp-servers/vertex-ai/.env`..."
-        5.  Execute: `<write_to_file><path>.ruru/mcp-servers/vertex-ai/.env</path><content>[Constructed .env content]
+```json
+// Example within .roo/mcp.json
+{
+  "servers": {
+    "vertex-ai-mcp-server": {
+      "command": "node",
+      "args": [
+        // Ensure this path correctly points to the executable within the installed package
+        "node_modules/vertex-ai-mcp-server/build/index.js" 
+      ],
+      "env": {
+        // --- Required GCP/Vertex Config ---
+        // Replace with your actual GCP Project ID
+        "GOOGLE_CLOUD_PROJECT": "YOUR_PROJECT_ID", 
+        // Replace with the GCP region for your Vertex AI resources (e.g., "us-central1")
+        "GOOGLE_CLOUD_LOCATION": "YOUR_GCP_REGION", 
+        // Replace with the absolute or relative path to your GCP service account key file
+        "GOOGLE_APPLICATION_CREDENTIALS": "/path/to/your/gcp_credentials.json",
+        
+        // --- Vertex AI Model Config ---
+        // Specify the desired Vertex AI model ID 
+        "VERTEX_AI_MODEL_ID": "gemini-2.5-pro-exp-03-25", // Or your preferred model like gemini-1.5-pro-preview-0409 etc.
+        // Controls randomness (0.0 = deterministic)
+        "VERTEX_AI_TEMPERATURE": "0.0", 
+        // Enable/disable streaming responses
+        "VERTEX_AI_USE_STREAMING": "true", 
+        // Maximum tokens for the model's response
+        "VERTEX_AI_MAX_OUTPUT_TOKENS": "65535", // Adjust based on model limits/needs
+        
+        // --- Optional Retry Config ---
+        // Number of times to retry failed API calls
+        "VERTEX_AI_MAX_RETRIES": "3",
+        // Initial delay between retries in milliseconds
+        "VERTEX_AI_RETRY_DELAY_MS": "1000" 
+      },
+      // Set to true to temporarily disable this server without removing the config
+      "disabled": false, 
+      // List tools allowed to run without explicit user approval per call (use with caution)
+      "alwaysAllow": [ 
+        "answer_query_websearch",
+        "answer_query_direct",
+        "explain_topic_with_docs",
+        "get_doc_snippets",
+        "generate_project_guidelines",
+        "read_file_content",
+        "read_multiple_files_content",
+        "write_file_content",
+        "edit_file_content",
+        "create_directory",
+        "list_directory_contents",
+        "get_directory_tree",
+        "move_file_or_directory",
+        "search_filesystem",
+        "get_filesystem_info",
+        "save_generate_project_guidelines",
+        "save_doc_snippet",
+        "save_topic_explanation",
+        "save_answer_query_direct",
+        "save_answer_query_websearch"
+       ], 
+      // Maximum time in seconds to wait for the server to respond to a tool request
+      "timeout": 3600 
+    }
+    // ... other server configurations ...
+  }
+}
+```
+
+**Key Configuration Points:**
+
+*   **`args`**: Ensure the path points correctly to `node_modules/vertex-ai-mcp-server/build/index.js`.
+*   **`env`**:
+    *   Provide your valid GCP `PROJECT_ID`, `LOCATION` (region), and the path to your `GOOGLE_APPLICATION_CREDENTIALS` JSON key file. **These are essential.**
+    *   Adjust `VERTEX_AI_MODEL_ID`, `TEMPERATURE`, `MAX_OUTPUT_TOKENS`, etc., based on your specific needs and the models available in your GCP project/region.
+    *   Retry settings (`MAX_RETRIES`, `RETRY_DELAY_MS`) can be adjusted for network reliability.
+*   **`disabled`**: Set to `false` to enable the server.
+*   **`alwaysAllow`**: Carefully consider which tools should bypass per-call user confirmation.
+*   **`timeout`**: Adjust if you expect very long-running tool operations.
+
+## 3. Restart Roo Commander
+
+After modifying `.roo/mcp.json`, restart Roo Commander to ensure it picks up the new configuration and attempts to connect to the Vertex AI MCP server. Check the Roo Commander logs or MCP status indicators for successful connection.

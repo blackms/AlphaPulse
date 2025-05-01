@@ -1,0 +1,73 @@
+{
+  "info": "Defines predefined collections of mode slugs for specialized builds. The 'full' collection is a special case representing all modes.",
+  "collections": {
+    "core": [
+      "roo-commander",
+      "code",
+      "ask",
+      "architect",
+      "debug",
+      "orchestrator",
+      "technical-architect",
+      "project-manager",
+      "project-onboarding",
+      "agent-context-resolver",
+      "agent-research",
+      "agent-session-summarizer",
+      "util-refactor",
+      "util-reviewer",
+      "util-second-opinion",
+      "util-typescript",
+      "util-writer",
+      "git-manager",
+      "complex-problem-solver",
+      "bug-fixer",
+      "technical-writer",
+      "research-context-builder",
+      "context-resolver",
+      "second-opinion",
+      "file-repair-specialist",
+      "prime-coordinator",
+      "prime-dev",
+      "prime-txt"
+    ],
+    "fullstack_react_supabase": [
+      "core",
+      "react-specialist",
+      "supabase-developer",
+      "tailwind-specialist",
+      "vite-specialist",
+      "integration-tester",
+      "e2e-tester",
+      "containerization-developer",
+      "cicd-specialist",
+      "security-specialist",
+      "api-developer",
+      "database-specialist"
+    ],
+    "fullstack_python_django": [
+      "core",
+      "django-developer",
+      "python-developer",
+      "database-specialist",
+      "integration-tester",
+      "containerization-developer",
+      "cicd-specialist",
+      "security-specialist",
+      "api-developer"
+    ],
+    "frontend_vue": [
+      "core",
+      "vuejs-developer",
+      "tailwind-specialist",
+      "vite-specialist",
+      "integration-tester",
+      "e2e-tester",
+      "ui-designer",
+      "accessibility-specialist"
+    ],
+    "full": [
+      "all"
+    ]
+  }
+}

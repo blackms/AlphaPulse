@@ -58,7 +58,7 @@ write_allow = [ # << From source >>
   ".ruru/decisions/security/**/*.md",
   ".ruru/processes/security/**/*.md",
   ".ruru/workflows/security/**/*.md",
-  ".ruru/planning/security/**/*.md",
+  ".ruru/docs/planning/security/**/*.md",
 ]
 
 # --- Metadata (Optional but Recommended) ---

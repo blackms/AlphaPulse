@@ -1,13 +1,13 @@
 +++
-id = "ROO-CMD-RULE-INIT-V4" # Incremented version
-title = "Roo Commander: Rule - Initial Request Processing (Explicit KB Routing)"
+id = "ROO-CMD-RULE-INIT-V5" # Incremented version
+title = "Roo Commander: Rule - Initial Request Processing & Mode Management" # Updated title
 context_type = "rules"
 scope = "Initial user interaction handling, presenting comprehensive starting options and routing to specific KB procedures"
 target_audience = ["roo-commander"]
 granularity = "procedure"
 status = "active"
-last_updated = "2025-04-24" # Use current date
-tags = ["rules", "workflow", "initialization", "onboarding", "intent", "options", "kb-routing", "roo-commander"]
+last_updated = "2025-04-27" # Use current date
+tags = ["rules", "workflow", "initialization", "onboarding", "intent", "options", "kb-routing", "roo-commander", "mode-management"] # Added tag
 related_context = [
     "01-operational-principles.md",
     # Specific KB Action files
@@ -28,6 +28,7 @@ related_context = [
     ".ruru/modes/roo-commander/kb/initial-actions/14-learn-capabilities.md",
     ".ruru/modes/roo-commander/kb/initial-actions/15-join-community.md",
     ".ruru/modes/roo-commander/kb/initial-actions/16-something-else.md",
+    # Option 17 now handles Mode Management
     # Key delegate modes
     "manager-onboarding",
     "dev-git",
@@ -70,6 +71,8 @@ This rule governs how you handle the **first user message** in a session, presen
     <suggest>🦘 Learn about Roo Commander capabilities</suggest> <!-- Option 14 -->
     <suggest>🐾 Join the Roo Commander Community (Discord)</suggest> <!-- Option 15 -->
     <suggest>🤔 Something else... (Describe your goal)</suggest> <!-- Option 16 -->
+    <suggest>🧑‍🎨 Mode Management</suggest> <!-- Option 17 -->
+<suggest>📜 Workflow Management (Create, Read, Update, Delete Workflows)</suggest> <!-- Option 18 -> Switch to util-workflow-manager -->
   </follow_up>
  </ask_followup_question>```
 
@@ -98,7 +101,7 @@ This rule governs how you handle the **first user message** in a session, presen
         *   Await user's selection. Proceed to Step 3.
 
 3.  **Handle User Selection (from Standard Initial Prompt):**
-    *   Once the user selects an option (identified 0-16) from the standard prompt:
+    *   Once the user selects an option (identified 0-18) from the standard prompt:
         1.  Identify the selected option number.
         2.  Log the chosen starting path (Rule `08`).
         3.  **Execute the detailed procedure defined in the corresponding KB file**:
@@ -119,6 +122,13 @@ This rule governs how you handle the **first user message** in a session, presen
             *   Option 14: Execute KB `.ruru/modes/roo-commander/kb/initial-actions/14-learn-capabilities.md`.
             *   Option 15: Execute KB `.ruru/modes/roo-commander/kb/initial-actions/15-join-community.md`.
             *   Option 16 ("Something else"): Execute KB `.ruru/modes/roo-commander/kb/initial-actions/16-something-else.md`.
-        4.  Follow the steps within that specific KB procedure, including any user interaction or delegation it defines. **End this initialization workflow** upon completion of the KB procedure.
+            *   Option 17 ("Mode Management"): Present the user with the following choices and initiate the corresponding workflow:
+                *   Create New Mode (`.ruru/workflows/WF-NEW-MODE-CREATION-004.md`)
+                *   Mode KB Enrichment with Vertex AI MCP (`.ruru/workflows/WF-MODE-KB-ENRICHMENT-002.md`)
+                *   Mode KB Enrichment with Context7 (`.ruru/workflows/WF-CONTEXT7-ENRICHMENT-001.md`)
+                *   Mode KB Refresh with Context 7 (`.ruru/workflows/WF-CONTEXT7-REFRESH-001.md`)
+                *   Delete Modes (Note: Workflow needs creation)
+        *   Option 18 ("Workflow Management"): Switch to `util-workflow-manager` mode.
+        4.  Follow the steps within the chosen KB procedure or subsequent workflow, including any user interaction or delegation it defines. **End this initialization workflow** upon completion of the KB procedure or delegated workflow.
 
-**Key Objective:** To provide clear starting options and route the user interaction to the precise, detailed procedure stored in the relevant Knowledge Base file, ensuring consistent handling for each initial user intention.
+**Key Objective:** To provide clear starting options and route the user interaction to the precise, detailed procedure stored in the relevant Knowledge Base file or subsequent workflow, ensuring consistent handling for each initial user intention, including mode management tasks.

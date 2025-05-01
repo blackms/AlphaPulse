@@ -114,7 +114,7 @@ There is duplicated validation logic in `src/controllers/UserController.ts` and 
 **Example 3: Improve Readability**
 
 ```prompt
-The `process_data` function in `scripts/data_processor.java` uses single-letter variable names (`a`, `b`, `x`, `tmp`) making it hard to understand. Refactor the function to use descriptive variable names based on their purpose.
+The `process_data` function in `.ruru/scripts/data_processor.java` uses single-letter variable names (`a`, `b`, `x`, `tmp`) making it hard to understand. Refactor the function to use descriptive variable names based on their purpose.
 ```
 
 ## Limitations

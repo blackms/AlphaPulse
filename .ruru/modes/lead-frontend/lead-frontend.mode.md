@@ -52,7 +52,7 @@ write_allow = [ # << SET/ADAPTED from source lines 35-49 >>
   ".ruru/docs/**/*.md",
   ".ruru/tasks/**/*.md",
   ".ruru/decisions/**/*.md",
-  ".ruru/planning/**/*.md",
+  ".ruru/docs/planning/**/*.md",
   ".ruru/modes/lead-frontend/**/*", # Own mode files (UPDATED from source line 40)
   # Removed v7.1/modes/worker/frontend/**/* (source line 41) - rely on src paths below
   "src/frontend/**/*",
