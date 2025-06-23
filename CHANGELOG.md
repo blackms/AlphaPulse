@@ -5,6 +5,12 @@ All notable changes to the AlphaPulse project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2024-06-XX
+### Changed
+- Refactored backtester to use new `alpha_pulse/agents` module instead of deprecated `src/agents`.
+- Removed the old `src/agents` directory and all legacy agent code.
+- Confirmed all documentation and diagrams are up-to-date after agents module cleanup.
+
 ## [Unreleased]
 
 ### Added
