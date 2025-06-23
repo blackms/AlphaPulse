@@ -35,11 +35,11 @@ def _get_scalar(series_or_df_iloc):
 
 # Importa componenti necessari
 from src.data_manager import DataManager # Usa import assoluto da src
-# Importa agenti dalla nuova posizione
-from src.agents.technical import EquityTechnicalAgent
-from src.agents.fundamental import EquityFundamentalAgent
-from src.agents.sentiment import EquitySentimentAgent
-from src.agents.base import ( # Importa definizioni base
+# Importa agenti dalla nuova posizione alpha_pulse
+from alpha_pulse.agents.technical_agent import TechnicalAgent
+from alpha_pulse.agents.fundamental_agent import FundamentalAgent
+from alpha_pulse.agents.sentiment_agent import SentimentAgent
+from alpha_pulse.agents.interfaces import ( # Importa definizioni base
     MarketData,
     TradeSignal,
     SignalDirection
@@ -135,29 +135,30 @@ class Backtester:
         max_lookback = 0
 
         if agent_configs.get('technical', {}).get('enabled', False):
-            agent = EquityTechnicalAgent(agent_configs['technical'])
+            agent = TechnicalAgent(agent_configs['technical'])
             await agent.initialize(agent_configs['technical']) # Await initialize
             self.agents['technical'] = agent
-            if hasattr(agent, 'required_lookback'):
-                 max_lookback = max(max_lookback, agent.required_lookback)
-            elif hasattr(agent, 'timeframes') and 'long' in agent.timeframes: # Fallback per vecchie versioni
-                 max_lookback = max(max_lookback, agent.timeframes['long'])
-
+            # New technical agent uses timeframes for lookback calculation
+            if hasattr(agent, 'timeframes') and 'long' in agent.timeframes:
+                max_lookback = max(max_lookback, agent.timeframes['long'])
+            elif hasattr(agent, 'required_lookback'):
+                max_lookback = max(max_lookback, agent.required_lookback)
 
         if agent_configs.get('fundamental', {}).get('enabled', False):
-            agent = EquityFundamentalAgent(agent_configs['fundamental'])
+            agent = FundamentalAgent(agent_configs['fundamental'])
             await agent.initialize(agent_configs['fundamental']) # Await initialize
             self.agents['fundamental'] = agent
-            if hasattr(agent, 'required_lookback'):
-                 max_lookback = max(max_lookback, agent.required_lookback)
+            # New fundamental agent uses lookback_period from config
+            lookback_period = agent_configs['fundamental'].get('lookback_period', 90)
+            max_lookback = max(max_lookback, lookback_period)
 
         if agent_configs.get('sentiment', {}).get('enabled', False):
-            agent = EquitySentimentAgent(agent_configs['sentiment'])
+            agent = SentimentAgent(agent_configs['sentiment'])
             await agent.initialize(agent_configs['sentiment']) # Await initialize
             self.agents['sentiment'] = agent
-            if hasattr(agent, 'required_lookback'):
-                 max_lookback = max(max_lookback, agent.required_lookback)
-
+            # New sentiment agent uses lookback_period from config
+            lookback_period = agent_configs['sentiment'].get('lookback_period', 30)
+            max_lookback = max(max_lookback, lookback_period)
 
         # --- Initialize Long/Short Strategy Agent ---
         if agent_configs.get('long_short_strategy', {}).get('enabled', False):
@@ -225,26 +226,32 @@ class Backtester:
              # return None # Or decide to skip the day here
 
         # --- Populate MarketData object ---
-        # The structure depends on what the agent expects.
-        # LongShortStrategyAgent expects combined data with prefixed columns.
-        # Other agents might expect separate prices/volumes/economic/sentiment.
-        # For now, prioritize LongShortStrategyAgent.
-
-        # Pass the *entire* historical slice to the agent.
-        # The agent's internal logic (resampling, indicator calc) will use this slice.
-        # We don't need to separate prices/volumes here if the agent handles the combined data.
-
-        # TODO: Adapt this if supporting multiple agent types simultaneously with different data needs.
-        # If supporting old agents, we might need to extract SP500 OHLCV, economic, sentiment separately here.
+        # The new alpha_pulse agents expect separate prices and volumes DataFrames
+        # Extract OHLCV data from the combined slice
+        
+        # Create prices DataFrame with OHLC columns
+        prices_df = pd.DataFrame()
+        volumes_df = pd.DataFrame()
+        
+        # Check if we have OHLCV columns in the data
+        if 'Close' in historical_data_slice.columns:
+            # Single symbol data (like S&P 500)
+            prices_df['^GSPC'] = historical_data_slice['Close']
+            if 'Volume' in historical_data_slice.columns:
+                volumes_df['^GSPC'] = historical_data_slice['Volume']
+        else:
+            # Multi-symbol data or different column structure
+            # For now, use the entire slice as prices and create empty volumes
+            prices_df = historical_data_slice
+            volumes_df = pd.DataFrame()
 
         return MarketData(
-            prices=historical_data_slice, # Pass the combined slice
-            volumes=None, # Volume is within the slice if needed
-            fundamentals=None, # Not used by LS strategy
-            sentiment=None, # Not used by LS strategy
-            economic=None, # Not used by LS strategy
-            technical_indicators={}, # Agent calculates its own
-            timestamp=date # The current simulation date
+            prices=prices_df,
+            volumes=volumes_df,
+            fundamentals=None,  # Not used by current agents
+            sentiment=None,     # Not used by current agents
+            technical_indicators={},  # Agent calculates its own
+            timestamp=date  # The current simulation date
         )
 
     async def _generate_signals(self, market_data: MarketData) -> List[TradeSignal]:
