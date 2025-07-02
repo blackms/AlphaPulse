@@ -5,6 +5,29 @@ All notable changes to the AlphaPulse project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4] - 2025-01-02
+### Added
+- Comprehensive field-level encryption for sensitive trading and user data
+- AES-256-GCM encryption with authenticated encryption (AEAD)
+- SQLAlchemy encrypted field types for transparent encryption/decryption
+- Searchable encryption for queryable fields using deterministic tokens
+- Hierarchical key management with rotation support
+- Batch encryption operations for performance optimization
+- Migration tooling for encrypting existing data
+- Performance test suite for encryption operations
+- Extensive documentation on database encryption and key management
+
+### Changed
+- Enhanced database models to use encrypted fields for sensitive data
+- Updated database configuration to support encryption transparently
+- Improved security architecture to protect data at rest
+
+### Security
+- Implemented encryption at rest for all sensitive trading data
+- Added field-level encryption for user PII (emails, phone numbers, etc.)
+- Protected API credentials and trading account details with encryption
+- Added key versioning system for rotation without data re-encryption
+
 ## [0.1.3] - 2025-01-02
 ### Added
 - Comprehensive secret management system with multi-provider support (AWS Secrets Manager, HashiCorp Vault, Environment Variables)
