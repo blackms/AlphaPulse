@@ -5,6 +5,27 @@ All notable changes to the AlphaPulse project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] - 2025-01-02
+### Added
+- Comprehensive secret management system with multi-provider support (AWS Secrets Manager, HashiCorp Vault, Environment Variables)
+- Secure authentication module with bcrypt password hashing and JWT improvements
+- Migration script to help users transition from hardcoded credentials
+- Kubernetes secrets configuration templates
+- Secure Docker Compose configuration with proper secret handling
+- Audit logging for all secret access operations
+- Comprehensive security documentation
+
+### Changed
+- Replaced all hardcoded credentials with secure secret management
+- Enhanced authentication to use proper password hashing instead of plaintext
+- Updated dependencies to include security libraries (passlib, boto3, hvac, cryptography)
+
+### Security
+- Removed hardcoded API keys and credentials from codebase
+- Implemented encryption at rest for local secret storage
+- Added proper JWT secret management with rotation support
+- Enhanced .gitignore to prevent accidental credential commits
+
 ## [0.1.2] - 2025-01-02
 ### Added
 - Comprehensive unit tests for Technical, Fundamental, and Sentiment agents
