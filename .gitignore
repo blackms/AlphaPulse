@@ -40,15 +40,35 @@ ENV/
 logs/
 *.db
 
-# Environment variables
+# Environment variables and secrets
 .env
 .env.*
+.env.secure
+.env.local
+.env.production
+.env.staging
+
+# Secret storage
+.secrets/
+*.enc
+credentials/
+*_credentials.json
+*_credentials.yaml
 
 # Project specific
 config/credentials/
 trained_models/
 feature_cache/
 reports/
+
+# Security sensitive files
+*.pem
+*.key
+*.cert
+*.p12
+*.pfx
+private_key*
+public_key*
 
 # OS specific
 .DS_Store

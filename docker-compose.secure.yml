@@ -1,0 +1,155 @@
+version: '3.8'
+
+services:
+  alphapulse:
+    build: .
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      # Override specific settings for container
+      - ALPHAPULSE_DB_HOST=postgres
+      - ALPHAPULSE_REDIS_HOST=redis
+    volumes:
+      - ./logs:/app/logs
+      - ./feature_cache:/app/feature_cache
+      - ./trained_models:/app/trained_models
+      # Mount secrets directory as read-only
+      - ./.secrets:/app/.secrets:ro
+    ports:
+      - "8000:8000"  # API
+      - "8001:8001"  # Metrics
+    command: python -m alpha_pulse.api.main
+    depends_on:
+      - postgres
+      - redis
+      - mlflow
+      - prometheus
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=${ALPHAPULSE_DB_USER}
+      - POSTGRES_PASSWORD=${ALPHAPULSE_DB_PASSWORD}
+      - POSTGRES_DB=${ALPHAPULSE_DB_NAME}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${ALPHAPULSE_DB_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    command: >
+      --requirepass ${ALPHAPULSE_REDIS_PASSWORD:-redis_password}
+      --appendonly yes
+      --appendfilename "appendonly.aof"
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.8.0
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./mlruns:/mlruns
+      - mlflow_data:/mlflow
+    environment:
+      - MLFLOW_BACKEND_STORE_URI=postgresql://${ALPHAPULSE_DB_USER}:${ALPHAPULSE_DB_PASSWORD}@postgres:5432/mlflow
+      - MLFLOW_DEFAULT_ARTIFACT_ROOT=/mlruns
+    command: >
+      mlflow server
+      --host 0.0.0.0
+      --backend-store-uri postgresql://${ALPHAPULSE_DB_USER}:${ALPHAPULSE_DB_PASSWORD}@postgres:5432/mlflow
+      --default-artifact-root /mlruns
+    depends_on:
+      - postgres
+
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'
+
+  grafana:
+    image: grafana/grafana:10.0.0
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-changeme}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-clock-panel
+    depends_on:
+      - prometheus
+
+  # Optional: HashiCorp Vault for development
+  vault:
+    image: vault:1.13.3
+    cap_add:
+      - IPC_LOCK
+    environment:
+      - VAULT_DEV_ROOT_TOKEN_ID=${VAULT_DEV_TOKEN:-dev-token}
+      - VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200
+    ports:
+      - "8200:8200"
+    profiles:
+      - vault
+
+  # Optional: LocalStack for AWS services emulation
+  localstack:
+    image: localstack/localstack:2.3
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=secretsmanager,ssm,kms
+      - DEBUG=1
+      - DATA_DIR=/tmp/localstack/data
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_DEFAULT_REGION=us-east-1
+    volumes:
+      - localstack_data:/tmp/localstack
+    profiles:
+      - aws-local
+
+volumes:
+  postgres_data:
+  redis_data:
+  mlflow_data:
+  prometheus_data:
+  grafana_data:
+  localstack_data:
+
+networks:
+  default:
+    name: alphapulse-network
