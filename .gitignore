@@ -43,6 +43,7 @@ logs/
 # Environment variables and secrets
 .env
 .env.*
+!.env.example
 .env.secure
 .env.local
 .env.production
