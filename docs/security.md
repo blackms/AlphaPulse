@@ -147,9 +147,30 @@ Three default roles with granular permissions:
 
 ### Encryption at Rest
 
-- **Database**: Transparent Data Encryption (TDE) for PostgreSQL
-- **File Storage**: AES-256 encryption for sensitive files
-- **Backups**: Encrypted with separate keys
+AlphaPulse implements comprehensive field-level encryption for all sensitive data:
+
+- **Algorithm**: AES-256-GCM with authenticated encryption
+- **Key Management**: Hierarchical key structure with rotation support
+- **Field Types**: Encrypted strings, numbers, JSON, and searchable fields
+- **Performance**: Optimized batch operations for minimal overhead
+
+#### Encrypted Data Categories
+
+**Trading Data**:
+- Account numbers and credentials
+- Position sizes and P&L calculations
+- Trade execution details
+- Risk metrics and portfolio values
+
+**User Data**:
+- Personal information (PII)
+- Contact details (email, phone)
+- API credentials
+- KYC documentation
+
+For detailed implementation, see:
+- [Database Encryption Guide](./database-encryption.md)
+- [Key Management Guide](./key-management.md)
 
 ### Encryption in Transit
 
