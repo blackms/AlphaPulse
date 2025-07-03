@@ -5,6 +5,32 @@ All notable changes to the AlphaPulse project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] - 2025-07-03
+### Added
+- **Comprehensive Liquidity Risk Management System**: Advanced liquidity analysis and slippage modeling framework
+  - Multi-model slippage prediction ensemble (Linear, Square-root, Almgren-Chriss, ML-based)
+  - Traditional and advanced liquidity metrics (spreads, depth, Amihud ratio, Kyle's lambda, VPIN)
+  - Pre-trade and post-trade market impact analysis
+  - Optimal execution algorithms with multiple strategies (TWAP, VWAP, IS, POV, Adaptive)
+  - Real-time intraday liquidity monitoring and pattern analysis
+  - Liquidity event detection and alerting system
+  - Portfolio-level liquidity risk assessment
+  - Multi-scenario liquidity stress testing framework
+
+### Components
+- **Liquidity Analysis**: `risk/liquidity_analyzer.py` - Market microstructure analysis
+- **Slippage Models**: `risk/slippage_models.py` - Ensemble of predictive models
+- **Impact Calculator**: `risk/market_impact_calculator.py` - Execution cost estimation
+- **Service Layer**: `services/liquidity_risk_service.py` - Unified risk management API
+- **Indicators**: `utils/liquidity_indicators.py` - Advanced liquidity metrics
+- **Configuration**: `config/liquidity_parameters.py` - Customizable risk thresholds
+
+### Performance
+- Concurrent liquidity analysis for multiple symbols
+- Intelligent caching for frequently accessed metrics
+- Optimized numerical computations with Numba JIT compilation
+- Configurable execution strategies based on order characteristics
+
 ## [1.6.0] - 2025-07-03
 ### Added
 - **Dynamic Risk Budgeting System**: Market regime-based risk management framework
