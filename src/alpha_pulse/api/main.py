@@ -5,19 +5,24 @@ This module defines the FastAPI application and routes.
 """
 from loguru import logger
 from datetime import timedelta
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
 
 # Import routers
 from .routers import metrics, alerts, portfolio, system, trades
+from .routes import audit  # Add audit routes
 from .websockets import endpoints as ws_endpoints
 from .websockets.subscription import subscription_manager
 
 # Import dependencies
 from .dependencies import get_alert_manager
 from .auth import authenticate_user, create_access_token, get_current_user, ACCESS_TOKEN_EXPIRE_MINUTES
+
+# Import audit middleware
+from .middleware.audit_middleware import AuditLoggingMiddleware, SecurityEventMiddleware
+from alpha_pulse.utils.audit_logger import get_audit_logger, AuditEventType
 
 # Import exchange data synchronization
 from .exchange_sync_integration import (
@@ -41,12 +46,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Add audit logging middleware
+app.add_middleware(
+    AuditLoggingMiddleware,
+    exclude_paths=['/health', '/metrics', '/docs', '/openapi.json', '/favicon.ico']
+)
+
+# Add security event detection middleware
+app.add_middleware(SecurityEventMiddleware)
+
 # Include routers
 app.include_router(metrics.router, prefix="/api/v1", tags=["metrics"])
 app.include_router(alerts.router, prefix="/api/v1", tags=["alerts"])
 app.include_router(portfolio.router, prefix="/api/v1", tags=["portfolio"])
 app.include_router(trades.router, prefix="/api/v1", tags=["trades"])
 app.include_router(system.router, prefix="/api/v1", tags=["system"])
+app.include_router(audit.router, prefix="/api/v1", tags=["audit"])  # Add audit routes
 
 # Register exchange sync events
 register_exchange_sync_events(app)
@@ -62,13 +77,16 @@ async def root():
 
 
 @app.post("/token")
-async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends()):
     """
     Get an access token.
     
     Authenticates the user and returns a JWT token if successful.
+    All login attempts are automatically audited.
     """
-    user = authenticate_user(form_data.username, form_data.password)
+    # Authenticate with audit logging
+    user = authenticate_user(form_data.username, form_data.password, request)
+    
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -76,15 +94,23 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    # Create access token
+    access_token_expires = timedelta(minutes=30)  # Use configured value
     access_token = create_access_token(
-        data={"sub": user["username"]},
+        data={"sub": user.username},
         expires_delta=access_token_expires
     )
     
     return {
         "access_token": access_token,
-        "token_type": "bearer"
+        "token_type": "bearer",
+        "user": {
+            "username": user.username,
+            "email": user.email,
+            "full_name": user.full_name,
+            "role": user.role,
+            "permissions": user.permissions
+        }
     }
 
 
@@ -92,6 +118,16 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
 async def startup_event():
     """Run when the application starts."""
     logger.info("Starting AlphaPulse API")
+    
+    # Initialize audit logger
+    audit_logger = get_audit_logger()
+    audit_logger.log(
+        event_type=AuditEventType.SYSTEM_START,
+        event_data={
+            "service": "alphapulse_api",
+            "version": "1.0.0"
+        }
+    )
     
     # Initialize database for exchange data cache
     try:
@@ -121,6 +157,16 @@ async def shutdown_event():
     """Run when the application shuts down."""
     logger.info("Shutting down AlphaPulse API")
     
+    # Log system shutdown
+    audit_logger = get_audit_logger()
+    audit_logger.log(
+        event_type=AuditEventType.SYSTEM_STOP,
+        event_data={
+            "service": "alphapulse_api",
+            "reason": "normal_shutdown"
+        }
+    )
+    
     # Stop the subscription manager
     await subscription_manager.stop()
     
@@ -129,6 +175,9 @@ async def shutdown_event():
     
     # Stop the alert manager
     await alert_manager.stop()
+    
+    # Shutdown audit logger
+    audit_logger.shutdown(timeout=10.0)
     
     logger.info("AlphaPulse API shutdown complete")
 
