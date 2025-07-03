@@ -1,0 +1,277 @@
+# Streaming Configuration for AlphaPulse
+
+# Kafka Configuration
+kafka:
+  # Bootstrap servers for Kafka cluster
+  bootstrap_servers:
+    - "localhost:9092"
+    # - "kafka1.alphapulse.internal:9092"
+    # - "kafka2.alphapulse.internal:9092"
+  
+  # Producer settings
+  producer:
+    client_id: "alphapulse-producer"
+    acks: "all"  # Wait for all replicas
+    retries: 3
+    max_in_flight_requests: 5
+    compression_type: "gzip"
+    batch_size: 16384
+    linger_ms: 10
+    buffer_memory: 33554432  # 32MB
+    request_timeout_ms: 30000
+    enable_idempotence: true
+    serialization_format: "json"
+    partition_strategy: "key_based"
+  
+  # Consumer settings
+  consumer:
+    group_id: "alphapulse-consumer-group"
+    client_id: "alphapulse-consumer"
+    auto_offset_reset: "latest"
+    enable_auto_commit: false
+    auto_commit_interval_ms: 5000
+    max_poll_records: 500
+    max_poll_interval_ms: 300000  # 5 minutes
+    session_timeout_ms: 10000
+    heartbeat_interval_ms: 3000
+    fetch_min_bytes: 1
+    fetch_max_wait_ms: 500
+    serialization_format: "json"
+    isolation_level: "read_committed"
+  
+  # Topic configuration
+  topics:
+    market_data:
+      name: "alphapulse.market-data"
+      partitions: 12
+      replication_factor: 3
+      retention_ms: 86400000  # 24 hours
+      segment_ms: 3600000     # 1 hour
+      compression_type: "gzip"
+      
+    trading_signals:
+      name: "alphapulse.trading-signals"
+      partitions: 6
+      replication_factor: 3
+      retention_ms: 604800000  # 7 days
+      segment_ms: 86400000     # 24 hours
+      compression_type: "gzip"
+      
+    risk_alerts:
+      name: "alphapulse.risk-alerts"
+      partitions: 3
+      replication_factor: 3
+      retention_ms: 2592000000  # 30 days
+      segment_ms: 86400000      # 24 hours
+      compression_type: "gzip"
+      
+    portfolio_updates:
+      name: "alphapulse.portfolio-updates"
+      partitions: 6
+      replication_factor: 3
+      retention_ms: 604800000  # 7 days
+      segment_ms: 86400000     # 24 hours
+      compression_type: "gzip"
+      
+    system_events:
+      name: "alphapulse.system-events"
+      partitions: 3
+      replication_factor: 3
+      retention_ms: 604800000  # 7 days
+      segment_ms: 86400000     # 24 hours
+      compression_type: "gzip"
+      
+    data_quality_events:
+      name: "alphapulse.data-quality-events"
+      partitions: 3
+      replication_factor: 3
+      retention_ms: 604800000  # 7 days
+      segment_ms: 86400000     # 24 hours
+      compression_type: "gzip"
+
+# Stream Processing Configuration
+stream_processing:
+  # Window configurations
+  windows:
+    market_data_1min:
+      type: "tumbling"
+      size_seconds: 60
+      late_arrival_delay_seconds: 10
+      
+    market_data_5min:
+      type: "tumbling"
+      size_seconds: 300
+      late_arrival_delay_seconds: 30
+      
+    trading_signals:
+      type: "sliding"
+      size_seconds: 300
+      slide_seconds: 60
+      late_arrival_delay_seconds: 30
+      
+    risk_monitoring:
+      type: "session"
+      gap_seconds: 30
+      late_arrival_delay_seconds: 10
+  
+  # Aggregation settings
+  aggregations:
+    market_data:
+      - type: "avg"
+        field: "price"
+      - type: "sum"
+        field: "volume"
+      - type: "min"
+        field: "price"
+      - type: "max"
+        field: "price"
+      - type: "stddev"
+        field: "price"
+      
+    trading_signals:
+      - type: "count"
+        field: "signal_type"
+      - type: "avg"
+        field: "confidence"
+  
+  # Processing settings
+  processing:
+    parallelism: 4
+    buffer_size: 10000
+    checkpoint_interval_ms: 60000
+    max_retries: 3
+    retry_delay_ms: 1000
+
+# Complex Event Processing
+cep:
+  # Pattern detection
+  patterns:
+    # Rapid price movement pattern
+    rapid_price_movement:
+      type: "threshold"
+      conditions:
+        - type: "field_range"
+          field: "payload.price_change_pct"
+          min: 0.05  # 5% change
+      time_window_seconds: 60
+      
+    # Conflicting signals pattern
+    conflicting_signals:
+      type: "conjunction"
+      conditions:
+        - type: "message_type"
+          value: "trading_signal"
+        - type: "field_equals"
+          field: "signal_type"
+          value: "buy"
+        - type: "field_equals"
+          field: "signal_type"
+          value: "sell"
+      time_window_seconds: 30
+      min_occurrences: 2
+      
+    # Volume spike pattern
+    volume_spike:
+      type: "threshold"
+      conditions:
+        - type: "field_range"
+          field: "payload.volume"
+          min: 1000000  # 1M volume
+      time_window_seconds: 300
+      
+    # System degradation pattern
+    system_degradation:
+      type: "sequence"
+      conditions:
+        - type: "message_type"
+          value: "system_event"
+        - type: "field_equals"
+          field: "severity"
+          value: "warning"
+        - type: "field_equals"
+          field: "severity"
+          value: "error"
+      time_window_seconds: 300
+  
+  # Anomaly detection
+  anomaly_detection:
+    window_size: 100
+    anomaly_threshold: 3.0  # Z-score threshold
+    
+  # Trend analysis
+  trend_analysis:
+    window_size: 20
+    min_data_points: 10
+    
+  # Correlation analysis
+  correlation:
+    window_seconds: 300
+    min_correlation: 0.7
+
+# Performance settings
+performance:
+  # Message batching
+  batch_settings:
+    max_batch_size: 1000
+    max_batch_delay_ms: 100
+    
+  # Memory management
+  memory:
+    max_buffer_size_mb: 1024
+    gc_interval_seconds: 300
+    
+  # Connection pooling
+  connection_pool:
+    min_connections: 2
+    max_connections: 10
+    connection_timeout_ms: 5000
+
+# Monitoring and metrics
+monitoring:
+  # Metrics collection
+  metrics:
+    enabled: true
+    interval_seconds: 30
+    export_to_prometheus: true
+    
+  # Health checks
+  health_checks:
+    enabled: true
+    interval_seconds: 10
+    timeout_seconds: 5
+    
+  # Alerting thresholds
+  alerts:
+    lag_threshold: 10000
+    error_rate_threshold: 0.05
+    processing_delay_threshold_ms: 1000
+
+# Dead letter queue configuration
+dlq:
+  enabled: true
+  max_retries: 3
+  retry_delay_ms: 1000
+  topic_suffix: ".dlq"
+
+# Schema registry (if using Avro/Protobuf)
+schema_registry:
+  enabled: false
+  url: "http://localhost:8081"
+  compatibility: "BACKWARD"
+
+# Security settings
+security:
+  # SSL/TLS configuration
+  ssl:
+    enabled: false
+    keystore_location: "/path/to/keystore.jks"
+    keystore_password: "${KAFKA_KEYSTORE_PASSWORD}"
+    truststore_location: "/path/to/truststore.jks"
+    truststore_password: "${KAFKA_TRUSTSTORE_PASSWORD}"
+    
+  # SASL authentication
+  sasl:
+    enabled: false
+    mechanism: "PLAIN"
+    username: "${KAFKA_USERNAME}"
+    password: "${KAFKA_PASSWORD}"
