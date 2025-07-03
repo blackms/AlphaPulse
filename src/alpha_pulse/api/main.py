@@ -24,6 +24,7 @@ from .auth import authenticate_user, create_access_token, get_current_user, ACCE
 from .middleware.audit_middleware import AuditLoggingMiddleware, SecurityEventMiddleware
 from .middleware.rate_limiting import RateLimitingMiddleware
 from .middleware.security_headers import SecurityHeadersMiddleware, ContentSecurityPolicyReportMiddleware
+from .middleware.validation_middleware import ValidationMiddleware, CSRFProtectionMiddleware
 from alpha_pulse.utils.audit_logger import get_audit_logger, AuditEventType
 from alpha_pulse.utils.ddos_protection import DDoSMitigator
 from alpha_pulse.utils.ip_filtering import IPFilterManager
@@ -47,6 +48,24 @@ app.add_middleware(SecurityHeadersMiddleware)
 
 # Add CSP violation report handling
 app.add_middleware(ContentSecurityPolicyReportMiddleware)
+
+# Add input validation middleware
+app.add_middleware(
+    ValidationMiddleware,
+    validate_query_params=True,
+    validate_path_params=True,
+    validate_request_body=True,
+    validate_file_uploads=True,
+    max_request_size=10 * 1024 * 1024,  # 10MB
+    enable_performance_monitoring=True
+)
+
+# Add CSRF protection middleware
+app.add_middleware(
+    CSRFProtectionMiddleware,
+    secret_key="your-csrf-secret-key",  # In production, use proper secret management
+    exempt_paths=["/health", "/metrics", "/docs", "/openapi.json"]
+)
 
 # Add rate limiting middleware
 app.add_middleware(
