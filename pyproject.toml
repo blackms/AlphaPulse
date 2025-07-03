@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "alpha-pulse"
-version = "1.1.0"
+version = "1.2.0"
 description = "AlphaPulse Trading System"
 authors = ["AlphaPulse Team"]
 readme = "README.md"
@@ -52,6 +52,9 @@ email-validator = "^2.1.0"  # Email validation
 phonenumbers = "^8.13.0"  # Phone number validation
 jsonschema = "^4.21.0"  # JSON schema validation
 redis = "^5.0.0"  # Redis client for validation caching
+# Real-time data provider dependencies
+aiohttp = "^3.9.0"  # Async HTTP client for data providers
+websockets = "^12.0"  # WebSocket support for real-time feeds
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.5"
