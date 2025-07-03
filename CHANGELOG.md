@@ -5,6 +5,30 @@ All notable changes to the AlphaPulse project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.5] - 2025-01-02
+### Added
+- Comprehensive audit logging system for all trading decisions and API access
+- Structured audit event types for authentication, trading, risk, API, and system events
+- Asynchronous batch writes for minimal performance impact
+- Automatic API request/response logging via middleware
+- Audit context propagation for request tracing
+- Query builder and reporting utilities for audit analysis
+- API endpoints for audit log access and compliance reporting
+- Anomaly detection for security monitoring
+- Agent audit wrapper for automatic trading decision logging
+- Migration script to create audit_logs table with optimized indexes
+
+### Changed
+- Enhanced authentication flow with comprehensive audit logging
+- Updated API middleware stack to include audit and security event detection
+- Improved error handling with audit trail for debugging
+
+### Security
+- All authentication attempts now logged with IP and user context
+- Trading decisions automatically audited with full reasoning
+- API access patterns monitored for anomalies
+- Compliance support for GDPR, SOX, and PCI regulations
+
 ## [0.1.4] - 2025-01-02
 ### Added
 - Comprehensive field-level encryption for sensitive trading and user data
