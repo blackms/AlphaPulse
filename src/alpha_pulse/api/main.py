@@ -22,7 +22,12 @@ from .auth import authenticate_user, create_access_token, get_current_user, ACCE
 
 # Import audit middleware
 from .middleware.audit_middleware import AuditLoggingMiddleware, SecurityEventMiddleware
+from .middleware.rate_limiting import RateLimitingMiddleware
+from .middleware.security_headers import SecurityHeadersMiddleware, ContentSecurityPolicyReportMiddleware
 from alpha_pulse.utils.audit_logger import get_audit_logger, AuditEventType
+from alpha_pulse.utils.ddos_protection import DDoSMitigator
+from alpha_pulse.utils.ip_filtering import IPFilterManager
+from alpha_pulse.services.throttling_service import ThrottlingService
 
 # Import exchange data synchronization
 from .exchange_sync_integration import (
@@ -35,6 +40,20 @@ app = FastAPI(
     title="AlphaPulse API",
     description="API for the AlphaPulse AI Hedge Fund",
     version="1.0.0",
+)
+
+# Add security headers middleware (first for all responses)
+app.add_middleware(SecurityHeadersMiddleware)
+
+# Add CSP violation report handling
+app.add_middleware(ContentSecurityPolicyReportMiddleware)
+
+# Add rate limiting middleware
+app.add_middleware(
+    RateLimitingMiddleware,
+    redis_url="redis://localhost:6379",
+    enable_adaptive=True,
+    enable_priority_queue=True
 )
 
 # Add CORS middleware
@@ -129,6 +148,30 @@ async def startup_event():
         }
     )
     
+    # Initialize protection services
+    try:
+        import redis
+        redis_client = redis.from_url("redis://localhost:6379", decode_responses=True)
+        
+        # Initialize DDoS protection
+        ddos_mitigator = DDoSMitigator(redis_client)
+        app.state.ddos_mitigator = ddos_mitigator
+        
+        # Initialize IP filtering
+        ip_filter_manager = IPFilterManager(redis_client)
+        app.state.ip_filter_manager = ip_filter_manager
+        
+        # Initialize throttling service
+        throttling_service = ThrottlingService(redis_client)
+        await throttling_service.start()
+        app.state.throttling_service = throttling_service
+        
+        logger.info("API protection services initialized")
+        
+    except Exception as e:
+        logger.error(f"Error initializing protection services: {e}")
+        # Continue startup even if protection services fail
+    
     # Initialize database for exchange data cache
     try:
         await init_db()
@@ -166,6 +209,14 @@ async def shutdown_event():
             "reason": "normal_shutdown"
         }
     )
+    
+    # Stop protection services
+    try:
+        if hasattr(app.state, 'throttling_service'):
+            await app.state.throttling_service.stop()
+            logger.info("Throttling service stopped")
+    except Exception as e:
+        logger.error(f"Error stopping throttling service: {e}")
     
     # Stop the subscription manager
     await subscription_manager.stop()
