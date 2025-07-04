@@ -5,7 +5,7 @@ All notable changes to the AlphaPulse project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.8.0] - 2025-07-04
 ### Added
 - **Comprehensive Ensemble Methods Framework**: Advanced ML ensemble techniques for agent signal combination
   - Multiple voting methods (hard voting, soft voting, weighted majority)
@@ -16,6 +16,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Real-time ensemble monitoring and validation
   - Dynamic agent selection based on performance
   - Consensus mechanisms with quorum requirements
+
+- **Monte Carlo Simulation Framework**: Advanced risk simulation and scenario analysis
+  - Multiple path simulation methods (GBM, Jump Diffusion, Heston, GARCH)
+  - Scenario generators for stress testing and risk analysis
+  - Portfolio-level Monte Carlo simulations
+  - VaR and CVaR calculations with confidence intervals
+  - Multi-threaded simulation engine for performance
+  - Copula-based correlation modeling
+  - Extreme value theory integration
   
 ### Components
 - **Ensemble Manager**: `ml/ensemble/ensemble_manager.py` - Core framework and agent lifecycle
@@ -23,9 +32,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Stacking Methods**: `ml/ensemble/stacking_methods.py` - Meta-learning approaches
 - **Boosting Algorithms**: `ml/ensemble/boosting_algorithms.py` - Sequential learning
 - **Signal Aggregation**: `ml/ensemble/signal_aggregation.py` - Robust signal combination
+- **Monte Carlo Engine**: `risk/monte_carlo_engine.py` - Core simulation engine
+- **Path Simulators**: `risk/path_simulation.py` - Various stochastic models
+- **Scenario Generators**: `risk/scenario_generators.py` - Risk scenario creation
 - **Validation Utils**: `utils/ensemble_validation.py` - Performance validation
-- **Service Layer**: `services/ensemble_service.py` - API integration
-- **Data Models**: `models/ensemble_model.py` - Database models and API schemas
+- **Service Layer**: `services/ensemble_service.py`, `services/simulation_service.py` - API integration
+
+### Performance
+- Parallel signal collection from multiple agents
+- Cached prediction serving for low latency
+- Multi-threaded Monte Carlo simulations
+- Optimized numerical computations with vectorization
 
 ## [1.7.0] - 2025-07-03
 ### Added
