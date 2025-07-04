@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "alpha-pulse"
-version = "1.7.0"
+version = "1.8.0.0"
 description = "AlphaPulse Trading System"
 authors = ["AlphaPulse Team"]
 readme = "README.md"
@@ -45,7 +45,7 @@ python-multipart = "^0.0.9"
 passlib = {extras = ["bcrypt"], version = "^1.7.4"}
 boto3 = "^1.34.0"  # AWS SDK for Secrets Manager
 hvac = "^2.1.0"  # HashiCorp Vault client
-cryptography = "^42.0.0"  # For local encryption
+cryptography = "^44.0.0"  # For local encryption
 python-dotenv = "^1.0.0"  # For .env file loading
 # Input validation dependencies
 email-validator = "^2.1.0"  # Email validation
@@ -53,7 +53,7 @@ phonenumbers = "^8.13.0"  # Phone number validation
 jsonschema = "^4.21.0"  # JSON schema validation
 redis = "^5.0.0"  # Redis client for validation caching
 # Real-time data provider dependencies
-aiohttp = "^3.9.0"  # Async HTTP client for data providers
+aiohttp = "^3.11.18"  # Async HTTP client for data providers
 websockets = "^12.0"  # WebSocket support for real-time feeds
 
 [tool.poetry.group.dev.dependencies]
