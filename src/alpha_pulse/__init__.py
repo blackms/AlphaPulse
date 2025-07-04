@@ -3,7 +3,7 @@ AlphaPulse package initialization.
 """
 
 # Version of the alpha_pulse package
-__version__ = "0.1.1"
+__version__ = "1.9.0.0"
 
 # Import core modules
 from . import config

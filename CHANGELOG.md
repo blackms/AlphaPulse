@@ -5,6 +5,36 @@ All notable changes to the AlphaPulse project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.0.0] - 2025-07-04
+### Added
+- **Online Learning System**: Real-time model adaptation for trading agents
+  - Incremental learning algorithms (SGD, Naive Bayes, Passive-Aggressive, Hoeffding Trees)
+  - Adaptive Random Forest with per-tree drift detection
+  - Online Gradient Boosting for streaming data
+  - Multi-algorithm concept drift detection (ADWIN, DDM, Page-Hinkley, KSWIN)
+  - Adaptive learning rate scheduling with market-aware adjustments
+  - Memory-efficient streaming with configurable eviction policies
+  - Multi-armed bandits for strategy selection
+  - Ensemble learning with dynamic weighting
+  - Streaming validation and anomaly detection
+  - Comprehensive service layer for API integration
+
+### Components
+- **Online Learner Framework**: `ml/online/online_learner.py` - Base classes and interfaces
+- **Incremental Models**: `ml/online/incremental_models.py` - Streaming ML algorithms
+- **Adaptive Algorithms**: `ml/online/adaptive_algorithms.py` - Dynamic optimization
+- **Drift Detection**: `ml/online/concept_drift_detector.py` - Change detection methods
+- **Memory Management**: `ml/online/memory_manager.py` - Efficient data handling
+- **Streaming Validation**: `ml/online/streaming_validation.py` - Real-time metrics
+- **Service Layer**: `ml/online/online_learning_service.py` - API integration
+- **Data Models**: `ml/online/online_model.py` - SQLAlchemy and Pydantic models
+
+### Performance
+- Sub-millisecond incremental updates
+- Concurrent learning for ensemble models
+- Memory-bounded algorithms for infinite streams
+- Adaptive resource allocation based on system load
+
 ## [1.8.0.1] - 2025-07-04
 ### Security
 - Updated aiohttp from 3.10.11 to 3.11.18 to address multiple security vulnerabilities
