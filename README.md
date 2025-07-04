@@ -33,6 +33,7 @@ AlphaPulse is a state-of-the-art AI Hedge Fund system that leverages multiple sp
 | Component | Description |
 |-----------|-------------|
 | Multi-Agent System | 5+ specialized agents (Technical, Fundamental, Sentiment, Value, Activist) working in concert |
+| Market Regime Detection | HMM-based regime classification with 5 distinct market states |
 | Risk Management | Position sizing, stop-loss, drawdown protection |
 | Portfolio Optimization | Mean-variance, risk parity, and adaptive approaches |
 | Execution System | Paper trading and live trading capabilities |
@@ -223,6 +224,16 @@ The system uses multiple specialized AI agents to analyze different aspects of t
 - **Sentiment Agent**: News and social media analysis
 - **Value Agent**: Long-term value assessment
 - **Activist Agent**: Market-moving event detection
+
+### Market Regime Detection
+
+Advanced Hidden Markov Model (HMM) based regime detection:
+
+- **Multi-Factor Analysis**: Volatility, returns, liquidity, and sentiment features
+- **Real-Time Classification**: Continuous market regime monitoring
+- **5 Market Regimes**: Bull, Bear, Sideways, Crisis, and Recovery
+- **Transition Forecasting**: Early warning for regime changes
+- **Adaptive Strategies**: Automatic strategy adjustment per regime
 
 ### Ensemble Methods
 
