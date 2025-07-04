@@ -5,6 +5,21 @@ All notable changes to the AlphaPulse project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.0.1] - 2025-07-04
+### Security
+- Updated aiohttp from 3.10.11 to 3.11.18 to address multiple security vulnerabilities
+- Updated setuptools from 79.0.1 to 80.9.0 for security improvements
+- Updated cryptography from 42.0.0 to 44.0.0 for enhanced cryptographic security
+- Added automated dependency update script for security patches
+- Implemented 4-digit semantic versioning (vW.X.Y.Z) starting with this release
+
+### Added
+- Security update documentation and process guide
+- Automated dependency vulnerability checking script
+
+### Changed
+- Switched to 4-digit versioning scheme (1.8.0.1)
+
 ## [1.8.0] - 2025-07-04
 ### Added
 - **Comprehensive Ensemble Methods Framework**: Advanced ML ensemble techniques for agent signal combination
