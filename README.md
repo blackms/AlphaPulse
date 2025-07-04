@@ -224,6 +224,16 @@ The system uses multiple specialized AI agents to analyze different aspects of t
 - **Value Agent**: Long-term value assessment
 - **Activist Agent**: Market-moving event detection
 
+### Ensemble Methods
+
+Advanced ensemble techniques for combining agent signals:
+
+- **Voting Methods**: Hard/soft voting with weighted consensus
+- **Stacking**: Meta-learning with XGBoost, LightGBM, Neural Networks
+- **Boosting**: Adaptive, gradient, and online boosting algorithms
+- **Adaptive Weighting**: Performance-based dynamic weight optimization
+- **Signal Aggregation**: Robust aggregation with outlier detection
+
 ### Risk Management
 
 Advanced risk controls to protect your portfolio:

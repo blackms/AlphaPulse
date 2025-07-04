@@ -5,6 +5,28 @@ All notable changes to the AlphaPulse project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+### Added
+- **Comprehensive Ensemble Methods Framework**: Advanced ML ensemble techniques for agent signal combination
+  - Multiple voting methods (hard voting, soft voting, weighted majority)
+  - Stacking ensemble with meta-learning (XGBoost, LightGBM, Neural Networks)
+  - Boosting algorithms (AdaBoost, Gradient Boosting, online boosting)
+  - Adaptive weighting schemes with performance-based optimization
+  - Signal aggregation methods with outlier detection and temporal analysis
+  - Real-time ensemble monitoring and validation
+  - Dynamic agent selection based on performance
+  - Consensus mechanisms with quorum requirements
+  
+### Components
+- **Ensemble Manager**: `ml/ensemble/ensemble_manager.py` - Core framework and agent lifecycle
+- **Voting Methods**: `ml/ensemble/voting_classifiers.py` - Voting-based ensembles
+- **Stacking Methods**: `ml/ensemble/stacking_methods.py` - Meta-learning approaches
+- **Boosting Algorithms**: `ml/ensemble/boosting_algorithms.py` - Sequential learning
+- **Signal Aggregation**: `ml/ensemble/signal_aggregation.py` - Robust signal combination
+- **Validation Utils**: `utils/ensemble_validation.py` - Performance validation
+- **Service Layer**: `services/ensemble_service.py` - API integration
+- **Data Models**: `models/ensemble_model.py` - Database models and API schemas
+
 ## [1.7.0] - 2025-07-03
 ### Added
 - **Comprehensive Liquidity Risk Management System**: Advanced liquidity analysis and slippage modeling framework
