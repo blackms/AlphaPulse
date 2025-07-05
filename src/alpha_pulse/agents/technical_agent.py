@@ -17,6 +17,7 @@ from .interfaces import (
     SignalDirection,
     AgentMetrics
 )
+from alpha_pulse.decorators.audit_decorators import audit_agent_signal
 
 
 class TechnicalAgent(BaseTradeAgent):
@@ -48,6 +49,7 @@ class TechnicalAgent(BaseTradeAgent):
         self.min_pattern_confidence = config.get("min_pattern_confidence", 0.6)
         self.indicator_signals = defaultdict(dict)
         
+    @audit_agent_signal(agent_type='technical')
     async def generate_signals(self, market_data: MarketData) -> List[TradeSignal]:
         """
         Generate trading signals based on technical analysis.

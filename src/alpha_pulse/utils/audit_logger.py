@@ -126,6 +126,9 @@ class AuditLog(Base):
     data_classification = Column(String(50))  # public, internal, confidential, restricted
     regulatory_flags = Column(JSON)  # GDPR, PCI, SOX flags
     
+    # Tamper protection fields
+    integrity_hash = Column(String(64))  # HMAC-SHA256 hash
+    
     # Create indexes for common queries
     __table_args__ = (
         Index('idx_audit_timestamp_type', 'timestamp', 'event_type'),
@@ -164,7 +167,25 @@ class AuditLogger:
         self._stop_event = threading.Event()
         self._flush_thread = None
         self._context_local = threading.local()
+        self._signing_key = self._load_signing_key()
         self._start_flush_thread()
+        
+    def _load_signing_key(self) -> bytes:
+        """Load the signing key for tamper protection."""
+        try:
+            secrets_manager = get_secrets_manager()
+            key = secrets_manager.get_secret('AUDIT_LOG_SIGNING_KEY')
+            if not key:
+                # Generate a secure key if not found
+                import secrets
+                key = secrets.token_hex(32)
+                secrets_manager.set_secret('AUDIT_LOG_SIGNING_KEY', key)
+            return key.encode()
+        except Exception:
+            # Fallback for development
+            import os
+            key = os.environ.get('AUDIT_LOG_SIGNING_KEY', 'dev-signing-key-change-in-production')
+            return key.encode()
         
     def _start_flush_thread(self):
         """Start the background thread for flushing audit logs."""
@@ -210,6 +231,21 @@ class AuditLogger:
         if batch:
             self._flush_batch(batch)
             
+    def _calculate_integrity_hash(self, event_data: Dict[str, Any]) -> str:
+        """Calculate HMAC-SHA256 hash for tamper protection."""
+        # Create a deterministic string representation
+        hash_data = {
+            'timestamp': event_data['timestamp'].isoformat(),
+            'event_type': event_data['event_type'],
+            'severity': event_data['severity'],
+            'user_id': event_data.get('user_id'),
+            'event_data': json.dumps(event_data.get('event_data', {}), sort_keys=True),
+            'success': event_data.get('success', True)
+        }
+        
+        message = json.dumps(hash_data, sort_keys=True).encode()
+        return hmac.new(self._signing_key, message, hashlib.sha256).hexdigest()
+    
     def _flush_batch(self, batch: List[Dict[str, Any]]):
         """Write a batch of audit events to the database."""
         from alpha_pulse.config.database import get_db_session
@@ -219,6 +255,8 @@ class AuditLogger:
             # Convert to ORM objects
             logs = []
             for event in batch:
+                # Calculate integrity hash
+                event['integrity_hash'] = self._calculate_integrity_hash(event)
                 log = AuditLog(**event)
                 logs.append(log)
                 
@@ -415,6 +453,34 @@ class AuditLogger:
             regulatory_flags={'SOX': True}
         )
         
+    def verify_log_integrity(self, log: AuditLog) -> bool:
+        """
+        Verify the integrity of an audit log entry.
+        
+        Args:
+            log: The audit log entry to verify
+            
+        Returns:
+            True if the log is intact, False if tampered
+        """
+        if not log.integrity_hash:
+            return False
+            
+        # Reconstruct the data used for hashing
+        hash_data = {
+            'timestamp': log.timestamp.isoformat(),
+            'event_type': log.event_type,
+            'severity': log.severity,
+            'user_id': log.user_id,
+            'event_data': json.dumps(log.event_data or {}, sort_keys=True),
+            'success': log.success
+        }
+        
+        message = json.dumps(hash_data, sort_keys=True).encode()
+        expected_hash = hmac.new(self._signing_key, message, hashlib.sha256).hexdigest()
+        
+        return hmac.compare_digest(log.integrity_hash, expected_hash)
+    
     def shutdown(self, timeout: float = 30.0):
         """Shutdown the audit logger and flush remaining events."""
         self._stop_event.set()

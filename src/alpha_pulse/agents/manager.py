@@ -16,6 +16,10 @@ from .interfaces import (
     AgentMetrics
 )
 from .factory import AgentFactory
+from alpha_pulse.decorators.audit_decorators import (
+    audit_agent_signal,
+    audit_trade_decision
+)
 
 
 class AgentManager:
@@ -54,6 +58,7 @@ class AgentManager:
                 for k, v in self.agent_weights.items()
             }
             
+    @audit_trade_decision(extract_reasoning=True, include_market_data=True)
     async def generate_signals(self, market_data: MarketData) -> List[TradeSignal]:
         """
         Generate and aggregate signals from all agents.
