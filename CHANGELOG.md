@@ -5,6 +5,33 @@ All notable changes to the AlphaPulse project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.11.0.0] - 2025-07-05
+### Added
+- **Hidden Markov Model Market Regime Detection**: Advanced regime classification system
+  - Implemented multiple HMM variants (Gaussian, GARCH, Hierarchical, Semi-Markov, Factorial, Input-Output)
+  - Created multi-factor regime detection framework with comprehensive feature engineering
+  - Added real-time regime classification with confidence estimation
+  - Implemented regime transition probability estimation and forecasting
+  - Created regime-based trading signal conditioning
+  - Added ensemble HMM approaches for robust regime detection
+  - Comprehensive test suite covering all HMM components
+
+### Components
+- **HMM Models**: `ml/regime/hmm_regime_detector.py` - Multiple HMM variants
+- **Feature Engineering**: `ml/regime/regime_features.py` - Multi-factor features
+- **Real-time Classifier**: `ml/regime/regime_classifier.py` - Live regime detection
+- **Transition Analysis**: `ml/regime/regime_transitions.py` - Pattern identification
+- **Model Interface**: `models/market_regime_hmm.py` - Unified regime detection interface
+- **State Management**: `models/regime_state.py` - Regime state representations
+- **Optimization**: `utils/hmm_optimization.py` - Hyperparameter tuning
+- **Service Layer**: `services/regime_detection_service.py` - Real-time service
+
+### Trading Improvements
+- Enhanced market regime awareness for better trading decisions
+- Improved strategy conditioning based on market states
+- Better risk management through regime detection
+- Advanced market timing capabilities
+
 ## [1.10.1.0] - 2025-07-05
 ### Added
 - **Comprehensive Audit Logging System**: Complete audit trail for all trading decisions
