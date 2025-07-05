@@ -23,6 +23,7 @@ AlphaPulse is a sophisticated algorithmic trading system that combines multiple 
 - [🤝 Contributing](#contributing)
 - [📜 Changelog](#changelog)
 - [❓ Support](#support)
+- [📊 Architecture Documentation](#architecture-documentation)
 
 ## ✨ Executive Summary
 
@@ -534,3 +535,17 @@ For issues or questions:
 4. Open an issue in the repository
 
 For additional support, contact the development team at support@alphapulse.example.com.
+
+## 📊 Architecture Documentation
+
+For comprehensive architecture documentation including C4 diagrams, data flow diagrams, sequence diagrams, and more, see [docs/architecture-diagrams.md](docs/architecture-diagrams.md).
+
+This documentation includes:
+- C4 Model diagrams (Context, Container, Component levels)
+- Data flow and trading signal flow diagrams
+- Sequence diagrams for key processes
+- Deployment and infrastructure diagrams
+- State machines for order lifecycle and system health
+- Entity relationship diagrams
+- Performance and security architecture
+- Monitoring and observability architecture
