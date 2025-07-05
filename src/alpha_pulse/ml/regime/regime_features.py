@@ -89,6 +89,16 @@ class RegimeFeatureEngineer:
         technical_features = self._extract_technical_features(data)
         features = pd.concat([features, technical_features], axis=1)
         
+        # Add credit spread features if available
+        if additional_data and 'credit_spreads' in additional_data:
+            credit_features = self._extract_credit_spread_features(additional_data['credit_spreads'])
+            features = pd.concat([features, credit_features], axis=1)
+        
+        # Add yield curve features if available
+        if additional_data and 'yield_curve' in additional_data:
+            yield_features = self._extract_yield_curve_features(additional_data['yield_curve'])
+            features = pd.concat([features, yield_features], axis=1)
+        
         # Forward fill then drop remaining NaN rows
         features = features.ffill().dropna()
         
@@ -113,6 +123,9 @@ class RegimeFeatureEngineer:
             features[f'garch_vol_{window}d'] = np.sqrt(
                 squared_returns.rolling(window).mean() * 252
             )
+            
+            # EWMA volatility
+            features[f'ewma_vol_{window}d'] = returns.ewm(span=window).std() * np.sqrt(252)
             
             # Volatility of volatility
             vol_series = returns.rolling(window).std()
