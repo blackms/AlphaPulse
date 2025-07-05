@@ -298,6 +298,17 @@ Flexible trade execution options:
 - **Smart Order Routing**: Optimize execution across venues
 - **Transaction Cost Analysis**: Monitor and minimize costs
 
+### Distributed Computing
+
+High-performance distributed backtesting and optimization:
+
+- **Ray & Dask Support**: Choose the best framework for your workload
+- **Parallel Backtesting**: Test strategies across time, symbols, or parameters
+- **Hyperparameter Optimization**: Distributed grid search and Bayesian optimization
+- **Auto-scaling Clusters**: Dynamic resource allocation based on demand
+- **Fault Tolerance**: Automatic retry and checkpointing for reliability
+- **Result Aggregation**: Smart combination of distributed results
+
 ## 🔌 API Reference
 
 AlphaPulse provides a comprehensive RESTful API for interacting with the system.
