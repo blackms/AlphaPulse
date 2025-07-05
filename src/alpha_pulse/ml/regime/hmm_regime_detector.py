@@ -614,3 +614,463 @@ class HierarchicalHMM(GaussianHMM):
                     sub_states[i] = sub_pred
         
         return top_states, sub_states
+
+
+class HiddenSemiMarkovModel(GaussianHMM):
+    """Hidden Semi-Markov Model with explicit duration modeling."""
+    
+    def __init__(self, config: HMMConfig):
+        super().__init__(config)
+        self.duration_params = {}  # Parameters for duration distributions
+        self.max_duration = 100
+        
+    def fit(self, X: np.ndarray, lengths: Optional[List[int]] = None) -> 'HiddenSemiMarkovModel':
+        """Fit HSMM with duration modeling."""
+        # First fit as regular HMM
+        super().fit(X, lengths)
+        
+        # Estimate duration distributions
+        states = self.predict(X)
+        self._estimate_duration_distributions(states)
+        
+        # Refit with duration constraints
+        self._hsmm_fit(X, lengths)
+        
+        return self
+    
+    def _estimate_duration_distributions(self, states: np.ndarray):
+        """Estimate duration distributions for each state."""
+        for i in range(self.n_states):
+            # Find all segments in state i
+            durations = []
+            in_state = False
+            duration = 0
+            
+            for s in states:
+                if s == i:
+                    if not in_state:
+                        in_state = True
+                        duration = 1
+                    else:
+                        duration += 1
+                else:
+                    if in_state:
+                        durations.append(duration)
+                        in_state = False
+                        duration = 0
+            
+            if in_state:
+                durations.append(duration)
+            
+            if durations:
+                # Fit negative binomial distribution
+                durations = np.array(durations)
+                mean_duration = durations.mean()
+                var_duration = durations.var()
+                
+                # Method of moments estimation
+                if var_duration > mean_duration:
+                    p = mean_duration / var_duration
+                    r = mean_duration * p / (1 - p)
+                else:
+                    p = 0.5
+                    r = mean_duration
+                
+                self.duration_params[i] = {
+                    'distribution': 'negative_binomial',
+                    'r': r,
+                    'p': p,
+                    'mean': mean_duration,
+                    'std': np.sqrt(var_duration)
+                }
+            else:
+                # Default parameters
+                self.duration_params[i] = {
+                    'distribution': 'negative_binomial',
+                    'r': 10,
+                    'p': 0.5,
+                    'mean': 10,
+                    'std': 5
+                }
+    
+    def _hsmm_fit(self, X: np.ndarray, lengths: Optional[List[int]] = None):
+        """Fit HSMM using forward-backward algorithm with duration modeling."""
+        if lengths is None:
+            lengths = [X.shape[0]]
+        
+        for _ in range(self.config.n_iter):
+            # E-step with duration
+            log_likelihood, posteriors = self._hsmm_e_step(X, lengths)
+            
+            # M-step
+            self._m_step(X, posteriors, lengths)
+            
+            # Check convergence
+            if len(self.convergence_history) > 0:
+                if abs(log_likelihood - self.convergence_history[-1]) < self.config.tol:
+                    break
+            
+            self.convergence_history.append(log_likelihood)
+    
+    def _hsmm_e_step(self, X: np.ndarray, lengths: List[int]) -> Tuple[float, np.ndarray]:
+        """HSMM E-step with duration modeling."""
+        # Simplified HSMM forward-backward
+        # In practice, use specialized HSMM algorithms
+        return self._e_step(X, lengths)
+    
+    def duration_probability(self, state: int, duration: int) -> float:
+        """Calculate probability of duration d in state."""
+        params = self.duration_params[state]
+        
+        if params['distribution'] == 'negative_binomial':
+            from scipy.stats import nbinom
+            return nbinom.pmf(duration, params['r'], params['p'])
+        
+        return 1.0 / params['mean']  # Exponential fallback
+
+
+class FactorialHMM(GaussianHMM):
+    """Factorial HMM with multiple hidden state chains."""
+    
+    def __init__(self, config: HMMConfig, n_chains: int = 2):
+        super().__init__(config)
+        self.n_chains = n_chains
+        self.chain_models = []
+        self.chain_weights = None
+        
+    def fit(self, X: np.ndarray, lengths: Optional[List[int]] = None) -> 'FactorialHMM':
+        """Fit factorial HMM with multiple chains."""
+        # Initialize chain models
+        self.chain_models = []
+        states_per_chain = max(2, self.n_states // self.n_chains)
+        
+        for i in range(self.n_chains):
+            chain_config = HMMConfig(
+                n_states=states_per_chain,
+                covariance_type=self.config.covariance_type,
+                n_iter=self.config.n_iter,
+                random_state=self.config.random_state + i
+            )
+            chain_model = GaussianHMM(chain_config)
+            self.chain_models.append(chain_model)
+        
+        # Fit each chain on different feature subsets or use EM
+        self._factorial_em(X, lengths)
+        
+        # Combine chains
+        self._combine_chains()
+        
+        self.is_fitted = True
+        return self
+    
+    def _factorial_em(self, X: np.ndarray, lengths: Optional[List[int]] = None):
+        """EM algorithm for factorial HMM."""
+        if lengths is None:
+            lengths = [X.shape[0]]
+        
+        # Initialize chain weights
+        self.chain_weights = np.ones(self.n_chains) / self.n_chains
+        
+        # Simplified factorial EM
+        for iteration in range(self.config.n_iter):
+            # E-step: compute responsibilities for each chain
+            chain_posteriors = []
+            
+            for i, model in enumerate(self.chain_models):
+                # Fit each chain independently (simplified)
+                if iteration == 0:
+                    # Feature subset for each chain
+                    n_features = X.shape[1]
+                    features_per_chain = n_features // self.n_chains
+                    start_idx = i * features_per_chain
+                    end_idx = start_idx + features_per_chain
+                    if i == self.n_chains - 1:
+                        end_idx = n_features
+                    
+                    X_chain = X[:, start_idx:end_idx]
+                    model.fit(X_chain, lengths)
+                
+                # Get posteriors
+                _, posteriors = model.score_samples(X[:, start_idx:end_idx] if iteration == 0 else X)
+                chain_posteriors.append(posteriors)
+            
+            # M-step: update chain weights
+            # Simplified: equal weights
+            self.chain_weights = np.ones(self.n_chains) / self.n_chains
+    
+    def _combine_chains(self):
+        """Combine multiple chains into single model."""
+        # Create combined state space
+        total_states = sum(model.n_states for model in self.chain_models)
+        self.n_states = total_states
+        self.n_features = self.chain_models[0].n_features * self.n_chains
+        
+        # Combine parameters (simplified)
+        self.means = np.vstack([model.means for model in self.chain_models])
+        
+        if self.config.covariance_type == "full":
+            self.covars = np.vstack([model.covars for model in self.chain_models])
+        else:
+            self.covars = np.vstack([model.covars for model in self.chain_models])
+        
+        # Combine transition matrices (block diagonal)
+        self.trans_prob = np.zeros((total_states, total_states))
+        offset = 0
+        for model in self.chain_models:
+            size = model.n_states
+            self.trans_prob[offset:offset+size, offset:offset+size] = model.trans_prob
+            offset += size
+        
+        # Combine start probabilities
+        self.start_prob = np.hstack([model.start_prob for model in self.chain_models])
+        self.start_prob /= self.start_prob.sum()
+    
+    def factorial_states(self, X: np.ndarray) -> List[np.ndarray]:
+        """Get states for each factorial chain."""
+        states_list = []
+        
+        for i, model in enumerate(self.chain_models):
+            # Get states for each chain
+            states = model.predict(X)
+            states_list.append(states)
+        
+        return states_list
+
+
+class InputOutputHMM(GaussianHMM):
+    """Input-Output HMM with external covariates affecting transitions."""
+    
+    def __init__(self, config: HMMConfig):
+        super().__init__(config)
+        self.input_weights = None
+        self.n_inputs = None
+        
+    def fit(self, X: np.ndarray, U: np.ndarray, lengths: Optional[List[int]] = None) -> 'InputOutputHMM':
+        """
+        Fit IOHMM with external inputs.
+        
+        Args:
+            X: Observations (n_samples, n_features)
+            U: External inputs (n_samples, n_inputs)
+            lengths: Sequence lengths
+        """
+        self.n_inputs = U.shape[1]
+        
+        # Initialize input weights for transition probabilities
+        self.input_weights = np.random.randn(self.n_states, self.n_states, self.n_inputs) * 0.1
+        
+        # Modified EM algorithm
+        self._iohmm_fit(X, U, lengths)
+        
+        self.is_fitted = True
+        return self
+    
+    def _iohmm_fit(self, X: np.ndarray, U: np.ndarray, lengths: Optional[List[int]] = None):
+        """Fit IOHMM using modified EM algorithm."""
+        if lengths is None:
+            lengths = [X.shape[0]]
+        
+        # Initialize parameters
+        self._initialize_parameters(X, lengths)
+        
+        for iteration in range(self.config.n_iter):
+            # E-step with input-dependent transitions
+            log_likelihood, posteriors = self._iohmm_e_step(X, U, lengths)
+            
+            # M-step including input weight updates
+            self._iohmm_m_step(X, U, posteriors, lengths)
+            
+            # Check convergence
+            if len(self.convergence_history) > 0:
+                if abs(log_likelihood - self.convergence_history[-1]) < self.config.tol:
+                    break
+            
+            self.convergence_history.append(log_likelihood)
+    
+    def _iohmm_e_step(self, X: np.ndarray, U: np.ndarray, lengths: List[int]) -> Tuple[float, np.ndarray]:
+        """E-step with input-dependent transitions."""
+        curr_idx = 0
+        log_likelihood = 0.0
+        posteriors = np.zeros((X.shape[0], self.n_states))
+        
+        for length in lengths:
+            X_seq = X[curr_idx:curr_idx + length]
+            U_seq = U[curr_idx:curr_idx + length]
+            
+            # Forward-backward with input-dependent transitions
+            log_prob, post = self._forward_backward_iohmm(X_seq, U_seq)
+            
+            log_likelihood += log_prob
+            posteriors[curr_idx:curr_idx + length] = post
+            curr_idx += length
+        
+        return log_likelihood, posteriors
+    
+    def _forward_backward_iohmm(self, X_seq: np.ndarray, U_seq: np.ndarray) -> Tuple[float, np.ndarray]:
+        """Forward-backward algorithm with input-dependent transitions."""
+        n_samples = X_seq.shape[0]
+        
+        # Compute emission probabilities
+        log_emissions = self._compute_log_likelihood(X_seq)
+        
+        # Forward pass
+        log_alpha = np.zeros((n_samples, self.n_states))
+        log_alpha[0] = np.log(self.start_prob) + log_emissions[0]
+        
+        for t in range(1, n_samples):
+            # Input-dependent transition matrix
+            trans_prob_t = self._compute_transition_matrix(U_seq[t-1])
+            
+            for j in range(self.n_states):
+                log_alpha[t, j] = logsumexp(
+                    log_alpha[t-1] + np.log(trans_prob_t[:, j])
+                ) + log_emissions[t, j]
+        
+        # Backward pass and posteriors computation (simplified)
+        posteriors = np.exp(log_alpha - logsumexp(log_alpha, axis=1, keepdims=True))
+        
+        log_likelihood = logsumexp(log_alpha[-1])
+        
+        return log_likelihood, posteriors
+    
+    def _compute_transition_matrix(self, u: np.ndarray) -> np.ndarray:
+        """Compute input-dependent transition matrix."""
+        # Base transition matrix
+        trans_matrix = self.trans_prob.copy()
+        
+        # Modify based on inputs
+        for i in range(self.n_states):
+            for j in range(self.n_states):
+                # Logistic modulation
+                logit = np.dot(self.input_weights[i, j], u)
+                modulation = 1 / (1 + np.exp(-logit))
+                trans_matrix[i, j] *= modulation
+        
+        # Renormalize
+        trans_matrix /= trans_matrix.sum(axis=1, keepdims=True)
+        
+        return trans_matrix
+    
+    def _iohmm_m_step(self, X: np.ndarray, U: np.ndarray, posteriors: np.ndarray, lengths: List[int]):
+        """M-step including input weight updates."""
+        # Standard M-step for emissions
+        self._m_step(X, posteriors, lengths)
+        
+        # Update input weights (simplified gradient update)
+        # In practice, use more sophisticated optimization
+        learning_rate = 0.01
+        
+        curr_idx = 0
+        for length in lengths:
+            if length <= 1:
+                continue
+                
+            X_seq = X[curr_idx:curr_idx + length]
+            U_seq = U[curr_idx:curr_idx + length]
+            post_seq = posteriors[curr_idx:curr_idx + length]
+            
+            # Compute expected transitions
+            for t in range(1, length):
+                for i in range(self.n_states):
+                    for j in range(self.n_states):
+                        # Expected transition from i to j at time t
+                        expected_trans = post_seq[t-1, i] * post_seq[t, j]
+                        
+                        # Gradient update for input weights
+                        trans_prob_ij = self._compute_transition_matrix(U_seq[t-1])[i, j]
+                        gradient = expected_trans * U_seq[t-1] * trans_prob_ij * (1 - trans_prob_ij)
+                        
+                        self.input_weights[i, j] += learning_rate * gradient
+            
+            curr_idx += length
+
+
+class EnsembleHMM:
+    """Ensemble of HMM models for robust regime detection."""
+    
+    def __init__(self, base_models: List[GaussianHMM], weights: Optional[np.ndarray] = None):
+        self.base_models = base_models
+        self.n_models = len(base_models)
+        self.weights = weights if weights is not None else np.ones(self.n_models) / self.n_models
+        self.is_fitted = False
+        
+    def fit(self, X: np.ndarray, lengths: Optional[List[int]] = None) -> 'EnsembleHMM':
+        """Fit all base models."""
+        for model in self.base_models:
+            model.fit(X, lengths)
+        
+        # Optionally optimize weights based on validation performance
+        self._optimize_weights(X, lengths)
+        
+        self.is_fitted = True
+        return self
+    
+    def _optimize_weights(self, X: np.ndarray, lengths: Optional[List[int]] = None):
+        """Optimize ensemble weights using cross-validation."""
+        # Simplified: use equal weights
+        # In practice, use validation set to optimize weights
+        self.weights = np.ones(self.n_models) / self.n_models
+    
+    def predict_proba(self, X: np.ndarray) -> np.ndarray:
+        """Weighted average of state probabilities."""
+        if not self.is_fitted:
+            raise ValueError("Model not fitted")
+        
+        # Get probabilities from each model
+        all_probs = []
+        
+        for model in self.base_models:
+            _, posteriors = model.score_samples(X)
+            all_probs.append(posteriors)
+        
+        # Weighted average
+        ensemble_probs = np.zeros_like(all_probs[0])
+        for i, probs in enumerate(all_probs):
+            ensemble_probs += self.weights[i] * probs
+        
+        return ensemble_probs
+    
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        """Predict states using ensemble voting."""
+        probs = self.predict_proba(X)
+        return np.argmax(probs, axis=1)
+    
+    def predict_regime_type(self, X: np.ndarray) -> List[RegimeType]:
+        """Predict regime types using ensemble consensus."""
+        # Get regime predictions from each model
+        regime_votes = []
+        
+        for model in self.base_models:
+            if hasattr(model, 'predict_regime_type'):
+                regimes = model.predict_regime_type(X)
+                regime_votes.append(regimes)
+        
+        if not regime_votes:
+            # Fallback to state predictions
+            states = self.predict(X)
+            return [self._map_state_to_regime(s) for s in states]
+        
+        # Majority voting for regime types
+        ensemble_regimes = []
+        for t in range(len(X)):
+            regime_counts = {}
+            for votes in regime_votes:
+                regime = votes[t]
+                regime_counts[regime] = regime_counts.get(regime, 0) + 1
+            
+            # Get regime with most votes
+            majority_regime = max(regime_counts, key=regime_counts.get)
+            ensemble_regimes.append(majority_regime)
+        
+        return ensemble_regimes
+    
+    def _map_state_to_regime(self, state: int) -> RegimeType:
+        """Map state index to regime type."""
+        regime_map = {
+            0: RegimeType.BULL,
+            1: RegimeType.SIDEWAYS,
+            2: RegimeType.BEAR,
+            3: RegimeType.CRISIS,
+            4: RegimeType.RECOVERY
+        }
+        return regime_map.get(state % 5, RegimeType.SIDEWAYS)
