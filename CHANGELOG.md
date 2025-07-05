@@ -5,6 +5,44 @@ All notable changes to the AlphaPulse project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.10.1.0] - 2025-07-05
+### Added
+- **Comprehensive Audit Logging System**: Complete audit trail for all trading decisions
+  - Tamper-proof logging with HMAC-SHA256 integrity hashes
+  - Audit decorators for automatic logging of trading decisions, risk checks, and portfolio actions
+  - Advanced audit service for log aggregation, search, and compliance reporting
+  - Real-time anomaly detection for security events
+  - User activity timeline tracking and analysis
+  - Audit log export functionality (JSON/CSV formats)
+  - Comprehensive test suite for audit logging functionality
+
+### Security
+- **Tamper Protection**: Cryptographic integrity verification for all audit logs
+- **Secure Key Management**: Dedicated signing keys for audit log integrity
+- **Enhanced Tracking**: Comprehensive authentication and authorization logging
+- **Security Monitoring**: Real-time detection of suspicious activities and anomalies
+
+### Compliance
+- **MiFID II**: Trading decision logs with complete reasoning and context
+- **SOX**: Financial operation tracking with tamper-proof audit trail
+- **GDPR**: Personal data access logging with proper classification
+- **Automated Reporting**: Compliance dashboard with regulatory report generation
+- **Retention Policies**: Configurable log retention and archival strategies
+
+### Components
+- **Core Logger**: `utils/audit_logger.py` - Enhanced with tamper protection
+- **Decorators**: `decorators/audit_decorators.py` - Automatic audit logging
+- **Service Layer**: `services/audit_service.py` - Log management and analysis
+- **API Routes**: `api/routes/audit.py` - RESTful audit log access
+- **Middleware**: `api/middleware/audit_middleware.py` - Request/response logging
+- **Query Tools**: `utils/audit_queries.py` - Advanced log analysis
+
+### Changed
+- Enhanced portfolio manager with audit logging decorators
+- Enhanced risk manager with comprehensive audit tracking
+- Enhanced trading agents with signal generation auditing
+- Updated database migrations to include integrity hash fields
+
 ## [1.10.0.0] - 2025-07-04
 ### Added
 - **Market Regime Detection**: Hidden Markov Model (HMM) based market regime classification
