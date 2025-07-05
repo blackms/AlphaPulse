@@ -55,6 +55,10 @@ redis = "^5.2.2"  # Redis client for validation caching
 # Real-time data provider dependencies
 aiohttp = "^3.11.20"  # Async HTTP client for data providers
 websockets = "^14.1"  # WebSocket support for real-time feeds
+# Distributed computing dependencies
+ray = {version = "^2.10.0", extras = ["default"]}  # Ray distributed computing
+dask = {version = "^2024.1.0", extras = ["complete"]}  # Dask distributed computing
+distributed = "^2024.1.0"  # Dask distributed scheduler
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.5"
