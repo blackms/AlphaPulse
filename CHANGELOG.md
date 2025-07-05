@@ -5,6 +5,51 @@ All notable changes to the AlphaPulse project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.0.0] - 2025-07-05
+### Added
+- **Explainable AI Framework**: Comprehensive model interpretability and transparency
+  - SHAP (SHapley Additive exPlanations) implementation for all model types
+    - TreeExplainer for tree-based models (XGBoost, Random Forest)
+    - DeepExplainer for neural network interpretability
+    - LinearExplainer for linear models
+    - KernelExplainer as model-agnostic fallback
+  - LIME (Local Interpretable Model-agnostic Explanations) support
+    - Tabular explainer for structured trading data
+    - Time series explainer for temporal predictions
+    - Text explainer for sentiment analysis models
+  - Multi-method feature importance analysis
+    - Permutation importance
+    - Drop column importance
+    - Model-based importance extraction
+    - Feature interaction detection
+  - Decision tree surrogate models for complex model approximation
+  - Counterfactual explanation generation for "what-if" analysis
+  - Explanation aggregation framework for combining multiple methods
+
+### Components
+- **SHAP Explainer**: `ml/explainability/shap_explainer.py` - Game theory-based explanations
+- **LIME Explainer**: `ml/explainability/lime_explainer.py` - Local model approximations
+- **Feature Importance**: `ml/explainability/feature_importance.py` - Multi-method analysis
+- **Decision Trees**: `ml/explainability/decision_trees.py` - Surrogate models
+- **Aggregator**: `ml/explainability/explanation_aggregator.py` - Method combination
+- **Visualization**: `utils/visualization_utils.py` - Rich visualization support
+- **Service**: `services/explainability_service.py` - Unified interface
+
+### Features
+- Real-time trading decision explanations
+- Regulatory compliance with audit trails
+- Interactive visualization dashboards
+- Async processing for performance
+- Caching for efficiency
+- Database storage for persistence
+- Bias detection and fairness analysis
+- Automated documentation generation
+
+### Enhanced
+- Model transparency across all trading agents
+- Regulatory compliance capabilities
+- Trust and interpretability in algorithmic decisions
+
 ## [1.12.0.0] - 2025-07-05
 ### Added
 - **GPU Acceleration for ML Operations**: Comprehensive GPU computing framework
