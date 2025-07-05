@@ -24,6 +24,11 @@ from .strategies.hrp_strategy import HRPStrategy
 from .strategies.black_litterman_strategy import BlackLittermanStrategy
 from .strategies.llm_assisted_strategy import LLMAssistedStrategy
 from .llm_analysis import OpenAILLMAnalyzer, LLMAnalysisResult
+from alpha_pulse.decorators.audit_decorators import (
+    audit_portfolio_action,
+    audit_trade_decision,
+    audit_risk_check
+)
 
 
 
@@ -251,6 +256,7 @@ class PortfolioManager:
             if balance.total > 0
         }
 
+    @audit_trade_decision(extract_reasoning=True, include_market_data=False)
     def compute_rebalancing_trades(
         self,
         current: Dict[str, Decimal],
@@ -295,6 +301,7 @@ class PortfolioManager:
                 
         return trades
 
+    @audit_risk_check(risk_type='rebalancing_threshold', threshold_param='threshold', value_param='deviation')
     async def needs_rebalancing(
         self,
         exchange: Any,
@@ -574,6 +581,7 @@ class PortfolioManager:
         # Get LLM analysis
         return await analyzer.analyze_portfolio(portfolio_data)
 
+    @audit_portfolio_action(action_type='rebalance')
     async def rebalance_portfolio(self, exchange, historical_data: Optional[pd.DataFrame] = None) -> Dict:
         """Execute full portfolio rebalancing operation.
 

@@ -53,6 +53,9 @@ def upgrade():
         sa.Column('data_classification', sa.String(length=50)),
         sa.Column('regulatory_flags', sa.JSON()),
         
+        # Tamper protection
+        sa.Column('integrity_hash', sa.String(length=64)),
+        
         sa.PrimaryKeyConstraint('id')
     )
     
@@ -168,7 +171,8 @@ if __name__ == "__main__":
                     success BOOLEAN DEFAULT TRUE,
                     error_message TEXT,
                     data_classification VARCHAR(50),
-                    regulatory_flags JSONB
+                    regulatory_flags JSONB,
+                    integrity_hash VARCHAR(64)
                 )
             """))
             

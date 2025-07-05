@@ -19,6 +19,11 @@ from .portfolio import (
     IPortfolioOptimizer,
     PortfolioConstraints,
 )
+from alpha_pulse.decorators.audit_decorators import (
+    audit_risk_check,
+    audit_trade_decision,
+    audit_portfolio_action
+)
 
 
 @dataclass
@@ -130,6 +135,7 @@ class RiskManager(IRiskManager):
             logger.error(f"Error calculating risk exposure: {str(e)}")
             raise
 
+    @audit_risk_check(risk_type='trade_evaluation', threshold_param='max_position_size', value_param='position_size')
     async def evaluate_trade(
         self,
         symbol: str,
@@ -196,6 +202,7 @@ class RiskManager(IRiskManager):
         logger.debug("Trade passed all risk checks")
         return True
 
+    @audit_trade_decision(extract_reasoning=True, include_market_data=False)
     def calculate_position_size(
         self,
         symbol: str,
