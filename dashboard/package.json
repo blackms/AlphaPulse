@@ -42,7 +42,7 @@
     "eslint-config-prettier": "^8.8.0",
     "eslint-plugin-react-hooks": "^4.6.0",
     "msw": "^1.2.1",
-    "prettier": "^2.8.8"
+    "prettier": "^3.6.2"
   },
   "scripts": {
     "start": "react-scripts start",
