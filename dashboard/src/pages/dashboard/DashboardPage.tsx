@@ -57,6 +57,7 @@ import {
   Pie,
   Cell,
 } from 'recharts';
+import ExplanationWidget from '../../components/widgets/ExplanationWidget';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#A569BD', '#5DADE2', '#48C9B0', '#F4D03F'];
 
@@ -599,6 +600,11 @@ const DashboardPage: React.FC = () => {
               </table>
             </Box>
           </Card>
+        </Grid>
+
+        {/* Trading Decision Explanations */}
+        <Grid item xs={12}>
+          <ExplanationWidget />
         </Grid>
       </Grid>
         </>
