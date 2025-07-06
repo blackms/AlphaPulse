@@ -22,6 +22,7 @@ from alpha_pulse.decorators.audit_decorators import (
 )
 from alpha_pulse.services.ensemble_service import EnsembleService
 from alpha_pulse.models.ensemble_model import AgentSignalCreate
+from .gpu_signal_processor import GPUSignalProcessor
 
 
 class AgentManager:
@@ -30,7 +31,7 @@ class AgentManager:
     Provides a unified interface for the risk management system.
     """
     
-    def __init__(self, config: Dict[str, Any] = None, ensemble_service: EnsembleService = None):
+    def __init__(self, config: Dict[str, Any] = None, ensemble_service: EnsembleService = None, gpu_service=None):
         """Initialize agent manager."""
         self.config = config or {}
         self.agents: Dict[str, BaseTradeAgent] = {}
@@ -50,6 +51,10 @@ class AgentManager:
         self.ensemble_id = None
         self.agent_registry: Dict[str, str] = {}  # agent_type -> agent_id mapping
         self.use_ensemble = config.get("use_ensemble", True) if ensemble_service else False
+        
+        # GPU acceleration
+        self.gpu_processor = GPUSignalProcessor(gpu_service)
+        self.use_gpu_acceleration = config.get("use_gpu_acceleration", True)
         
     async def initialize(self) -> None:
         """Initialize all agents."""
@@ -84,11 +89,27 @@ class AgentManager:
         all_signals = []
 
         try:
+            # Pre-calculate GPU-accelerated features if enabled
+            symbols = list(market_data.prices.columns) if hasattr(market_data.prices, 'columns') else []
+            gpu_features = {}
+            
+            if self.use_gpu_acceleration and symbols:
+                gpu_features = await self.gpu_processor.calculate_technical_features_batch(
+                    market_data, symbols, 
+                    indicators=['returns', 'rsi', 'macd', 'bollinger', 'ema_20', 'ema_50']
+                )
+                logger.info(f"Pre-calculated GPU features for {len(gpu_features)} symbols")
 
             # Collect signals from each agent
             for agent_type, agent in self.agents.items():
                 try:
-                    signals = await agent.generate_signals(market_data)
+                    # Enhance market data with GPU features if available
+                    enhanced_market_data = market_data
+                    if gpu_features and hasattr(enhanced_market_data, 'metadata'):
+                        enhanced_market_data.metadata = getattr(enhanced_market_data, 'metadata', {})
+                        enhanced_market_data.metadata['gpu_features'] = gpu_features
+                    
+                    signals = await agent.generate_signals(enhanced_market_data)
                     logger.debug(f"Agent {agent_type} generated {len(signals)} signals")
                     for signal in signals:
                         signal.metadata["agent_type"] = agent_type
@@ -105,10 +126,24 @@ class AgentManager:
                     continue
             
             logger.debug(f"Total signals collected: {len(all_signals)}")
-            # Aggregate signals using ensemble or fallback to basic method
+            
+            # Apply GPU-accelerated signal optimization
+            if self.use_gpu_acceleration and all_signals:
+                all_signals = await self.gpu_processor.optimize_signal_timing(
+                    all_signals, market_data
+                )
+                logger.debug(f"Applied GPU signal timing optimization")
+            
+            # Aggregate signals using ensemble, GPU acceleration, or fallback to basic method
             if self.use_ensemble and self.ensemble_service and self.ensemble_id:
                 aggregated = await self._aggregate_signals_with_ensemble(all_signals)
                 logger.info(f"Ensemble-aggregated signals: {len(aggregated)}")
+            elif self.use_gpu_acceleration and len(all_signals) > 5:
+                # Use GPU-accelerated aggregation for larger signal sets
+                aggregated = await self.gpu_processor.accelerate_signal_aggregation(
+                    all_signals, self.agent_weights, ensemble_method='weighted_average'
+                )
+                logger.info(f"GPU-accelerated aggregation: {len(aggregated)} signals")
             else:
                 aggregated = await self._aggregate_signals(all_signals)
                 logger.debug(f"Basic-aggregated signals: {len(aggregated)}")
