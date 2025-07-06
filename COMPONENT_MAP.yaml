@@ -1,0 +1,243 @@
+# COMPONENT_MAP.yaml
+# Living registry of all AlphaPulse components and their integration status
+# Status: INTEGRATED | IMPLEMENTED_NOT_INTEGRATED | PARTIAL_INTEGRATION | NOT_INTEGRATED
+
+last_updated: "2025-07-06"
+version: "1.0.0"
+
+components:
+  # SPRINT 1: Security & Production Hardening
+  security:
+    jwt_authentication:
+      status: "INTEGRATED"
+      location: "src/alpha_pulse/api/auth.py"
+      used_by: ["API endpoints", "WebSocket connections"]
+      integration_todos: []
+      
+    https_enforcement:
+      status: "INTEGRATED"
+      location: "src/alpha_pulse/api/main.py"
+      used_by: ["All API traffic"]
+      integration_todos: []
+      
+    credential_management:
+      status: "INTEGRATED"
+      location: "src/alpha_pulse/exchanges/credentials/"
+      used_by: ["Exchange connections", "Data providers"]
+      integration_todos: []
+      
+    security_monitoring:
+      status: "INTEGRATED"
+      location: "src/alpha_pulse/monitoring/security_monitor.py"
+      used_by: ["Alert system", "Prometheus metrics"]
+      integration_todos: []
+      
+  # SPRINT 2: Real Data Integration
+  data_integration:
+    market_data_providers:
+      status: "INTEGRATED"
+      location: "src/alpha_pulse/data_pipeline/providers/"
+      used_by: ["All trading agents", "Risk management", "Dashboard"]
+      integration_todos: []
+      
+    data_validation:
+      status: "INTEGRATED"
+      location: "src/alpha_pulse/data_pipeline/validators.py"
+      used_by: ["Data pipeline", "Agent inputs"]
+      integration_todos: []
+      
+    time_synchronization:
+      status: "INTEGRATED"
+      location: "src/alpha_pulse/utils/time_sync.py"
+      used_by: ["Order execution", "Data timestamps"]
+      integration_todos: []
+      
+  # SPRINT 3: Advanced Risk Management (NOT INTEGRATED)
+  risk_management:
+    tail_risk_hedging:
+      status: "IMPLEMENTED_NOT_INTEGRATED"
+      location: "src/alpha_pulse/risk_management/tail_risk_hedging.py"
+      implementation: "Sophisticated tail risk detection and hedging strategies"
+      used_by: []
+      should_be_used_by: ["Portfolio optimizer", "Risk dashboard", "Position sizing"]
+      integration_todos:
+        - "Wire to portfolio optimizer input signals"
+        - "Create hedging position generator"
+        - "Add tail risk metrics to risk API"
+        - "Display hedging recommendations in UI"
+        
+    correlation_analysis:
+      status: "IMPLEMENTED_NOT_INTEGRATED"
+      location: "src/alpha_pulse/risk_management/correlation_risk.py"
+      implementation: "Real-time correlation matrix computation"
+      used_by: []
+      should_be_used_by: ["Risk dashboard", "Portfolio optimizer", "Position limits"]
+      integration_todos:
+        - "Add correlation endpoint to risk API"
+        - "Create frontend heatmap visualization"
+        - "Wire to position sizing logic"
+        - "Add correlation alerts"
+        
+    dynamic_risk_budgeting:
+      status: "PARTIAL_INTEGRATION"
+      location: "src/alpha_pulse/risk_management/dynamic_risk_budgeting.py"
+      implementation: "Adaptive risk allocation system"
+      used_by: ["Basic position sizing"]
+      should_be_used_by: ["All position decisions", "Portfolio optimizer", "Risk limits"]
+      integration_todos:
+        - "Complete integration with portfolio optimizer"
+        - "Wire to all trading agents"
+        - "Add budget visualization to dashboard"
+        - "Create risk budget alerts"
+        
+    liquidity_management:
+      status: "IMPLEMENTED_NOT_INTEGRATED"
+      location: "src/alpha_pulse/risk_management/liquidity_risk.py"
+      implementation: "Market impact and liquidity scoring"
+      used_by: []
+      should_be_used_by: ["Order execution", "Position sizing", "Risk limits"]
+      integration_todos:
+        - "Wire to order management system"
+        - "Add liquidity checks to execution path"
+        - "Create liquidity dashboard widget"
+        - "Add liquidity-based position limits"
+        
+    monte_carlo_simulations:
+      status: "IMPLEMENTED_NOT_INTEGRATED"
+      location: "src/alpha_pulse/risk_management/monte_carlo_risk.py"
+      implementation: "Portfolio risk simulations"
+      used_by: []
+      should_be_used_by: ["Risk reporting", "VaR calculations", "Stress testing"]
+      integration_todos:
+        - "Add to daily risk report generation"
+        - "Create simulation API endpoint"
+        - "Add visualization to risk dashboard"
+        - "Schedule automated stress tests"
+        
+  # SPRINT 4: ML Enhancement (NOT INTEGRATED)
+  ml_features:
+    hmm_regime_detection:
+      status: "IMPLEMENTED_NOT_INTEGRATED"
+      location: "src/alpha_pulse/ml/regime/"
+      service: "src/alpha_pulse/services/regime_detection_service.py"
+      implementation: "Hidden Markov Model for market regime detection"
+      used_by: ["sentiment_agent (hardcoded)"]
+      should_be_used_by: ["All agents", "Portfolio optimizer", "Risk management", "Dashboard"]
+      critical: true
+      integration_todos:
+        - "START SERVICE IN MAIN API (main.py)"
+        - "Add regime client to all trading agents"
+        - "Wire regime state to portfolio optimization"
+        - "Add regime indicator to dashboard"
+        - "Use regime for dynamic strategy selection"
+        
+    ensemble_methods:
+      status: "IMPLEMENTED_NOT_INTEGRATED"
+      location: "src/alpha_pulse/ml/ensemble/"
+      implementation: "Signal aggregation with multiple methods"
+      used_by: []
+      should_be_used_by: ["Signal router", "Meta-strategy", "Agent coordinator"]
+      integration_todos:
+        - "Wire to signal aggregation pipeline"
+        - "Replace simple averaging with ensemble"
+        - "Add ensemble weights to config"
+        - "Create ensemble performance metrics"
+        
+    online_learning:
+      status: "IMPLEMENTED_NOT_INTEGRATED"
+      location: "src/alpha_pulse/ml/online_learning/"
+      implementation: "Adaptive model updating"
+      used_by: []
+      should_be_used_by: ["All ML models", "Agent adaptation", "Strategy tuning"]
+      integration_todos:
+        - "Add to model serving pipeline"
+        - "Create update scheduling"
+        - "Wire to agent performance feedback"
+        - "Add drift detection alerts"
+        
+    gpu_acceleration:
+      status: "IMPLEMENTED_NOT_INTEGRATED"
+      location: "src/alpha_pulse/ml/gpu/"
+      implementation: "CUDA/PyTorch optimization"
+      used_by: []
+      should_be_used_by: ["Model training", "Backtesting", "Real-time inference"]
+      integration_todos:
+        - "Add GPU detection to startup"
+        - "Wire to training pipelines"
+        - "Create GPU resource monitoring"
+        - "Add fallback for CPU-only systems"
+        
+    explainable_ai:
+      status: "IMPLEMENTED_NOT_INTEGRATED"
+      location: "src/alpha_pulse/ml/explainability/"
+      implementation: "SHAP/LIME explanations for decisions"
+      used_by: []
+      should_be_used_by: ["Dashboard", "Trade logs", "Performance analysis"]
+      integration_todos:
+        - "Add explanation API endpoints"
+        - "Create frontend visualization components"
+        - "Wire to trade decision logging"
+        - "Add explanation reports"
+        
+  # Core Components (INTEGRATED)
+  trading_agents:
+    technical_agent:
+      status: "INTEGRATED"
+      location: "src/alpha_pulse/agents/technical_agent.py"
+      used_by: ["Main trading loop", "Signal aggregation"]
+      missing_integrations: ["HMM regime input"]
+      
+    fundamental_agent:
+      status: "INTEGRATED"
+      location: "src/alpha_pulse/agents/fundamental_agent.py"
+      used_by: ["Main trading loop", "Signal aggregation"]
+      missing_integrations: ["HMM regime input"]
+      
+    sentiment_agent:
+      status: "INTEGRATED"
+      location: "src/alpha_pulse/agents/sentiment_agent.py"
+      used_by: ["Main trading loop", "Signal aggregation"]
+      notes: "Only agent using HMM regime (hardcoded)"
+      
+    warren_buffett_agent:
+      status: "INTEGRATED"
+      location: "src/alpha_pulse/agents/warren_buffett_agent.py"
+      used_by: ["Main trading loop", "Signal aggregation"]
+      missing_integrations: ["HMM regime input", "Fundamental data expansion"]
+      
+  portfolio_management:
+    portfolio_optimizer:
+      status: "PARTIAL_INTEGRATION"
+      location: "src/alpha_pulse/portfolio/portfolio_optimizer.py"
+      used_by: ["Main trading loop", "Position sizing"]
+      missing_integrations:
+        - "Tail risk hedging signals"
+        - "HMM regime state"
+        - "Dynamic risk budgets"
+        - "Correlation constraints"
+        
+    hierarchical_risk_parity:
+      status: "INTEGRATED"
+      location: "src/alpha_pulse/portfolio/hrp_optimizer.py"
+      used_by: ["Portfolio optimization strategies"]
+      missing_integrations: ["Regime-aware clustering"]
+      
+  execution:
+    order_management:
+      status: "INTEGRATED"
+      location: "src/alpha_pulse/execution/order_manager.py"
+      used_by: ["Trade execution", "Paper trading"]
+      missing_integrations: ["Liquidity constraints", "Smart order routing"]
+      
+  monitoring:
+    prometheus_metrics:
+      status: "INTEGRATED"
+      location: "src/alpha_pulse/monitoring/metrics.py"
+      used_by: ["All components", "Grafana dashboards"]
+      missing_integrations: ["ML model metrics", "Regime tracking"]
+      
+    alert_system:
+      status: "INTEGRATED"
+      location: "src/alpha_pulse/monitoring/alerts/"
+      used_by: ["Risk limits", "System health"]
+      missing_integrations: ["Correlation alerts", "Regime change alerts"]

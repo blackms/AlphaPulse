@@ -1,0 +1,207 @@
+# INTEGRATION_FLOWS.yaml
+# Documents how data should flow through AlphaPulse vs current reality
+# CRITICAL: Shows where integration gaps break the flow
+
+last_updated: "2025-07-06"
+version: "1.0.0"
+
+main_trading_flow:
+  ideal_flow:
+    description: "How the system should work with all features integrated"
+    steps:
+      1_market_context:
+        components:
+          - "Market data providers → Data validation"
+          - "HMM Regime Detection → Market state classification"
+          - "Correlation Analysis → Risk context"
+        outputs: ["Validated data", "Market regime", "Risk correlations"]
+        
+      2_signal_generation:
+        components:
+          - "6 Trading Agents receive market data + regime context"
+          - "Each agent generates signals considering regime"
+          - "Agents apply dynamic risk budgets"
+        outputs: ["Risk-adjusted signals per agent"]
+        
+      3_signal_aggregation:
+        components:
+          - "Ensemble methods combine agent signals"
+          - "Regime-aware weighting applied"
+          - "Explainable AI tracks decision rationale"
+        outputs: ["Aggregated trading signals with explanations"]
+        
+      4_portfolio_optimization:
+        components:
+          - "Portfolio optimizer receives signals + risk context"
+          - "Tail risk hedging modifies allocations"
+          - "Correlation constraints applied"
+          - "Liquidity filters check executability"
+        outputs: ["Optimized positions with hedges"]
+        
+      5_execution:
+        components:
+          - "Order management with liquidity awareness"
+          - "Smart order routing (future)"
+          - "Real-time risk checks"
+        outputs: ["Executed trades"]
+        
+      6_monitoring:
+        components:
+          - "Performance tracking with explanations"
+          - "Risk metrics including Monte Carlo VaR"
+          - "Online learning updates models"
+        outputs: ["Metrics, alerts, model updates"]
+        
+  current_flow:
+    description: "How the system actually works today"
+    steps:
+      1_market_context:
+        working:
+          - "Market data providers → Data validation ✓"
+        missing:
+          - "HMM Regime Detection (SERVICE NOT STARTED)"
+          - "Correlation Analysis (COMPUTED BUT NOT USED)"
+          
+      2_signal_generation:
+        working:
+          - "6 Trading Agents receive market data ✓"
+          - "Agents generate basic signals ✓"
+        missing:
+          - "No regime context (except sentiment agent)"
+          - "No dynamic risk budgets"
+          
+      3_signal_aggregation:
+        working:
+          - "Simple averaging of signals ✓"
+        missing:
+          - "No ensemble methods"
+          - "No regime-aware weighting"
+          - "No explainable AI"
+          
+      4_portfolio_optimization:
+        working:
+          - "Basic portfolio optimization ✓"
+          - "Simple risk limits ✓"
+        missing:
+          - "No tail risk hedging"
+          - "No correlation constraints"
+          - "No liquidity filtering"
+          
+      5_execution:
+        working:
+          - "Basic order execution ✓"
+          - "Paper trading mode ✓"
+        missing:
+          - "No liquidity awareness"
+          - "No smart routing"
+          
+      6_monitoring:
+        working:
+          - "Basic metrics and alerts ✓"
+          - "Prometheus/Grafana ✓"
+        missing:
+          - "No Monte Carlo in reports"
+          - "No explainable AI views"
+          - "No online learning"
+
+critical_integration_points:
+  regime_detection_startup:
+    problem: "Service exists but never started"
+    location: "src/alpha_pulse/api/main.py"
+    fix: |
+      # Add to main.py startup:
+      from alpha_pulse.services.regime_detection_service import RegimeDetectionService
+      regime_service = RegimeDetectionService()
+      await regime_service.start()
+      
+  regime_to_agents:
+    problem: "Agents don't receive regime context"
+    location: "src/alpha_pulse/agents/base_agent.py"
+    fix: |
+      # Add regime client to base agent
+      # Pass regime state in market data updates
+      
+  ensemble_integration:
+    problem: "Ensemble methods not used in signal routing"
+    location: "src/alpha_pulse/services/signal_aggregator.py"
+    fix: |
+      # Replace simple averaging with ensemble
+      # Use src/alpha_pulse/ml/ensemble/ensemble_aggregator.py
+      
+  tail_risk_to_portfolio:
+    problem: "Tail risk hedging not connected"
+    location: "src/alpha_pulse/portfolio/portfolio_optimizer.py"
+    fix: |
+      # Import tail risk hedging module
+      # Add hedging signals to optimization constraints
+      
+  correlation_to_dashboard:
+    problem: "Correlation data not exposed"
+    location: "src/alpha_pulse/api/routers/risk.py"
+    fix: |
+      # Add correlation matrix endpoint
+      # Return correlation_risk.get_correlation_matrix()
+
+data_flow_gaps:
+  market_data:
+    status: "COMPLETE"
+    flow: "Providers → Validation → Agents → Dashboard"
+    
+  regime_state:
+    status: "BROKEN"
+    flow: "HMM Service (OFF) → ??? → Agents (except sentiment)"
+    required: "HMM Service → Regime API → All Agents/Portfolio"
+    
+  risk_metrics:
+    status: "PARTIAL"
+    flow: "Basic metrics → Dashboard"
+    missing: "Correlations, Tail Risk, Monte Carlo → Dashboard"
+    
+  ml_features:
+    status: "DISCONNECTED"
+    flow: "ML models exist in isolation"
+    required: "ML models → Production pipeline → Trading decisions"
+    
+  explanations:
+    status: "MISSING"
+    flow: "Decisions made without tracking why"
+    required: "Decisions → Explainable AI → Logs/Dashboard"
+
+integration_priorities:
+  immediate:
+    1: "Start HMM regime service in main.py"
+    2: "Wire regime to all agents via base class"
+    3: "Connect tail risk to portfolio optimizer"
+    
+  high:
+    4: "Add correlation API endpoint"
+    5: "Wire ensemble to signal aggregation"
+    6: "Connect liquidity to order management"
+    
+  medium:
+    7: "Add Monte Carlo to risk reports"
+    8: "Enable online learning pipeline"
+    9: "Surface explainable AI in UI"
+    
+  future:
+    10: "GPU acceleration for training"
+    11: "Smart order routing"
+    12: "Advanced regime strategies"
+
+api_endpoint_gaps:
+  existing_working:
+    - "GET /api/portfolio/status"
+    - "GET /api/agents/status"
+    - "GET /api/risk/metrics"
+    - "WS /ws/market_data"
+    
+  missing_endpoints:
+    - "GET /api/risk/correlation_matrix"
+    - "GET /api/risk/tail_hedging"
+    - "GET /api/regime/current_state"
+    - "GET /api/ml/explanations/{trade_id}"
+    - "GET /api/risk/monte_carlo_var"
+    
+  partially_working:
+    - "GET /api/risk/limits (missing dynamic budgets)"
+    - "POST /api/orders/execute (missing liquidity checks)"

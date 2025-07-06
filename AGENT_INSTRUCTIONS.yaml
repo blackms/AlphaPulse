@@ -1,0 +1,170 @@
+# AGENT_INSTRUCTIONS.yaml
+# Standard instructions for all AI agents working on AlphaPulse
+# MUST BE READ BEFORE ANY DEVELOPMENT WORK
+
+last_updated: "2025-07-06"
+version: "1.0.0"
+
+mandatory_reading:
+  description: "Read these files IN ORDER before starting any task"
+  files:
+    1: 
+      file: "PROJECT_MEMORY.yaml"
+      why: "Understand project state and critical gaps"
+    2:
+      file: "COMPONENT_MAP.yaml"
+      why: "See what exists and integration status"
+    3:
+      file: "INTEGRATION_FLOWS.yaml"
+      why: "Understand data flows and gaps"
+    4:
+      file: "CLAUDE.md"
+      why: "Project-specific development guidelines"
+      
+critical_context:
+  project_phase: "INTEGRATION AUDIT - Wire existing features before building new"
+  biggest_issue: "HMM regime detection service exists but is NEVER STARTED"
+  common_mistake: "Building new features when similar ones exist unintegrated"
+  
+integration_first_mindset:
+  principle: "Integration > Implementation"
+  before_implementing_anything:
+    1: "Check COMPONENT_MAP.yaml - it might already exist"
+    2: "Check if similar feature is IMPLEMENTED_NOT_INTEGRATED"
+    3: "Prioritize wiring existing features over building new ones"
+    
+  questions_to_ask:
+    - "Does this feature already exist but isn't integrated?"
+    - "Is there a similar component that just needs wiring?"
+    - "Will this duplicate existing unintegrated work?"
+    
+development_workflow:
+  1_research_phase:
+    always_check:
+      - "Read mandatory files first"
+      - "Search for existing implementations"
+      - "Check integration status in COMPONENT_MAP.yaml"
+      - "Look for TODO/FIXME comments about integration"
+      
+  2_planning_phase:
+    requirements:
+      - "Create clear integration plan"
+      - "Identify all connection points"
+      - "List API endpoints needed"
+      - "Plan dashboard updates"
+      
+  3_implementation_phase:
+    priorities:
+      - "Integration tasks first"
+      - "Wire existing components"
+      - "Only build new if nothing exists"
+      - "Update documentation immediately"
+      
+  4_verification_phase:
+    checklist:
+      - "Component actually used in main flow?"
+      - "Visible in dashboard/UI?"
+      - "Metrics exposed?"
+      - "Documentation updated?"
+
+common_integration_patterns:
+  adding_service_to_api:
+    pattern: |
+      # In src/alpha_pulse/api/main.py
+      from alpha_pulse.services.new_service import NewService
+      
+      # In startup
+      service = NewService()
+      await service.start()
+      app.state.new_service = service
+      
+  wiring_to_agents:
+    pattern: |
+      # In agent's __init__ or setup
+      self.regime_client = RegimeDetectionClient()
+      
+      # In generate_signals method
+      regime_state = await self.regime_client.get_current_regime()
+      
+  adding_api_endpoint:
+    pattern: |
+      # In appropriate router file
+      @router.get("/endpoint")
+      async def get_data():
+          service = request.app.state.service
+          return await service.get_data()
+          
+  connecting_to_portfolio:
+    pattern: |
+      # In portfolio optimizer
+      risk_constraints = self.risk_manager.get_constraints()
+      hedging_signals = self.tail_risk_hedger.get_hedging_signals()
+
+documentation_updates:
+  after_any_integration:
+    1: "Update COMPONENT_MAP.yaml status"
+    2: "Update INTEGRATION_FLOWS.yaml if flow changed"
+    3: "Add integration notes to component"
+    4: "Update PROJECT_MEMORY.yaml if major milestone"
+    
+  commit_messages:
+    format: "type(scope): description"
+    examples:
+      - "fix(integration): wire HMM regime service to main API"
+      - "feat(integration): connect tail risk to portfolio optimizer"
+      - "fix(api): add correlation matrix endpoint"
+      
+specific_integration_tasks:
+  hmm_regime_service:
+    critical: true
+    current_issue: "Service never started in API"
+    files_to_modify:
+      - "src/alpha_pulse/api/main.py (start service)"
+      - "src/alpha_pulse/agents/base_agent.py (add regime client)"
+      - "All agent files (use regime in decisions)"
+      
+  tail_risk_hedging:
+    current_issue: "Not connected to portfolio"
+    files_to_modify:
+      - "src/alpha_pulse/portfolio/portfolio_optimizer.py"
+      - "src/alpha_pulse/api/routers/risk.py (add endpoint)"
+      
+  correlation_analysis:
+    current_issue: "Computed but not displayed"
+    files_to_modify:
+      - "src/alpha_pulse/api/routers/risk.py (add endpoint)"
+      - "dashboard/src/components/RiskDashboard.tsx"
+
+red_flags_to_avoid:
+  - "Starting new feature development without checking existing code"
+  - "Creating duplicate functionality"
+  - "Building features that won't be integrated"
+  - "Ignoring the HMM regime service issue"
+  - "Not updating documentation after changes"
+  
+testing_requirements:
+  integration_tests:
+    - "Verify service starts and responds"
+    - "Check data flows through system"
+    - "Confirm UI displays new data"
+    - "Test error handling"
+    
+  verification:
+    - "Can users see/use the feature?"
+    - "Are metrics being collected?"
+    - "Do other components use it?"
+
+success_metrics:
+  integration_complete_when:
+    - "Feature used in main trading flow"
+    - "Visible in dashboard/API"
+    - "Other components consume its output"
+    - "Metrics and monitoring active"
+    - "Documentation updated"
+    
+remember:
+  - "This project has many sophisticated unintegrated features"
+  - "Integration is more valuable than new features"
+  - "Always check if it already exists first"
+  - "Update docs immediately after changes"
+  - "Focus on making existing code work together"

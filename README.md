@@ -12,6 +12,7 @@ AlphaPulse is a sophisticated algorithmic trading system that combines multiple 
 ## Table of Contents
 
 - [✨ Executive Summary](#-executive-summary)
+- [📚 Project Documentation System](#-project-documentation-system)
 - [⬇️ Installation](#️-installation)
 - [⚙️ Configuration](#️-configuration)
 - [🚀 Features](#-features)
@@ -51,6 +52,43 @@ AlphaPulse is a state-of-the-art AI Hedge Fund system that leverages multiple sp
 - Maximum Drawdown: 12%
 - Win Rate: 58%
 - Average Profit/Loss Ratio: 1.5
+
+## 📚 Project Documentation System
+
+AlphaPulse includes a comprehensive machine-readable documentation system designed to serve as the "project brain" for AI-assisted development. This system ensures that all AI agents have complete context about the project state, preventing duplicate work and ensuring proper integration of features.
+
+### Documentation Files
+
+The following YAML files in the project root provide critical project context:
+
+| File | Purpose | When to Read |
+|------|---------|--------------|
+| `PROJECT_MEMORY.yaml` | Master project state reference | **ALWAYS READ FIRST** |
+| `COMPONENT_MAP.yaml` | All components and their integration status | Before implementing any feature |
+| `INTEGRATION_FLOWS.yaml` | Data flow mapping and integration gaps | When working on system integration |
+| `AGENT_INSTRUCTIONS.yaml` | Development guidelines for AI agents | Before starting any development task |
+
+### Key Project Status
+
+**Current Phase**: Integration Audit - Many sophisticated features exist but are not integrated into the main system flow.
+
+**Critical Integration Gap**: The HMM (Hidden Markov Model) regime detection service is fully implemented but never started in the main API, meaning the system is missing crucial market context for trading decisions.
+
+### Integration Status Categories
+
+- **INTEGRATED**: Feature is fully wired into main system flow and used by end users
+- **IMPLEMENTED_NOT_INTEGRATED**: Feature code exists but isn't connected to the main system
+- **PARTIAL_INTEGRATION**: Feature partially used but missing key connections
+- **NOT_INTEGRATED**: Feature not connected to main system at all
+
+### For AI Developers
+
+Before implementing any new feature:
+1. Check `COMPONENT_MAP.yaml` to see if it already exists
+2. Prioritize integrating existing unintegrated features over building new ones
+3. Update the documentation files after any integration work
+
+This documentation system is self-maintaining - all agents must update these files after making changes to ensure future agents have accurate context.
 
 ## ⬇️ Installation
 

@@ -1,0 +1,145 @@
+# PROJECT_MEMORY.yaml
+# Master reference for AlphaPulse project state
+# ALWAYS READ THIS FIRST BEFORE ANY DEVELOPMENT WORK
+
+project:
+  name: AlphaPulse
+  version: "0.1.0"
+  status: "INTEGRATION_AUDIT_PHASE"
+  last_updated: "2025-07-06"
+  description: "AI-powered algorithmic trading system operating as automated hedge fund"
+  
+sprint_status:
+  completed_and_integrated:
+    sprint_1:
+      name: "Security & Production Hardening"
+      tasks: 5
+      status: "FULLY_INTEGRATED"
+      components:
+        - JWT authentication
+        - HTTPS enforcement
+        - Credential management
+        - Security monitoring
+        - API rate limiting
+        
+    sprint_2:
+      name: "Real Data Integration & Quality"
+      tasks: 5
+      status: "FULLY_INTEGRATED"
+      components:
+        - Real-time market data
+        - Data validation
+        - Time synchronization
+        - Exchange failover
+        - Data caching
+        
+  implemented_not_integrated:
+    sprint_3:
+      name: "Advanced Risk Management"
+      tasks: 5
+      status: "IMPLEMENTED_NOT_INTEGRATED"
+      critical_gaps:
+        - "Tail risk hedging not wired to portfolio optimizer"
+        - "Correlation analysis not displayed in risk dashboard"
+        - "Dynamic risk budgeting only partially integrated"
+        - "Liquidity management not connected to order system"
+        - "Monte Carlo simulations not in risk reporting"
+        
+    sprint_4:
+      name: "ML Enhancement"
+      tasks: 5
+      status: "IMPLEMENTED_NOT_INTEGRATED"
+      critical_gaps:
+        - "HMM regime detection service never started in main API"
+        - "Ensemble methods unclear if used in signal routing"
+        - "Online learning not in model serving pipeline"
+        - "GPU acceleration not in training workflows"
+        - "Explainable AI not accessible in UI"
+        
+  pending:
+    - "Sprint 5: Performance & Scalability (5 tasks)"
+    - "Sprint 6: Advanced Monitoring & Observability (5 tasks)"
+    - "Sprint 7: Advanced Trading Features (5 tasks)"
+    - "Sprint 8: User Experience Enhancement (5 tasks)"
+
+critical_integration_gaps:
+  highest_priority:
+    hmm_regime_detection:
+      severity: "CRITICAL"
+      description: "Sophisticated regime detection exists but completely unused"
+      impact: "System missing crucial market context for decisions"
+      location: "src/alpha_pulse/ml/regime/*"
+      service: "src/alpha_pulse/services/regime_detection_service.py"
+      current_usage: "Only 1 of 6 agents uses it (sentiment agent)"
+      required_integrations:
+        - "Start service in main API startup"
+        - "Wire to all trading agents"
+        - "Integrate with portfolio optimization"
+        - "Display in risk dashboard"
+        
+  high_priority:
+    tail_risk_hedging:
+      severity: "HIGH"
+      description: "Advanced hedging system exists but not used"
+      impact: "Portfolio exposed to tail risks"
+      location: "src/alpha_pulse/risk_management/tail_risk_hedging.py"
+      required_integrations:
+        - "Wire to portfolio optimizer"
+        - "Create hedging signal flow"
+        - "Display in risk metrics"
+        
+    correlation_analysis:
+      severity: "HIGH"
+      description: "Correlation matrix computed but not displayed"
+      impact: "Risk concentrations invisible to users"
+      location: "src/alpha_pulse/risk_management/correlation_risk.py"
+      required_integrations:
+        - "Add to risk dashboard API"
+        - "Create frontend visualization"
+        - "Use in position sizing"
+        
+architecture_summary:
+  layers:
+    1_input:
+      description: "Signal generation via 6 specialized trading agents"
+      location: "src/alpha_pulse/agents/"
+      integration_status: "INTEGRATED"
+      
+    2_risk_management:
+      description: "Signal processing and risk controls"
+      location: "src/alpha_pulse/risk_management/"
+      integration_status: "PARTIAL - Sprint 3 features not integrated"
+      
+    3_portfolio_management:
+      description: "Decision making and optimization"
+      location: "src/alpha_pulse/portfolio/"
+      integration_status: "PARTIAL - Missing regime/risk inputs"
+      
+    4_output:
+      description: "Trade execution"
+      location: "src/alpha_pulse/execution/"
+      integration_status: "INTEGRATED"
+      
+integration_debt_priority:
+  1: "Start HMM regime detection service and wire to all components"
+  2: "Connect tail risk hedging to portfolio optimizer"
+  3: "Display correlation analysis in risk dashboard"
+  4: "Wire ensemble methods to signal aggregation"
+  5: "Complete dynamic risk budgeting integration"
+  6: "Connect liquidity management to order execution"
+  7: "Integrate Monte Carlo into risk reporting"
+  8: "Enable online learning in model pipeline"
+  9: "Add GPU acceleration to training"
+  10: "Surface explainable AI in user interface"
+
+development_focus:
+  current: "Integration audit and gap resolution"
+  next: "Wire existing features before building new ones"
+  principle: "Integration over implementation"
+  
+key_reminders:
+  - "Many sophisticated features exist but aren't used"
+  - "Always check if feature already exists before implementing"
+  - "Integration is more valuable than new features"
+  - "Update these docs after any integration work"
+  - "Read COMPONENT_MAP.yaml for detailed integration status"
