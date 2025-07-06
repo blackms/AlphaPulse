@@ -1,0 +1,149 @@
+# Jekyll configuration for AlphaPulse GitHub Pages
+title: AlphaPulse Documentation
+description: >-
+  Comprehensive documentation for AlphaPulse - an AI-powered algorithmic trading system
+  designed to operate as an automated hedge fund.
+
+baseurl: "/AlphaPulse" # the subpath of your site, e.g. /blog
+url: "https://blackms.github.io" # the base hostname & protocol for your site
+
+# GitHub repository info
+repository: blackms/AlphaPulse
+github_username: blackms
+
+# Site settings
+email: your-email@example.com
+author: AlphaPulse Team
+license: AGPL-3.0-or-later
+version: v1.19.0.0
+
+# Build settings
+markdown: kramdown
+highlighter: rouge
+theme: minima
+
+# Include files
+include:
+  - README.md
+  - releases/
+  - integration/
+  - analysis/
+  - security/
+  - development/
+
+# Exclude files from processing
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - node_modules
+  - vendor/
+
+# Kramdown settings
+kramdown:
+  input: GFM
+  syntax_highlighter: rouge
+  syntax_highlighter_opts:
+    default_lang: python
+
+# Collections for better organization
+collections:
+  releases:
+    output: true
+    permalink: /:collection/:name/
+  integration:
+    output: true
+    permalink: /:collection/:name/
+  analysis:
+    output: true
+    permalink: /:collection/:name/
+  security:
+    output: true
+    permalink: /:collection/:name/
+  development:
+    output: true
+    permalink: /:collection/:name/
+
+# Default layouts
+defaults:
+  - scope:
+      path: ""
+      type: "pages"
+    values:
+      layout: "default"
+  - scope:
+      path: ""
+      type: "releases"
+    values:
+      layout: "default"
+  - scope:
+      path: ""
+      type: "integration"
+    values:
+      layout: "default"
+  - scope:
+      path: ""
+      type: "analysis"
+    values:
+      layout: "default"
+  - scope:
+      path: ""
+      type: "security"
+    values:
+      layout: "default"
+  - scope:
+      path: ""
+      type: "development"
+    values:
+      layout: "default"
+
+# Navigation
+navigation:
+  - title: Home
+    url: /
+  - title: Documentation
+    url: /README/
+  - title: Releases
+    url: /releases/
+  - title: Integration
+    url: /integration/
+  - title: Analysis
+    url: /analysis/
+  - title: Security
+    url: /security/
+  - title: Development
+    url: /development/
+
+# Plugin settings
+plugins:
+  - jekyll-feed
+  - jekyll-sitemap
+  - jekyll-seo-tag
+  - jekyll-github-metadata
+
+# GitHub Pages specific settings
+github: [metadata]
+safe: true
+incremental: false
+lsi: false
+gist:
+  noscript: false
+
+# SEO and social
+google_analytics: # Add your GA tracking ID if you have one
+twitter:
+  username: # Add twitter username if you have one
+
+# Logo and favicon
+logo: # Add path to logo if you have one
+favicon: # Add path to favicon if you have one
+
+# Custom variables
+project:
+  name: AlphaPulse
+  tagline: AI-Driven Hedge Fund System
+  features:
+    - Multi-Agent Trading System
+    - Advanced Risk Management
+    - Real-time Portfolio Optimization
+    - GPU-Accelerated Machine Learning
+    - Comprehensive Monitoring & Analytics

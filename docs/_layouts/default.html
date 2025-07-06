@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="{{ site.lang | default: "en-US" }}">
+  <head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    {% seo %}
+    
+    <link rel="stylesheet" href="{{ "/assets/css/style.css?v=" | append: site.github.build_revision | relative_url }}">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="{{ site.baseurl }}/assets/favicon.ico">
+    
+    <!-- Additional meta tags -->
+    <meta name="author" content="{{ site.author | default: 'AlphaPulse Team' }}">
+    <meta name="keywords" content="algorithmic trading, AI hedge fund, machine learning, quantitative finance, trading system">
+    
+    <!-- Open Graph tags -->
+    <meta property="og:title" content="{{ page.title | default: site.title }}">
+    <meta property="og:description" content="{{ page.description | default: site.description }}">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ page.url | absolute_url }}">
+    
+    <!-- Twitter Card tags -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ page.title | default: site.title }}">
+    <meta name="twitter:description" content="{{ page.description | default: site.description }}">
+  </head>
+
+  <body>
+    <div class="wrapper">
+      <!-- Include navigation -->
+      {% include navigation.html %}
+      
+      <!-- Page header -->
+      <header class="page-header">
+        <div class="header-content">
+          {% if page.title %}
+            <h1 class="project-name">{{ page.title }}</h1>
+          {% else %}
+            <h1 class="project-name">{{ site.title | default: site.github.repository_name }}</h1>
+          {% endif %}
+          
+          {% if page.description %}
+            <h2 class="project-tagline">{{ page.description }}</h2>
+          {% elsif site.description %}
+            <h2 class="project-tagline">{{ site.description }}</h2>
+          {% endif %}
+        </div>
+      </header>
+
+      <!-- Main content -->
+      <main id="content" class="main-content" role="main">
+        {{ content }}
+
+        <!-- Page footer -->
+        <footer class="site-footer">
+          <div class="footer-content">
+            <div class="footer-section">
+              <h4>AlphaPulse</h4>
+              <p>AI-powered algorithmic trading system designed to operate as an automated hedge fund.</p>
+              <p>
+                <strong>Version:</strong> {{ site.version | default: "v1.19.0.0" }}<br>
+                <strong>License:</strong> <a href="https://github.com/blackms/AlphaPulse/blob/main/LICENSE">{{ site.license | default: "AGPL-3.0-or-later" }}</a>
+              </p>
+            </div>
+            
+            <div class="footer-section">
+              <h4>Quick Links</h4>
+              <ul>
+                <li><a href="{{ site.baseurl }}/USER_GUIDE.html">User Guide</a></li>
+                <li><a href="{{ site.baseurl }}/development/CLAUDE.html">Developer Guide</a></li>
+                <li><a href="{{ site.baseurl }}/API_DOCUMENTATION.html">API Documentation</a></li>
+                <li><a href="{{ site.baseurl }}/releases/">Release Notes</a></li>
+              </ul>
+            </div>
+            
+            <div class="footer-section">
+              <h4>Resources</h4>
+              <ul>
+                <li><a href="https://github.com/blackms/AlphaPulse">GitHub Repository</a></li>
+                <li><a href="https://github.com/blackms/AlphaPulse/issues">Report Issues</a></li>
+                <li><a href="{{ site.baseurl }}/integration/">Integration Status</a></li>
+                <li><a href="{{ site.baseurl }}/security/">Security</a></li>
+              </ul>
+            </div>
+          </div>
+          
+          <div class="footer-bottom">
+            <p>
+              &copy; 2024 AlphaPulse Trading System. 
+              Licensed under <a href="https://github.com/blackms/AlphaPulse/blob/main/LICENSE">AGPL-3.0-or-later</a>.
+            </p>
+            <p class="footer-updated">
+              Documentation updated: {{ site.time | date: "%B %d, %Y" }}
+            </p>
+          </div>
+        </footer>
+      </main>
+    </div>
+
+    <!-- Analytics -->
+    {% if site.google_analytics %}
+      <script>
+        (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+        (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+        m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+        })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+        ga('create', '{{ site.google_analytics }}', 'auto');
+        ga('send', 'pageview');
+      </script>
+    {% endif %}
+  </body>
+</html>
