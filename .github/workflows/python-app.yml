@@ -99,7 +99,12 @@ jobs:
     - name: Install dependencies with Poetry
       run: |
         echo "===== Installing Python dependencies with Poetry ====="
-        poetry install --no-interaction
+        
+        # Increase pip timeout for large packages like Ray/Dask
+        export PIP_DEFAULT_TIMEOUT=120
+        
+        # Install with no interaction and include dev dependencies for testing
+        poetry install --no-interaction --no-ansi
         
         # Verify the TA-Lib installation
         echo "Verifying TA-Lib installation..."
@@ -166,20 +171,22 @@ print('All key dependencies verified!')
         
         # Run basic import tests first to verify CI setup
         echo "Running basic import tests..."
-        poetry run pytest \
+        timeout 300 poetry run pytest \
           --cov=src/alpha_pulse \
           --cov-report=xml \
           --cov-report=term-missing \
           -v \
           -x \
           --tb=short \
+          --timeout=60 \
           src/alpha_pulse/tests/test_basic_imports.py
         
         # If basic tests pass, run additional verification tests
         echo "Running additional verification tests..."
-        poetry run pytest \
+        timeout 300 poetry run pytest \
           -v \
           --tb=short \
+          --timeout=30 \
           src/alpha_pulse/tests/test_imports.py \
           src/alpha_pulse/tests/verify_imports.py \
           || echo "Some additional tests failed, but basic functionality is verified"
