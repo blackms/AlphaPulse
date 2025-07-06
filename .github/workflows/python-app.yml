@@ -64,7 +64,9 @@ jobs:
           libffi-dev \
           libssl-dev \
           redis-tools \
-          postgresql-client
+          postgresql-client \
+          libsnappy-dev \
+          liblz4-dev
     
     - name: Set up Poetry
       uses: snok/install-poetry@v1
