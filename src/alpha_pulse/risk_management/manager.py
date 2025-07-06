@@ -24,6 +24,11 @@ from alpha_pulse.decorators.audit_decorators import (
     audit_trade_decision,
     audit_portfolio_action
 )
+from alpha_pulse.risk.correlation_analyzer import (
+    CorrelationAnalyzer,
+    CorrelationAnalysisConfig,
+    CorrelationMethod
+)
 
 
 @dataclass
@@ -61,6 +66,7 @@ class RiskManager(IRiskManager):
         position_sizer: Optional[IPositionSizer] = None,
         risk_analyzer: Optional[RiskAnalyzer] = None,
         portfolio_optimizer: Optional[IPortfolioOptimizer] = None,
+        correlation_analyzer: Optional[CorrelationAnalyzer] = None,
     ):
         """
         Initialize risk management system.
@@ -71,18 +77,21 @@ class RiskManager(IRiskManager):
             position_sizer: Position sizing strategy
             risk_analyzer: Risk analysis component
             portfolio_optimizer: Portfolio optimization strategy
+            correlation_analyzer: Correlation analysis component
         """
         self.exchange = exchange
         self.config = config or RiskConfig()
         self.position_sizer = position_sizer or AdaptivePositionSizer()
         self.risk_analyzer = risk_analyzer or RiskAnalyzer()
         self.portfolio_optimizer = portfolio_optimizer or AdaptivePortfolioOptimizer()
+        self.correlation_analyzer = correlation_analyzer or CorrelationAnalyzer()
         
         self.state = PortfolioState(
             portfolio_value=self.config.initial_portfolio_value,
             cash=self.config.initial_portfolio_value
         )
         self._historical_metrics: List[RiskMetrics] = []
+        self._historical_returns: Dict[str, pd.Series] = {}
         
         logger.info("Initialized RiskManager")
 
@@ -241,6 +250,9 @@ class RiskManager(IRiskManager):
         self.state.risk_metrics = risk_metrics
         self._historical_metrics.append(risk_metrics)
         
+        # Store historical returns for correlation analysis
+        self._historical_returns = asset_returns
+        
         # Check if rebalancing is needed
         if self._should_rebalance(asset_returns):
             self._rebalance_portfolio(asset_returns)
@@ -345,8 +357,8 @@ class RiskManager(IRiskManager):
         """Generate comprehensive risk management report."""
         if not self.state.risk_metrics:
             return {}
-            
-        return {
+        
+        report = {
             'portfolio_value': self.state.portfolio_value,
             'current_leverage': (
                 sum(
@@ -366,3 +378,81 @@ class RiskManager(IRiskManager):
             'current_weights': self.state.current_weights,
             'last_rebalance': self.state.last_rebalance,
         }
+        
+        # Add correlation analysis if we have historical returns
+        if self._historical_returns:
+            try:
+                # Convert dict of Series to DataFrame
+                returns_df = pd.DataFrame(self._historical_returns)
+                
+                if not returns_df.empty and len(returns_df) >= 30:  # Need minimum data
+                    # Get comprehensive correlation summary
+                    correlation_summary = self.correlation_analyzer.get_correlation_summary(returns_df)
+                    
+                    # Calculate correlation matrices
+                    pearson_matrix = self.correlation_analyzer.calculate_correlation_matrix(
+                        returns_df, CorrelationMethod.PEARSON
+                    )
+                    
+                    # Calculate tail dependencies if we have enough data
+                    tail_deps = None
+                    if len(returns_df) >= 100:
+                        tail_deps = self.correlation_analyzer.calculate_tail_dependencies(returns_df)
+                    
+                    # Detect correlation regimes
+                    regimes = None
+                    if len(returns_df) >= 252:  # Need at least 1 year of data
+                        regimes = self.correlation_analyzer.detect_correlation_regimes(returns_df)
+                    
+                    report['correlation_analysis'] = {
+                        'summary': correlation_summary,
+                        'correlation_matrix': {
+                            'pearson': pearson_matrix.matrix.tolist(),
+                            'assets': pearson_matrix.assets,
+                            'average_correlation': pearson_matrix.get_average_correlation()
+                        },
+                        'tail_dependencies': [
+                            {
+                                'pair': f"{td.asset1}_{td.asset2}",
+                                'lower_tail': td.lower_tail,
+                                'upper_tail': td.upper_tail,
+                                'asymmetry': td.asymmetry
+                            } for td in tail_deps
+                        ] if tail_deps else None,
+                        'correlation_regimes': [
+                            {
+                                'regime_id': r.regime_id,
+                                'type': r.regime_type,
+                                'start_date': r.start_date.isoformat() if hasattr(r.start_date, 'isoformat') else str(r.start_date),
+                                'end_date': r.end_date.isoformat() if hasattr(r.end_date, 'isoformat') else str(r.end_date),
+                                'avg_correlation': r.average_correlation
+                            } for r in regimes
+                        ] if regimes else None,
+                        'rolling_correlations': self._calculate_recent_rolling_correlations(returns_df)
+                    }
+            except Exception as e:
+                logger.warning(f"Failed to generate correlation analysis: {str(e)}")
+                report['correlation_analysis'] = {'error': str(e)}
+        
+        return report
+    
+    def _calculate_recent_rolling_correlations(self, returns_df: pd.DataFrame) -> Dict[str, float]:
+        """Calculate recent rolling correlations for the report."""
+        try:
+            # Get rolling correlations for the last 30 days
+            rolling_corrs = self.correlation_analyzer.calculate_rolling_correlations(
+                returns_df.tail(90),  # Use last 90 days
+                window=30
+            )
+            
+            # Return the most recent correlation for each pair
+            recent_corrs = {}
+            for pair, corr_series in rolling_corrs.items():
+                clean_series = corr_series.dropna()
+                if len(clean_series) > 0:
+                    recent_corrs[pair] = float(clean_series.iloc[-1])
+            
+            return recent_corrs
+        except Exception as e:
+            logger.warning(f"Failed to calculate recent rolling correlations: {str(e)}")
+            return {}

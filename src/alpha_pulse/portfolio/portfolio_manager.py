@@ -30,6 +30,11 @@ from alpha_pulse.decorators.audit_decorators import (
     audit_risk_check
 )
 from alpha_pulse.hedging.risk.manager import HedgeManager
+from alpha_pulse.risk.correlation_analyzer import (
+    CorrelationAnalyzer,
+    CorrelationAnalysisConfig,
+    CorrelationMethod
+)
 
 
 
@@ -120,6 +125,14 @@ class PortfolioManager:
         self.hedge_manager = hedge_manager
         self.tail_risk_enabled = config.get('tail_risk_hedging', {}).get('enabled', True) if hedge_manager else False
         self.tail_risk_threshold = config.get('tail_risk_hedging', {}).get('threshold', 0.05)  # 5% tail risk
+        
+        # Initialize correlation analyzer
+        correlation_config = CorrelationAnalysisConfig(
+            lookback_period=self.config.get('strategy', {}).get('lookback_period', 252),
+            rolling_window=63,
+            detect_regimes=True
+        )
+        self.correlation_analyzer = CorrelationAnalyzer(correlation_config)
 
     def _validate_config(self) -> None:
         """Validate configuration fields."""
@@ -195,17 +208,18 @@ class PortfolioManager:
             
         return base_strategy
 
-    def _get_risk_constraints(self) -> Dict[str, float]:
+    def _get_risk_constraints(self) -> Dict[str, Any]:
         """
-        Extract risk constraints from configuration.
+        Extract risk constraints from configuration and add correlation analysis.
 
         Returns:
-            Dictionary of risk constraints
+            Dictionary of risk constraints including correlation data
         """
         return {
             'volatility_target': self.config.get('volatility_target', 0.15),
             'max_drawdown_limit': self.config.get('max_drawdown_limit', 0.25),
-            'correlation_threshold': self.config.get('correlation_threshold', 0.7)
+            'correlation_threshold': self.config.get('correlation_threshold', 0.7),
+            'correlation_analyzer': self.correlation_analyzer
         }
 
     async def get_current_allocation(self, exchange: Any) -> Dict[str, float]:

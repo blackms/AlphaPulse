@@ -9,6 +9,8 @@ from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import APIKeyHeader
 
 from alpha_pulse.monitoring.alerting import AlertManager, load_alerting_config
+from alpha_pulse.risk_management import RiskManager, RiskConfig
+from alpha_pulse.exchanges.exchange_adapters import PaperTradingAdapter
 
 from .data import (
     MetricsDataAccessor,
@@ -146,3 +148,28 @@ def get_system_accessor():
 def get_alert_manager():
     """Get the alert manager instance."""
     return alert_manager
+
+
+# Risk manager instance (singleton)
+_risk_manager = None
+
+
+def get_risk_manager():
+    """Get the risk manager instance."""
+    global _risk_manager
+    if _risk_manager is None:
+        # Use paper trading adapter for API
+        exchange = PaperTradingAdapter()
+        risk_config = RiskConfig(
+            max_position_size=0.2,
+            max_portfolio_leverage=1.5,
+            max_drawdown=0.25,
+            stop_loss=0.1,
+            var_confidence=0.95,
+            risk_free_rate=0.0,
+            target_volatility=0.15,
+            rebalance_threshold=0.1,
+            initial_portfolio_value=100000.0
+        )
+        _risk_manager = RiskManager(exchange=exchange, config=risk_config)
+    return _risk_manager

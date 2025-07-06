@@ -70,7 +70,20 @@ class HRPStrategy(BaseStrategy):
                 return self._allocate_with_stablecoins({returns.columns[0]: 1.0})
             
             # Compute correlation matrix
-            corr = returns.corr()
+            correlation_analyzer = risk_constraints.get('correlation_analyzer')
+            if correlation_analyzer:
+                # Use advanced correlation analysis
+                corr_result = correlation_analyzer.calculate_correlation_matrix(
+                    returns,
+                    method=correlation_analyzer.config.correlation_methods[0]
+                )
+                corr = pd.DataFrame(
+                    corr_result.matrix,
+                    index=returns.columns,
+                    columns=returns.columns
+                )
+            else:
+                corr = returns.corr()
             logger.debug(f"Correlation matrix:\n{corr}")
             
             # Ensure correlation matrix is symmetric and contains doubles

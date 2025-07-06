@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from decimal import Decimal
 import pandas as pd
+import numpy as np
 from loguru import logger
 
 from alpha_pulse.exchanges.interfaces import BaseExchange
@@ -187,4 +188,50 @@ async def get_position_size_recommendation(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to calculate position size for {asset}"
+        )
+
+@router.get(
+    "/report",
+    response_model=Dict,
+    dependencies=[Depends(get_api_client)]
+)
+async def get_comprehensive_risk_report(
+    exchange: BaseExchange = Depends(get_exchange_client)
+):
+    """Get comprehensive risk report including correlation analysis."""
+    try:
+        risk_manager = RiskManager(
+            exchange=exchange,
+            config=RiskConfig(
+                max_position_size=0.2,
+                max_portfolio_leverage=1.5,
+                max_drawdown=0.25,
+                target_volatility=0.15
+            )
+        )
+        
+        # Get the comprehensive risk report
+        risk_report = risk_manager.get_risk_report()
+        
+        # Ensure all values are JSON serializable
+        def make_serializable(obj):
+            if isinstance(obj, pd.Timestamp):
+                return obj.isoformat()
+            elif isinstance(obj, (np.integer, np.floating)):
+                return float(obj)
+            elif isinstance(obj, np.ndarray):
+                return obj.tolist()
+            elif isinstance(obj, dict):
+                return {k: make_serializable(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [make_serializable(item) for item in obj]
+            return obj
+        
+        return make_serializable(risk_report)
+        
+    except Exception as e:
+        logger.error(f"Error generating risk report: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to generate risk report"
         )

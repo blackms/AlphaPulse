@@ -20,9 +20,30 @@ class MPTStrategy(BaseStrategy):
                 prices[col] = 1.0
         return prices.pct_change().fillna(0).dropna()
     
-    def compute_covariance(self, returns: pd.DataFrame) -> pd.DataFrame:
-        """Compute covariance matrix from returns."""
-        return returns.cov()
+    def compute_covariance(self, returns: pd.DataFrame, correlation_analyzer=None) -> pd.DataFrame:
+        """
+        Compute covariance matrix from returns.
+        
+        If correlation_analyzer is provided, use advanced correlation methods.
+        """
+        if correlation_analyzer:
+            # Use correlation analyzer for more sophisticated correlation calculation
+            corr_result = correlation_analyzer.calculate_correlation_matrix(
+                returns, 
+                method=correlation_analyzer.config.correlation_methods[0]
+            )
+            # Convert correlation matrix to covariance
+            std_devs = returns.std()
+            correlation_matrix = pd.DataFrame(
+                corr_result.matrix,
+                index=returns.columns,
+                columns=returns.columns
+            )
+            # Covariance = Correlation * StdDev_i * StdDev_j
+            covariance = correlation_matrix * np.outer(std_devs, std_devs)
+            return covariance
+        else:
+            return returns.cov()
     
     def compute_target_allocation(
         self,
@@ -43,7 +64,10 @@ class MPTStrategy(BaseStrategy):
         """
         returns = self.compute_returns(historical_data)
         mu = returns.mean() * 252  # Annualized returns
-        cov = self.compute_covariance(returns) * 252  # Annualized covariance
+        
+        # Use correlation analyzer if provided
+        correlation_analyzer = risk_constraints.get('correlation_analyzer')
+        cov = self.compute_covariance(returns, correlation_analyzer) * 252  # Annualized covariance
         
         # Optimize portfolio using mean-variance optimization
         n_assets = len(mu)
