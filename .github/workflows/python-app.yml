@@ -50,10 +50,21 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Set up Python 3.11
+    - name: Set up Python 3.12
       uses: actions/setup-python@v5
       with:
-        python-version: "3.11"
+        python-version: "3.12"
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          libpq-dev \
+          libffi-dev \
+          libssl-dev \
+          redis-tools \
+          postgresql-client
     
     - name: Set up Poetry
       uses: snok/install-poetry@v1
@@ -98,18 +109,47 @@ jobs:
         echo "Verifying TA-Lib AVGDEV function..."
         poetry run python -c "import talib; import numpy as np; data = np.random.random(100); result = talib.AVGDEV(data, timeperiod=5); print('AVGDEV function works!')" || echo "Failed to use AVGDEV function"
     
-    # Dependencies are already installed by Poetry in the previous step
     - name: Verify dependencies
       run: |
         echo "===== Verifying Python dependencies ====="
         
-        # Verify imports
-        echo "Verifying imports..."
-        poetry run python -c "from alpha_pulse.models import ModelTrainer; print('ModelTrainer successfully imported')"
+        # Verify core package imports
+        echo "Verifying core package imports..."
+        poetry run python -c "import alpha_pulse; print(f'AlphaPulse version: {alpha_pulse.__version__}')"
         
-        # Verify the dependencies are installed
-        echo "Verifying dependencies..."
-        poetry run python -c "import httpx; import ccxt; import langchain_openai; import textblob; import loguru; print('All required dependencies successfully imported')"
+        # Verify key dependencies are installed
+        echo "Verifying key dependencies..."
+        poetry run python -c "
+import sys
+dependencies = ['httpx', 'ccxt', 'langchain_openai', 'textblob', 'loguru', 'fastapi', 'sqlalchemy', 'psycopg2', 'redis']
+failed = []
+for dep in dependencies:
+    try:
+        __import__(dep)
+        print(f'✓ {dep}')
+    except ImportError as e:
+        print(f'✗ {dep}: {e}')
+        failed.append(dep)
+if failed:
+    print(f'Failed to import: {failed}')
+    sys.exit(1)
+print('All key dependencies verified!')
+"
+    
+    - name: Initialize test database
+      run: |
+        echo "===== Initializing test database ====="
+        
+        # Wait for PostgreSQL to be ready
+        until pg_isready -h localhost -p 5432 -U postgres; do
+          echo "Waiting for PostgreSQL..."
+          sleep 2
+        done
+        
+        # Test Redis connection
+        redis-cli -h localhost -p 6379 ping
+        
+        echo "Services are ready!"
     
     - name: Lint with flake8
       run: |
