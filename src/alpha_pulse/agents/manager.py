@@ -20,6 +20,8 @@ from alpha_pulse.decorators.audit_decorators import (
     audit_agent_signal,
     audit_trade_decision
 )
+from alpha_pulse.services.ensemble_service import EnsembleService
+from alpha_pulse.models.ensemble_model import AgentSignalCreate
 
 
 class AgentManager:
@@ -28,7 +30,7 @@ class AgentManager:
     Provides a unified interface for the risk management system.
     """
     
-    def __init__(self, config: Dict[str, Any] = None):
+    def __init__(self, config: Dict[str, Any] = None, ensemble_service: EnsembleService = None):
         """Initialize agent manager."""
         self.config = config or {}
         self.agents: Dict[str, BaseTradeAgent] = {}
@@ -42,6 +44,12 @@ class AgentManager:
         })
         self.signal_history: Dict[str, List[TradeSignal]] = defaultdict(list)
         self.performance_metrics: Dict[str, AgentMetrics] = {}
+        
+        # Ensemble integration
+        self.ensemble_service = ensemble_service
+        self.ensemble_id = None
+        self.agent_registry: Dict[str, str] = {}  # agent_type -> agent_id mapping
+        self.use_ensemble = config.get("use_ensemble", True) if ensemble_service else False
         
     async def initialize(self) -> None:
         """Initialize all agents."""
@@ -57,6 +65,10 @@ class AgentManager:
                 k: v / total_weight
                 for k, v in self.agent_weights.items()
             }
+            
+        # Initialize ensemble if available
+        if self.ensemble_service and self.use_ensemble:
+            await self._initialize_ensemble()
             
     @audit_trade_decision(extract_reasoning=True, include_market_data=True)
     async def generate_signals(self, market_data: MarketData) -> List[TradeSignal]:
@@ -93,9 +105,13 @@ class AgentManager:
                     continue
             
             logger.debug(f"Total signals collected: {len(all_signals)}")
-            # Aggregate signals
-            aggregated = await self._aggregate_signals(all_signals)
-            logger.debug(f"Aggregated signals: {len(aggregated)}")
+            # Aggregate signals using ensemble or fallback to basic method
+            if self.use_ensemble and self.ensemble_service and self.ensemble_id:
+                aggregated = await self._aggregate_signals_with_ensemble(all_signals)
+                logger.info(f"Ensemble-aggregated signals: {len(aggregated)}")
+            else:
+                aggregated = await self._aggregate_signals(all_signals)
+                logger.debug(f"Basic-aggregated signals: {len(aggregated)}")
             return aggregated
 
         except Exception as e:
@@ -277,3 +293,128 @@ class AgentManager:
                 
         # Signal is valid if majority of agents validate it
         return sum(validations) > len(validations) / 2 if validations else False
+    
+    async def _initialize_ensemble(self) -> None:
+        """Initialize ensemble configuration and register agents."""
+        try:
+            # Create ensemble configuration
+            ensemble_config = {
+                "aggregation_method": "adaptive",
+                "confidence_threshold": 0.6,
+                "outlier_detection": True,
+                "temporal_weighting": True,
+                "performance_tracking": True
+            }
+            
+            # Create ensemble
+            self.ensemble_id = self.ensemble_service.create_ensemble(
+                name="trading_agent_ensemble",
+                ensemble_type="voting",  # Use voting ensemble as default
+                config=ensemble_config
+            )
+            
+            # Register each agent with ensemble service
+            for agent_type in self.agents.keys():
+                agent_id = self.ensemble_service.register_agent(
+                    name=f"{agent_type}_agent",
+                    agent_type=agent_type,
+                    config={"weight": self.agent_weights.get(agent_type, 0)}
+                )
+                self.agent_registry[agent_type] = agent_id
+                
+            logger.info(f"Ensemble initialized with ID: {self.ensemble_id}")
+            logger.info(f"Registered {len(self.agent_registry)} agents")
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize ensemble: {str(e)}")
+            self.use_ensemble = False
+    
+    async def _aggregate_signals_with_ensemble(self, signals: List[TradeSignal]) -> List[TradeSignal]:
+        """Aggregate signals using ensemble methods."""
+        if not signals:
+            return []
+            
+        try:
+            # Group signals by symbol
+            signals_by_symbol = defaultdict(list)
+            for signal in signals:
+                signals_by_symbol[signal.symbol].append(signal)
+            
+            aggregated_signals = []
+            
+            for symbol, symbol_signals in signals_by_symbol.items():
+                # Convert to ensemble signal format
+                ensemble_signals = []
+                for signal in symbol_signals:
+                    agent_type = signal.metadata.get("agent_type")
+                    agent_id = self.agent_registry.get(agent_type)
+                    
+                    if agent_id:
+                        ensemble_signal = AgentSignalCreate(
+                            agent_id=agent_id,
+                            signal=signal.direction.value,
+                            confidence=signal.confidence,
+                            metadata={
+                                "symbol": signal.symbol,
+                                "target_price": signal.target_price,
+                                "stop_loss": signal.stop_loss,
+                                "agent_type": agent_type
+                            }
+                        )
+                        ensemble_signals.append(ensemble_signal)
+                
+                if ensemble_signals:
+                    # Get ensemble prediction
+                    ensemble_result = self.ensemble_service.get_ensemble_prediction(
+                        self.ensemble_id,
+                        ensemble_signals
+                    )
+                    
+                    # Convert back to TradeSignal format
+                    if ensemble_result.confidence >= 0.5:  # Minimum confidence threshold
+                        # Calculate aggregate target price and stop loss
+                        prices = [s.metadata.get("target_price", 0) for s in symbol_signals 
+                                if s.metadata.get("target_price")]
+                        stops = [s.metadata.get("stop_loss", 0) for s in symbol_signals 
+                               if s.metadata.get("stop_loss")]
+                        
+                        avg_target = np.mean(prices) if prices else None
+                        avg_stop = np.mean(stops) if stops else None
+                        
+                        ensemble_trade_signal = TradeSignal(
+                            symbol=symbol,
+                            direction=SignalDirection(ensemble_result.signal),
+                            confidence=ensemble_result.confidence,
+                            target_price=avg_target,
+                            stop_loss=avg_stop,
+                            reason=f"Ensemble prediction with {len(ensemble_result.contributing_agents)} agents",
+                            metadata={
+                                "ensemble_prediction": True,
+                                "ensemble_id": self.ensemble_id,
+                                "contributing_agents": ensemble_result.contributing_agents,
+                                "ensemble_weights": ensemble_result.weights,
+                                "execution_time_ms": ensemble_result.execution_time_ms,
+                                "agent_signals": [
+                                    {
+                                        "agent_type": s.metadata.get("agent_type"),
+                                        "signal": s.direction.value,
+                                        "confidence": s.confidence
+                                    }
+                                    for s in symbol_signals
+                                ]
+                            }
+                        )
+                        aggregated_signals.append(ensemble_trade_signal)
+                        
+                        logger.info(
+                            f"Ensemble signal for {symbol}: {ensemble_result.signal} "
+                            f"(confidence: {ensemble_result.confidence:.2f}, "
+                            f"agents: {len(ensemble_result.contributing_agents)})"
+                        )
+            
+            return aggregated_signals
+            
+        except Exception as e:
+            logger.error(f"Ensemble aggregation failed: {str(e)}")
+            # Fallback to basic aggregation
+            return await self._aggregate_signals(signals)
