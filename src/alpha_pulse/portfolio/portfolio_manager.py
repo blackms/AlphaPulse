@@ -29,6 +29,7 @@ from alpha_pulse.decorators.audit_decorators import (
     audit_trade_decision,
     audit_risk_check
 )
+from alpha_pulse.hedging.risk.manager import HedgeManager
 
 
 
@@ -93,12 +94,13 @@ class PortfolioManager:
         'llm_assisted': LLMAssistedStrategy
     }
 
-    def __init__(self, config_path: str):
+    def __init__(self, config_path: str, hedge_manager: HedgeManager = None):
         """
         Initialize portfolio manager with configuration.
 
         Args:
             config_path: Path to portfolio configuration YAML file
+            hedge_manager: Optional hedge manager for tail risk protection
         """
         logger.info(f"Initializing PortfolioManager with config from {config_path}")
         self.config = self._load_config(config_path)
@@ -113,6 +115,11 @@ class PortfolioManager:
         self.stablecoin_patterns: Set[str] = {
             'USDT', 'USDC', 'DAI', 'BUSD', 'UST', 'TUSD'
         }
+        
+        # Tail risk hedging integration
+        self.hedge_manager = hedge_manager
+        self.tail_risk_enabled = config.get('tail_risk_hedging', {}).get('enabled', True) if hedge_manager else False
+        self.tail_risk_threshold = config.get('tail_risk_hedging', {}).get('threshold', 0.05)  # 5% tail risk
 
     def _validate_config(self) -> None:
         """Validate configuration fields."""
@@ -612,6 +619,20 @@ class PortfolioManager:
             self.risk_constraints
         )
         
+        # Analyze tail risk before proceeding
+        tail_risk_analysis = None
+        hedge_trades = []
+        if self.tail_risk_enabled and self.hedge_manager:
+            tail_risk_analysis = await self._analyze_tail_risk(exchange, target_allocation)
+            
+            # If tail risk is elevated, get hedge recommendations
+            if tail_risk_analysis.get('tail_risk_score', 0) > self.tail_risk_threshold:
+                logger.warning(f"Elevated tail risk detected: {tail_risk_analysis['tail_risk_score']:.3f}")
+                hedge_recommendations = await self._get_hedge_recommendations(exchange, target_allocation)
+                if hedge_recommendations:
+                    hedge_trades = hedge_recommendations.get('trades', [])
+                    logger.info(f"Generated {len(hedge_trades)} hedge trades")
+        
         # Validate target allocation
         if not self.strategy.validate_constraints(target_allocation):
             violations = self.strategy.get_constraint_violations(target_allocation)
@@ -628,8 +649,14 @@ class PortfolioManager:
             total_value
         )
         
+        # Add hedge trades if any
+        all_trades = trades + hedge_trades
+        
         # Execute trades
         executed_trades = []
+        hedge_executed = []
+        
+        # Execute rebalancing trades first
         for trade in trades:
             try:
                 # Validate trade parameters
@@ -672,13 +699,31 @@ class PortfolioManager:
                 })
                 await self._attempt_trade_rollback(exchange, executed_trades)
                 
+        # Execute hedge trades if any
+        if hedge_trades:
+            logger.info(f"Executing {len(hedge_trades)} hedge trades")
+            for hedge_trade in hedge_trades:
+                try:
+                    result = await self._execute_hedge_trade(exchange, hedge_trade)
+                    hedge_executed.append(result)
+                    logger.info(f"Hedge trade executed: {result}")
+                except Exception as e:
+                    logger.error(f"Hedge trade failed: {str(e)}")
+                    hedge_executed.append({
+                        'trade': hedge_trade,
+                        'status': 'failed',
+                        'error': str(e)
+                    })
+        
         self.last_rebalance_time = datetime.now(timezone.utc)
         
         return {
             'status': 'completed',
             'initial_allocation': current_allocation,
             'target_allocation': target_allocation,
-            'trades': executed_trades
+            'trades': executed_trades,
+            'hedge_trades': hedge_executed,
+            'tail_risk_analysis': tail_risk_analysis
         }
         
     async def _attempt_trade_rollback(
@@ -716,3 +761,148 @@ class PortfolioManager:
                     )
                 except Exception as e:
                     logger.error(f"Rollback failed for {trade['asset']}: {str(e)}")
+    
+    async def _analyze_tail_risk(self, exchange: Any, target_allocation: Dict) -> Dict:
+        """Analyze tail risk for the target portfolio allocation."""
+        if not self.hedge_manager:
+            return {'tail_risk_score': 0}
+        
+        try:
+            # Get current portfolio data
+            portfolio_data = await self.get_portfolio_data(exchange)
+            
+            # Simulate portfolio with target allocation
+            simulated_positions = []
+            total_value = portfolio_data.total_value
+            
+            for asset, weight in target_allocation.items():
+                if asset == self.base_currency:
+                    continue
+                    
+                symbol = f"{asset}/{self.base_currency}"
+                current_price = await exchange.get_ticker_price(symbol)
+                if current_price:
+                    quantity = (float(weight) * float(total_value)) / float(current_price)
+                    simulated_positions.append({
+                        'symbol': asset,
+                        'quantity': quantity,
+                        'current_price': float(current_price),
+                        'value': quantity * float(current_price)
+                    })
+            
+            # Calculate tail risk metrics
+            tail_risk_score = 0
+            for position in simulated_positions:
+                # Simple tail risk estimation based on position concentration
+                position_weight = position['value'] / float(total_value)
+                if position_weight > 0.2:  # More than 20% concentration
+                    tail_risk_score += position_weight * 0.5
+                    
+            # Add correlation-based tail risk (simplified)
+            if len(simulated_positions) < 5:  # Low diversification
+                tail_risk_score += 0.1
+                
+            return {
+                'tail_risk_score': min(tail_risk_score, 1.0),  # Cap at 1.0
+                'position_count': len(simulated_positions),
+                'max_position_weight': max((p['value'] / float(total_value) for p in simulated_positions), default=0),
+                'analysis_timestamp': datetime.now(timezone.utc).isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"Tail risk analysis failed: {str(e)}")
+            return {'tail_risk_score': 0, 'error': str(e)}
+    
+    async def _get_hedge_recommendations(self, exchange: Any, target_allocation: Dict) -> Dict:
+        """Get hedge recommendations from hedge manager."""
+        if not self.hedge_manager:
+            return {}
+        
+        try:
+            # Get current portfolio data
+            portfolio_data = await self.get_portfolio_data(exchange)
+            
+            # Create hedge analysis request
+            hedge_request = {
+                'portfolio_value': float(portfolio_data.total_value),
+                'positions': [
+                    {
+                        'symbol': pos.symbol,
+                        'quantity': pos.quantity,
+                        'current_price': getattr(pos, 'current_price', 0),
+                        'value': pos.quantity * getattr(pos, 'current_price', 0)
+                    }
+                    for pos in portfolio_data.positions
+                ],
+                'target_allocation': target_allocation,
+                'risk_tolerance': 'moderate'  # Could be configurable
+            }
+            
+            # Get hedge recommendations (simplified approach)
+            hedge_trades = []
+            
+            # Calculate total portfolio risk
+            total_value = float(portfolio_data.total_value)
+            high_risk_threshold = 0.15  # 15% position limit
+            
+            for asset, weight in target_allocation.items():
+                if asset == self.base_currency:
+                    continue
+                    
+                if float(weight) > high_risk_threshold:
+                    # Suggest hedging for oversized positions
+                    hedge_amount = (float(weight) - high_risk_threshold) * total_value
+                    
+                    # Simple hedge trade (could be more sophisticated)
+                    hedge_trades.append({
+                        'asset': asset,
+                        'type': 'hedge_short',
+                        'value': hedge_amount * 0.5,  # Hedge 50% of excess exposure
+                        'reason': f'Hedge oversized position ({weight:.1%} > {high_risk_threshold:.1%})'
+                    })
+            
+            return {
+                'trades': hedge_trades,
+                'total_hedge_value': sum(t['value'] for t in hedge_trades),
+                'recommendation_timestamp': datetime.now(timezone.utc).isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"Hedge recommendation failed: {str(e)}")
+            return {'error': str(e)}
+    
+    async def _execute_hedge_trade(self, exchange: Any, hedge_trade: Dict) -> Dict:
+        """Execute a hedge trade."""
+        try:
+            symbol = f"{hedge_trade['asset']}/{self.base_currency}"
+            current_price = await exchange.get_ticker_price(symbol)
+            
+            if not current_price:
+                raise ValueError(f"Could not get price for {symbol}")
+            
+            # Calculate quantity
+            quantity = hedge_trade['value'] / float(current_price)
+            
+            # Execute the hedge trade
+            result = await exchange.execute_trade(
+                asset=hedge_trade['asset'],
+                amount=quantity,
+                side='sell',  # Hedge trades are typically short positions
+                order_type='market'
+            )
+            
+            return {
+                'trade': hedge_trade,
+                'status': 'success',
+                'executed_quantity': quantity,
+                'executed_price': float(current_price),
+                'trade_result': result
+            }
+            
+        except Exception as e:
+            logger.error(f"Hedge trade execution failed: {str(e)}")
+            return {
+                'trade': hedge_trade,
+                'status': 'failed',
+                'error': str(e)
+            }
