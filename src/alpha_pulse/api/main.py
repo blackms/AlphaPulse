@@ -42,6 +42,8 @@ from alpha_pulse.services.tail_risk_hedging_service import TailRiskHedgingServic
 from alpha_pulse.hedging.risk.manager import HedgeManager
 from alpha_pulse.services.ensemble_service import EnsembleService
 from alpha_pulse.ml.online.online_learning_service import OnlineLearningService
+from alpha_pulse.ml.gpu.gpu_service import GPUService
+from alpha_pulse.ml.gpu.gpu_config import get_default_config as get_gpu_config
 
 # Import exchange data synchronization
 from .exchange_sync_integration import (
@@ -354,6 +356,34 @@ async def startup_event():
         logger.error(f"Error initializing online learning service: {e}")
         # Continue without online learning if it fails
     
+    # Initialize GPU acceleration service
+    try:
+        gpu_config = get_gpu_config()
+        # Enable GPU monitoring for dashboard integration
+        gpu_config.monitoring.enable_monitoring = True
+        gpu_config.monitoring.monitor_interval_sec = 30
+        
+        app.state.gpu_service = GPUService(config=gpu_config)
+        await app.state.gpu_service.start()
+        
+        # Log GPU availability
+        gpu_metrics = app.state.gpu_service.get_metrics()
+        num_gpus = len(gpu_metrics.get('devices', {}))
+        if num_gpus > 0:
+            logger.info(f"GPU acceleration service started with {num_gpus} GPU(s) available")
+            # Log GPU details
+            for device_id, device_info in gpu_metrics['devices'].items():
+                logger.info(f"GPU {device_id}: {device_info['name']} - "
+                          f"Memory: {device_info['memory_usage']:.1%} used")
+        else:
+            logger.warning("GPU acceleration service started but no GPUs detected - using CPU fallback")
+            
+    except Exception as e:
+        logger.error(f"Error initializing GPU acceleration service: {e}")
+        logger.warning("Continuing without GPU acceleration")
+        # Set gpu_service to None to indicate it's not available
+        app.state.gpu_service = None
+    
     logger.info("AlphaPulse API started successfully")
 
 
@@ -387,6 +417,14 @@ async def shutdown_event():
             logger.info("Risk budgeting service stopped")
     except Exception as e:
         logger.error(f"Error stopping risk budgeting service: {e}")
+    
+    # Stop GPU service
+    try:
+        if hasattr(app.state, 'gpu_service') and app.state.gpu_service:
+            await app.state.gpu_service.stop()
+            logger.info("GPU acceleration service stopped")
+    except Exception as e:
+        logger.error(f"Error stopping GPU service: {e}")
     
     # Stop regime detection service
     try:
