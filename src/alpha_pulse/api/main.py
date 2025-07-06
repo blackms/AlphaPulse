@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
 
 # Import routers
-from .routers import metrics, alerts, portfolio, system, trades, correlation, risk_budget, regime, hedging
+from .routers import metrics, alerts, portfolio, system, trades, correlation, risk_budget, regime, hedging, liquidity
 from .routes import audit  # Add audit routes
 from .websockets import endpoints as ws_endpoints
 from .websockets.subscription import subscription_manager
@@ -121,6 +121,7 @@ app.include_router(correlation.router, prefix="/api/v1", tags=["correlation"])
 app.include_router(risk_budget.router, prefix="/api/v1/risk-budget", tags=["risk-budget"])
 app.include_router(regime.router, prefix="/api/v1/regime", tags=["regime"])
 app.include_router(hedging.router, prefix="/api/v1/hedging", tags=["hedging"])
+app.include_router(liquidity.router, prefix="/api/v1/liquidity", tags=["liquidity"])
 
 # Register exchange sync events
 register_exchange_sync_events(app)
