@@ -3,7 +3,7 @@
 [![CI/CD](https://github.com/blackms/AlphaPulse/actions/workflows/python-app.yml/badge.svg)](https://github.com/blackms/AlphaPulse/actions/workflows/python-app.yml)
 [![Codecov](https://codecov.io/gh/blackms/AlphaPulse/branch/main/graph/badge.svg)](https://codecov.io/gh/blackms/AlphaPulse)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/release/python-3110/)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Documentation](https://img.shields.io/badge/docs-github_pages-blue.svg)](https://blackms.github.io/AlphaPulse/)
 
