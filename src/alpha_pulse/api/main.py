@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
 
 # Import routers
-from .routers import metrics, alerts, portfolio, system, trades, correlation, risk_budget
+from .routers import metrics, alerts, portfolio, system, trades, correlation, risk_budget, regime
 from .routes import audit  # Add audit routes
 from .websockets import endpoints as ws_endpoints
 from .websockets.subscription import subscription_manager
@@ -34,6 +34,10 @@ from alpha_pulse.services.risk_budgeting_service import (
     RiskBudgetingConfig
 )
 from alpha_pulse.risk.dynamic_budgeting import DynamicRiskBudgetManager
+from alpha_pulse.services.regime_detection_service import (
+    RegimeDetectionService,
+    RegimeDetectionConfig
+)
 
 # Import exchange data synchronization
 from .exchange_sync_integration import (
@@ -107,6 +111,7 @@ app.include_router(system.router, prefix="/api/v1", tags=["system"])
 app.include_router(audit.router, prefix="/api/v1", tags=["audit"])  # Add audit routes
 app.include_router(correlation.router, prefix="/api/v1", tags=["correlation"])
 app.include_router(risk_budget.router, prefix="/api/v1/risk-budget", tags=["risk-budget"])
+app.include_router(regime.router, prefix="/api/v1/regime", tags=["regime"])
 
 # Register exchange sync events
 register_exchange_sync_events(app)
@@ -250,6 +255,35 @@ async def startup_event():
         logger.error(f"Error initializing risk budgeting service: {e}")
         # Continue without risk budgeting if it fails
     
+    # Initialize regime detection service (CRITICAL - was missing!)
+    try:
+        # Create regime detection configuration
+        regime_config = RegimeDetectionConfig(
+            update_interval_minutes=60,  # Update every hour
+            enable_alerts=True,
+            track_performance=True,
+            redis_url="redis://localhost:6379",
+            model_checkpoint_interval=24,  # Save model daily
+            model_checkpoint_path="/tmp/regime_model_checkpoint.pkl"
+        )
+        
+        # Create and initialize regime detection service
+        app.state.regime_detection_service = RegimeDetectionService(
+            config=regime_config,
+            alert_manager=alert_manager
+        )
+        
+        # Initialize the service (loads or trains model)
+        await app.state.regime_detection_service.initialize()
+        
+        # Start the service
+        await app.state.regime_detection_service.start()
+        logger.info("HMM Regime detection service started successfully - CRITICAL GAP FIXED!")
+        
+    except Exception as e:
+        logger.error(f"Error initializing regime detection service: {e}")
+        # This is critical but continue running
+    
     logger.info("AlphaPulse API started successfully")
 
 
@@ -283,6 +317,14 @@ async def shutdown_event():
             logger.info("Risk budgeting service stopped")
     except Exception as e:
         logger.error(f"Error stopping risk budgeting service: {e}")
+    
+    # Stop regime detection service
+    try:
+        if hasattr(app.state, 'regime_detection_service'):
+            await app.state.regime_detection_service.stop()
+            logger.info("Regime detection service stopped")
+    except Exception as e:
+        logger.error(f"Error stopping regime detection service: {e}")
     
     # Stop the subscription manager
     await subscription_manager.stop()

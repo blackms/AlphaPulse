@@ -193,3 +193,13 @@ def get_risk_budgeting_service(request: Request):
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         detail="Risk budgeting service not available"
     )
+
+
+def get_regime_detection_service(request: Request):
+    """Get the regime detection service instance from app state."""
+    if hasattr(request.app.state, 'regime_detection_service'):
+        return request.app.state.regime_detection_service
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="Regime detection service not available"
+    )
