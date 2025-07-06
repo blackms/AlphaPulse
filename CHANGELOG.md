@@ -5,6 +5,49 @@ All notable changes to the AlphaPulse project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.18.0.0] - 2025-07-06
+### Added
+- **Sprint 3-4 Integration Completion**: Major integration of enterprise features from Sprint 3-4
+  - **Correlation Analysis Integration** (High Priority)
+    - Created comprehensive API endpoints for correlation analysis (`/api/v1/correlation/*`)
+    - Integrated correlation analyzer into portfolio optimization strategies (MPT, HRP)
+    - Added correlation matrix calculation to risk reports
+    - Wired rolling correlations, tail dependencies, and regime detection
+    - Connected correlation thresholds to position sizing and risk limits
+  - **Dynamic Risk Budgeting Integration** (High Priority)
+    - Started RiskBudgetingService in API startup sequence
+    - Created risk budget API endpoints (`/api/v1/risk-budget/*`)
+    - Integrated dynamic position sizing with risk budget constraints
+    - Connected risk manager to use dynamic leverage and position limits
+    - Added regime-based budget adjustments to position sizing calculations
+  - **HMM Regime Detection Integration** (CRITICAL)
+    - Fixed critical gap: Started RegimeDetectionService in API initialization
+    - Created comprehensive regime API endpoints (`/api/v1/regime/*`)
+    - Added proper service lifecycle management (initialize/start/shutdown)
+    - Configured Redis integration for regime state persistence
+    - Set up model checkpointing for regime detector resilience
+
+### Integration Architecture
+- **Service Layer**: All three services now properly initialized and managed in API lifecycle
+- **Risk Management**: Position sizing and risk limits now respect dynamic budgets and correlations
+- **Portfolio Optimization**: Strategies now use correlation data for better diversification
+- **API Coverage**: Full REST API support for all integrated features
+
+### Performance
+- Correlation analysis cached with 5-minute TTL for efficiency
+- Risk budget updates propagated in real-time to trading components
+- Regime detection runs on 60-minute intervals with alert integration
+
+### Fixed
+- **CRITICAL**: HMM Regime Detection Service was never started in API - now properly initialized
+- Position sizing now correctly applies risk budget constraints
+- Risk manager evaluate_trade now uses dynamic limits from risk budgeting service
+
+### Documentation
+- Updated API documentation with new endpoints
+- Enhanced integration test coverage
+- Added configuration examples for all services
+
 ## [1.17.0.0] - 2025-01-06
 ### Added
 - **Regime Detection Integration Analysis**: Comprehensive analysis revealing regime detection is only 10% integrated
