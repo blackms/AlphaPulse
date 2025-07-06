@@ -658,16 +658,7 @@ We welcome contributions to AlphaPulse! Here's how to get started:
 
 ## 📜 Changelog
 
-### v1.15.0.0 - Latest
-
-#### Added
-- **Comprehensive Redis Caching Layer**: Multi-tier caching architecture with L1 memory, L2 local Redis, and L3 distributed caching
-- **Intelligent Cache Strategies**: Implemented cache-aside, write-through, write-behind, and refresh-ahead patterns
-- **Advanced Cache Invalidation**: Time-based, event-driven, dependency-based, and tag-based invalidation
-- **Cache Monitoring & Analytics**: Real-time metrics, hot key detection, and performance recommendations
-- **Optimized Serialization**: MessagePack with compression support (LZ4, Snappy, GZIP)
-
-### v1.14.0.0 - Previous
+### v1.14.0.0 - Latest
 
 #### Added
 - Distributed Computing with Ray and Dask for parallel backtesting
