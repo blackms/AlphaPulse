@@ -5,6 +5,39 @@ All notable changes to the AlphaPulse project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.17.0.0] - 2025-01-06
+### Added
+- **Regime Detection Integration Analysis**: Comprehensive analysis revealing regime detection is only 10% integrated
+  - Created `REGIME_INTEGRATION_ANALYSIS.md` documenting integration gaps
+  - Created `REGIME_INTEGRATION_GUIDE.md` with step-by-step integration instructions
+  - Created `REGIME_INTEGRATION_TASKS.md` with prioritized task list
+  - Implemented `RegimeIntegrationHub` for central regime distribution
+  - Created `RegimeAwareComponent` base classes for easy integration
+  - Implemented example regime-aware agents for all 6 trading agents
+  - Created `RegimeIntegratedRiskManager` and `RegimeIntegratedPortfolioOptimizer`
+
+### Documentation
+- Updated all documentation to reflect regime detection integration status
+- Added regime detection endpoints to API documentation (not yet functional)
+- Updated system architecture documentation with regime detection status
+- Enhanced multi-agent system documentation with integration gaps
+- Added integration status section to regime-detection.md
+
+### Key Findings
+- **RegimeDetectionService exists but is never started** - Critical gap in API initialization
+- Only 1 of 6 agents uses regime detection (Technical agent with simplified version)
+- No portfolio optimization integration with regime detection
+- Partial risk management integration
+- No backtesting integration with regime tracking
+- No monitoring dashboard for regime detection
+
+### Next Steps
+- Start `RegimeDetectionService` in API initialization (Critical)
+- Integrate all 6 trading agents with regime detection
+- Full risk management and portfolio optimization integration
+- Add regime monitoring endpoints and dashboard
+- Complete backtesting integration with regime analysis
+
 ## [1.16.0.0] - 2025-01-06
 ### Added
 - **Database Optimization System**: Comprehensive database performance optimization

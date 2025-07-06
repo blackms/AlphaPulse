@@ -1,7 +1,9 @@
 # AlphaPulse API Documentation
 
 ## Overview
-The AlphaPulse API provides RESTful endpoints to interact with the trading system. The API is built using FastAPI and provides secure access to trading data, portfolio management, risk analysis, and hedging operations.
+The AlphaPulse API provides RESTful endpoints to interact with the trading system. The API is built using FastAPI and provides secure access to trading data, portfolio management, risk analysis, hedging operations, and system monitoring.
+
+> **Note (v1.16.0.0)**: Market regime detection endpoints are documented but not yet implemented. The `RegimeDetectionService` exists but is not started in the API initialization.
 
 ## Authentication
 The API supports two authentication methods:
@@ -463,6 +465,86 @@ Provides real-time trade updates.
     "quantity": 0.1,
     "price": 51000.0,
     "timestamp": "2025-04-22T10:30:00Z"
+  }
+}
+```
+
+### Market Regime Detection (Not Yet Active)
+
+> **Implementation Status**: These endpoints are documented but not functional as the `RegimeDetectionService` is not started in the API.
+
+#### Get Current Regime
+```
+GET /api/v1/regime/current
+```
+Returns the current market regime classification.
+
+**Response (when implemented):**
+```json
+{
+  "regime": "BULL",
+  "confidence": 0.85,
+  "parameters": {
+    "volatility_threshold": 0.2,
+    "leverage_multiplier": 1.5,
+    "position_limit": 0.15
+  },
+  "timestamp": "2025-04-22T10:30:00Z"
+}
+```
+
+#### Get Regime History
+```
+GET /api/v1/regime/history?hours=24
+```
+Returns regime transitions over the specified time period.
+
+**Response (when implemented):**
+```json
+{
+  "regimes": [
+    {
+      "regime": "SIDEWAYS",
+      "confidence": 0.75,
+      "start_time": "2025-04-21T10:00:00Z",
+      "end_time": "2025-04-22T08:00:00Z"
+    },
+    {
+      "regime": "BULL",
+      "confidence": 0.85,
+      "start_time": "2025-04-22T08:00:00Z",
+      "end_time": null
+    }
+  ]
+}
+```
+
+#### Analyze Market Regime
+```
+POST /api/v1/regime/analyze
+```
+Analyzes market data to determine regime.
+
+**Request:**
+```json
+{
+  "market_data": {
+    "symbol": "BTC",
+    "timeframe": "1h",
+    "lookback_hours": 24
+  }
+}
+```
+
+**Response (when implemented):**
+```json
+{
+  "regime": "BULL",
+  "confidence": 0.82,
+  "features": {
+    "volatility": 0.18,
+    "trend_strength": 0.75,
+    "volume_ratio": 1.2
   }
 }
 ```

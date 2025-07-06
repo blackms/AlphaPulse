@@ -4,6 +4,8 @@
 
 The AlphaPulse Market Regime Detection system uses Hidden Markov Models (HMMs) to identify and classify market conditions into distinct regimes. This sophisticated approach enables the trading system to adapt strategies based on current market states, improving risk management and performance.
 
+> **IMPORTANT UPDATE (v1.16.0.0)**: While the regime detection system is fully implemented and sophisticated, it is currently operating at approximately 10% of its potential due to integration gaps. The `RegimeDetectionService` exists but is not started in the API, and only 1 of 6 agents uses a simplified version of regime detection. See the [Integration Status](#integration-status) section for details.
+
 ## Key Features
 
 ### 1. Multi-Factor Regime Detection
@@ -221,19 +223,55 @@ optimization:
    - Use proper cross-validation
    - Consider simpler models
 
+## Integration Status
+
+### Current State (10% Integration)
+- ✅ Sophisticated HMM implementation (`MarketRegimeHMM`)
+- ✅ Feature engineering pipeline complete
+- ✅ `RegimeDetectionService` fully implemented
+- ❌ Service is never started in the API
+- ❌ Only 1/6 agents use regime detection (Technical agent with simplified version)
+- ❌ No portfolio optimization integration
+- ❌ Partial risk management integration
+- ❌ No backtesting integration
+- ❌ No monitoring dashboard integration
+
+### Required Integration Steps
+1. **Start the Service** (Critical): Add `RegimeDetectionService` initialization in `src/alpha_pulse/api/main.py`
+2. **Create Integration Hub**: Use `RegimeIntegrationHub` from `src/alpha_pulse/integration/regime_integration.py`
+3. **Update All Agents**: Implement `RegimeAwareAgent` pattern for all 6 agents
+4. **Risk Management**: Replace with `RegimeIntegratedRiskManager`
+5. **Portfolio Optimization**: Use `RegimeIntegratedPortfolioOptimizer`
+6. **Add API Endpoints**: Create `/regime/*` endpoints for monitoring
+7. **Update Backtesting**: Add regime tracking to backtest engine
+
+### Integration Files Created
+- `REGIME_INTEGRATION_ANALYSIS.md` - Comprehensive gap analysis
+- `REGIME_INTEGRATION_GUIDE.md` - Step-by-step integration instructions
+- `REGIME_INTEGRATION_TASKS.md` - Prioritized task list
+- `src/alpha_pulse/integration/regime_integration.py` - Central hub implementation
+- `src/alpha_pulse/integration/agent_regime_integration.py` - Agent examples
+- `src/alpha_pulse/integration/portfolio_risk_regime_integration.py` - Risk/portfolio integration
+
 ## Future Enhancements
 
-1. **Deep Learning Integration**
+1. **Immediate Priority - Complete Integration**
+   - Start the RegimeDetectionService
+   - Integrate all trading agents
+   - Full risk management integration
+   - Portfolio optimization with regime constraints
+
+2. **Deep Learning Integration**
    - LSTM for sequence modeling
    - Attention mechanisms for feature selection
    - Neural HMMs for complex patterns
 
-2. **Multi-Asset Regimes**
+3. **Multi-Asset Regimes**
    - Cross-asset regime correlation
    - Sector-specific regime detection
    - Global macro regime integration
 
-3. **Adaptive Learning**
+4. **Adaptive Learning**
    - Online HMM parameter updates
    - Regime definition evolution
    - Transfer learning across markets

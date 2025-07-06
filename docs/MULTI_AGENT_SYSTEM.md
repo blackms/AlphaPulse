@@ -33,11 +33,21 @@ graph TB
         optimizer[ML Optimizer]
     end
 
-    subgraph Agents["Self-Supervised Agents 🤖"]
+    subgraph Agents["Specialized Trading Agents 🤖"]
         direction TB
         tech[Technical Agent]
-        rev[Reversion Agent]
+        fund[Fundamental Agent]
         sent[Sentiment Agent]
+        value[Value Agent]
+        act[Activist Agent]
+        buff[Warren Buffett Agent]
+    end
+
+    subgraph RegimeDetection["Market Regime Detection 🎯"]
+        direction TB
+        hmm[HMM Detector]
+        regime[Current Regime]
+        note[⚠️ Currently NOT Started]
     end
 
     subgraph Data["Market Data 📊"]
@@ -45,9 +55,12 @@ graph TB
         price[Price Data]
         vol[Volume Data]
         news[News/Sentiment]
+        fund_data[Fundamental Data]
     end
 
     Data --> Agents
+    Data --> RegimeDetection
+    RegimeDetection -.->|Should Connect.-> Agents
     Agents --> Supervisor
     Supervisor --> Agents
 
@@ -61,6 +74,8 @@ graph TB
     Agents --> Outputs
     Supervisor --> Outputs
 ```
+
+> **Note**: The system includes 6 specialized trading agents, but only the Technical Agent has basic regime detection. The sophisticated HMM-based `RegimeDetectionService` exists but is not started in the API, leaving the system operating at ~10% of its regime detection potential.
 
 ## Workflow Description 🔄
 

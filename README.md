@@ -7,7 +7,7 @@
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Documentation](https://img.shields.io/badge/docs-github_pages-blue.svg)](https://blackms.github.io/AlphaPulse/)
 
-AlphaPulse is a sophisticated algorithmic trading system that combines multiple specialized AI trading agents, advanced risk management controls, modern portfolio optimization techniques, high-performance caching, and real-time monitoring and analytics to create a comprehensive hedge fund solution.
+AlphaPulse is a sophisticated algorithmic trading system that combines multiple specialized AI trading agents, advanced risk management controls, modern portfolio optimization techniques, high-performance caching, database optimization, market regime detection, and real-time monitoring and analytics to create a comprehensive hedge fund solution.
 
 ## Table of Contents
 

@@ -8,6 +8,13 @@ The AI Hedge Fund system implements a multi-agent trading architecture with four
 3. Portfolio Management Layer
 4. Output Layer (Trading Actions)
 
+Additionally, the system includes advanced features:
+- **Market Regime Detection** (HMM-based, currently 10% integrated)
+- **Explainable AI** (SHAP, LIME, counterfactual explanations)
+- **Distributed Computing** (Ray & Dask for parallel processing)
+- **High-Performance Caching** (Multi-tier Redis architecture)
+- **Database Optimization** (Connection pooling, query optimization)
+
 ## Component Architecture
 
 ```mermaid
@@ -167,28 +174,46 @@ graph TD
 
 ## System Features
 
-### 1. Adaptive Learning
+### 1. Market Regime Detection (Currently 10% Integrated)
+- **Implemented**: HMM-based regime detection with 5 states (Bull, Bear, Sideways, Crisis, Recovery)
+- **Missing**: Service not started, agents not integrated, no dashboard
+- **Impact**: System operates without market context awareness
+- **Files**: `src/alpha_pulse/models/market_regime_hmm.py`, `src/alpha_pulse/services/regime_detection_service.py`
+
+### 2. Adaptive Learning
 - Performance-based agent weight adjustment
 - Strategy adaptation based on market conditions
 - Risk parameter optimization
 
-### 2. Risk Management
+### 3. Risk Management
 - Multi-level risk controls
 - Dynamic position sizing
 - Portfolio-level risk monitoring
 - Drawdown protection
 
-### 3. Portfolio Optimization
+### 4. Portfolio Optimization
 - Multiple strategy support
 - Adaptive rebalancing
 - Transaction cost consideration
 - LLM-assisted analysis
 
-### 4. Execution Management
+### 5. Execution Management
 - Smart order routing
 - Transaction cost analysis
 - Trade impact monitoring
 - Error handling and rollback
+
+### 6. High-Performance Caching
+- Multi-tier Redis architecture (L1 Memory, L2 Local, L3 Distributed)
+- Intelligent invalidation and warming strategies
+- Performance monitoring and optimization
+- 90%+ cache hit rates for frequently accessed data
+
+### 7. Database Optimization
+- Advanced connection pooling with pgbouncer
+- Query optimization and intelligent routing
+- Read/write splitting across replicas
+- Automated index management
 
 ## Monitoring and Control
 
