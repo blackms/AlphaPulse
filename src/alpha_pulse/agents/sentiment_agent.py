@@ -15,6 +15,7 @@ from .interfaces import (
     SignalDirection,
     AgentMetrics
 )
+from alpha_pulse.decorators.audit_decorators import audit_agent_signal
 
 
 class SentimentAgent(BaseTradeAgent):
@@ -49,6 +50,7 @@ class SentimentAgent(BaseTradeAgent):
         self.volume_history = defaultdict(list)
         self.momentum_history = defaultdict(list)
         
+    @audit_agent_signal(agent_type='sentiment', include_market_data=True)
     async def generate_signals(self, market_data: MarketData) -> List[TradeSignal]:
         """
         Generate trading signals based on sentiment analysis.

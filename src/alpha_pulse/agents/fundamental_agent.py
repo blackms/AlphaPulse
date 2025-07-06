@@ -14,6 +14,7 @@ from .interfaces import (
     SignalDirection,
     AgentMetrics
 )
+from alpha_pulse.decorators.audit_decorators import audit_agent_signal
 
 
 class FundamentalAgent(BaseTradeAgent):
@@ -54,6 +55,7 @@ class FundamentalAgent(BaseTradeAgent):
         self.sector_correlations = {}
         self.historical_zscore_threshold = config.get("zscore_threshold", 2.0)
         
+    @audit_agent_signal(agent_type='fundamental', include_market_data=True)
     async def generate_signals(self, market_data: MarketData) -> List[TradeSignal]:
         """
         Generate trading signals based on fundamental analysis.

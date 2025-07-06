@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
 
 # Import routers
-from .routers import metrics, alerts, portfolio, system, trades, correlation, risk_budget, regime
+from .routers import metrics, alerts, portfolio, system, trades, correlation, risk_budget, regime, hedging, liquidity, ensemble, online_learning
 from .routes import audit  # Add audit routes
 from .websockets import endpoints as ws_endpoints
 from .websockets.subscription import subscription_manager
@@ -38,6 +38,10 @@ from alpha_pulse.services.regime_detection_service import (
     RegimeDetectionService,
     RegimeDetectionConfig
 )
+from alpha_pulse.services.tail_risk_hedging_service import TailRiskHedgingService
+from alpha_pulse.hedging.risk.manager import HedgeManager
+from alpha_pulse.services.ensemble_service import EnsembleService
+from alpha_pulse.ml.online.online_learning_service import OnlineLearningService
 
 # Import exchange data synchronization
 from .exchange_sync_integration import (
@@ -69,10 +73,16 @@ app.add_middleware(
     enable_performance_monitoring=True
 )
 
-# Add CSRF protection middleware
+# Add CSRF protection middleware with secure secret management
+from alpha_pulse.utils.secrets_manager import create_secrets_manager
+
+# Get CSRF secret from secure storage
+secrets_manager = create_secrets_manager()
+csrf_secret = secrets_manager.get_secret("csrf_secret") or secrets_manager.get_jwt_secret()
+
 app.add_middleware(
     CSRFProtectionMiddleware,
-    secret_key="your-csrf-secret-key",  # In production, use proper secret management
+    secret_key=csrf_secret,
     exempt_paths=["/health", "/metrics", "/docs", "/openapi.json"]
 )
 
@@ -112,6 +122,10 @@ app.include_router(audit.router, prefix="/api/v1", tags=["audit"])  # Add audit 
 app.include_router(correlation.router, prefix="/api/v1", tags=["correlation"])
 app.include_router(risk_budget.router, prefix="/api/v1/risk-budget", tags=["risk-budget"])
 app.include_router(regime.router, prefix="/api/v1/regime", tags=["regime"])
+app.include_router(hedging.router, prefix="/api/v1/hedging", tags=["hedging"])
+app.include_router(liquidity.router, prefix="/api/v1/liquidity", tags=["liquidity"])
+app.include_router(ensemble.router, prefix="/api/v1/ensemble", tags=["ensemble"])
+app.include_router(online_learning.router, prefix="/api/v1/online-learning", tags=["online-learning"])
 
 # Register exchange sync events
 register_exchange_sync_events(app)
@@ -284,6 +298,62 @@ async def startup_event():
         logger.error(f"Error initializing regime detection service: {e}")
         # This is critical but continue running
     
+    # Initialize tail risk hedging service
+    try:
+        tail_risk_config = {
+            'enabled': True,
+            'threshold': 0.05,  # 5% tail risk threshold
+            'check_interval_minutes': 60,
+            'max_hedge_cost': 0.02  # 2% of portfolio
+        }
+        
+        # Create hedge manager with default config
+        hedge_manager = HedgeManager()
+        
+        app.state.tail_risk_hedging_service = TailRiskHedgingService(
+            hedge_manager=hedge_manager,
+            alert_manager=alert_manager,
+            config=tail_risk_config
+        )
+        await app.state.tail_risk_hedging_service.start()
+        logger.info("Tail risk hedging service started successfully")
+    except Exception as e:
+        logger.error(f"Error initializing tail risk hedging service: {e}")
+    
+    # Initialize ensemble service
+    try:
+        # Create ensemble service
+        app.state.ensemble_service = EnsembleService()
+        logger.info("Ensemble service initialized successfully")
+    except Exception as e:
+        logger.error(f"Error initializing ensemble service: {e}")
+        # Continue without ensemble service if it fails
+    
+    # Initialize online learning service
+    try:
+        # Get database session for online learning
+        from alpha_pulse.data_pipeline.database.connection import get_db_session
+        db_session = next(get_db_session())
+        
+        # Online learning configuration
+        online_learning_config = {
+            'checkpoint_dir': './checkpoints/online_learning',
+            'model_timeout': 300,  # 5 minutes
+            'drift_check_interval': 60,  # 1 minute
+            'performance_window': 100,  # Last 100 predictions
+            'enable_auto_rollback': True,
+            'min_performance_threshold': 0.6
+        }
+        
+        app.state.online_learning_service = OnlineLearningService(
+            db=db_session,
+            config=online_learning_config
+        )
+        logger.info("Online learning service initialized successfully")
+    except Exception as e:
+        logger.error(f"Error initializing online learning service: {e}")
+        # Continue without online learning if it fails
+    
     logger.info("AlphaPulse API started successfully")
 
 
@@ -325,6 +395,24 @@ async def shutdown_event():
             logger.info("Regime detection service stopped")
     except Exception as e:
         logger.error(f"Error stopping regime detection service: {e}")
+    
+    # Stop tail risk hedging service
+    try:
+        if hasattr(app.state, 'tail_risk_hedging_service'):
+            await app.state.tail_risk_hedging_service.stop()
+            logger.info("Tail risk hedging service stopped")
+    except Exception as e:
+        logger.error(f"Error stopping tail risk hedging service: {e}")
+    
+    # Stop online learning service
+    try:
+        if hasattr(app.state, 'online_learning_service'):
+            # Stop all active sessions
+            for session_id in list(app.state.online_learning_service.active_sessions.keys()):
+                await app.state.online_learning_service.stop_session(session_id, save_checkpoint=True)
+            logger.info("Online learning service stopped")
+    except Exception as e:
+        logger.error(f"Error stopping online learning service: {e}")
     
     # Stop the subscription manager
     await subscription_manager.stop()

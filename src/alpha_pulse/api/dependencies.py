@@ -203,3 +203,36 @@ def get_regime_detection_service(request: Request):
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         detail="Regime detection service not available"
     )
+
+
+# Agent manager instance (singleton)
+_agent_manager = None
+
+
+def get_agent_manager(request: Request):
+    """Get the agent manager instance."""
+    global _agent_manager
+    if _agent_manager is None:
+        from alpha_pulse.agents.manager import AgentManager
+        
+        # Get ensemble service if available
+        ensemble_service = None
+        if hasattr(request.app.state, 'ensemble_service'):
+            ensemble_service = request.app.state.ensemble_service
+        
+        # Initialize agent manager with ensemble integration
+        config = {
+            "use_ensemble": True,
+            "agent_weights": {
+                "activist": 0.15,
+                "value": 0.20,
+                "fundamental": 0.20,
+                "sentiment": 0.15,
+                "technical": 0.15,
+                "valuation": 0.15
+            }
+        }
+        
+        _agent_manager = AgentManager(config=config, ensemble_service=ensemble_service)
+    
+    return _agent_manager

@@ -828,34 +828,43 @@ class PortfolioManager:
             return {'tail_risk_score': 0, 'error': str(e)}
     
     async def _get_hedge_recommendations(self, exchange: Any, target_allocation: Dict) -> Dict:
-        """Get hedge recommendations from hedge manager."""
-        if not self.hedge_manager:
-            return {}
-        
+        """Get hedge recommendations from tail risk hedging service."""
         try:
             # Get current portfolio data
             portfolio_data = await self.get_portfolio_data(exchange)
             
-            # Create hedge analysis request
-            hedge_request = {
-                'portfolio_value': float(portfolio_data.total_value),
-                'positions': [
-                    {
-                        'symbol': pos.symbol,
-                        'quantity': pos.quantity,
-                        'current_price': getattr(pos, 'current_price', 0),
-                        'value': pos.quantity * getattr(pos, 'current_price', 0)
-                    }
-                    for pos in portfolio_data.positions
-                ],
-                'target_allocation': target_allocation,
-                'risk_tolerance': 'moderate'  # Could be configurable
-            }
+            # First, check if we're using the hedge manager directly
+            if self.hedge_manager:
+                # Use the hedge manager's recommend_hedges method
+                portfolio_dict = {
+                    'positions': [
+                        {
+                            'symbol': pos.symbol,
+                            'quantity': pos.quantity,
+                            'current_price': getattr(pos, 'current_price', 0),
+                            'value': pos.quantity * getattr(pos, 'current_price', 0)
+                        }
+                        for pos in portfolio_data.positions
+                    ],
+                    'total_value': float(portfolio_data.total_value),
+                    'cash': float(portfolio_data.cash_balance)
+                }
+                
+                recommendations = self.hedge_manager.recommend_hedges(
+                    portfolio_dict,
+                    risk_tolerance='moderate',
+                    max_cost=0.02 * float(portfolio_data.total_value)  # 2% max hedge cost
+                )
+                
+                return {
+                    'trades': recommendations.get('hedges', []),
+                    'total_hedge_value': sum(h.get('cost', 0) for h in recommendations.get('hedges', [])),
+                    'recommendation_timestamp': datetime.now(timezone.utc).isoformat(),
+                    'analysis': recommendations.get('analysis', {})
+                }
             
-            # Get hedge recommendations (simplified approach)
+            # Fallback to simple hedge recommendations
             hedge_trades = []
-            
-            # Calculate total portfolio risk
             total_value = float(portfolio_data.total_value)
             high_risk_threshold = 0.15  # 15% position limit
             
@@ -867,7 +876,6 @@ class PortfolioManager:
                     # Suggest hedging for oversized positions
                     hedge_amount = (float(weight) - high_risk_threshold) * total_value
                     
-                    # Simple hedge trade (could be more sophisticated)
                     hedge_trades.append({
                         'asset': asset,
                         'type': 'hedge_short',

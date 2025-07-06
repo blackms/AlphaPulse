@@ -1,5 +1,5 @@
 """
-Exchange credentials management.
+Exchange credentials management with secure secret storage integration.
 """
 from typing import Dict, Optional, Any
 import os
@@ -7,6 +7,9 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 from loguru import logger
+
+# Import the secure secrets manager
+from alpha_pulse.utils.secrets_manager import create_secrets_manager
 
 
 @dataclass
@@ -19,67 +22,81 @@ class Credentials:
 
 
 class CredentialsManager:
-    """Manages exchange API credentials."""
+    """Manages exchange API credentials with secure secret storage."""
 
     def __init__(self):
-        """Initialize credentials manager."""
+        """Initialize credentials manager with integrated secret management."""
         self._credentials: Dict[str, Credentials] = {}
         self._config_path = os.path.expanduser("~/.alpha_pulse/credentials.json")
+        # Initialize secure secrets manager
+        self._secrets_manager = create_secrets_manager()
         self._load_credentials()
 
     def _load_credentials(self) -> None:
-        """Load credentials from config file."""
+        """Load credentials from secure secret storage."""
         try:
-            config_path = Path(self._config_path)
-            logger.debug(f"CREDS DEBUG - Looking for credentials file at: {self._config_path}")
+            # First try to load from secure secrets manager
+            logger.info("Attempting to load credentials from secure secret storage")
             
-            if not config_path.exists():
-                logger.info(f"No credentials file found at {self._config_path}")
-                # Check environment variables as fallback
-                logger.debug("CREDS DEBUG - Checking environment variables for API keys")
-                api_key = os.environ.get('BYBIT_API_KEY', os.environ.get('EXCHANGE_API_KEY', ''))
-                api_secret = os.environ.get('BYBIT_API_SECRET', os.environ.get('EXCHANGE_API_SECRET', ''))
-                testnet = os.environ.get('EXCHANGE_TESTNET', 'true').lower() == 'true'
-                
-                if api_key and api_secret:
-                    logger.debug(f"CREDS DEBUG - Found API key in environment: {api_key}")
-                    logger.debug(f"CREDS DEBUG - Environment testnet setting: {testnet}")
-                    self._credentials['bybit'] = Credentials(
-                        api_key=api_key,
-                        api_secret=api_secret,
-                        testnet=testnet
-                    )
-                return
-
-            logger.debug(f"CREDS DEBUG - Credentials file exists, loading content")
-            with open(config_path, "r") as f:
-                data = json.load(f)
+            # Get list of supported exchanges
+            exchanges = ['bybit', 'binance', 'coinbase', 'kraken']  # Add more as needed
             
-            logger.debug(f"CREDS DEBUG - Loaded credentials data: {json.dumps(data, indent=2)}")
-
-            for exchange, creds in data.items():
-                logger.debug(f"CREDS DEBUG - Processing credentials for: {exchange}")
-                api_key = creds.get("api_key", "")
-                api_secret = creds.get("api_secret", "")
-                testnet = creds.get("testnet", False)
+            for exchange in exchanges:
+                try:
+                    # Try to get credentials from secrets manager
+                    creds_dict = self._secrets_manager.get_exchange_credentials(exchange)
+                    
+                    if creds_dict and creds_dict.get('api_key') and creds_dict.get('api_secret'):
+                        logger.info(f"Successfully loaded credentials for {exchange} from secure storage")
+                        
+                        self._credentials[exchange] = Credentials(
+                            api_key=creds_dict['api_key'],
+                            api_secret=creds_dict['api_secret'],
+                            testnet=creds_dict.get('testnet', False),
+                            passphrase=creds_dict.get('passphrase')
+                        )
+                except Exception as e:
+                    logger.debug(f"No credentials found for {exchange} in secure storage: {e}")
+            
+            # If no credentials found in secure storage, fall back to legacy methods
+            if not self._credentials:
+                logger.info("No credentials found in secure storage, checking legacy sources")
                 
-                logger.debug(f"CREDS DEBUG - {exchange} API Key: {api_key}")
-                logger.debug(f"CREDS DEBUG - {exchange} API Secret: {api_secret}")
-                logger.debug(f"CREDS DEBUG - {exchange} Testnet: {testnet}")
-                
-                self._credentials[exchange] = Credentials(
-                    api_key=api_key,
-                    api_secret=api_secret,
-                    testnet=testnet,
-                    passphrase=creds.get("passphrase")
-                )
+                # Check legacy JSON file (log warning about security risk)
+                config_path = Path(self._config_path)
+                if config_path.exists():
+                    logger.warning(f"SECURITY WARNING: Loading credentials from plain JSON file at {self._config_path}")
+                    logger.warning("Please migrate to secure secret storage using the migration script")
+                    
+                    with open(config_path, "r") as f:
+                        data = json.load(f)
+                    
+                    for exchange, creds in data.items():
+                        self._credentials[exchange] = Credentials(
+                            api_key=creds.get("api_key", ""),
+                            api_secret=creds.get("api_secret", ""),
+                            testnet=creds.get("testnet", False),
+                            passphrase=creds.get("passphrase")
+                        )
+                else:
+                    # Final fallback to environment variables
+                    logger.info("Checking environment variables as final fallback")
+                    api_key = os.environ.get('BYBIT_API_KEY', os.environ.get('EXCHANGE_API_KEY', ''))
+                    api_secret = os.environ.get('BYBIT_API_SECRET', os.environ.get('EXCHANGE_API_SECRET', ''))
+                    testnet = os.environ.get('EXCHANGE_TESTNET', 'true').lower() == 'true'
+                    
+                    if api_key and api_secret:
+                        logger.info("Found API credentials in environment variables")
+                        self._credentials['bybit'] = Credentials(
+                            api_key=api_key,
+                            api_secret=api_secret,
+                            testnet=testnet
+                        )
 
             logger.info(f"Loaded credentials for {len(self._credentials)} exchanges")
-            logger.debug(f"CREDS DEBUG - Final credentials loaded for exchanges: {list(self._credentials.keys())}")
-
+            
         except Exception as e:
             logger.error(f"Error loading credentials: {str(e)}")
-            logger.debug(f"CREDS DEBUG - Exception details: {repr(e)}")
 
     def _save_credentials(self) -> None:
         """Save credentials to config file."""
@@ -110,7 +127,7 @@ class CredentialsManager:
 
     def get_credentials(self, exchange: str) -> Optional[Credentials]:
         """
-        Get credentials for exchange.
+        Get credentials for exchange with secure secret storage priority.
 
         Args:
             exchange: Exchange name
@@ -119,32 +136,51 @@ class CredentialsManager:
             Credentials if found, None otherwise
         """
         exchange_lower = exchange.lower()
-        logger.debug(f"CREDS DEBUG - Requesting credentials for exchange: {exchange_lower}")
+        logger.debug(f"Requesting credentials for exchange: {exchange_lower}")
         
-        # First check in loaded credentials
+        # First check in loaded credentials (from secure storage)
         creds = self._credentials.get(exchange_lower)
         
         if creds:
-            logger.debug(f"CREDS DEBUG - Found credentials for {exchange_lower} in credentials manager")
-            logger.debug(f"CREDS DEBUG - API Key: {creds.api_key}")
-            logger.debug(f"CREDS DEBUG - API Secret: {creds.api_secret}")
-            logger.debug(f"CREDS DEBUG - Testnet: {creds.testnet}")
+            logger.debug(f"Found credentials for {exchange_lower} in credentials manager")
+            # Don't log sensitive credential values
+            logger.debug(f"Testnet: {creds.testnet}")
             return creds
         
-        # If no credentials found, check environment variables as fallback
-        logger.debug(f"CREDS DEBUG - No credentials found for {exchange_lower} in credentials manager")
-        logger.debug(f"CREDS DEBUG - Checking environment variables as fallback")
+        # If not in cache, try to fetch directly from secure storage
+        logger.debug(f"No cached credentials for {exchange_lower}, checking secure storage")
+        
+        try:
+            creds_dict = self._secrets_manager.get_exchange_credentials(exchange_lower)
+            
+            if creds_dict and creds_dict.get('api_key') and creds_dict.get('api_secret'):
+                logger.info(f"Found credentials for {exchange_lower} in secure storage")
+                
+                # Create and cache the credentials
+                credentials = Credentials(
+                    api_key=creds_dict['api_key'],
+                    api_secret=creds_dict['api_secret'],
+                    testnet=creds_dict.get('testnet', False),
+                    passphrase=creds_dict.get('passphrase')
+                )
+                
+                # Cache for future use
+                self._credentials[exchange_lower] = credentials
+                return credentials
+                
+        except Exception as e:
+            logger.debug(f"Failed to get credentials from secure storage: {e}")
+        
+        # Final fallback to environment variables
+        logger.debug(f"Checking environment variables as final fallback")
         
         api_key = os.environ.get(f'{exchange_lower.upper()}_API_KEY', os.environ.get('EXCHANGE_API_KEY', ''))
         api_secret = os.environ.get(f'{exchange_lower.upper()}_API_SECRET', os.environ.get('EXCHANGE_API_SECRET', ''))
         
         if api_key and api_secret:
-            logger.debug(f"CREDS DEBUG - Found API credentials in environment variables")
-            logger.debug(f"CREDS DEBUG - API Key from env: {api_key}")
-            logger.debug(f"CREDS DEBUG - API Secret from env: {api_secret}")
+            logger.info(f"Found API credentials in environment variables for {exchange_lower}")
             
             testnet = os.environ.get('EXCHANGE_TESTNET', 'true').lower() == 'true'
-            logger.debug(f"CREDS DEBUG - Testnet from env: {testnet}")
             
             # Create temporary credentials but don't save them
             return Credentials(
@@ -153,7 +189,7 @@ class CredentialsManager:
                 testnet=testnet
             )
         
-        logger.debug(f"CREDS DEBUG - No credentials found for {exchange_lower} anywhere")
+        logger.warning(f"No credentials found for {exchange_lower} anywhere")
         return None
 
     def set_credentials(

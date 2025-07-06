@@ -13,6 +13,7 @@ from .interfaces import (
     SignalDirection,
     AgentMetrics
 )
+from alpha_pulse.decorators.audit_decorators import audit_agent_signal
 
 
 class ActivistAgent(BaseTradeAgent):
@@ -51,6 +52,7 @@ class ActivistAgent(BaseTradeAgent):
             "capital_return": 0.1
         })
         
+    @audit_agent_signal(agent_type='activist', include_market_data=True)
     async def generate_signals(self, market_data: MarketData) -> List[TradeSignal]:
         """
         Generate trading signals based on activist investing criteria.
