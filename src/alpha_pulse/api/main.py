@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
 
 # Import routers
-from .routers import metrics, alerts, portfolio, system, trades, correlation, risk_budget, regime
+from .routers import metrics, alerts, portfolio, system, trades, correlation, risk_budget, regime, hedging
 from .routes import audit  # Add audit routes
 from .websockets import endpoints as ws_endpoints
 from .websockets.subscription import subscription_manager
@@ -38,6 +38,8 @@ from alpha_pulse.services.regime_detection_service import (
     RegimeDetectionService,
     RegimeDetectionConfig
 )
+from alpha_pulse.services.tail_risk_hedging_service import TailRiskHedgingService
+from alpha_pulse.hedging.risk.manager import HedgeManager
 
 # Import exchange data synchronization
 from .exchange_sync_integration import (
@@ -118,6 +120,7 @@ app.include_router(audit.router, prefix="/api/v1", tags=["audit"])  # Add audit 
 app.include_router(correlation.router, prefix="/api/v1", tags=["correlation"])
 app.include_router(risk_budget.router, prefix="/api/v1/risk-budget", tags=["risk-budget"])
 app.include_router(regime.router, prefix="/api/v1/regime", tags=["regime"])
+app.include_router(hedging.router, prefix="/api/v1/hedging", tags=["hedging"])
 
 # Register exchange sync events
 register_exchange_sync_events(app)
@@ -290,6 +293,28 @@ async def startup_event():
         logger.error(f"Error initializing regime detection service: {e}")
         # This is critical but continue running
     
+    # Initialize tail risk hedging service
+    try:
+        tail_risk_config = {
+            'enabled': True,
+            'threshold': 0.05,  # 5% tail risk threshold
+            'check_interval_minutes': 60,
+            'max_hedge_cost': 0.02  # 2% of portfolio
+        }
+        
+        # Create hedge manager with default config
+        hedge_manager = HedgeManager()
+        
+        app.state.tail_risk_hedging_service = TailRiskHedgingService(
+            hedge_manager=hedge_manager,
+            alert_manager=alert_manager,
+            config=tail_risk_config
+        )
+        await app.state.tail_risk_hedging_service.start()
+        logger.info("Tail risk hedging service started successfully")
+    except Exception as e:
+        logger.error(f"Error initializing tail risk hedging service: {e}")
+    
     logger.info("AlphaPulse API started successfully")
 
 
@@ -331,6 +356,14 @@ async def shutdown_event():
             logger.info("Regime detection service stopped")
     except Exception as e:
         logger.error(f"Error stopping regime detection service: {e}")
+    
+    # Stop tail risk hedging service
+    try:
+        if hasattr(app.state, 'tail_risk_hedging_service'):
+            await app.state.tail_risk_hedging_service.stop()
+            logger.info("Tail risk hedging service stopped")
+    except Exception as e:
+        logger.error(f"Error stopping tail risk hedging service: {e}")
     
     # Stop the subscription manager
     await subscription_manager.stop()
