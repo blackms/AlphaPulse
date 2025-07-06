@@ -124,22 +124,7 @@ jobs:
         
         # Verify key dependencies are installed
         echo "Verifying key dependencies..."
-        poetry run python -c "
-import sys
-dependencies = ['httpx', 'ccxt', 'langchain_openai', 'textblob', 'loguru', 'fastapi', 'sqlalchemy', 'psycopg2', 'redis']
-failed = []
-for dep in dependencies:
-    try:
-        __import__(dep)
-        print(f'✓ {dep}')
-    except ImportError as e:
-        print(f'✗ {dep}: {e}')
-        failed.append(dep)
-if failed:
-    print(f'Failed to import: {failed}')
-    sys.exit(1)
-print('All key dependencies verified!')
-"
+        poetry run python -c "import sys; dependencies = ['httpx', 'ccxt', 'langchain_openai', 'textblob', 'loguru', 'fastapi', 'sqlalchemy', 'psycopg2', 'redis']; failed = []; [print(f'✓ {dep}') if __import__(dep) else None for dep in dependencies]; print('All key dependencies verified!')"
     
     - name: Initialize test database
       run: |
