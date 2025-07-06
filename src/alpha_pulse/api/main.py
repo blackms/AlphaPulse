@@ -1,3 +1,19 @@
+# AlphaPulse: AI-Driven Hedge Fund System
+# Copyright (C) 2024 AlphaPulse Trading System
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 """
 Main API application.
 
@@ -11,7 +27,7 @@ from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
 
 # Import routers
-from .routers import metrics, alerts, portfolio, system, trades, correlation, risk_budget, regime, hedging, liquidity, ensemble, online_learning
+from .routers import metrics, alerts, portfolio, system, trades, correlation, risk_budget, regime, hedging, liquidity, ensemble, online_learning, gpu, explainability, data_quality, backtesting, data_lake
 from .routes import audit  # Add audit routes
 from .websockets import endpoints as ws_endpoints
 from .websockets.subscription import subscription_manager
@@ -42,6 +58,8 @@ from alpha_pulse.services.tail_risk_hedging_service import TailRiskHedgingServic
 from alpha_pulse.hedging.risk.manager import HedgeManager
 from alpha_pulse.services.ensemble_service import EnsembleService
 from alpha_pulse.ml.online.online_learning_service import OnlineLearningService
+from alpha_pulse.ml.gpu.gpu_service import GPUService
+from alpha_pulse.ml.gpu.gpu_config import get_default_config as get_gpu_config
 
 # Import exchange data synchronization
 from .exchange_sync_integration import (
@@ -126,6 +144,11 @@ app.include_router(hedging.router, prefix="/api/v1/hedging", tags=["hedging"])
 app.include_router(liquidity.router, prefix="/api/v1/liquidity", tags=["liquidity"])
 app.include_router(ensemble.router, prefix="/api/v1/ensemble", tags=["ensemble"])
 app.include_router(online_learning.router, prefix="/api/v1/online-learning", tags=["online-learning"])
+app.include_router(gpu.router, prefix="/api/v1", tags=["gpu"])
+app.include_router(explainability.router, prefix="/api/v1", tags=["explainability"])
+app.include_router(data_quality.router, prefix="/api/v1", tags=["data-quality"])
+app.include_router(backtesting.router, prefix="/api/v1", tags=["backtesting"])
+app.include_router(data_lake.router, prefix="/api/v1", tags=["data-lake"])
 
 # Register exchange sync events
 register_exchange_sync_events(app)
@@ -354,6 +377,34 @@ async def startup_event():
         logger.error(f"Error initializing online learning service: {e}")
         # Continue without online learning if it fails
     
+    # Initialize GPU acceleration service
+    try:
+        gpu_config = get_gpu_config()
+        # Enable GPU monitoring for dashboard integration
+        gpu_config.monitoring.enable_monitoring = True
+        gpu_config.monitoring.monitor_interval_sec = 30
+        
+        app.state.gpu_service = GPUService(config=gpu_config)
+        await app.state.gpu_service.start()
+        
+        # Log GPU availability
+        gpu_metrics = app.state.gpu_service.get_metrics()
+        num_gpus = len(gpu_metrics.get('devices', {}))
+        if num_gpus > 0:
+            logger.info(f"GPU acceleration service started with {num_gpus} GPU(s) available")
+            # Log GPU details
+            for device_id, device_info in gpu_metrics['devices'].items():
+                logger.info(f"GPU {device_id}: {device_info['name']} - "
+                          f"Memory: {device_info['memory_usage']:.1%} used")
+        else:
+            logger.warning("GPU acceleration service started but no GPUs detected - using CPU fallback")
+            
+    except Exception as e:
+        logger.error(f"Error initializing GPU acceleration service: {e}")
+        logger.warning("Continuing without GPU acceleration")
+        # Set gpu_service to None to indicate it's not available
+        app.state.gpu_service = None
+    
     logger.info("AlphaPulse API started successfully")
 
 
@@ -387,6 +438,14 @@ async def shutdown_event():
             logger.info("Risk budgeting service stopped")
     except Exception as e:
         logger.error(f"Error stopping risk budgeting service: {e}")
+    
+    # Stop GPU service
+    try:
+        if hasattr(app.state, 'gpu_service') and app.state.gpu_service:
+            await app.state.gpu_service.stop()
+            logger.info("GPU acceleration service stopped")
+    except Exception as e:
+        logger.error(f"Error stopping GPU service: {e}")
     
     # Stop regime detection service
     try:

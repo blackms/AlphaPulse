@@ -4,10 +4,11 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "alpha-pulse"
-version = "1.19.0.0"
+version = "1.20.0.0"
 description = "AlphaPulse Trading System"
 authors = ["AlphaPulse Team"]
 readme = "README.md"
+license = "AGPL-3.0-or-later"
 packages = [{include = "alpha_pulse", from = "src"}]
 
 [tool.poetry.dependencies]

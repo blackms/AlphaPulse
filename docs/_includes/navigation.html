@@ -1,0 +1,145 @@
+<!-- AlphaPulse Documentation Navigation -->
+<nav class="site-nav">
+  <div class="nav-container">
+    <div class="nav-brand">
+      <a href="{{ site.baseurl }}/" class="brand-link">
+        <strong>📈 AlphaPulse</strong>
+        <span class="tagline">AI-Driven Hedge Fund Documentation</span>
+      </a>
+    </div>
+    
+    <div class="nav-links">
+      <div class="nav-group">
+        <span class="nav-group-title">Getting Started</span>
+        <a href="{{ site.baseurl }}/USER_GUIDE.html">User Guide</a>
+        <a href="{{ site.baseurl }}/development/CLAUDE.html">Developer Guide</a>
+        <a href="{{ site.baseurl }}/DEPLOYMENT.html">Deployment</a>
+      </div>
+      
+      <div class="nav-group">
+        <span class="nav-group-title">Architecture</span>
+        <a href="{{ site.baseurl }}/SYSTEM_ARCHITECTURE.html">System Architecture</a>
+        <a href="{{ site.baseurl }}/API_DOCUMENTATION.html">API Reference</a>
+        <a href="{{ site.baseurl }}/architecture-diagrams.html">Diagrams</a>
+      </div>
+      
+      <div class="nav-group">
+        <span class="nav-group-title">Features</span>
+        <a href="{{ site.baseurl }}/AI_HEDGE_FUND_DOCUMENTATION.html">AI Trading</a>
+        <a href="{{ site.baseurl }}/regime-detection.html">Regime Detection</a>
+        <a href="{{ site.baseurl }}/gpu_acceleration.html">GPU Acceleration</a>
+        <a href="{{ site.baseurl }}/explainable-ai.html">Explainable AI</a>
+      </div>
+      
+      <div class="nav-group">
+        <span class="nav-group-title">Resources</span>
+        <a href="{{ site.baseurl }}/releases/">Releases</a>
+        <a href="{{ site.baseurl }}/integration/">Integration</a>
+        <a href="{{ site.baseurl }}/security/">Security</a>
+        <a href="{{ site.baseurl }}/analysis/">Analysis</a>
+      </div>
+    </div>
+    
+    <div class="nav-actions">
+      <a href="https://github.com/blackms/AlphaPulse" class="github-link" target="_blank">
+        View on GitHub
+      </a>
+    </div>
+  </div>
+</nav>
+
+<style>
+.site-nav {
+  background: #f6f8fa;
+  border-bottom: 1px solid #d0d7de;
+  padding: 12px 0;
+  margin-bottom: 30px;
+}
+
+.nav-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  gap: 30px;
+  flex-wrap: wrap;
+}
+
+.nav-brand .brand-link {
+  text-decoration: none;
+  color: #24292e;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nav-brand .tagline {
+  font-size: 0.8em;
+  color: #656d76;
+  font-weight: normal;
+}
+
+.nav-links {
+  display: flex;
+  gap: 25px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nav-group-title {
+  font-size: 0.75em;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #656d76;
+  margin-bottom: 4px;
+}
+
+.nav-group a {
+  font-size: 0.9em;
+  color: #0969da;
+  text-decoration: none;
+  padding: 2px 0;
+}
+
+.nav-group a:hover {
+  text-decoration: underline;
+}
+
+.nav-actions .github-link {
+  background: #24292e;
+  color: white;
+  padding: 8px 16px;
+  border-radius: 6px;
+  text-decoration: none;
+  font-size: 0.9em;
+  font-weight: 500;
+}
+
+.nav-actions .github-link:hover {
+  background: #1c2128;
+}
+
+@media (max-width: 768px) {
+  .nav-container {
+    flex-direction: column;
+    gap: 15px;
+    align-items: flex-start;
+  }
+  
+  .nav-links {
+    width: 100%;
+    justify-content: space-between;
+  }
+  
+  .nav-group {
+    min-width: 120px;
+  }
+}
+</style>

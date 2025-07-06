@@ -40,6 +40,7 @@ import {
   SystemStatus,
   ComponentStatus,
 } from '../../store/slices/systemSlice';
+import GPUMonitoringWidget from '../../components/widgets/GPUMonitoringWidget';
 
 const SystemStatusPage: React.FC = () => {
   const dispatch = useDispatch();
@@ -285,6 +286,13 @@ const SystemStatusPage: React.FC = () => {
               </Grid>
             </CardContent>
           </Card>
+        </Grid>
+      </Grid>
+
+      {/* GPU Monitoring */}
+      <Grid container spacing={3} sx={{ mb: 3 }}>
+        <Grid item xs={12}>
+          <GPUMonitoringWidget />
         </Grid>
       </Grid>
 

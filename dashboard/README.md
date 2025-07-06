@@ -109,4 +109,4 @@ Real-time updates are received through WebSocket connections. The dashboard subs
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the GNU Affero General Public License (AGPL) Version 3 - see the LICENSE file for details.

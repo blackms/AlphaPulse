@@ -205,6 +205,13 @@ def get_regime_detection_service(request: Request):
     )
 
 
+def get_gpu_service(request: Request):
+    """Get the GPU service instance from app state."""
+    if hasattr(request.app.state, 'gpu_service') and request.app.state.gpu_service:
+        return request.app.state.gpu_service
+    return None  # GPU service is optional - return None if not available
+
+
 # Agent manager instance (singleton)
 _agent_manager = None
 
@@ -220,9 +227,16 @@ def get_agent_manager(request: Request):
         if hasattr(request.app.state, 'ensemble_service'):
             ensemble_service = request.app.state.ensemble_service
         
-        # Initialize agent manager with ensemble integration
+        # Get GPU service if available
+        gpu_service = None
+        if hasattr(request.app.state, 'gpu_service'):
+            gpu_service = request.app.state.gpu_service
+        
+        # Initialize agent manager with ensemble, GPU, and explainability integration
         config = {
             "use_ensemble": True,
+            "use_gpu_acceleration": True,
+            "enable_explanations": True,
             "agent_weights": {
                 "activist": 0.15,
                 "value": 0.20,
@@ -233,6 +247,11 @@ def get_agent_manager(request: Request):
             }
         }
         
-        _agent_manager = AgentManager(config=config, ensemble_service=ensemble_service)
+        _agent_manager = AgentManager(
+            config=config, 
+            ensemble_service=ensemble_service,
+            gpu_service=gpu_service,
+            alert_manager=alert_manager
+        )
     
     return _agent_manager

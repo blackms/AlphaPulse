@@ -380,11 +380,12 @@ class QualityMetricsCalculator:
 class QualityAlertManager:
     """Manager for quality alerts and notifications."""
     
-    def __init__(self, thresholds: Optional[List[QualityThreshold]] = None):
+    def __init__(self, thresholds: Optional[List[QualityThreshold]] = None, main_alert_manager=None):
         self.thresholds = thresholds or self._get_default_thresholds()
         self.active_alerts: Dict[str, QualityAlert] = {}
         self.alert_history: List[QualityAlert] = []
         self.audit_logger = get_audit_logger()
+        self.main_alert_manager = main_alert_manager  # Integration with main AlertManager
     
     def _get_default_thresholds(self) -> List[QualityThreshold]:
         """Get default quality thresholds."""
@@ -516,6 +517,7 @@ class QualityAlertManager:
             AlertSeverity.EMERGENCY: AuditSeverity.ERROR
         }
         
+        # Log to audit system
         self.audit_logger.log(
             event_type=AuditEventType.QUALITY_ALERT,
             event_data={
@@ -530,6 +532,23 @@ class QualityAlertManager:
             },
             severity=severity_map.get(alert.severity, AuditSeverity.WARNING)
         )
+        
+        # Send through main alert system if available
+        if self.main_alert_manager:
+            try:
+                await self.main_alert_manager.send_quality_alert(
+                    symbol=alert.symbol,
+                    metric_type=alert.metric_type.value,
+                    severity=alert.severity.value,
+                    current_value=alert.current_value,
+                    threshold_value=alert.threshold_value,
+                    description=alert.description,
+                    suggested_action=alert.suggested_action,
+                    channels=["web", "email"]  # Default notification channels
+                )
+                logger.info(f"Quality alert sent through main alert system: {alert.alert_id}")
+            except Exception as e:
+                logger.error(f"Failed to send quality alert through main system: {e}")
     
     def resolve_alert(self, alert_id: str) -> bool:
         """Resolve an active alert."""
@@ -551,9 +570,9 @@ class QualityAlertManager:
 class QualityMetricsService:
     """Main service for quality metrics calculation and monitoring."""
     
-    def __init__(self):
+    def __init__(self, main_alert_manager=None):
         self.calculator = QualityMetricsCalculator()
-        self.alert_manager = QualityAlertManager()
+        self.alert_manager = QualityAlertManager(main_alert_manager=main_alert_manager)
         self.metrics_history: Dict[str, List[QualityMetric]] = defaultdict(list)
         self.sla_configs: Dict[str, List[QualitySLA]] = {}
         self.audit_logger = get_audit_logger()
@@ -801,11 +820,11 @@ class QualityMetricsService:
 _quality_metrics_service: Optional[QualityMetricsService] = None
 
 
-def get_quality_metrics_service() -> QualityMetricsService:
+def get_quality_metrics_service(main_alert_manager=None) -> QualityMetricsService:
     """Get the global quality metrics service instance."""
     global _quality_metrics_service
     
     if _quality_metrics_service is None:
-        _quality_metrics_service = QualityMetricsService()
+        _quality_metrics_service = QualityMetricsService(main_alert_manager=main_alert_manager)
     
     return _quality_metrics_service

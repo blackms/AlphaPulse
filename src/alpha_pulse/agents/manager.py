@@ -22,6 +22,11 @@ from alpha_pulse.decorators.audit_decorators import (
 )
 from alpha_pulse.services.ensemble_service import EnsembleService
 from alpha_pulse.models.ensemble_model import AgentSignalCreate
+from .gpu_signal_processor import GPUSignalProcessor
+from alpha_pulse.services.explainability_service import ExplainabilityService
+from alpha_pulse.compliance.explanation_compliance import ExplanationComplianceManager, ComplianceRequirement
+from alpha_pulse.data.quality.data_validator import DataValidator, QualityScore
+from alpha_pulse.data.quality.quality_metrics import get_quality_metrics_service
 
 
 class AgentManager:
@@ -30,7 +35,7 @@ class AgentManager:
     Provides a unified interface for the risk management system.
     """
     
-    def __init__(self, config: Dict[str, Any] = None, ensemble_service: EnsembleService = None):
+    def __init__(self, config: Dict[str, Any] = None, ensemble_service: EnsembleService = None, gpu_service=None, alert_manager=None):
         """Initialize agent manager."""
         self.config = config or {}
         self.agents: Dict[str, BaseTradeAgent] = {}
@@ -50,6 +55,27 @@ class AgentManager:
         self.ensemble_id = None
         self.agent_registry: Dict[str, str] = {}  # agent_type -> agent_id mapping
         self.use_ensemble = config.get("use_ensemble", True) if ensemble_service else False
+        
+        # GPU acceleration
+        self.gpu_processor = GPUSignalProcessor(gpu_service)
+        self.use_gpu_acceleration = config.get("use_gpu_acceleration", True)
+        
+        # Explainable AI
+        self.explainability_service = ExplainabilityService()
+        self.enable_explanations = config.get("enable_explanations", True)
+        
+        # Compliance management
+        self.compliance_manager = ExplanationComplianceManager()
+        self.regulatory_requirements = config.get("regulatory_requirements", [
+            ComplianceRequirement.MIFID_II,
+            ComplianceRequirement.SOX
+        ])
+        
+        # Data quality validation
+        self.data_validator = DataValidator()
+        self.quality_metrics_service = get_quality_metrics_service(main_alert_manager=alert_manager)
+        self.min_quality_threshold = config.get("min_quality_threshold", 0.75)
+        self.enable_quality_validation = config.get("enable_quality_validation", True)
         
     async def initialize(self) -> None:
         """Initialize all agents."""
@@ -84,11 +110,44 @@ class AgentManager:
         all_signals = []
 
         try:
+            # Data quality validation before processing
+            if self.enable_quality_validation:
+                quality_validation = await self._validate_data_quality(market_data)
+                if not quality_validation["is_valid"]:
+                    logger.warning(
+                        f"Data quality validation failed: {quality_validation['reason']}. "
+                        f"Quality score: {quality_validation.get('quality_score', 0):.3f}"
+                    )
+                    # Return empty signals if data quality is too poor
+                    if quality_validation.get('quality_score', 0) < self.min_quality_threshold:
+                        logger.error("Data quality below minimum threshold - skipping signal generation")
+                        return []
+                    else:
+                        logger.warning("Data quality marginal - proceeding with caution")
+                else:
+                    logger.debug(f"Data quality validation passed: {quality_validation.get('quality_score', 0):.3f}")
+            
+            # Pre-calculate GPU-accelerated features if enabled
+            symbols = list(market_data.prices.columns) if hasattr(market_data.prices, 'columns') else []
+            gpu_features = {}
+            
+            if self.use_gpu_acceleration and symbols:
+                gpu_features = await self.gpu_processor.calculate_technical_features_batch(
+                    market_data, symbols, 
+                    indicators=['returns', 'rsi', 'macd', 'bollinger', 'ema_20', 'ema_50']
+                )
+                logger.info(f"Pre-calculated GPU features for {len(gpu_features)} symbols")
 
             # Collect signals from each agent
             for agent_type, agent in self.agents.items():
                 try:
-                    signals = await agent.generate_signals(market_data)
+                    # Enhance market data with GPU features if available
+                    enhanced_market_data = market_data
+                    if gpu_features and hasattr(enhanced_market_data, 'metadata'):
+                        enhanced_market_data.metadata = getattr(enhanced_market_data, 'metadata', {})
+                        enhanced_market_data.metadata['gpu_features'] = gpu_features
+                    
+                    signals = await agent.generate_signals(enhanced_market_data)
                     logger.debug(f"Agent {agent_type} generated {len(signals)} signals")
                     for signal in signals:
                         signal.metadata["agent_type"] = agent_type
@@ -105,18 +164,121 @@ class AgentManager:
                     continue
             
             logger.debug(f"Total signals collected: {len(all_signals)}")
-            # Aggregate signals using ensemble or fallback to basic method
+            
+            # Apply GPU-accelerated signal optimization
+            if self.use_gpu_acceleration and all_signals:
+                all_signals = await self.gpu_processor.optimize_signal_timing(
+                    all_signals, market_data
+                )
+                logger.debug(f"Applied GPU signal timing optimization")
+            
+            # Aggregate signals using ensemble, GPU acceleration, or fallback to basic method
             if self.use_ensemble and self.ensemble_service and self.ensemble_id:
                 aggregated = await self._aggregate_signals_with_ensemble(all_signals)
                 logger.info(f"Ensemble-aggregated signals: {len(aggregated)}")
+            elif self.use_gpu_acceleration and len(all_signals) > 5:
+                # Use GPU-accelerated aggregation for larger signal sets
+                aggregated = await self.gpu_processor.accelerate_signal_aggregation(
+                    all_signals, self.agent_weights, ensemble_method='weighted_average'
+                )
+                logger.info(f"GPU-accelerated aggregation: {len(aggregated)} signals")
             else:
                 aggregated = await self._aggregate_signals(all_signals)
                 logger.debug(f"Basic-aggregated signals: {len(aggregated)}")
+            
+            # Generate explanations for aggregated signals if enabled
+            if self.enable_explanations and aggregated:
+                await self._generate_signal_explanations(aggregated, market_data)
+            
             return aggregated
 
         except Exception as e:
             logger.error(f"Error processing market data: {str(e)}")
             return []
+    
+    async def _generate_signal_explanations(
+        self, 
+        signals: List[TradeSignal], 
+        market_data: MarketData
+    ) -> None:
+        """
+        Generate explanations for trading signals.
+        
+        Args:
+            signals: List of trading signals to explain
+            market_data: Market data used for signal generation
+        """
+        try:
+            for signal in signals:
+                # Prepare signal data for explanation
+                signal_data = {
+                    "symbol": signal.symbol,
+                    "direction": signal.direction.value,
+                    "confidence": signal.confidence,
+                    "target_price": signal.target_price,
+                    "stop_loss": signal.stop_loss,
+                    "agent_type": signal.metadata.get("agent_type"),
+                    "agent_weight": signal.metadata.get("agent_weight"),
+                    "timestamp": datetime.now().isoformat()
+                }
+                
+                # Add market context if available
+                if hasattr(market_data, 'prices') and signal.symbol in market_data.prices.columns:
+                    recent_prices = market_data.prices[signal.symbol].tail(20)
+                    signal_data.update({
+                        "current_price": float(recent_prices.iloc[-1]) if not recent_prices.empty else None,
+                        "price_change_1d": float((recent_prices.iloc[-1] / recent_prices.iloc[-2] - 1) * 100) 
+                                         if len(recent_prices) >= 2 else None,
+                        "volatility": float(recent_prices.pct_change().std() * 100) 
+                                    if len(recent_prices) > 1 else None
+                    })
+                
+                # Generate explanation asynchronously (non-blocking)
+                try:
+                    explanation = await self.explainability_service.explain_prediction(
+                        model_type="trading_signal",
+                        prediction_data=signal_data,
+                        method="shap",  # Default to SHAP for real-time explanations
+                        symbol=signal.symbol,
+                        include_visualization=False  # Skip viz for real-time to save time
+                    )
+                    
+                    # Add explanation to signal metadata
+                    signal.metadata.update({
+                        "explanation_id": explanation.explanation_id,
+                        "key_factors": explanation.feature_importance[:3],  # Top 3 factors
+                        "explanation_confidence": explanation.confidence,
+                        "explanation_text": explanation.explanation_text[:200] + "..." 
+                                          if len(explanation.explanation_text) > 200 
+                                          else explanation.explanation_text
+                    })
+                    
+                    # Audit explained decision for compliance
+                    try:
+                        await self.compliance_manager.audit_trading_decision_with_explanation(
+                            trade_decision_id=f"signal_{signal.symbol}_{datetime.now().timestamp()}",
+                            agent_type=signal.metadata.get("agent_type", "unknown"),
+                            symbol=signal.symbol,
+                            decision_data=signal_data,
+                            explanation=explanation,
+                            regulatory_requirements=self.regulatory_requirements
+                        )
+                        signal.metadata["compliance_audited"] = True
+                    except Exception as compliance_error:
+                        logger.warning(f"Compliance audit failed for {signal.symbol}: {compliance_error}")
+                        signal.metadata["compliance_audited"] = False
+                        signal.metadata["compliance_error"] = str(compliance_error)
+                    
+                    logger.debug(f"Generated explanation for {signal.symbol} signal")
+                    
+                except Exception as e:
+                    logger.warning(f"Failed to generate explanation for {signal.symbol}: {e}")
+                    # Don't fail the signal generation if explanation fails
+                    signal.metadata["explanation_error"] = str(e)
+                    
+        except Exception as e:
+            logger.error(f"Error in explanation generation process: {e}")
+            # Don't fail signal generation if explanation process fails
         
     async def update_agent_weights(self, performance_data: Dict[str, pd.DataFrame]) -> None:
         """
@@ -418,3 +580,114 @@ class AgentManager:
             logger.error(f"Ensemble aggregation failed: {str(e)}")
             # Fallback to basic aggregation
             return await self._aggregate_signals(signals)
+    
+    async def _validate_data_quality(self, market_data: MarketData) -> Dict[str, Any]:
+        """
+        Validate the quality of market data before generating signals.
+        
+        Args:
+            market_data: Market data object to validate
+            
+        Returns:
+            Dictionary with validation results
+        """
+        try:
+            # Convert market data to validation format
+            validation_results = []
+            overall_quality = QualityScore()
+            
+            # Validate each symbol's data
+            if hasattr(market_data, 'prices') and hasattr(market_data.prices, 'columns'):
+                for symbol in market_data.prices.columns:
+                    try:
+                        symbol_data = market_data.prices[symbol].dropna()
+                        
+                        if len(symbol_data) < 10:  # Minimum data points
+                            continue
+                            
+                        # Create a market data point for validation
+                        from alpha_pulse.models.market_data import MarketDataPoint, OHLCV
+                        
+                        # Use most recent data for validation
+                        recent_price = float(symbol_data.iloc[-1])
+                        
+                        # Create OHLCV from available data
+                        # For simplicity, use price as all OHLCV values
+                        ohlcv = OHLCV(
+                            open=recent_price,
+                            high=recent_price * 1.01,  # Approximate high
+                            low=recent_price * 0.99,   # Approximate low
+                            close=recent_price,
+                            volume=1000,  # Default volume if not available
+                            timestamp=datetime.now()
+                        )
+                        
+                        data_point = MarketDataPoint(
+                            symbol=symbol,
+                            timestamp=datetime.now(),
+                            ohlcv=ohlcv
+                        )
+                        
+                        # Validate the data point
+                        validation_result = await self.data_validator.validate_market_data(data_point)
+                        validation_results.append(validation_result)
+                        
+                        # Accumulate quality scores
+                        overall_quality.completeness += validation_result.quality_score.completeness
+                        overall_quality.accuracy += validation_result.quality_score.accuracy
+                        overall_quality.consistency += validation_result.quality_score.consistency
+                        overall_quality.timeliness += validation_result.quality_score.timeliness
+                        overall_quality.validity += validation_result.quality_score.validity
+                        overall_quality.uniqueness += validation_result.quality_score.uniqueness
+                        
+                    except Exception as e:
+                        logger.warning(f"Error validating data for symbol {symbol}: {e}")
+                        continue
+            
+            # Calculate average quality scores
+            if validation_results:
+                num_results = len(validation_results)
+                overall_quality.completeness /= num_results
+                overall_quality.accuracy /= num_results
+                overall_quality.consistency /= num_results
+                overall_quality.timeliness /= num_results
+                overall_quality.validity /= num_results
+                overall_quality.uniqueness /= num_results
+                overall_quality.calculate_overall_score()
+                
+                # Determine if data is valid based on overall score
+                is_valid = overall_quality.overall_score >= self.min_quality_threshold
+                
+                # Count failed validations
+                failed_validations = sum(1 for result in validation_results if not result.is_valid)
+                
+                return {
+                    "is_valid": is_valid,
+                    "quality_score": overall_quality.overall_score,
+                    "detailed_scores": {
+                        "completeness": overall_quality.completeness,
+                        "accuracy": overall_quality.accuracy,
+                        "consistency": overall_quality.consistency,
+                        "timeliness": overall_quality.timeliness,
+                        "validity": overall_quality.validity,
+                        "uniqueness": overall_quality.uniqueness
+                    },
+                    "symbols_validated": len(validation_results),
+                    "failed_validations": failed_validations,
+                    "reason": "Data quality checks passed" if is_valid else 
+                             f"Quality score {overall_quality.overall_score:.3f} below threshold {self.min_quality_threshold}"
+                }
+            else:
+                return {
+                    "is_valid": False,
+                    "quality_score": 0.0,
+                    "reason": "No data available for validation"
+                }
+                
+        except Exception as e:
+            logger.error(f"Error during data quality validation: {e}")
+            return {
+                "is_valid": False,
+                "quality_score": 0.0,
+                "reason": f"Validation error: {str(e)}"
+            }
