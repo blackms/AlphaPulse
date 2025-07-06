@@ -7,6 +7,9 @@ import pandas as pd
 import numpy as np
 from scipy import stats
 from collections import defaultdict
+import logging
+
+logger = logging.getLogger(__name__)
 
 from .interfaces import (
     BaseTradeAgent,
