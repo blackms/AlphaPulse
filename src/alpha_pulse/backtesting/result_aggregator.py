@@ -1,7 +1,7 @@
 """Result aggregation and merging system for distributed backtesting."""
 
 import logging
-from typing import Dict, Any, List, Optional, Union, Tuple
+from typing import Dict, Any, List, Optional, Union, Tuple, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 import numpy as np

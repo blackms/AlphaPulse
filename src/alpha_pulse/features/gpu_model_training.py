@@ -16,7 +16,7 @@ from loguru import logger
 import joblib
 import asyncio
 
-from .model_training import ModelTrainer
+from .model_training import ModelTrainer, ModelFactory
 from ..ml.gpu.gpu_service import GPUService
 from ..ml.gpu.gpu_config import get_training_config, get_inference_config
 

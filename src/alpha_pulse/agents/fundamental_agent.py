@@ -6,6 +6,7 @@ from typing import Dict, List, Any, Optional
 import pandas as pd
 import numpy as np
 from scipy import stats
+from collections import defaultdict
 
 from .interfaces import (
     BaseTradeAgent,
@@ -14,18 +15,21 @@ from .interfaces import (
     SignalDirection,
     AgentMetrics
 )
+from .regime_mixin import RegimeAwareMixin
 from alpha_pulse.decorators.audit_decorators import audit_agent_signal
+from alpha_pulse.services.regime_detection_service import RegimeDetectionService
+from alpha_pulse.ml.regime.regime_classifier import RegimeInfo, RegimeType
 
 
-class FundamentalAgent(BaseTradeAgent):
+class FundamentalAgent(RegimeAwareMixin, BaseTradeAgent):
     """
     Implements fundamental analysis strategies focusing on financial statements,
     economic indicators, and quantitative metrics.
     """
     
-    def __init__(self, config: Dict[str, Any] = None):
+    def __init__(self, config: Dict[str, Any] = None, regime_service: Optional[RegimeDetectionService] = None):
         """Initialize fundamental analysis agent."""
-        super().__init__("fundamental_agent", config)
+        super().__init__("fundamental_agent", config, regime_service=regime_service)
         self.financial_metrics = {
             'revenue_growth': self.config.get("min_revenue_growth", 0.1),
             'gross_margin': self.config.get("min_gross_margin", 0.3),
@@ -71,6 +75,13 @@ class FundamentalAgent(BaseTradeAgent):
         if not market_data.fundamentals:
             return signals
             
+        # Get current market regime
+        regime_info = await self.get_current_regime()
+        regime_context = self.get_regime_strategy_context(regime_info)
+        
+        logger.debug(f"Fundamental agent operating in {regime_context['regime_type']} regime "
+                    f"(risk tolerance: {regime_context['risk_tolerance']})")
+            
         # Update sector correlations
         await self._update_sector_correlations(market_data)
         
@@ -91,35 +102,25 @@ class FundamentalAgent(BaseTradeAgent):
                 historical_score * 0.2
             )
             
-            # Generate signals based on score
-            if total_score >= 0.7:  # Strong buy signal
-                signals.append(TradeSignal(
-                    agent_id=self.agent_id,
-                    symbol=symbol,
-                    direction=SignalDirection.BUY,
-                    confidence=total_score,
-                    timestamp=datetime.now(),
-                    target_price=await self._calculate_price_target(fundamentals),
-                    stop_loss=await self._calculate_risk_level(symbol, market_data),
-                    metadata={
-                        "strategy": "fundamental",
-                        "financial_metrics": await self._get_financial_metrics(fundamentals),
-                        "macro_indicators": await self._get_macro_indicators(market_data),
-                        "sector_analysis": await self._get_sector_analysis(symbol, market_data)
-                    }
-                ))
-            elif total_score <= 0.3:  # Strong sell signal
-                signals.append(TradeSignal(
-                    agent_id=self.agent_id,
-                    symbol=symbol,
-                    direction=SignalDirection.SELL,
-                    confidence=1 - total_score,
-                    timestamp=datetime.now(),
-                    metadata={
-                        "strategy": "fundamental",
-                        "exit_reason": "deteriorating_fundamentals"
-                    }
-                ))
+            # Apply regime-based adjustments
+            original_score = total_score
+            base_confidence = abs(total_score)
+            
+            adjusted_score, adjusted_confidence = self.adjust_signal_for_regime(
+                total_score, base_confidence, regime_info
+            )
+            
+            # Log regime adjustment if significant
+            await self.log_regime_based_decision(symbol, original_score, adjusted_score, regime_info)
+            
+            # Apply regime-specific thresholds
+            signal = await self._generate_regime_aware_fundamental_signal(
+                symbol, adjusted_score, adjusted_confidence, fundamentals, 
+                market_data, regime_context
+            )
+            
+            if signal:
+                signals.append(signal)
                 
         return signals
         
@@ -334,3 +335,103 @@ class FundamentalAgent(BaseTradeAgent):
             "sector_momentum": sector_data.get("momentum", 0),
             "relative_strength": self.sector_correlations.get(symbol, 0)
         }
+
+    async def _generate_regime_aware_fundamental_signal(
+        self,
+        symbol: str,
+        fundamental_score: float,
+        confidence: float,
+        fundamentals: Dict,
+        market_data: MarketData,
+        regime_context: Dict[str, Any]
+    ) -> Optional[TradeSignal]:
+        """Generate fundamental signal based on regime context."""
+        strategy_mode = regime_context['strategy_mode']
+        risk_tolerance = regime_context['risk_tolerance']
+        
+        # Adjust thresholds based on regime
+        if strategy_mode == "defensive":
+            # Higher threshold for investments in bear markets
+            buy_threshold = 0.8
+            sell_threshold = 0.3
+        elif strategy_mode == "trend_following":
+            # Standard thresholds in bull markets
+            buy_threshold = 0.7
+            sell_threshold = 0.4
+        elif strategy_mode == "mean_reversion":
+            # Lower threshold in volatile markets (contrarian approach)
+            buy_threshold = 0.6
+            sell_threshold = 0.5
+        else:  # range_trading or neutral
+            buy_threshold = 0.7
+            sell_threshold = 0.4
+        
+        # Generate signals based on adjusted score and thresholds
+        if fundamental_score >= buy_threshold:  # Strong buy signal
+            return TradeSignal(
+                agent_id=self.agent_id,
+                symbol=symbol,
+                direction=SignalDirection.BUY,
+                confidence=confidence,
+                timestamp=datetime.now(),
+                target_price=await self._calculate_price_target(fundamentals),
+                stop_loss=await self._calculate_risk_level(symbol, market_data),
+                metadata={
+                    "strategy": "fundamental",
+                    "fundamental_score": fundamental_score,
+                    "financial_metrics": await self._get_financial_metrics(fundamentals),
+                    "macro_indicators": await self._get_macro_indicators(market_data),
+                    "sector_analysis": await self._get_sector_analysis(symbol, market_data),
+                    "regime_context": regime_context,
+                    "buy_threshold": buy_threshold,
+                    "risk_tolerance": risk_tolerance
+                }
+            )
+        elif fundamental_score <= sell_threshold:  # Strong sell signal
+            return TradeSignal(
+                agent_id=self.agent_id,
+                symbol=symbol,
+                direction=SignalDirection.SELL,
+                confidence=1 - fundamental_score,
+                timestamp=datetime.now(),
+                metadata={
+                    "strategy": "fundamental",
+                    "fundamental_score": fundamental_score,
+                    "exit_reason": "deteriorating_fundamentals",
+                    "regime_context": regime_context,
+                    "sell_threshold": sell_threshold
+                }
+            )
+        
+        return None
+
+    async def _fallback_regime_detection(self) -> Optional[RegimeInfo]:
+        """
+        Fallback regime detection using economic indicators.
+        
+        This is used when the centralized regime service is unavailable.
+        """
+        try:
+            # Simple fallback based on macro environment
+            # This would ideally use more sophisticated analysis
+            
+            from dataclasses import dataclass
+            
+            @dataclass
+            class FallbackRegimeInfo:
+                regime_type: RegimeType = RegimeType.RANGING
+                current_regime: int = 0
+                confidence: float = 0.5
+                expected_remaining_duration: float = 10.0
+                transition_probability: float = 0.1
+            
+            # Default to neutral/ranging regime for fundamental analysis
+            return FallbackRegimeInfo(
+                regime_type=RegimeType.RANGING,
+                current_regime=0,
+                confidence=0.6  # Slightly higher confidence for fundamental analysis
+            )
+            
+        except Exception as e:
+            logger.error(f"Error in fundamental fallback regime detection: {e}")
+            return None

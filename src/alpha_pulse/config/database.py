@@ -5,6 +5,7 @@ This module configures SQLAlchemy with encryption support and
 provides utilities for secure database operations.
 """
 import os
+import json
 from typing import Optional, Dict, Any
 from sqlalchemy import create_engine, event, MetaData
 from sqlalchemy.orm import sessionmaker, Session

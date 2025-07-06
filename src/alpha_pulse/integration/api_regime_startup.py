@@ -2,6 +2,10 @@
 
 # This file contains the code that should be added to src/alpha_pulse/api/main.py
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 async def initialize_regime_detection(app):
     """Initialize regime detection service and integration hub."""
     from ..services.regime_detection_service import RegimeDetectionService

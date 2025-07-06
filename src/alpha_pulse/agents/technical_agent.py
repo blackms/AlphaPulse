@@ -17,18 +17,21 @@ from .interfaces import (
     SignalDirection,
     AgentMetrics
 )
+from .regime_mixin import RegimeAwareMixin
 from alpha_pulse.decorators.audit_decorators import audit_agent_signal
+from alpha_pulse.services.regime_detection_service import RegimeDetectionService
+from alpha_pulse.ml.regime.regime_classifier import RegimeInfo, RegimeType
 
 
-class TechnicalAgent(BaseTradeAgent):
+class TechnicalAgent(RegimeAwareMixin, BaseTradeAgent):
     """
     Implements technical analysis strategies focusing on price patterns,
-    technical indicators, and chart analysis.
+    technical indicators, and chart analysis with regime awareness.
     """
     
-    def __init__(self, config: Dict[str, Any] = None):
+    def __init__(self, config: Dict[str, Any] = None, regime_service: Optional[RegimeDetectionService] = None):
         """Initialize technical analysis agent."""
-        super().__init__("technical_agent", config)
+        super().__init__("technical_agent", config, regime_service=regime_service)
         self.indicator_weights = {
             'trend': self.config.get("trend_weight", 0.3),
             'momentum': self.config.get("momentum_weight", 0.2),
@@ -52,92 +55,213 @@ class TechnicalAgent(BaseTradeAgent):
     @audit_agent_signal(agent_type='technical')
     async def generate_signals(self, market_data: MarketData) -> List[TradeSignal]:
         """
-        Generate trading signals based on technical analysis.
+        Generate trading signals based on technical analysis with regime awareness.
         
         Args:
-            market_data: Market data including prices and volumes
+            market_data: Market data including prices, volumes, and other indicators
             
         Returns:
             List of trading signals
         """
         signals = []
         
-        if not isinstance(market_data.prices, pd.DataFrame) or market_data.prices.empty:
-            logger.warning("No price data available")
-            return signals
-            
-        for symbol in market_data.prices.columns:
-            prices = market_data.prices[symbol].dropna()
-            volumes = market_data.volumes[symbol].dropna() if market_data.volumes is not None else None
-            
-            logger.debug(f"Analyzing {symbol} with {len(prices)} data points")
-            
-            if len(prices) < self.timeframes['long']:
-                logger.warning(f"Insufficient data for {symbol}: {len(prices)} < {self.timeframes['long']}")
-                continue
-                
-            try:
-                # Calculate technical indicators
-                trend_score = await self._analyze_trends(prices)
-                logger.debug(f"{symbol} trend score: {trend_score:.2f}")
-                
-                momentum_score = await self._analyze_momentum(prices)
-                logger.debug(f"{symbol} momentum score: {momentum_score:.2f}")
-                
-                volatility_score = await self._analyze_volatility(prices)
-                logger.debug(f"{symbol} volatility score: {volatility_score:.2f}")
-                
-                volume_score = await self._analyze_volume(prices, volumes) if volumes is not None else 0
-                logger.debug(f"{symbol} volume score: {volume_score:.2f}")
-                
-                pattern_score = await self._analyze_patterns(prices) if self.pattern_recognition else 0
-                logger.debug(f"{symbol} pattern score: {pattern_score:.2f}")
-                
-                # Calculate weighted technical score
-                technical_score = (
-                    trend_score * self.indicator_weights['trend'] +
-                    momentum_score * self.indicator_weights['momentum'] +
-                    volatility_score * self.indicator_weights['volatility'] +
-                    volume_score * self.indicator_weights['volume'] +
-                    pattern_score * self.indicator_weights['pattern']
-                )
-                logger.debug(f"{symbol} technical score components:")
-                logger.debug(f"  - Trend: {trend_score:.2f} * {self.indicator_weights['trend']:.2f} = {trend_score * self.indicator_weights['trend']:.2f}")
-                logger.debug(f"  - Momentum: {momentum_score:.2f} * {self.indicator_weights['momentum']:.2f} = {momentum_score * self.indicator_weights['momentum']:.2f}")
-                logger.debug(f"  - Volatility: {volatility_score:.2f} * {self.indicator_weights['volatility']:.2f} = {volatility_score * self.indicator_weights['volatility']:.2f}")
-                logger.debug(f"  - Volume: {volume_score:.2f} * {self.indicator_weights['volume']:.2f} = {volume_score * self.indicator_weights['volume']:.2f}")
-                logger.debug(f"  - Pattern: {pattern_score:.2f} * {self.indicator_weights['pattern']:.2f} = {pattern_score * self.indicator_weights['pattern']:.2f}")
-                logger.debug(f"{symbol} final technical score: {technical_score:.2f}")
-                
-                # Store indicator signals
-                self.indicator_signals[symbol] = {
-                    'trend': trend_score,
-                    'momentum': momentum_score,
-                    'volatility': volatility_score,
-                    'volume': volume_score,
-                    'pattern': pattern_score
-                }
-                
-                # Generate signal based on technical score
-                signal = await self._generate_technical_signal(
-                    symbol,
-                    technical_score,
-                    prices,
-                    volumes
-                )
-                
-                if signal:
-                    logger.info(f"Generated signal for {symbol}: {signal.direction.value} with confidence {signal.confidence:.2f}")
-                    signals.append(signal)
-                else:
-                    logger.debug(f"No signal generated for {symbol} (score: {technical_score:.2f})")
-                    
-            except Exception as e:
-                logger.error(f"Error generating signals for {symbol}: {str(e)}")
-                continue
-                
-        return signals
+        # Get current market regime
+        regime_info = await self.get_current_regime()
+        regime_context = self.get_regime_strategy_context(regime_info)
         
+        logger.debug(f"Technical agent operating in {regime_context['regime_type']} regime "
+                    f"(mode: {regime_context['strategy_mode']})")
+        
+        if not market_data.prices.empty:
+            for symbol in market_data.prices.columns:
+                prices = market_data.prices[symbol].dropna()
+                volumes = market_data.volumes[symbol].dropna() if market_data.volumes is not None else None
+                
+                if len(prices) < self.timeframes['long']:
+                    continue
+                    
+                try:
+                    # Calculate technical indicators
+                    trend_score = await self._analyze_trends(prices)
+                    logger.debug(f"{symbol} trend score: {trend_score:.2f}")
+                    
+                    momentum_score = await self._analyze_momentum(prices)
+                    logger.debug(f"{symbol} momentum score: {momentum_score:.2f}")
+                    
+                    volatility_score = await self._analyze_volatility(prices)
+                    logger.debug(f"{symbol} volatility score: {volatility_score:.2f}")
+                    
+                    volume_score = await self._analyze_volume(prices, volumes) if volumes is not None else 0
+                    logger.debug(f"{symbol} volume score: {volume_score:.2f}")
+                    
+                    pattern_score = await self._analyze_patterns(prices) if self.pattern_recognition else 0
+                    logger.debug(f"{symbol} pattern score: {pattern_score:.2f}")
+                    
+                    # Calculate weighted technical score
+                    technical_score = (
+                        trend_score * self.indicator_weights['trend'] +
+                        momentum_score * self.indicator_weights['momentum'] +
+                        volatility_score * self.indicator_weights['volatility'] +
+                        volume_score * self.indicator_weights['volume'] +
+                        pattern_score * self.indicator_weights['pattern']
+                    )
+                    
+                    # Store indicator scores for signal metadata
+                    self.indicator_signals[symbol] = {
+                        'trend': trend_score,
+                        'momentum': momentum_score,
+                        'volatility': volatility_score,
+                        'volume': volume_score,
+                        'pattern': pattern_score
+                    }
+                    
+                    logger.debug(f"{symbol} technical score components:")
+                    logger.debug(f"  - Trend: {trend_score:.2f} * {self.indicator_weights['trend']:.2f} = {trend_score * self.indicator_weights['trend']:.2f}")
+                    logger.debug(f"  - Momentum: {momentum_score:.2f} * {self.indicator_weights['momentum']:.2f} = {momentum_score * self.indicator_weights['momentum']:.2f}")
+                    logger.debug(f"  - Volatility: {volatility_score:.2f} * {self.indicator_weights['volatility']:.2f} = {volatility_score * self.indicator_weights['volatility']:.2f}")
+                    logger.debug(f"  - Volume: {volume_score:.2f} * {self.indicator_weights['volume']:.2f} = {volume_score * self.indicator_weights['volume']:.2f}")
+                    logger.debug(f"  - Pattern: {pattern_score:.2f} * {self.indicator_weights['pattern']:.2f} = {pattern_score * self.indicator_weights['pattern']:.2f}")
+                    logger.debug(f"  - Total: {technical_score:.2f}")
+                    
+                    # Adjust signal based on regime
+                    original_score = technical_score
+                    base_confidence = abs(technical_score)
+                    
+                    # Apply regime-based adjustments
+                    adjusted_score, adjusted_confidence = self.adjust_signal_for_regime(
+                        technical_score, base_confidence, regime_info
+                    )
+                    
+                    # Log regime adjustment if significant
+                    await self.log_regime_based_decision(symbol, original_score, adjusted_score, regime_info)
+                    
+                    # Apply regime-specific strategy logic
+                    signal = await self._generate_regime_aware_signal(
+                        symbol, adjusted_score, adjusted_confidence, prices, volumes, regime_context
+                    )
+                    
+                    if signal:
+                        signals.append(signal)
+                        
+                except Exception as e:
+                    logger.error(f"Error analyzing {symbol}: {str(e)}")
+                    continue
+                    
+        return signals
+    
+    async def _generate_regime_aware_signal(
+        self,
+        symbol: str,
+        technical_score: float,
+        confidence: float,
+        prices: pd.Series,
+        volumes: Optional[pd.Series],
+        regime_context: Dict[str, Any]
+    ) -> Optional[TradeSignal]:
+        """Generate trading signal based on technical analysis and regime context."""
+        strategy_mode = regime_context['strategy_mode']
+        
+        # Adjust signal thresholds based on regime
+        if strategy_mode == "defensive":
+            # Higher threshold in bear markets
+            min_threshold = 0.25
+        elif strategy_mode == "mean_reversion":
+            # Lower threshold for volatile markets (but opposite signals)
+            min_threshold = 0.15
+            technical_score = -technical_score  # Reverse signals in volatile markets
+        elif strategy_mode == "range_trading":
+            # Moderate threshold for ranging markets
+            min_threshold = 0.20
+        else:  # trend_following or neutral
+            min_threshold = 0.15
+        
+        logger.debug(f"Evaluating {symbol} signal: score={technical_score:.2f}, "
+                    f"confidence={confidence:.2f}, threshold={min_threshold:.2f}, mode={strategy_mode}")
+        
+        if abs(technical_score) <= min_threshold:
+            logger.debug(f"Technical score {technical_score:.2f} below threshold {min_threshold:.2f}")
+            return None
+            
+        # Determine signal direction
+        direction = SignalDirection.BUY if technical_score > 0 else SignalDirection.SELL
+        logger.debug(f"Signal direction: {direction.value}")
+        
+        # Calculate target price and stop loss with regime awareness
+        current_price = prices.iloc[-1]
+        atr = talib.ATR(prices.values, prices.values, prices.values)[-1]
+        
+        # Adjust target and stop based on regime
+        risk_multiplier = self._get_risk_multiplier(regime_context['risk_tolerance'])
+        
+        if direction == SignalDirection.BUY:
+            target_price = current_price * (1 + abs(technical_score) * risk_multiplier)
+            stop_loss = current_price - (2 * atr * risk_multiplier)
+        else:
+            target_price = current_price * (1 - abs(technical_score) * risk_multiplier)
+            stop_loss = current_price + (2 * atr * risk_multiplier)
+            
+        return TradeSignal(
+            agent_id=self.agent_id,
+            symbol=symbol,
+            direction=direction,
+            confidence=confidence,
+            timestamp=datetime.now(),
+            target_price=target_price,
+            stop_loss=stop_loss,
+            metadata={
+                "strategy": "technical",
+                "technical_score": technical_score,
+                "indicators": self.indicator_signals[symbol],
+                "support_resistance": await self._find_support_resistance(prices),
+                "volume_profile": await self._get_volume_profile(volumes) if volumes is not None else None,
+                "regime_context": regime_context,
+                "risk_multiplier": risk_multiplier
+            }
+        )
+    
+    def _get_risk_multiplier(self, risk_tolerance: str) -> float:
+        """Get risk multiplier based on risk tolerance."""
+        multipliers = {
+            "very_low": 0.5,
+            "low": 0.7,
+            "moderate": 1.0,
+            "high": 1.3,
+            "very_high": 1.5
+        }
+        return multipliers.get(risk_tolerance, 1.0)
+    
+    async def _fallback_regime_detection(self) -> Optional[RegimeInfo]:
+        """
+        Fallback regime detection using simple technical indicators.
+        
+        This is used when the centralized regime service is unavailable.
+        """
+        try:
+            # Simple fallback: use market trend and volatility
+            # This is a simplified version - ideally would use historical data
+            
+            # Create a mock RegimeInfo for fallback
+            from dataclasses import dataclass
+            
+            @dataclass
+            class FallbackRegimeInfo:
+                regime_type: RegimeType = RegimeType.RANGING
+                current_regime: int = 0
+                confidence: float = 0.5
+                expected_remaining_duration: float = 10.0
+                transition_probability: float = 0.1
+            
+            # Return moderate confidence ranging regime as safe fallback
+            return FallbackRegimeInfo(
+                regime_type=RegimeType.RANGING,
+                current_regime=0,
+                confidence=0.5
+            )
+            
+        except Exception as e:
+            logger.error(f"Error in fallback regime detection: {e}")
+            return None
+
     async def _analyze_trends(self, prices: pd.Series) -> float:
         """Analyze price trends using multiple timeframes."""
         scores = []
@@ -217,8 +341,8 @@ class TechnicalAgent(BaseTradeAgent):
             
         return np.tanh(np.mean(scores)) if scores else 0
         
-    async def _analyze_volume(self, prices: pd.Series, volumes: pd.Series) -> float:
-        """Analyze volume patterns and trends."""
+    async def _analyze_volume(self, prices: pd.Series, volumes: Optional[pd.Series]) -> float:
+        """Analyze volume patterns."""
         if volumes is None or len(volumes) < self.timeframes['short']:
             return 0
             
@@ -227,23 +351,17 @@ class TechnicalAgent(BaseTradeAgent):
         # Volume trend
         vol_ma = talib.SMA(volumes.values, timeperiod=self.timeframes['short'])
         if not np.isnan(vol_ma[-1]):
-            vol_trend = volumes.iloc[-1] / vol_ma[-1] - 1
+            vol_trend = (volumes.iloc[-1] / vol_ma[-1]) - 1
             scores.append(np.tanh(vol_trend))
             
         # Price-volume correlation
         if len(prices) == len(volumes):
-            correlation = stats.pearsonr(
-                prices.pct_change().fillna(0)[-20:],
-                volumes.pct_change().fillna(0)[-20:]
-            )[0]
-            scores.append(correlation)
-            
-        # On-balance volume
-        obv = talib.OBV(prices.values, volumes.values)
-        if len(obv) > 1:
-            obv_trend = np.sign(obv[-1] - obv[-2])
-            scores.append(obv_trend)
-            
+            price_changes = prices.pct_change().iloc[-20:]
+            volume_changes = volumes.pct_change().iloc[-20:]
+            correlation = price_changes.corr(volume_changes)
+            if not np.isnan(correlation):
+                scores.append(correlation)
+                
         return np.tanh(np.mean(scores)) if scores else 0
         
     async def _analyze_patterns(self, prices: pd.Series) -> float:
@@ -299,60 +417,6 @@ class TechnicalAgent(BaseTradeAgent):
                 levels.append(prices.iloc[i])  # Support
                 
         return levels
-        
-    async def _generate_technical_signal(
-        self,
-        symbol: str,
-        technical_score: float,
-        prices: pd.Series,
-        volumes: Optional[pd.Series]
-    ) -> Optional[TradeSignal]:
-        """Generate trading signal based on technical analysis."""
-        logger.debug(f"Generating signal for {symbol} with technical score: {technical_score:.2f}")
-        
-        logger.debug(f"Evaluating signal for {symbol} with technical score: {technical_score:.2f}")
-        if abs(technical_score) <= 0.15:  # Lower minimum conviction threshold
-            logger.debug(f"Technical score {technical_score:.2f} below minimum threshold 0.15 (need |score| > 0.15)")
-            return None
-        logger.debug(f"Technical score {technical_score:.2f} passed minimum threshold")
-            
-        # Determine signal direction
-        direction = SignalDirection.BUY if technical_score > 0 else SignalDirection.SELL
-        logger.debug(f"Signal direction: {direction.value}")
-        
-        # Calculate confidence based on indicator agreement
-        indicator_scores = list(self.indicator_signals[symbol].values())
-        confidence = abs(technical_score) * (1 - np.std(indicator_scores))
-        logger.debug(f"Confidence score: {confidence:.2f} (std: {np.std(indicator_scores):.2f})")
-        
-        # Calculate target price and stop loss
-        current_price = prices.iloc[-1]
-        atr = talib.ATR(prices.values, prices.values, prices.values)[-1]
-        logger.debug(f"Current price: {current_price:.2f}, ATR: {atr:.2f}")
-        
-        if direction == SignalDirection.BUY:
-            target_price = current_price * (1 + abs(technical_score))
-            stop_loss = current_price - (2 * atr)
-        else:
-            target_price = current_price * (1 - abs(technical_score))
-            stop_loss = current_price + (2 * atr)
-            
-        return TradeSignal(
-            agent_id=self.agent_id,
-            symbol=symbol,
-            direction=direction,
-            confidence=confidence,
-            timestamp=datetime.now(),
-            target_price=target_price,
-            stop_loss=stop_loss,
-            metadata={
-                "strategy": "technical",
-                "technical_score": technical_score,
-                "indicators": self.indicator_signals[symbol],
-                "support_resistance": await self._find_support_resistance(prices),
-                "volume_profile": await self._get_volume_profile(volumes) if volumes is not None else None
-            }
-        )
         
     async def _get_volume_profile(self, volumes: pd.Series) -> Dict:
         """Calculate volume profile metrics."""

@@ -8,6 +8,7 @@ from enum import Enum
 from contextlib import asynccontextmanager
 
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import text
 
 from ..config.database_config import DatabaseConfig, DatabaseNode
 from ..utils.logging_utils import get_logger

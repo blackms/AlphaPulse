@@ -1,0 +1,2 @@
+Creating virtualenv alpha-pulse-fOuBZOGu-py3.12 in /home/alessio/.cache/pypoetry/virtualenvs
+Command not found: flake8
