@@ -69,10 +69,16 @@ app.add_middleware(
     enable_performance_monitoring=True
 )
 
-# Add CSRF protection middleware
+# Add CSRF protection middleware with secure secret management
+from alpha_pulse.utils.secrets_manager import create_secrets_manager
+
+# Get CSRF secret from secure storage
+secrets_manager = create_secrets_manager()
+csrf_secret = secrets_manager.get_secret("csrf_secret") or secrets_manager.get_jwt_secret()
+
 app.add_middleware(
     CSRFProtectionMiddleware,
-    secret_key="your-csrf-secret-key",  # In production, use proper secret management
+    secret_key=csrf_secret,
     exempt_paths=["/health", "/metrics", "/docs", "/openapi.json"]
 )
 
