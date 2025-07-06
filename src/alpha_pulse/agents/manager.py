@@ -35,7 +35,7 @@ class AgentManager:
     Provides a unified interface for the risk management system.
     """
     
-    def __init__(self, config: Dict[str, Any] = None, ensemble_service: EnsembleService = None, gpu_service=None):
+    def __init__(self, config: Dict[str, Any] = None, ensemble_service: EnsembleService = None, gpu_service=None, alert_manager=None):
         """Initialize agent manager."""
         self.config = config or {}
         self.agents: Dict[str, BaseTradeAgent] = {}
@@ -73,7 +73,7 @@ class AgentManager:
         
         # Data quality validation
         self.data_validator = DataValidator()
-        self.quality_metrics_service = get_quality_metrics_service()
+        self.quality_metrics_service = get_quality_metrics_service(main_alert_manager=alert_manager)
         self.min_quality_threshold = config.get("min_quality_threshold", 0.75)
         self.enable_quality_validation = config.get("enable_quality_validation", True)
         

@@ -302,3 +302,76 @@ class AlertManager:
             List[AlertRule]: List of all rules
         """
         return list(self.rules.values())
+    
+    async def send_quality_alert(
+        self, 
+        symbol: str, 
+        metric_type: str, 
+        severity: str, 
+        current_value: float, 
+        threshold_value: float, 
+        description: str,
+        suggested_action: str = None,
+        channels: List[str] = None
+    ) -> Alert:
+        """
+        Send a data quality alert directly.
+        
+        Args:
+            symbol: Trading symbol
+            metric_type: Type of quality metric
+            severity: Alert severity (critical, warning, info)
+            current_value: Current metric value
+            threshold_value: Violated threshold value
+            description: Alert description
+            suggested_action: Suggested remediation action
+            channels: List of channels to send to (uses defaults if None)
+            
+        Returns:
+            Alert: The created alert
+        """
+        from uuid import uuid4
+        
+        # Map string severity to AlertSeverity enum
+        severity_map = {
+            "critical": AlertSeverity.CRITICAL,
+            "emergency": AlertSeverity.CRITICAL,
+            "warning": AlertSeverity.WARNING,
+            "info": AlertSeverity.INFO
+        }
+        
+        alert_severity = severity_map.get(severity.lower(), AlertSeverity.WARNING)
+        
+        # Create alert
+        alert = Alert(
+            alert_id=str(uuid4()),
+            rule_id=f"data_quality_{metric_type}",
+            rule_name=f"Data Quality: {metric_type}",
+            metric_name=f"quality.{metric_type}",
+            metric_value=current_value,
+            threshold=threshold_value,
+            severity=alert_severity,
+            message=description,
+            timestamp=datetime.now(),
+            acknowledged=False,
+            additional_data={
+                "symbol": symbol,
+                "metric_type": metric_type,
+                "suggested_action": suggested_action or "Review data quality",
+                "source": "data_quality_system"
+            }
+        )
+        
+        # Add to alert history
+        await self.alert_history.store_alert(alert)
+        
+        # Send notifications
+        notification_channels = channels or ["web", "email"]  # Default channels
+        await self._send_notifications(alert, notification_channels)
+        
+        self.logger.info(
+            f"Data quality alert sent: {symbol} {metric_type} {severity} "
+            f"(value: {current_value:.3f}, threshold: {threshold_value:.3f})"
+        )
+        
+        return alert

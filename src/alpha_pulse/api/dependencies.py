@@ -250,7 +250,8 @@ def get_agent_manager(request: Request):
         _agent_manager = AgentManager(
             config=config, 
             ensemble_service=ensemble_service,
-            gpu_service=gpu_service
+            gpu_service=gpu_service,
+            alert_manager=alert_manager
         )
     
     return _agent_manager
