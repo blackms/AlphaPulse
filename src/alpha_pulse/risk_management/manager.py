@@ -1,9 +1,10 @@
 """
 Risk management system for AlphaPulse.
 """
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 import pandas as pd
 from dataclasses import dataclass, field
+import asyncio
 
 from loguru import logger
 
@@ -29,6 +30,7 @@ from alpha_pulse.risk.correlation_analyzer import (
     CorrelationAnalysisConfig,
     CorrelationMethod
 )
+from alpha_pulse.services.monte_carlo_integration_service import MonteCarloIntegrationService
 
 
 @dataclass
@@ -68,6 +70,7 @@ class RiskManager(IRiskManager):
         portfolio_optimizer: Optional[IPortfolioOptimizer] = None,
         correlation_analyzer: Optional[CorrelationAnalyzer] = None,
         risk_budgeting_service: Optional[Any] = None,
+        monte_carlo_service: Optional[MonteCarloIntegrationService] = None,
     ):
         """
         Initialize risk management system.
@@ -79,6 +82,8 @@ class RiskManager(IRiskManager):
             risk_analyzer: Risk analysis component
             portfolio_optimizer: Portfolio optimization strategy
             correlation_analyzer: Correlation analysis component
+            risk_budgeting_service: Dynamic risk budgeting service
+            monte_carlo_service: Monte Carlo integration service
         """
         self.exchange = exchange
         self.config = config or RiskConfig()
@@ -87,6 +92,7 @@ class RiskManager(IRiskManager):
         self.portfolio_optimizer = portfolio_optimizer or AdaptivePortfolioOptimizer()
         self.correlation_analyzer = correlation_analyzer or CorrelationAnalyzer()
         self.risk_budgeting_service = risk_budgeting_service
+        self.monte_carlo_service = monte_carlo_service or MonteCarloIntegrationService()
         
         self.state = PortfolioState(
             portfolio_value=self.config.initial_portfolio_value,
@@ -490,6 +496,45 @@ class RiskManager(IRiskManager):
             except Exception as e:
                 logger.warning(f"Failed to generate correlation analysis: {str(e)}")
                 report['correlation_analysis'] = {'error': str(e)}
+        
+        # Add Monte Carlo simulation results
+        if self.monte_carlo_service and self._historical_returns:
+            try:
+                # Get portfolio returns for Monte Carlo
+                portfolio_returns = pd.Series(
+                    [sum(r.values()) for r in self._historical_returns.values()]
+                    if isinstance(self._historical_returns, dict) else self._historical_returns
+                )
+                
+                # Calculate Monte Carlo VaR
+                mc_var_results = asyncio.run(
+                    self.monte_carlo_service.calculate_monte_carlo_var(
+                        portfolio_returns,
+                        confidence_levels=[0.95, 0.99]
+                    )
+                )
+                
+                report['monte_carlo_analysis'] = {
+                    'var_results': mc_var_results,
+                    'simulation_params': {
+                        'n_simulations': self.monte_carlo_service.mc_engine.n_simulations,
+                        'time_horizon': self.monte_carlo_service.mc_engine.time_horizon,
+                        'confidence_levels': [0.95, 0.99]
+                    },
+                    'comparison': {
+                        'historical_var_95': self.state.risk_metrics.var_95,
+                        'monte_carlo_var_95': mc_var_results.get('var_95', 0),
+                        'difference': abs(
+                            self.state.risk_metrics.var_95 - 
+                            mc_var_results.get('var_95', 0)
+                        )
+                    }
+                }
+                
+                logger.info("Added Monte Carlo analysis to risk report")
+            except Exception as e:
+                logger.warning(f"Failed to generate Monte Carlo analysis: {str(e)}")
+                report['monte_carlo_analysis'] = {'error': str(e)}
         
         return report
     
