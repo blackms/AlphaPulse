@@ -67,6 +67,7 @@ class RiskManager(IRiskManager):
         risk_analyzer: Optional[RiskAnalyzer] = None,
         portfolio_optimizer: Optional[IPortfolioOptimizer] = None,
         correlation_analyzer: Optional[CorrelationAnalyzer] = None,
+        risk_budgeting_service: Optional[Any] = None,
     ):
         """
         Initialize risk management system.
@@ -85,6 +86,7 @@ class RiskManager(IRiskManager):
         self.risk_analyzer = risk_analyzer or RiskAnalyzer()
         self.portfolio_optimizer = portfolio_optimizer or AdaptivePortfolioOptimizer()
         self.correlation_analyzer = correlation_analyzer or CorrelationAnalyzer()
+        self.risk_budgeting_service = risk_budgeting_service
         
         self.state = PortfolioState(
             portfolio_value=self.config.initial_portfolio_value,
@@ -167,12 +169,35 @@ class RiskManager(IRiskManager):
         position_size = position_value / float(portfolio_value) if float(portfolio_value) > 0 else 0
         logger.debug(f"Position value: {position_value}, Position size: {position_size:.2%}")
 
+        # Get dynamic limits if available
+        max_position_size = self.config.max_position_size
+        max_leverage = self.config.max_portfolio_leverage
+        
+        if self.risk_budgeting_service:
+            try:
+                # Get current budget
+                portfolio_budget = await self.risk_budgeting_service.get_portfolio_budget()
+                if portfolio_budget:
+                    # Use dynamic leverage limit
+                    max_leverage = portfolio_budget.leverage_limit
+                    
+                    # Check symbol-specific limits
+                    for allocation in portfolio_budget.allocations:
+                        if allocation.entity_type == 'asset' and allocation.entity_id == symbol:
+                            # Use remaining budget as position limit
+                            remaining_pct = (allocation.allocated_amount - allocation.utilized_amount) / portfolio_value
+                            max_position_size = min(max_position_size, max(0, remaining_pct))
+                            logger.debug(f"Using dynamic position limit for {symbol}: {max_position_size:.2%}")
+                            break
+            except Exception as e:
+                logger.warning(f"Failed to get dynamic limits: {e}")
+        
         # Check position size limits with tolerance for floating-point rounding
         TOLERANCE = 1e-10  # Small tolerance for floating-point comparison
-        if position_size > (self.config.max_position_size + TOLERANCE):
+        if position_size > (max_position_size + TOLERANCE):
             logger.warning(
                 f"Trade rejected: Position size ({position_size:.2%}) "
-                f"exceeds limit ({self.config.max_position_size:.2%})"
+                f"exceeds limit ({max_position_size:.2%})"
             )
             return False
 
@@ -185,11 +210,11 @@ class RiskManager(IRiskManager):
             leverage = total_exposure / float(portfolio_value) if float(portfolio_value) > 0 else 0
             logger.debug(f"Total exposure: {total_exposure}, Leverage: {leverage:.2f}")
             
-            if leverage > self.config.max_portfolio_leverage:
+            if leverage > max_leverage:
                 logger.warning(
                     f"Trade rejected: Portfolio leverage "
                     f"({leverage:.2f}) exceeds limit "
-                    f"({self.config.max_portfolio_leverage:.2f})"
+                    f"({max_leverage:.2f})"
                 )
                 return False
         except Exception as e:
@@ -212,19 +237,50 @@ class RiskManager(IRiskManager):
         return True
 
     @audit_trade_decision(extract_reasoning=True, include_market_data=False)
-    def calculate_position_size(
+    async def calculate_position_size(
         self,
         symbol: str,
         current_price: float,
         signal_strength: float,
         historical_returns: Optional[pd.Series] = None,
+        strategy_name: Optional[str] = None,
     ) -> PositionSizeResult:
-        """Calculate recommended position size."""
+        """Calculate recommended position size with dynamic risk budgets."""
         volatility = (
             self.state.risk_metrics.volatility
             if self.state.risk_metrics
             else 0.15  # Default assumption
         )
+        
+        # Get risk budget constraints if service is available
+        risk_budget = None
+        if self.risk_budgeting_service:
+            try:
+                # Get current budget allocations
+                portfolio_budget = await self.risk_budgeting_service.get_portfolio_budget()
+                
+                if portfolio_budget:
+                    # Extract relevant budget constraints
+                    risk_budget = {
+                        'total_budget_limit': portfolio_budget.leverage_limit,
+                        'symbol_budget': {},
+                        'strategy_budget': None
+                    }
+                    
+                    # Find allocation for this symbol or strategy
+                    for allocation in portfolio_budget.allocations:
+                        if allocation.entity_type == 'asset' and allocation.entity_id == symbol:
+                            # Calculate remaining budget for this symbol
+                            remaining_budget = (allocation.allocated_amount - allocation.utilized_amount) / self.state.portfolio_value
+                            risk_budget['symbol_budget'][symbol] = max(0, remaining_budget)
+                        elif allocation.entity_type == 'strategy' and allocation.entity_id == strategy_name:
+                            remaining_budget = (allocation.allocated_amount - allocation.utilized_amount) / self.state.portfolio_value
+                            risk_budget['strategy_budget'] = max(0, remaining_budget)
+                    
+                    logger.debug(f"Applied risk budget constraints for {symbol}: {risk_budget}")
+                    
+            except Exception as e:
+                logger.warning(f"Failed to get risk budget: {e}")
         
         return self.position_sizer.calculate_position_size(
             symbol=symbol,
@@ -233,6 +289,7 @@ class RiskManager(IRiskManager):
             volatility=volatility,
             signal_strength=signal_strength,
             historical_returns=historical_returns,
+            risk_budget=risk_budget,
         )
 
     def update_risk_metrics(

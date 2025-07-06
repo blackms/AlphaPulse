@@ -154,7 +154,7 @@ def get_alert_manager():
 _risk_manager = None
 
 
-def get_risk_manager():
+def get_risk_manager(request: Request):
     """Get the risk manager instance."""
     global _risk_manager
     if _risk_manager is None:
@@ -171,5 +171,25 @@ def get_risk_manager():
             rebalance_threshold=0.1,
             initial_portfolio_value=100000.0
         )
-        _risk_manager = RiskManager(exchange=exchange, config=risk_config)
+        
+        # Get risk budgeting service if available
+        risk_budgeting_service = None
+        if hasattr(request.app.state, 'risk_budgeting_service'):
+            risk_budgeting_service = request.app.state.risk_budgeting_service
+        
+        _risk_manager = RiskManager(
+            exchange=exchange, 
+            config=risk_config,
+            risk_budgeting_service=risk_budgeting_service
+        )
     return _risk_manager
+
+
+def get_risk_budgeting_service(request: Request):
+    """Get the risk budgeting service instance from app state."""
+    if hasattr(request.app.state, 'risk_budgeting_service'):
+        return request.app.state.risk_budgeting_service
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="Risk budgeting service not available"
+    )

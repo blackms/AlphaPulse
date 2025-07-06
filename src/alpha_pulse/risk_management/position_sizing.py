@@ -147,6 +147,7 @@ class KellyCriterionSizer(IPositionSizer):
         volatility: float,
         signal_strength: float,
         historical_returns: Optional[pd.Series] = None,
+        risk_budget: Optional[Dict[str, float]] = None,
     ) -> PositionSizeResult:
         """Calculate position size using Kelly Criterion."""
         # Get Kelly parameters from historical data if available
@@ -273,6 +274,7 @@ class VolatilityBasedSizer(IPositionSizer):
         volatility: float,
         signal_strength: float,
         historical_returns: Optional[pd.Series] = None,
+        risk_budget: Optional[Dict[str, float]] = None,
     ) -> PositionSizeResult:
         """Calculate position size based on volatility targeting."""
         if historical_returns is not None and len(historical_returns) >= self.volatility_lookback:
@@ -350,6 +352,7 @@ class AdaptivePositionSizer(IPositionSizer):
         volatility: float,
         signal_strength: float,
         historical_returns: Optional[pd.Series] = None,
+        risk_budget: Optional[Dict[str, float]] = None,
     ) -> PositionSizeResult:
         """Calculate position size using adaptive strategy selection."""
         # Get recommendations from both strategies
@@ -399,6 +402,31 @@ class AdaptivePositionSizer(IPositionSizer):
             float(portfolio_value) * float(self.max_size_pct)
         )
         
+        # Apply risk budget constraints if provided
+        if risk_budget:
+            # Get allocated budget for this symbol/strategy
+            symbol_budget = risk_budget.get('symbol_budget', {}).get(symbol)
+            strategy_budget = risk_budget.get('strategy_budget')
+            total_budget_limit = risk_budget.get('total_budget_limit')
+            
+            # Apply symbol-specific budget limit
+            if symbol_budget is not None:
+                max_symbol_position = symbol_budget * portfolio_value
+                position_size = min(position_size, max_symbol_position / current_price)
+                logger.debug(f"Applied symbol budget limit: {symbol_budget} for {symbol}")
+            
+            # Apply strategy budget limit
+            if strategy_budget is not None:
+                max_strategy_position = strategy_budget * portfolio_value
+                position_size = min(position_size, max_strategy_position / current_price)
+                logger.debug(f"Applied strategy budget limit: {strategy_budget}")
+            
+            # Apply total budget limit
+            if total_budget_limit is not None:
+                max_total_position = total_budget_limit * portfolio_value
+                position_size = min(position_size, max_total_position / current_price)
+                logger.debug(f"Applied total budget limit: {total_budget_limit}")
+        
         return PositionSizeResult(
             size=position_size,
             confidence=max(kelly_result.confidence, vol_result.confidence),
@@ -407,6 +435,7 @@ class AdaptivePositionSizer(IPositionSizer):
                 "vol_weight": vol_weight,
                 "kelly_size": kelly_result.size,
                 "vol_size": vol_result.size,
+                "budget_constrained": risk_budget is not None,
                 **kelly_result.metrics,
                 **{f"vol_{k}": v for k, v in vol_result.metrics.items()},
             }

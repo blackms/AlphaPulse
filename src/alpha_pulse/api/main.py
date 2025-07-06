@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
 
 # Import routers
-from .routers import metrics, alerts, portfolio, system, trades, correlation
+from .routers import metrics, alerts, portfolio, system, trades, correlation, risk_budget
 from .routes import audit  # Add audit routes
 from .websockets import endpoints as ws_endpoints
 from .websockets.subscription import subscription_manager
@@ -29,6 +29,11 @@ from alpha_pulse.utils.audit_logger import get_audit_logger, AuditEventType
 from alpha_pulse.utils.ddos_protection import DDoSMitigator
 from alpha_pulse.utils.ip_filtering import IPFilterManager
 from alpha_pulse.services.throttling_service import ThrottlingService
+from alpha_pulse.services.risk_budgeting_service import (
+    RiskBudgetingService,
+    RiskBudgetingConfig
+)
+from alpha_pulse.risk.dynamic_budgeting import DynamicRiskBudgetManager
 
 # Import exchange data synchronization
 from .exchange_sync_integration import (
@@ -101,6 +106,7 @@ app.include_router(trades.router, prefix="/api/v1", tags=["trades"])
 app.include_router(system.router, prefix="/api/v1", tags=["system"])
 app.include_router(audit.router, prefix="/api/v1", tags=["audit"])  # Add audit routes
 app.include_router(correlation.router, prefix="/api/v1", tags=["correlation"])
+app.include_router(risk_budget.router, prefix="/api/v1/risk-budget", tags=["risk-budget"])
 
 # Register exchange sync events
 register_exchange_sync_events(app)
@@ -212,6 +218,38 @@ async def startup_event():
     # Start the subscription manager
     await subscription_manager.start()
     
+    # Initialize risk budgeting service
+    try:
+        # Create risk budgeting configuration
+        risk_budgeting_config = RiskBudgetingConfig(
+            base_volatility_target=0.15,
+            max_leverage=2.0,
+            rebalancing_frequency="daily",
+            enable_alerts=True,
+            auto_rebalance=False
+        )
+        
+        # Create dynamic risk budget manager
+        budget_manager = DynamicRiskBudgetManager(
+            base_volatility_target=risk_budgeting_config.base_volatility_target,
+            max_leverage=risk_budgeting_config.max_leverage,
+            rebalancing_frequency=risk_budgeting_config.rebalancing_frequency
+        )
+        
+        # Create and start risk budgeting service
+        app.state.risk_budgeting_service = RiskBudgetingService(
+            budget_manager=budget_manager,
+            monitoring_interval=60,  # 1 minute
+            alert_manager=alert_manager,
+            config=risk_budgeting_config
+        )
+        await app.state.risk_budgeting_service.start()
+        logger.info("Risk budgeting service started successfully")
+        
+    except Exception as e:
+        logger.error(f"Error initializing risk budgeting service: {e}")
+        # Continue without risk budgeting if it fails
+    
     logger.info("AlphaPulse API started successfully")
 
 
@@ -237,6 +275,14 @@ async def shutdown_event():
             logger.info("Throttling service stopped")
     except Exception as e:
         logger.error(f"Error stopping throttling service: {e}")
+    
+    # Stop risk budgeting service
+    try:
+        if hasattr(app.state, 'risk_budgeting_service'):
+            await app.state.risk_budgeting_service.stop()
+            logger.info("Risk budgeting service stopped")
+    except Exception as e:
+        logger.error(f"Error stopping risk budgeting service: {e}")
     
     # Stop the subscription manager
     await subscription_manager.stop()

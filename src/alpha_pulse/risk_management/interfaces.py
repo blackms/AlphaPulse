@@ -42,6 +42,7 @@ class IPositionSizer(ABC):
         volatility: float,
         signal_strength: float,
         historical_returns: Optional[pd.Series] = None,
+        risk_budget: Optional[Dict[str, float]] = None,
     ) -> PositionSizeResult:
         """
         Calculate recommended position size.
