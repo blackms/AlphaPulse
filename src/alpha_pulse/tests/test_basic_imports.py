@@ -13,21 +13,29 @@ def test_alpha_pulse_import():
 
 def test_core_modules_import():
     """Test that core modules can be imported."""
-    # Test config module
-    from alpha_pulse import config
-    assert config is not None
-    
-    # Test data_pipeline module  
-    from alpha_pulse import data_pipeline
-    assert data_pipeline is not None
-    
-    # Test features module
-    from alpha_pulse import features
-    assert features is not None
-    
-    # Test exchanges module
-    from alpha_pulse import exchanges
-    assert exchanges is not None
+    try:
+        # Test config module
+        from alpha_pulse import config
+        assert config is not None
+        print("✓ config module imported")
+        
+        # Test data_pipeline module  
+        from alpha_pulse import data_pipeline
+        assert data_pipeline is not None
+        print("✓ data_pipeline module imported")
+        
+        # Test features module
+        from alpha_pulse import features
+        assert features is not None
+        print("✓ features module imported")
+        
+        # Test exchanges module
+        from alpha_pulse import exchanges
+        assert exchanges is not None
+        print("✓ exchanges module imported")
+        
+    except ImportError as e:
+        pytest.fail(f"Failed to import core module: {e}")
 
 
 def test_exchanges_submodules():
