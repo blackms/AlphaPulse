@@ -175,6 +175,19 @@ This document maps all Sprint 3-4 features and their current integration status 
    - Add performance impact metrics
    - Create ROI dashboards
 
+## Integration Statistics
+
+### By Implementation Status
+- **Fully Implemented**: 9/9 features (100%)
+- **API Integration**: 1/9 features (11%) - Only tail risk hedging
+- **UI Integration**: 0/9 features (0%)
+- **Trading Flow Integration**: 3/9 features (33%)
+- **Business Metrics**: 0/9 features (0%)
+
+### By Sprint
+- **Sprint 3 (Risk Management)**: 5 features, 20% integrated
+- **Sprint 4 (ML Enhancement)**: 4 features, 0% integrated
+
 ## Conclusion
 
-While the core implementations are solid and feature-complete, approximately 80% of Sprint 3-4 features are not integrated into the trading flow or accessible to users. This represents significant untapped potential in the system.
+While the core implementations are solid and feature-complete, approximately 80% of Sprint 3-4 features are not integrated into the trading flow or accessible to users. This represents significant untapped potential in the system, similar to the regime detection issue discovered in v1.17.0.0.
