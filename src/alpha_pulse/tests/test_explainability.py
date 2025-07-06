@@ -11,6 +11,8 @@ from datetime import datetime
 from pathlib import Path
 import asyncio
 
+from alpha_pulse.models.explanation_result import ExplanationResult
+
 from alpha_pulse.ml.explainability.shap_explainer import SHAPExplainer, SHAPConfig
 from alpha_pulse.ml.explainability.lime_explainer import (
     LIMETabularExplainer, LIMETimeSeriesExplainer, LIMETextExplainer, LIMEConfig
