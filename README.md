@@ -293,6 +293,15 @@ The system uses multiple specialized AI agents to analyze different aspects of t
 - **Value Agent**: Long-term value assessment
 - **Activist Agent**: Market-moving event detection
 
+### Enhanced Risk Management
+
+The system now includes comprehensive risk management features:
+
+- **Tail Risk Hedging**: Automated detection and hedging of extreme market events
+- **Liquidity Risk Management**: Pre-trade impact assessment and slippage estimation
+- **Monte Carlo VaR**: Advanced risk metrics using simulation techniques
+- **Dynamic Risk Budgeting**: Regime-aware position sizing and leverage limits
+
 ### Market Regime Detection
 
 Advanced Hidden Markov Model (HMM) based regime detection:
@@ -342,6 +351,15 @@ Multiple portfolio optimization strategies:
 - **Hierarchical Risk Parity**: Clustering-based risk allocation
 - **Black-Litterman**: Combines market equilibrium with views
 - **LLM-Assisted**: AI-enhanced portfolio construction
+
+### Machine Learning Integration
+
+Advanced ML capabilities for adaptive trading:
+
+- **Ensemble Methods**: Voting, stacking, and boosting for signal aggregation
+- **Online Learning**: Real-time model adaptation from trading outcomes
+- **Drift Detection**: Automatic detection of model performance degradation
+- **GPU Acceleration**: Ready infrastructure for high-performance computing (coming soon)
 
 ### Real-Time Dashboard
 
@@ -418,6 +436,10 @@ http://localhost:18001
 | `/api/v1/risk/metrics` | GET | Get detailed risk metrics |
 | `/api/v1/portfolio` | GET | Get current portfolio data |
 | `/api/v1/metrics/{metric_type}` | GET | Get metrics data |
+| `/api/v1/hedging/*` | GET/POST | Tail risk hedging analysis and recommendations |
+| `/api/v1/liquidity/*` | GET/POST | Liquidity risk assessment and impact analysis |
+| `/api/v1/ensemble/*` | GET/POST | Ensemble ML methods for signal aggregation |
+| `/api/v1/online-learning/*` | GET/POST | Online learning model management |
 
 ### WebSocket Endpoints
 
