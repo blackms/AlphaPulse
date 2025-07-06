@@ -3,7 +3,7 @@
 # MUST BE READ BEFORE ANY DEVELOPMENT WORK
 
 last_updated: "2025-07-06"
-version: "1.0.0"
+version: "2.0.0"
 
 mandatory_reading:
   description: "Read these files IN ORDER before starting any task"
@@ -18,7 +18,7 @@ mandatory_reading:
       file: "INTEGRATION_FLOWS.yaml"
       why: "Understand data flows and gaps"
     4:
-      file: "CLAUDE.md"
+      file: "docs/development/CLAUDE.md"
       why: "Project-specific development guidelines"
       
 critical_context:
@@ -100,12 +100,105 @@ common_integration_patterns:
       risk_constraints = self.risk_manager.get_constraints()
       hedging_signals = self.tail_risk_hedger.get_hedging_signals()
 
+# 🔥 ENHANCED: Mandatory Documentation Auto-Update Requirements
+mandatory_documentation_updates:
+  when_to_update:
+    - "After integrating any feature into main system"
+    - "After changing data flows or integration points"
+    - "After resolving any integration gap"
+    - "After adding new user-accessible functionality"
+    - "IMMEDIATELY after any integration work - don't wait until task end"
+  
+  required_file_updates:
+    component_map_yaml:
+      file: "COMPONENT_MAP.yaml"
+      when: "After any integration work"
+      requirements:
+        - "Change status from 'IMPLEMENTED_NOT_INTEGRATED' to 'INTEGRATED'"
+        - "Add new integration_files where feature is now wired"
+        - "Clear integration_todos when integration completed"
+        - "Add specific business_impact description"
+        - "Update last_updated timestamp"
+      
+      example_update: |
+        regime_detection:
+          status: "INTEGRATED"  # Changed from IMPLEMENTED_NOT_INTEGRATED
+          integration_files:
+            - "api/main.py"  # Added - service now started here
+            - "agents/momentum_agent.py"  # Added - now uses regime info
+            - "portfolio/optimizer.py"  # Added - now regime-aware
+          integration_todos: []  # Cleared - was ["Add service startup", "Integrate into agents"]
+          business_impact: "All trading decisions now regime-aware, 15% improvement in risk-adjusted returns"
+          last_updated: "2024-12-XX"
+    
+    integration_flows_yaml:
+      file: "INTEGRATION_FLOWS.yaml"
+      when: "After changing data flows"
+      requirements:
+        - "Update main_trading_flow with new integration points"
+        - "Remove resolved gaps from integration_gaps list"
+        - "Add new data flow paths if created"
+        - "Update last_updated timestamp"
+      
+      example_update: |
+        main_trading_flow:
+          current_path:
+            3: "Agent signals → agents/ (✅ now regime-aware)"  # Updated
+            4: "Signal aggregation → ensemble/ (✅ now functional)"  # Updated
+          integration_gaps:
+            # REMOVED: "regime_detection: Should feed into step 3 but doesn't"
+            # REMOVED: "ensemble_methods: Should be in step 4 but unclear if used"
+    
+    project_memory_yaml:
+      file: "PROJECT_MEMORY.yaml"
+      when: "After completing integration work"
+      requirements:
+        - "Move resolved items from integration_debt to completed_integrations"
+        - "Update current_focus if major milestone reached"
+        - "Update project status and version if significant"
+        - "Update last_updated timestamp"
+      
+      example_update: |
+        integration_debt:
+          completed_integrations:
+            - "HMM regime detection: Fully integrated into all agents and portfolio optimization"
+            - "Ensemble methods: Integrated into signal aggregation pipeline"
+          remaining_high_priority: []  # Cleared items that were resolved
+        current_focus: "Sprint 5 performance optimization"  # Updated from integration audit
+        last_updated: "2024-12-XX"
+
+  commit_requirements:
+    documentation_commits:
+      - "Make separate commits for documentation updates"
+      - "Use clear commit messages indicating which file was updated"
+      - "Include reason for update in commit message"
+      - "Commit documentation changes immediately after integration work"
+    
+    commit_examples:
+      - "docs(component): update COMPONENT_MAP.yaml - regime detection now INTEGRATED"
+      - "docs(flows): update INTEGRATION_FLOWS.yaml - add ensemble method data flow"  
+      - "docs(memory): update PROJECT_MEMORY.yaml - resolve GPU acceleration integration debt"
+    
+    timing:
+      - "Update documentation immediately after integration work"
+      - "Don't wait until end of task to update documentation"
+      - "Commit documentation changes separately from code changes"
+
+  validation_before_commit:
+    - "Verify COMPONENT_MAP.yaml status accurately reflects reality"
+    - "Confirm INTEGRATION_FLOWS.yaml shows actual working data flows"
+    - "Ensure PROJECT_MEMORY.yaml integration debt is current"
+    - "Check all timestamps are updated to current date"
+    - "Test that newly integrated features are actually accessible"
+
+# 🔥 ENHANCED: Original documentation_updates section expanded
 documentation_updates:
   after_any_integration:
-    1: "Update COMPONENT_MAP.yaml status"
+    1: "Update COMPONENT_MAP.yaml status (see mandatory_documentation_updates for details)"
     2: "Update INTEGRATION_FLOWS.yaml if flow changed"
     3: "Add integration notes to component"
     4: "Update PROJECT_MEMORY.yaml if major milestone"
+    5: "Commit documentation changes immediately"
     
   commit_messages:
     format: "type(scope): description"
@@ -113,6 +206,7 @@ documentation_updates:
       - "fix(integration): wire HMM regime service to main API"
       - "feat(integration): connect tail risk to portfolio optimizer"
       - "fix(api): add correlation matrix endpoint"
+      - "docs(component): update COMPONENT_MAP.yaml - tail risk now INTEGRATED"
       
 specific_integration_tasks:
   hmm_regime_service:
@@ -122,18 +216,21 @@ specific_integration_tasks:
       - "src/alpha_pulse/api/main.py (start service)"
       - "src/alpha_pulse/agents/base_agent.py (add regime client)"
       - "All agent files (use regime in decisions)"
+    doc_update_required: "Change status to INTEGRATED in COMPONENT_MAP.yaml"
       
   tail_risk_hedging:
     current_issue: "Not connected to portfolio"
     files_to_modify:
       - "src/alpha_pulse/portfolio/portfolio_optimizer.py"
       - "src/alpha_pulse/api/routers/risk.py (add endpoint)"
+    doc_update_required: "Update integration_files and clear todos in COMPONENT_MAP.yaml"
       
   correlation_analysis:
     current_issue: "Computed but not displayed"
     files_to_modify:
       - "src/alpha_pulse/api/routers/risk.py (add endpoint)"
       - "dashboard/src/components/RiskDashboard.tsx"
+    doc_update_required: "Add UI integration to INTEGRATION_FLOWS.yaml"
 
 red_flags_to_avoid:
   - "Starting new feature development without checking existing code"
@@ -141,6 +238,8 @@ red_flags_to_avoid:
   - "Building features that won't be integrated"
   - "Ignoring the HMM regime service issue"
   - "Not updating documentation after changes"
+  - "Completing integration work without updating COMPONENT_MAP.yaml"
+  - "Forgetting to commit documentation updates separately"
   
 testing_requirements:
   integration_tests:
@@ -153,6 +252,7 @@ testing_requirements:
     - "Can users see/use the feature?"
     - "Are metrics being collected?"
     - "Do other components use it?"
+    - "Is documentation accurate and updated?"
 
 success_metrics:
   integration_complete_when:
@@ -160,11 +260,14 @@ success_metrics:
     - "Visible in dashboard/API"
     - "Other components consume its output"
     - "Metrics and monitoring active"
-    - "Documentation updated"
+    - "Documentation updated in all project memory files"
+    - "COMPONENT_MAP.yaml shows status as INTEGRATED"
     
 remember:
   - "This project has many sophisticated unintegrated features"
   - "Integration is more valuable than new features"
   - "Always check if it already exists first"
-  - "Update docs immediately after changes"
+  - "Update docs immediately after changes - this is MANDATORY"
   - "Focus on making existing code work together"
+  - "Documentation accuracy is critical for project memory"
+  - "Integration is not complete until documentation is updated"

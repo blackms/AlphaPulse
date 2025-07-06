@@ -744,16 +744,36 @@ We welcome contributions to AlphaPulse! Here's how to get started:
 - Enhanced scalability for large-scale simulations
 - Improved resource utilization efficiency
 
-For a complete list of changes, see the [CHANGELOG.md](CHANGELOG.md) file.
+For a complete list of changes, see the [CHANGELOG.md](docs/releases/CHANGELOG.md) file.
+
+## 📚 Documentation
+
+Comprehensive documentation is available in the [`docs/`](docs/) directory:
+
+- **[📋 Documentation Index](docs/README.md)** - Complete documentation navigation
+- **[🏗️ System Architecture](docs/SYSTEM_ARCHITECTURE.md)** - Overall system design
+- **[🚀 User Guide](docs/USER_GUIDE.md)** - Setup and usage instructions
+- **[👨‍💻 Developer Guide](docs/development/CLAUDE.md)** - Development guidelines
+- **[📊 API Documentation](docs/API_DOCUMENTATION.md)** - REST API reference
+- **[🔐 Security](docs/security.md)** - Security features and protocols
+
+### Quick Start Documentation
+- [Deployment Guide](docs/DEPLOYMENT.md) - Production setup
+- [Database Setup](docs/DATABASE_SETUP.md) - Database configuration
+- [Debug Tools](docs/DEBUG_TOOLS.md) - Troubleshooting utilities
+
+### Release Information
+- [Release Notes](docs/releases/RELEASE_NOTES.md) - Latest updates
+- [Changelog](docs/releases/CHANGELOG.md) - Complete history
 
 ## ❓ Support
 
 For issues or questions:
 
-1. Check the documentation in `docs/`
-2. Run example scripts in `examples/`
-3. Consult the API documentation at `http://localhost:8000/docs` when the API is running
-4. Open an issue in the [GitHub repository](https://github.com/blackms/AlphaPulse/issues)
+1. **Check Documentation** - Comprehensive guides in [`docs/`](docs/)
+2. **API Reference** - Live documentation at `http://localhost:8000/docs` when running
+3. **Troubleshooting** - See [Debug Tools](docs/DEBUG_TOOLS.md) and troubleshooting guides
+4. **GitHub Issues** - Open an issue in the [repository](https://github.com/blackms/AlphaPulse/issues)
 
 ## 📊 Architecture Documentation
 
