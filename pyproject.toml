@@ -43,7 +43,7 @@ tqdm = "^4.66.2"  # Added for stable-baselines3 progress bar
 rich = "^14.0.0"  # Added for stable-baselines3 progress bar
 python-multipart = "^0.0.9"
 # Security dependencies
-passlib = {extras = ["bcrypt"], version = "^1.7.5"}
+passlib = {extras = ["bcrypt"], version = "^1.7.4"}
 boto3 = "^1.35.100"  # AWS SDK for Secrets Manager
 hvac = "^2.1.0"  # HashiCorp Vault client
 cryptography = "^44.0.1"  # For local encryption
