@@ -12,11 +12,40 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: alphapulse_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:6
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    
     env:
       PYTHONPATH: ${{ github.workspace }}/src
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      EXCHANGE_API_KEY: ${{ secrets.EXCHANGE_API_KEY }}
-      EXCHANGE_API_SECRET: ${{ secrets.EXCHANGE_API_SECRET }}
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/alphapulse_test
+      REDIS_URL: redis://localhost:6379
+      EXCHANGE_API_KEY: test-api-key
+      EXCHANGE_API_SECRET: test-api-secret
+      OPENAI_API_KEY: test-openai-key
+      ENVIRONMENT: test
 
     steps:
     - uses: actions/checkout@v4
@@ -33,44 +62,9 @@ jobs:
         virtualenvs-create: true
         virtualenvs-in-project: true
     
-    - name: Setup Package Structure
+    - name: Show Package Structure
       run: |
-        # Create models directory and files
-        mkdir -p src/alpha_pulse/models
-        
-        # Create __init__.py
-        echo '''"""
-        Machine learning models package for AlphaPulse.
-        """
-        from .basic_models import ModelTrainer
-        __all__ = ["ModelTrainer"]
-        ''' > src/alpha_pulse/models/__init__.py
-        
-        # Create basic_models.py
-        echo '''"""
-        Basic machine learning models for AlphaPulse.
-        """
-        from typing import Dict, Optional, Union
-        from pathlib import Path
-        from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
-
-        class ModelTrainer:
-            def __init__(
-                self,
-                model_type: str = "random_forest",
-                task: str = "regression",
-                model_params: Optional[Dict] = None,
-                model_dir: Optional[Union[str, Path]] = None
-            ):
-                self.model_type = model_type
-                self.task = task
-                self.model_params = model_params or {}
-                self.model_dir = Path(model_dir) if model_dir else Path.cwd() / "models"
-                self._model = None
-                self._is_fitted = False
-        ''' > src/alpha_pulse/models/basic_models.py
-        
-        # Show directory structure
+        # Show directory structure for debugging
         echo "Package structure:"
         ls -R src/alpha_pulse/
     
