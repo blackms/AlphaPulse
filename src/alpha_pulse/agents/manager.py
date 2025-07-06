@@ -25,6 +25,8 @@ from alpha_pulse.models.ensemble_model import AgentSignalCreate
 from .gpu_signal_processor import GPUSignalProcessor
 from alpha_pulse.services.explainability_service import ExplainabilityService
 from alpha_pulse.compliance.explanation_compliance import ExplanationComplianceManager, ComplianceRequirement
+from alpha_pulse.data.quality.data_validator import DataValidator, QualityScore
+from alpha_pulse.data.quality.quality_metrics import get_quality_metrics_service
 
 
 class AgentManager:
@@ -69,6 +71,12 @@ class AgentManager:
             ComplianceRequirement.SOX
         ])
         
+        # Data quality validation
+        self.data_validator = DataValidator()
+        self.quality_metrics_service = get_quality_metrics_service()
+        self.min_quality_threshold = config.get("min_quality_threshold", 0.75)
+        self.enable_quality_validation = config.get("enable_quality_validation", True)
+        
     async def initialize(self) -> None:
         """Initialize all agents."""
         # Create agent instances
@@ -102,6 +110,23 @@ class AgentManager:
         all_signals = []
 
         try:
+            # Data quality validation before processing
+            if self.enable_quality_validation:
+                quality_validation = await self._validate_data_quality(market_data)
+                if not quality_validation["is_valid"]:
+                    logger.warning(
+                        f"Data quality validation failed: {quality_validation['reason']}. "
+                        f"Quality score: {quality_validation.get('quality_score', 0):.3f}"
+                    )
+                    # Return empty signals if data quality is too poor
+                    if quality_validation.get('quality_score', 0) < self.min_quality_threshold:
+                        logger.error("Data quality below minimum threshold - skipping signal generation")
+                        return []
+                    else:
+                        logger.warning("Data quality marginal - proceeding with caution")
+                else:
+                    logger.debug(f"Data quality validation passed: {quality_validation.get('quality_score', 0):.3f}")
+            
             # Pre-calculate GPU-accelerated features if enabled
             symbols = list(market_data.prices.columns) if hasattr(market_data.prices, 'columns') else []
             gpu_features = {}
@@ -555,3 +580,114 @@ class AgentManager:
             logger.error(f"Ensemble aggregation failed: {str(e)}")
             # Fallback to basic aggregation
             return await self._aggregate_signals(signals)
+    
+    async def _validate_data_quality(self, market_data: MarketData) -> Dict[str, Any]:
+        """
+        Validate the quality of market data before generating signals.
+        
+        Args:
+            market_data: Market data object to validate
+            
+        Returns:
+            Dictionary with validation results
+        """
+        try:
+            # Convert market data to validation format
+            validation_results = []
+            overall_quality = QualityScore()
+            
+            # Validate each symbol's data
+            if hasattr(market_data, 'prices') and hasattr(market_data.prices, 'columns'):
+                for symbol in market_data.prices.columns:
+                    try:
+                        symbol_data = market_data.prices[symbol].dropna()
+                        
+                        if len(symbol_data) < 10:  # Minimum data points
+                            continue
+                            
+                        # Create a market data point for validation
+                        from alpha_pulse.models.market_data import MarketDataPoint, OHLCV
+                        
+                        # Use most recent data for validation
+                        recent_price = float(symbol_data.iloc[-1])
+                        
+                        # Create OHLCV from available data
+                        # For simplicity, use price as all OHLCV values
+                        ohlcv = OHLCV(
+                            open=recent_price,
+                            high=recent_price * 1.01,  # Approximate high
+                            low=recent_price * 0.99,   # Approximate low
+                            close=recent_price,
+                            volume=1000,  # Default volume if not available
+                            timestamp=datetime.now()
+                        )
+                        
+                        data_point = MarketDataPoint(
+                            symbol=symbol,
+                            timestamp=datetime.now(),
+                            ohlcv=ohlcv
+                        )
+                        
+                        # Validate the data point
+                        validation_result = await self.data_validator.validate_market_data(data_point)
+                        validation_results.append(validation_result)
+                        
+                        # Accumulate quality scores
+                        overall_quality.completeness += validation_result.quality_score.completeness
+                        overall_quality.accuracy += validation_result.quality_score.accuracy
+                        overall_quality.consistency += validation_result.quality_score.consistency
+                        overall_quality.timeliness += validation_result.quality_score.timeliness
+                        overall_quality.validity += validation_result.quality_score.validity
+                        overall_quality.uniqueness += validation_result.quality_score.uniqueness
+                        
+                    except Exception as e:
+                        logger.warning(f"Error validating data for symbol {symbol}: {e}")
+                        continue
+            
+            # Calculate average quality scores
+            if validation_results:
+                num_results = len(validation_results)
+                overall_quality.completeness /= num_results
+                overall_quality.accuracy /= num_results
+                overall_quality.consistency /= num_results
+                overall_quality.timeliness /= num_results
+                overall_quality.validity /= num_results
+                overall_quality.uniqueness /= num_results
+                overall_quality.calculate_overall_score()
+                
+                # Determine if data is valid based on overall score
+                is_valid = overall_quality.overall_score >= self.min_quality_threshold
+                
+                # Count failed validations
+                failed_validations = sum(1 for result in validation_results if not result.is_valid)
+                
+                return {
+                    "is_valid": is_valid,
+                    "quality_score": overall_quality.overall_score,
+                    "detailed_scores": {
+                        "completeness": overall_quality.completeness,
+                        "accuracy": overall_quality.accuracy,
+                        "consistency": overall_quality.consistency,
+                        "timeliness": overall_quality.timeliness,
+                        "validity": overall_quality.validity,
+                        "uniqueness": overall_quality.uniqueness
+                    },
+                    "symbols_validated": len(validation_results),
+                    "failed_validations": failed_validations,
+                    "reason": "Data quality checks passed" if is_valid else 
+                             f"Quality score {overall_quality.overall_score:.3f} below threshold {self.min_quality_threshold}"
+                }
+            else:
+                return {
+                    "is_valid": False,
+                    "quality_score": 0.0,
+                    "reason": "No data available for validation"
+                }
+                
+        except Exception as e:
+            logger.error(f"Error during data quality validation: {e}")
+            return {
+                "is_valid": False,
+                "quality_score": 0.0,
+                "reason": f"Validation error: {str(e)}"
+            }

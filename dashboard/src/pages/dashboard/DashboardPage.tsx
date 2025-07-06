@@ -58,6 +58,7 @@ import {
   Cell,
 } from 'recharts';
 import ExplanationWidget from '../../components/widgets/ExplanationWidget';
+import DataQualityWidget from '../../components/widgets/DataQualityWidget';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#A569BD', '#5DADE2', '#48C9B0', '#F4D03F'];
 
@@ -605,6 +606,11 @@ const DashboardPage: React.FC = () => {
         {/* Trading Decision Explanations */}
         <Grid item xs={12}>
           <ExplanationWidget />
+        </Grid>
+
+        {/* Data Quality Monitoring */}
+        <Grid item xs={12}>
+          <DataQualityWidget />
         </Grid>
       </Grid>
         </>
