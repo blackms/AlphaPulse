@@ -5,7 +5,7 @@ This module extends the base backtester with GPU acceleration for
 computationally intensive operations like calculating returns,
 drawdowns, and running Monte Carlo simulations.
 """
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union, Any
 import numpy as np
 import pandas as pd
 from loguru import logger

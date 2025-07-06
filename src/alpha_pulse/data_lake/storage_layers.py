@@ -16,6 +16,7 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 from pyspark.sql import SparkSession, DataFrame as SparkDataFrame
+from delta.tables import DeltaTable
 
 from alpha_pulse.data_lake.lake_manager import DataFormat
 

@@ -21,6 +21,7 @@ from alpha_pulse.decorators.audit_decorators import (
     audit_trade_decision
 )
 from alpha_pulse.services.ensemble_service import EnsembleService
+from alpha_pulse.services.regime_detection_service import RegimeDetectionService
 from alpha_pulse.models.ensemble_model import AgentSignalCreate
 from .gpu_signal_processor import GPUSignalProcessor
 from alpha_pulse.services.explainability_service import ExplainabilityService
@@ -35,7 +36,8 @@ class AgentManager:
     Provides a unified interface for the risk management system.
     """
     
-    def __init__(self, config: Dict[str, Any] = None, ensemble_service: EnsembleService = None, gpu_service=None, alert_manager=None):
+    def __init__(self, config: Dict[str, Any] = None, ensemble_service: EnsembleService = None, 
+                 gpu_service=None, alert_manager=None, regime_service: Optional[RegimeDetectionService] = None):
         """Initialize agent manager."""
         self.config = config or {}
         self.agents: Dict[str, BaseTradeAgent] = {}
@@ -49,6 +51,9 @@ class AgentManager:
         })
         self.signal_history: Dict[str, List[TradeSignal]] = defaultdict(list)
         self.performance_metrics: Dict[str, AgentMetrics] = {}
+        
+        # Regime detection integration
+        self.regime_service = regime_service
         
         # Ensemble integration
         self.ensemble_service = ensemble_service
@@ -691,3 +696,58 @@ class AgentManager:
                 "quality_score": 0.0,
                 "reason": f"Validation error: {str(e)}"
             }
+
+    async def register_agent(self, agent: BaseTradeAgent) -> None:
+        """Register a trading agent."""
+        self.agents[agent.agent_id] = agent
+        
+        # Register with ensemble service if available
+        if self.use_ensemble and self.ensemble_service:
+            if not self.ensemble_id:
+                # Create ensemble if not exists
+                self.ensemble_id = self.ensemble_service.create_ensemble(
+                    "main_trading_ensemble",
+                    list(self.agent_weights.keys())
+                )
+            
+            # Register agent
+            agent_id = self.ensemble_service.register_agent(
+                self.ensemble_id,
+                agent.agent_id,
+                agent.__class__.__name__
+            )
+            self.agent_registry[agent.agent_id] = agent_id
+            
+        logger.info(f"Registered agent: {agent.agent_id}")
+    
+    async def create_and_register_agent(self, agent_type: str, config: Dict[str, Any] = None) -> BaseTradeAgent:
+        """Create and register a new agent with regime service integration."""
+        # Import agent classes to avoid circular imports
+        from .technical_agent import TechnicalAgent
+        from .fundamental_agent import FundamentalAgent
+        from .sentiment_agent import SentimentAgent
+        from .value_agent import ValueAgent
+        
+        agent_classes = {
+            'technical': TechnicalAgent,
+            'fundamental': FundamentalAgent,
+            'sentiment': SentimentAgent,
+            'value': ValueAgent,
+        }
+        
+        agent_class = agent_classes.get(agent_type)
+        if not agent_class:
+            raise ValueError(f"Unknown agent type: {agent_type}")
+        
+        # Create agent with regime service
+        agent_config = config or {}
+        agent = agent_class(config=agent_config, regime_service=self.regime_service)
+        
+        # Initialize agent
+        await agent.initialize(agent_config)
+        
+        # Register agent
+        await self.register_agent(agent)
+        
+        logger.info(f"Created and registered {agent_type} agent with regime service integration")
+        return agent

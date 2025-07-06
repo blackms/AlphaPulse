@@ -17,7 +17,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.types import ASGIApp
 
-from alpha_pulse.utils.audit_logger import get_audit_logger, AuditEventType
+from alpha_pulse.utils.audit_logger import get_audit_logger, AuditEventType, AuditSeverity
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):

@@ -232,7 +232,12 @@ def get_agent_manager(request: Request):
         if hasattr(request.app.state, 'gpu_service'):
             gpu_service = request.app.state.gpu_service
         
-        # Initialize agent manager with ensemble, GPU, and explainability integration
+        # Get regime detection service if available
+        regime_service = None
+        if hasattr(request.app.state, 'regime_detection_service'):
+            regime_service = request.app.state.regime_detection_service
+        
+        # Initialize agent manager with ensemble, GPU, regime, and explainability integration
         config = {
             "use_ensemble": True,
             "use_gpu_acceleration": True,
@@ -251,7 +256,8 @@ def get_agent_manager(request: Request):
             config=config, 
             ensemble_service=ensemble_service,
             gpu_service=gpu_service,
-            alert_manager=alert_manager
+            alert_manager=alert_manager,
+            regime_service=regime_service
         )
     
     return _agent_manager

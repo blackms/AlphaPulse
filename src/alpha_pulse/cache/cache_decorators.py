@@ -6,7 +6,7 @@ import hashlib
 import inspect
 import json
 import logging
-from typing import Any, Callable, Dict, Optional, Union
+from typing import Any, Callable, Dict, Optional, Union, List, Set
 
 from .redis_manager import RedisManager, CacheTier
 from .cache_strategies import CacheStrategy, CacheStrategyFactory
