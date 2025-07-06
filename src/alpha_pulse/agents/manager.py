@@ -23,6 +23,7 @@ from alpha_pulse.decorators.audit_decorators import (
 from alpha_pulse.services.ensemble_service import EnsembleService
 from alpha_pulse.models.ensemble_model import AgentSignalCreate
 from .gpu_signal_processor import GPUSignalProcessor
+from alpha_pulse.services.explainability_service import ExplainabilityService
 
 
 class AgentManager:
@@ -55,6 +56,10 @@ class AgentManager:
         # GPU acceleration
         self.gpu_processor = GPUSignalProcessor(gpu_service)
         self.use_gpu_acceleration = config.get("use_gpu_acceleration", True)
+        
+        # Explainable AI
+        self.explainability_service = ExplainabilityService()
+        self.enable_explanations = config.get("enable_explanations", True)
         
     async def initialize(self) -> None:
         """Initialize all agents."""
@@ -147,11 +152,84 @@ class AgentManager:
             else:
                 aggregated = await self._aggregate_signals(all_signals)
                 logger.debug(f"Basic-aggregated signals: {len(aggregated)}")
+            
+            # Generate explanations for aggregated signals if enabled
+            if self.enable_explanations and aggregated:
+                await self._generate_signal_explanations(aggregated, market_data)
+            
             return aggregated
 
         except Exception as e:
             logger.error(f"Error processing market data: {str(e)}")
             return []
+    
+    async def _generate_signal_explanations(
+        self, 
+        signals: List[TradeSignal], 
+        market_data: MarketData
+    ) -> None:
+        """
+        Generate explanations for trading signals.
+        
+        Args:
+            signals: List of trading signals to explain
+            market_data: Market data used for signal generation
+        """
+        try:
+            for signal in signals:
+                # Prepare signal data for explanation
+                signal_data = {
+                    "symbol": signal.symbol,
+                    "direction": signal.direction.value,
+                    "confidence": signal.confidence,
+                    "target_price": signal.target_price,
+                    "stop_loss": signal.stop_loss,
+                    "agent_type": signal.metadata.get("agent_type"),
+                    "agent_weight": signal.metadata.get("agent_weight"),
+                    "timestamp": datetime.now().isoformat()
+                }
+                
+                # Add market context if available
+                if hasattr(market_data, 'prices') and signal.symbol in market_data.prices.columns:
+                    recent_prices = market_data.prices[signal.symbol].tail(20)
+                    signal_data.update({
+                        "current_price": float(recent_prices.iloc[-1]) if not recent_prices.empty else None,
+                        "price_change_1d": float((recent_prices.iloc[-1] / recent_prices.iloc[-2] - 1) * 100) 
+                                         if len(recent_prices) >= 2 else None,
+                        "volatility": float(recent_prices.pct_change().std() * 100) 
+                                    if len(recent_prices) > 1 else None
+                    })
+                
+                # Generate explanation asynchronously (non-blocking)
+                try:
+                    explanation = await self.explainability_service.explain_prediction(
+                        model_type="trading_signal",
+                        prediction_data=signal_data,
+                        method="shap",  # Default to SHAP for real-time explanations
+                        symbol=signal.symbol,
+                        include_visualization=False  # Skip viz for real-time to save time
+                    )
+                    
+                    # Add explanation to signal metadata
+                    signal.metadata.update({
+                        "explanation_id": explanation.explanation_id,
+                        "key_factors": explanation.feature_importance[:3],  # Top 3 factors
+                        "explanation_confidence": explanation.confidence,
+                        "explanation_text": explanation.explanation_text[:200] + "..." 
+                                          if len(explanation.explanation_text) > 200 
+                                          else explanation.explanation_text
+                    })
+                    
+                    logger.debug(f"Generated explanation for {signal.symbol} signal")
+                    
+                except Exception as e:
+                    logger.warning(f"Failed to generate explanation for {signal.symbol}: {e}")
+                    # Don't fail the signal generation if explanation fails
+                    signal.metadata["explanation_error"] = str(e)
+                    
+        except Exception as e:
+            logger.error(f"Error in explanation generation process: {e}")
+            # Don't fail signal generation if explanation process fails
         
     async def update_agent_weights(self, performance_data: Dict[str, pd.DataFrame]) -> None:
         """

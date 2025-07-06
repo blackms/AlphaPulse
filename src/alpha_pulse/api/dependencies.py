@@ -232,10 +232,11 @@ def get_agent_manager(request: Request):
         if hasattr(request.app.state, 'gpu_service'):
             gpu_service = request.app.state.gpu_service
         
-        # Initialize agent manager with ensemble and GPU integration
+        # Initialize agent manager with ensemble, GPU, and explainability integration
         config = {
             "use_ensemble": True,
             "use_gpu_acceleration": True,
+            "enable_explanations": True,
             "agent_weights": {
                 "activist": 0.15,
                 "value": 0.20,
