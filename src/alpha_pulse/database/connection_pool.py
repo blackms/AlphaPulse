@@ -172,24 +172,35 @@ class ConnectionPool:
             self._active_connections["master"] += 1
         
         try:
-            async with self._master_session_factory() as session:
-                # Track connection acquisition time
-                wait_time = (datetime.utcnow() - start_time).total_seconds()
-                self._connection_wait_times.append(wait_time)
-                
+            # Apply timeout to session acquisition
+            timeout = self.config.connection_pool.pool_timeout
+            
+            try:
+                async with asyncio.timeout(timeout):
+                    async with self._master_session_factory() as session:
+                        # Track connection acquisition time
+                        wait_time = (datetime.utcnow() - start_time).total_seconds()
+                        self._connection_wait_times.append(wait_time)
+                        
+                        if self.metrics:
+                            self.metrics.gauge(
+                                "db.pool.active_connections",
+                                self._active_connections["master"],
+                                {"pool": "master"}
+                            )
+                            self.metrics.histogram(
+                                "db.pool.wait_time",
+                                wait_time,
+                                {"pool": "master"}
+                            )
+                        
+                        yield session
+                        
+            except asyncio.TimeoutError:
+                logger.error(f"Timeout acquiring master connection after {timeout}s")
                 if self.metrics:
-                    self.metrics.gauge(
-                        "db.pool.active_connections",
-                        self._active_connections["master"],
-                        {"pool": "master"}
-                    )
-                    self.metrics.histogram(
-                        "db.pool.wait_time",
-                        wait_time,
-                        {"pool": "master"}
-                    )
-                
-                yield session
+                    self.metrics.increment("db.pool.timeout", {"pool": "master"})
+                raise TimeoutError(f"Failed to acquire database connection within {timeout}s")
                 
         finally:
             async with self._lock:
@@ -216,25 +227,35 @@ class ConnectionPool:
             self._active_connections[replica_id] += 1
         
         try:
-            session_factory = self._replica_session_factories[replica_id]
-            async with session_factory() as session:
-                # Track connection acquisition time
-                wait_time = (datetime.utcnow() - start_time).total_seconds()
-                self._connection_wait_times.append(wait_time)
-                
+            timeout = self.config.connection_pool.pool_timeout
+            
+            try:
+                async with asyncio.timeout(timeout):
+                    session_factory = self._replica_session_factories[replica_id]
+                    async with session_factory() as session:
+                        # Track connection acquisition time
+                        wait_time = (datetime.utcnow() - start_time).total_seconds()
+                        self._connection_wait_times.append(wait_time)
+                        
+                        if self.metrics:
+                            self.metrics.gauge(
+                                "db.pool.active_connections",
+                                self._active_connections[replica_id],
+                                {"pool": replica_id}
+                            )
+                            self.metrics.histogram(
+                                "db.pool.wait_time",
+                                wait_time,
+                                {"pool": replica_id}
+                            )
+                        
+                        yield session
+                        
+            except asyncio.TimeoutError:
+                logger.error(f"Timeout acquiring replica connection after {timeout}s")
                 if self.metrics:
-                    self.metrics.gauge(
-                        "db.pool.active_connections",
-                        self._active_connections[replica_id],
-                        {"pool": replica_id}
-                    )
-                    self.metrics.histogram(
-                        "db.pool.wait_time",
-                        wait_time,
-                        {"pool": replica_id}
-                    )
-                
-                yield session
+                    self.metrics.increment("db.pool.timeout", {"pool": replica_id})
+                raise TimeoutError(f"Failed to acquire replica connection within {timeout}s")
                 
         finally:
             async with self._lock:
