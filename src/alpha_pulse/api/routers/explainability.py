@@ -11,11 +11,13 @@ from ..dependencies import get_agent_manager
 from ...agents.manager import AgentManager
 from ...services.explainability_service import ExplainabilityService
 from ...models.explanation_result import ExplanationResult, GlobalExplanation
+from ...compliance.explanation_compliance import ExplanationComplianceManager, ComplianceRequirement
 
 router = APIRouter(prefix="/explainability", tags=["explainability"])
 
-# Initialize explainability service
+# Initialize explainability service and compliance manager
 explainability_service = ExplainabilityService()
+compliance_manager = ExplanationComplianceManager()
 
 
 class ExplanationRequest(BaseModel):
@@ -313,49 +315,119 @@ async def get_available_methods() -> Dict[str, Any]:
     }
 
 
-@router.get("/compliance-report/{symbol}", response_model=Dict[str, Any])
+@router.get("/compliance-report", response_model=Dict[str, Any])
 async def generate_compliance_report(
-    symbol: str,
-    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
-    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)")
+    start_date: str = Query(..., description="Start date (YYYY-MM-DD)"),
+    end_date: str = Query(..., description="End date (YYYY-MM-DD)"),
+    symbol: Optional[str] = Query(None, description="Optional symbol filter"),
+    regulatory_requirement: Optional[str] = Query(None, description="Regulatory requirement (mifid_ii, sox, gdpr)")
 ) -> Dict[str, Any]:
     """
-    Generate compliance report with explanation audit trail.
+    Generate comprehensive compliance report with explanation audit trail.
     
     Args:
-        symbol: Trading symbol
-        start_date: Optional start date filter
-        end_date: Optional end date filter
+        start_date: Start date for report period
+        end_date: End date for report period
+        symbol: Optional symbol filter
+        regulatory_requirement: Optional regulatory requirement filter
         
     Returns:
-        Compliance report with explanation data
+        Comprehensive compliance report with explanation metrics
     """
     try:
-        report = await explainability_service.generate_compliance_report(
-            symbol=symbol,
-            start_date=start_date,
-            end_date=end_date
+        # Parse dates
+        start_dt = datetime.fromisoformat(start_date)
+        end_dt = datetime.fromisoformat(end_date)
+        
+        # Parse regulatory requirement
+        req = None
+        if regulatory_requirement:
+            try:
+                req = ComplianceRequirement(regulatory_requirement)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid regulatory requirement: {regulatory_requirement}"
+                )
+        
+        # Generate comprehensive compliance report
+        report = await compliance_manager.generate_compliance_report(
+            start_date=start_dt,
+            end_date=end_dt,
+            regulatory_requirement=req,
+            symbol=symbol
         )
         
-        return {
-            "symbol": symbol,
-            "report_period": {
-                "start": start_date,
-                "end": end_date
-            },
-            "generated_at": datetime.now().isoformat(),
-            "explanation_coverage": report.explanation_coverage,
-            "audit_trail": report.audit_entries,
-            "compliance_status": report.compliance_status,
-            "regulatory_notes": report.regulatory_notes,
-            "explanation_quality_metrics": report.quality_metrics
-        }
+        return report
         
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid date format: {str(e)}"
+        )
     except Exception as e:
-        logger.error(f"Error generating compliance report for {symbol}: {e}")
+        logger.error(f"Error generating compliance report: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to generate compliance report: {str(e)}"
+        )
+
+
+@router.get("/compliance-export", response_model=Dict[str, Any])
+async def export_compliance_data(
+    start_date: str = Query(..., description="Start date (YYYY-MM-DD)"),
+    end_date: str = Query(..., description="End date (YYYY-MM-DD)"),
+    format_type: str = Query("json", description="Export format (json, csv, xml)"),
+    regulatory_requirement: Optional[str] = Query(None, description="Regulatory requirement filter")
+) -> Dict[str, Any]:
+    """
+    Export compliance data for regulatory submission.
+    
+    Args:
+        start_date: Start date for export
+        end_date: End date for export
+        format_type: Export format
+        regulatory_requirement: Optional regulatory requirement filter
+        
+    Returns:
+        Exported compliance data
+    """
+    try:
+        # Parse dates
+        start_dt = datetime.fromisoformat(start_date)
+        end_dt = datetime.fromisoformat(end_date)
+        
+        # Parse regulatory requirement
+        req = None
+        if regulatory_requirement:
+            try:
+                req = ComplianceRequirement(regulatory_requirement)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid regulatory requirement: {regulatory_requirement}"
+                )
+        
+        # Export compliance data
+        export_data = await compliance_manager.export_compliance_data(
+            start_date=start_dt,
+            end_date=end_dt,
+            format_type=format_type,
+            regulatory_requirement=req
+        )
+        
+        return export_data
+        
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid date format: {str(e)}"
+        )
+    except Exception as e:
+        logger.error(f"Error exporting compliance data: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to export compliance data: {str(e)}"
         )
 
 

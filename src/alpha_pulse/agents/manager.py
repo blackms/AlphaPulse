@@ -24,6 +24,7 @@ from alpha_pulse.services.ensemble_service import EnsembleService
 from alpha_pulse.models.ensemble_model import AgentSignalCreate
 from .gpu_signal_processor import GPUSignalProcessor
 from alpha_pulse.services.explainability_service import ExplainabilityService
+from alpha_pulse.compliance.explanation_compliance import ExplanationComplianceManager, ComplianceRequirement
 
 
 class AgentManager:
@@ -60,6 +61,13 @@ class AgentManager:
         # Explainable AI
         self.explainability_service = ExplainabilityService()
         self.enable_explanations = config.get("enable_explanations", True)
+        
+        # Compliance management
+        self.compliance_manager = ExplanationComplianceManager()
+        self.regulatory_requirements = config.get("regulatory_requirements", [
+            ComplianceRequirement.MIFID_II,
+            ComplianceRequirement.SOX
+        ])
         
     async def initialize(self) -> None:
         """Initialize all agents."""
@@ -219,6 +227,22 @@ class AgentManager:
                                           if len(explanation.explanation_text) > 200 
                                           else explanation.explanation_text
                     })
+                    
+                    # Audit explained decision for compliance
+                    try:
+                        await self.compliance_manager.audit_trading_decision_with_explanation(
+                            trade_decision_id=f"signal_{signal.symbol}_{datetime.now().timestamp()}",
+                            agent_type=signal.metadata.get("agent_type", "unknown"),
+                            symbol=signal.symbol,
+                            decision_data=signal_data,
+                            explanation=explanation,
+                            regulatory_requirements=self.regulatory_requirements
+                        )
+                        signal.metadata["compliance_audited"] = True
+                    except Exception as compliance_error:
+                        logger.warning(f"Compliance audit failed for {signal.symbol}: {compliance_error}")
+                        signal.metadata["compliance_audited"] = False
+                        signal.metadata["compliance_error"] = str(compliance_error)
                     
                     logger.debug(f"Generated explanation for {signal.symbol} signal")
                     
