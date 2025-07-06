@@ -13,6 +13,7 @@ from .interfaces import (
     SignalDirection,
     AgentMetrics
 )
+from alpha_pulse.decorators.audit_decorators import audit_agent_signal
 
 
 class ValueAgent(BaseTradeAgent):
@@ -55,6 +56,7 @@ class ValueAgent(BaseTradeAgent):
             "patents": 0.2
         })
         
+    @audit_agent_signal(agent_type='value', include_market_data=True)
     async def generate_signals(self, market_data: MarketData) -> List[TradeSignal]:
         """
         Generate trading signals based on value investing criteria.
