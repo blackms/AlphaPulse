@@ -122,7 +122,7 @@ class PercentageValue(Decimal):
 class UserRegistrationRequest(BaseModel):
     """User registration request schema."""
     
-    username: constr(min_length=3, max_length=50, regex=r'^[a-zA-Z0-9_]+$') = Field(
+    username: constr(min_length=3, max_length=50, pattern=r'^[a-zA-Z0-9_]+$') = Field(
         ..., description="Username (3-50 characters, alphanumeric and underscore only)"
     )
     email: EmailStr = Field(..., description="Valid email address")
@@ -326,7 +326,7 @@ class SecurityEventRequest(BaseModel):
     """Security event reporting schema."""
     
     event_type: constr(min_length=1, max_length=50) = Field(..., description="Security event type")
-    severity: constr(regex=r'^(low|medium|high|critical)$') = Field(..., description="Event severity")
+    severity: constr(pattern=r'^(low|medium|high|critical)$') = Field(..., description="Event severity")
     description: constr(min_length=1, max_length=1000) = Field(..., description="Event description")
     ip_address: Optional[str] = Field(None, description="Source IP address")
     user_agent: Optional[str] = Field(None, description="User agent string")
@@ -350,7 +350,7 @@ class SecurityEventRequest(BaseModel):
 class IPFilterRuleRequest(BaseModel):
     """IP filter rule configuration schema."""
     
-    rule_type: constr(regex=r'^(whitelist|blacklist|geo_block|asn_block)$') = Field(
+    rule_type: constr(pattern=r'^(whitelist|blacklist|geo_block|asn_block)$') = Field(
         ..., 
         description="Filter rule type"
     )
@@ -416,7 +416,7 @@ class TradeHistoryQueryRequest(PaginationRequest):
 class PortfolioAnalysisRequest(BaseModel):
     """Portfolio analysis request schema."""
     
-    analysis_type: constr(regex=r'^(performance|risk|allocation|attribution)$') = Field(
+    analysis_type: constr(pattern=r'^(performance|risk|allocation|attribution)$') = Field(
         ..., 
         description="Type of analysis to perform"
     )
@@ -442,9 +442,9 @@ class PortfolioAnalysisRequest(BaseModel):
 class FileUploadRequest(BaseModel):
     """File upload request schema."""
     
-    file_type: constr(regex=r'^(csv|json|xlsx|pdf)$') = Field(..., description="File type")
+    file_type: constr(pattern=r'^(csv|json|xlsx|pdf)$') = Field(..., description="File type")
     description: Optional[constr(max_length=500)] = Field(None, description="File description")
-    category: constr(regex=r'^(portfolio|trades|research|reports)$') = Field(
+    category: constr(pattern=r'^(portfolio|trades|research|reports)$') = Field(
         ..., 
         description="File category"
     )

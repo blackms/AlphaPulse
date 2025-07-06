@@ -11,6 +11,7 @@ from typing import Dict, List, Optional, Tuple, Any, Callable
 from datetime import datetime, timedelta
 import logging
 from scipy.optimize import minimize
+from scipy import stats
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import StandardScaler
 import joblib

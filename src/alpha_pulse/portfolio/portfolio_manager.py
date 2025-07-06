@@ -123,8 +123,8 @@ class PortfolioManager:
         
         # Tail risk hedging integration
         self.hedge_manager = hedge_manager
-        self.tail_risk_enabled = config.get('tail_risk_hedging', {}).get('enabled', True) if hedge_manager else False
-        self.tail_risk_threshold = config.get('tail_risk_hedging', {}).get('threshold', 0.05)  # 5% tail risk
+        self.tail_risk_enabled = self.config.get('tail_risk_hedging', {}).get('enabled', True) if hedge_manager else False
+        self.tail_risk_threshold = self.config.get('tail_risk_hedging', {}).get('threshold', 0.05)  # 5% tail risk
         
         # Initialize correlation analyzer
         correlation_config = CorrelationAnalysisConfig(
