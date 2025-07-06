@@ -658,7 +658,15 @@ We welcome contributions to AlphaPulse! Here's how to get started:
 
 ## 📜 Changelog
 
-### v1.15.0.0 - Latest
+### v1.16.0.0 - Latest
+
+#### Added
+- **Database Optimization System**: Advanced connection pooling, query optimization, and intelligent routing
+- **Index Management**: Automated advisor, bloat monitoring, and concurrent operations
+- **Read/Write Splitting**: Load balancing across replicas with automatic failover
+- **Performance Monitoring**: Real-time metrics and comprehensive health reporting
+
+### v1.15.0.0 - Previous
 
 #### Added
 - **Comprehensive Redis Caching Layer**: Multi-tier caching architecture with L1 memory, L2 local Redis, and L3 distributed caching
@@ -667,7 +675,7 @@ We welcome contributions to AlphaPulse! Here's how to get started:
 - **Cache Monitoring & Analytics**: Real-time metrics, hot key detection, and performance recommendations
 - **Optimized Serialization**: MessagePack with compression support (LZ4, Snappy, GZIP)
 
-### v1.14.0.0 - Previous
+### v1.14.0.0
 
 #### Added
 - Distributed Computing with Ray and Dask for parallel backtesting
