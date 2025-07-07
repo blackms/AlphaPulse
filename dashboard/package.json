@@ -8,7 +8,7 @@
     "@emotion/styled": "^11.14.1",
     "@mui/icons-material": "^5.17.1",
     "@mui/material": "^5.17.1",
-    "@reduxjs/toolkit": "^1.9.5",
+    "@reduxjs/toolkit": "^2.8.2",
     "@types/recharts": "^1.8.29",
     "axios": "^1.10.0",
     "chart.js": "^4.5.0",
