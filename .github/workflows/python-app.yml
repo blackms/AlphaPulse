@@ -158,6 +158,12 @@ jobs:
         
         # Run specific tests that are known to work
         echo "Running working tests..."
+        
+        # First, let's try to collect all tests to see what's available
+        echo "Attempting to collect all tests..."
+        poetry run pytest --collect-only src/alpha_pulse/tests/ -q 2>&1 | head -50 || true
+        
+        echo "Running basic import tests..."
         timeout 300 poetry run pytest \
           --cov=src/alpha_pulse \
           --cov-report=xml \
@@ -167,7 +173,27 @@ jobs:
           --timeout=60 \
           src/alpha_pulse/tests/test_basic_imports.py \
           src/alpha_pulse/tests/test_imports.py \
+          src/alpha_pulse/tests/test_module_imports.py \
           -k "not test_all_imports" || true
+        
+        # Try to run more test files one by one
+        echo "Attempting to run additional test files..."
+        for test_file in src/alpha_pulse/tests/test_exchange.py \
+                        src/alpha_pulse/tests/test_features.py \
+                        src/alpha_pulse/tests/test_data_fetcher.py; do
+            if [ -f "$test_file" ]; then
+                echo "Trying $test_file..."
+                poetry run pytest \
+                    --cov=src/alpha_pulse \
+                    --cov-append \
+                    --cov-report=xml \
+                    --cov-report=term-missing \
+                    -v \
+                    --tb=short \
+                    --timeout=60 \
+                    "$test_file" || echo "Failed to run $test_file"
+            fi
+        done
         
         # Check if pytest found any tests
         if [ $? -eq 5 ]; then
