@@ -6,7 +6,7 @@ Provides various random number generation methods including pseudo-random
 """
 
 import numpy as np
-from typing import Tuple, Optional, List, Union, Any
+from typing import Tuple, Optional, List, Union, Any, Dict
 from abc import ABC, abstractmethod
 import logging
 from scipy import stats
