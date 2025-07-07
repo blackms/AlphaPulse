@@ -57,7 +57,7 @@ class AgentSignalRecord(Base):
     timestamp = Column(DateTime, nullable=False)
     signal = Column(Float, nullable=False)  # -1 to 1
     confidence = Column(Float, nullable=False)  # 0 to 1
-    metadata = Column(JSON)
+    meta_data = Column(JSON)
     market_conditions = Column(JSON)
     
     # Relationships
@@ -76,7 +76,7 @@ class EnsemblePrediction(Base):
     confidence = Column(Float, nullable=False)
     contributing_agents = Column(JSON)  # List of agent IDs
     weights = Column(JSON)  # Dict of agent_id: weight
-    metadata = Column(JSON)
+    meta_data = Column(JSON)
     execution_time_ms = Column(Float)
     
     # Relationships

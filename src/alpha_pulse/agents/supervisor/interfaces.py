@@ -26,10 +26,10 @@ class AgentHealth:
     state: AgentState
     last_active: datetime
     error_count: int
-    last_error: Optional[str]
     memory_usage: float  # in MB
     cpu_usage: float    # percentage
     metrics: Dict[str, float]
+    last_error: Optional[str] = None
     timestamp: datetime = field(default_factory=datetime.now)
 
 
@@ -41,11 +41,11 @@ class Task:
     task_type: str
     priority: int
     parameters: Dict[str, Any]
-    created_at: datetime = field(default_factory=datetime.now)
     completed_at: Optional[datetime] = None
     status: str = "pending"
     result: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
+    created_at: datetime = field(default_factory=datetime.now)
 
 
 class ISelfSupervisedAgent(ITradeAgent):
