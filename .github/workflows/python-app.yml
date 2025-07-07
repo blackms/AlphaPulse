@@ -208,6 +208,13 @@ jobs:
           --tb=short \
           src/alpha_pulse/tests/test_all_modules.py || echo "Module tests completed"
         
+        # Run maximum coverage test
+        echo "=== Running maximum coverage test ==="
+        poetry run python -m pytest \
+          -v \
+          --tb=short \
+          src/alpha_pulse/tests/test_maximum_coverage.py || echo "Maximum coverage tests completed"
+        
         # Run pytest with coverage at the end
         echo "=== Running all tests with coverage ==="
         poetry run python -m pytest \
@@ -219,6 +226,7 @@ jobs:
           src/alpha_pulse/tests/test_basic_imports.py \
           src/alpha_pulse/tests/test_module_imports.py \
           src/alpha_pulse/tests/test_all_modules.py \
+          src/alpha_pulse/tests/test_maximum_coverage.py \
           src/alpha_pulse/tests/test_core_components.py \
           src/alpha_pulse/tests/test_api_endpoints.py \
           src/alpha_pulse/tests/test_comprehensive_coverage.py \
