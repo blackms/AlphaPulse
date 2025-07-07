@@ -51,7 +51,7 @@ cryptography = "^44.0.1"  # For local encryption
 python-dotenv = "^1.0.0"  # For .env file loading
 # Input validation dependencies
 email-validator = "^2.1.0"  # Email validation
-phonenumbers = "^8.13.0"  # Phone number validation
+phonenumbers = "^9.0.8"  # Phone number validation
 jsonschema = "^4.23.0"  # JSON schema validation
 redis = "^3.5.3"  # Redis client for validation caching - compatible with redis-py-cluster
 # Real-time data provider dependencies
