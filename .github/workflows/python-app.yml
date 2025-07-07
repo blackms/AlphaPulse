@@ -156,16 +156,15 @@ jobs:
         echo "Test directory structure:"
         ls -R src/alpha_pulse/tests/
         
-        # Run basic import tests first to verify CI setup
-        echo "Running basic import tests..."
+        # Run all tests with coverage
+        echo "Running all tests..."
         timeout 300 poetry run pytest \
           --cov=src/alpha_pulse \
           --cov-report=xml \
           --cov-report=term-missing \
           -v \
           --tb=short \
-          --timeout=60 \
-          src/alpha_pulse/tests/test_basic_imports.py
+          --timeout=60
         
         # Check if pytest found any tests
         if [ $? -eq 5 ]; then
@@ -173,7 +172,7 @@ jobs:
           exit 1
         fi
         
-        echo "Basic tests completed successfully!"
+        echo "Tests completed successfully!"
     
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v5
