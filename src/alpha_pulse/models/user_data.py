@@ -17,6 +17,7 @@ from .encrypted_fields import (
     EncryptedString,
     EncryptedSearchableString,
     EncryptedJSON,
+    EncryptedText,
     SearchTokenIndex,
     create_encrypted_column
 )

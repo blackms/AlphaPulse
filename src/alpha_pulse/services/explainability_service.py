@@ -10,6 +10,8 @@ import json
 from pathlib import Path
 import pickle
 
+from ..models.explanation_result import FeatureContribution
+
 from ..ml.explainability.shap_explainer import SHAPExplainer, SHAPConfig
 from ..ml.explainability.lime_explainer import (
     LIMETabularExplainer, LIMETimeSeriesExplainer, LIMETextExplainer, LIMEConfig

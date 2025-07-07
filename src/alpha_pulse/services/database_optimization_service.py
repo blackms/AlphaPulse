@@ -16,7 +16,7 @@ from ..database.query_optimizer import QueryOptimizer
 from ..database.index_advisor import IndexAdvisor
 from ..database.index_manager import IndexManager
 from ..database.partition_manager import PartitionManager
-from ..database.read_write_router import ReadWriteRouter, TransactionRouter
+from ..database.read_write_router import ReadWriteRouter, TransactionRouter, QueryIntent
 from ..database.load_balancer import AdaptiveLoadBalancer
 from ..database.failover_manager import FailoverManager
 from ..database.database_monitor import DatabaseMonitor

@@ -13,7 +13,44 @@ from typing import Optional, List, Dict, Any, Union
 from decimal import Decimal
 from datetime import datetime, date
 from enum import Enum
+
+
+# Additional Enums for validation
+class SeverityEnum(str, Enum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+
+class RuleTypeEnum(str, Enum):
+    WHITELIST = "whitelist"
+    BLACKLIST = "blacklist"
+    GEO_BLOCK = "geo_block"
+    ASN_BLOCK = "asn_block"
+
+
+class AnalysisTypeEnum(str, Enum):
+    PERFORMANCE = "performance"
+    RISK = "risk"
+    ALLOCATION = "allocation"
+    ATTRIBUTION = "attribution"
+
+
+class FileTypeEnum(str, Enum):
+    CSV = "csv"
+    JSON = "json"
+    XLSX = "xlsx"
+    PDF = "pdf"
+
+
+class CategoryEnum(str, Enum):
+    PORTFOLIO = "portfolio"
+    TRADES = "trades"
+    RESEARCH = "research"
+    REPORTS = "reports"
 from pydantic import BaseModel, Field, validator, EmailStr, constr, conint, confloat
+from typing_extensions import Annotated
 import re
 
 from alpha_pulse.utils.input_validator import validator as input_validator
@@ -122,11 +159,17 @@ class PercentageValue(Decimal):
 class UserRegistrationRequest(BaseModel):
     """User registration request schema."""
     
-    username: constr(min_length=3, max_length=50, regex=r'^[a-zA-Z0-9_]+$') = Field(
-        ..., description="Username (3-50 characters, alphanumeric and underscore only)"
+    username: str = Field(
+        ..., min_length=3, max_length=50, description="Username (3-50 characters, alphanumeric and underscore only)"
     )
     email: EmailStr = Field(..., description="Valid email address")
     password: str = Field(..., min_length=8, max_length=128, description="Password (8-128 characters)")
+    
+    @validator('username')
+    def validate_username(cls, v):
+        if not re.match(r'^[a-zA-Z0-9_]+$', v):
+            raise ValueError('Username must be alphanumeric with underscores only')
+        return v
     full_name: constr(min_length=1, max_length=100) = Field(..., description="Full name")
     phone: Optional[str] = Field(None, description="Phone number in E.164 format")
     user_tier: UserTierEnum = Field(UserTierEnum.BASIC, description="User tier")
@@ -326,7 +369,7 @@ class SecurityEventRequest(BaseModel):
     """Security event reporting schema."""
     
     event_type: constr(min_length=1, max_length=50) = Field(..., description="Security event type")
-    severity: constr(regex=r'^(low|medium|high|critical)$') = Field(..., description="Event severity")
+    severity: SeverityEnum = Field(..., description="Event severity")
     description: constr(min_length=1, max_length=1000) = Field(..., description="Event description")
     ip_address: Optional[str] = Field(None, description="Source IP address")
     user_agent: Optional[str] = Field(None, description="User agent string")
@@ -350,7 +393,7 @@ class SecurityEventRequest(BaseModel):
 class IPFilterRuleRequest(BaseModel):
     """IP filter rule configuration schema."""
     
-    rule_type: constr(regex=r'^(whitelist|blacklist|geo_block|asn_block)$') = Field(
+    rule_type: RuleTypeEnum = Field(
         ..., 
         description="Filter rule type"
     )
@@ -416,7 +459,7 @@ class TradeHistoryQueryRequest(PaginationRequest):
 class PortfolioAnalysisRequest(BaseModel):
     """Portfolio analysis request schema."""
     
-    analysis_type: constr(regex=r'^(performance|risk|allocation|attribution)$') = Field(
+    analysis_type: AnalysisTypeEnum = Field(
         ..., 
         description="Type of analysis to perform"
     )
@@ -442,9 +485,9 @@ class PortfolioAnalysisRequest(BaseModel):
 class FileUploadRequest(BaseModel):
     """File upload request schema."""
     
-    file_type: constr(regex=r'^(csv|json|xlsx|pdf)$') = Field(..., description="File type")
+    file_type: FileTypeEnum = Field(..., description="File type")
     description: Optional[constr(max_length=500)] = Field(None, description="File description")
-    category: constr(regex=r'^(portfolio|trades|research|reports)$') = Field(
+    category: CategoryEnum = Field(
         ..., 
         description="File category"
     )

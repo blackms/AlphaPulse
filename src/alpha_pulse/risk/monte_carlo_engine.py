@@ -772,7 +772,7 @@ class MonteCarloEngine:
         return ScenarioResults(
             scenario_name=scenario['name'],
             scenario_type=scenario.get('type', 'custom'),
-            probability=scenario.get('probability', 1.0 / len(scenarios)),
+            probability=scenario.get('probability', 1.0),
             simulation_results=results,
             impact_summary={
                 'expected_loss': results.risk_metrics.expected_return,

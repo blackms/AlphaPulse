@@ -7,7 +7,7 @@ data movement, format conversion, and metadata management.
 
 import os
 import shutil
-from typing import Dict, Any, List, Optional, Union, Tuple
+from typing import Dict, Any, List, Optional, Union, Tuple, Callable
 from datetime import datetime, timedelta
 from pathlib import Path
 import hashlib
