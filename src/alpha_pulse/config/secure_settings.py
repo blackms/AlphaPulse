@@ -7,7 +7,8 @@ import os
 from typing import Dict, Any, Optional
 from pathlib import Path
 import yaml
-from pydantic import BaseSettings, Field, validator
+from pydantic import Field, validator
+from pydantic_settings import BaseSettings
 from functools import lru_cache
 
 from ..utils.secrets_manager import create_secrets_manager, SecretsManager

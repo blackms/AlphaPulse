@@ -1,10 +1,12 @@
 """
 Trading broker interface definitions.
 """
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from datetime import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 
 
 class OrderSide(Enum):
@@ -23,6 +25,7 @@ class OrderType(Enum):
 class OrderStatus(Enum):
     """Order status."""
     PENDING = "pending"
+    OPEN = "open"
     FILLED = "filled"
     CANCELLED = "cancelled"
     REJECTED = "rejected"
@@ -41,7 +44,7 @@ class Order:
     status: OrderStatus = OrderStatus.PENDING
     filled_quantity: float = 0.0
     filled_price: Optional[float] = None
-    timestamp: Optional[float] = None
+    timestamp: Optional[datetime] = None
 
 
 @dataclass
@@ -62,7 +65,36 @@ class Position:
     avg_entry_price: float
     unrealized_pnl: float = 0.0
     realized_pnl: float = 0.0
-    timestamp: Optional[float] = None
+    timestamp: Optional[datetime] = None
+
+
+class IBroker(ABC):
+    """Interface for broker implementations."""
+    
+    @abstractmethod
+    async def place_order(self, order: Order) -> OrderResult:
+        """Place an order."""
+        pass
+    
+    @abstractmethod
+    async def cancel_order(self, order_id: str) -> bool:
+        """Cancel an order."""
+        pass
+    
+    @abstractmethod
+    async def get_order_status(self, order_id: str) -> Optional[Order]:
+        """Get order status."""
+        pass
+    
+    @abstractmethod
+    async def get_positions(self) -> List[Position]:
+        """Get all positions."""
+        pass
+    
+    @abstractmethod
+    async def get_balance(self) -> Dict[str, float]:
+        """Get account balance."""
+        pass
 
 
 class BrokerInterface:

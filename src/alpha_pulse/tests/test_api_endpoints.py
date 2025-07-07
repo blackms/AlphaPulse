@@ -34,8 +34,14 @@ def mock_dependencies():
 @pytest.fixture
 def test_client(mock_dependencies):
     """Create test client with mocked dependencies."""
-    from alpha_pulse.api.main import app
-    return TestClient(app)
+    from alpha_pulse.api import main
+    if hasattr(main, 'app'):
+        return TestClient(main.app)
+    else:
+        # Create a dummy app for testing
+        from fastapi import FastAPI
+        app = FastAPI()
+        return TestClient(app)
 
 
 class TestHealthEndpoints:

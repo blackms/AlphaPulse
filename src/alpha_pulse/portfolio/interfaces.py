@@ -20,10 +20,55 @@ Defines the contract for implementing various portfolio strategies and risk mana
 """
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from datetime import datetime
 from typing import Dict, List, Optional, Tuple, Any
 import numpy as np
 import pandas as pd
 from decimal import Decimal
+
+
+@dataclass
+class PortfolioState:
+    """Current portfolio state."""
+    cash: float
+    positions: Dict[str, Dict]
+    total_value: float
+    timestamp: datetime
+
+
+@dataclass
+class OptimizationConstraints:
+    """Portfolio optimization constraints."""
+    min_weight: float
+    max_weight: float
+    max_concentration: float
+    target_return: Optional[float] = None
+    max_volatility: Optional[float] = None
+
+
+@dataclass
+class OptimizationResult:
+    """Result of portfolio optimization."""
+    weights: Dict[str, float]
+    expected_return: float
+    expected_volatility: float
+    sharpe_ratio: float
+    metadata: Optional[Dict[str, Any]] = None
+
+
+class IPortfolioOptimizer(ABC):
+    """Interface for portfolio optimization strategies."""
+    
+    @abstractmethod
+    def optimize(
+        self,
+        expected_returns: pd.Series,
+        covariance_matrix: pd.DataFrame,
+        constraints: OptimizationConstraints
+    ) -> OptimizationResult:
+        """Optimize portfolio weights."""
+        pass
 
 
 class IExchange(ABC):
