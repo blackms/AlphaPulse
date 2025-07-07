@@ -151,7 +151,7 @@ class Position(Base):
     status = Column(String(20), default="open", nullable=False)
     
     # Encrypted metadata
-    metadata = Column(
+    meta_data = Column(
         EncryptedJSON(encryption_context="position_metadata"),
         nullable=True
     )

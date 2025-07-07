@@ -84,12 +84,12 @@ class SmartOrder:
     config: SmartOrderConfig
     target_price: Optional[float] = None
     stop_price: Optional[float] = None
-    created_at: datetime = field(default_factory=datetime.now)
     status: OrderStatus = OrderStatus.PENDING
     filled_quantity: float = 0.0
     avg_filled_price: Optional[float] = None
     slices: List[OrderSlice] = field(default_factory=list)
     execution_stats: Dict[str, Any] = field(default_factory=dict)
+    created_at: datetime = field(default_factory=datetime.now)
 
 
 class MarketDataAnalyzer:

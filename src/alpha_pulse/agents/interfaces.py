@@ -27,8 +27,8 @@ class MarketData:
     fundamentals: Optional[Dict[str, Any]] = None  # Fundamental data if available
     sentiment: Optional[Dict[str, float]] = None  # Sentiment scores if available
     technical_indicators: Optional[Dict[str, pd.DataFrame]] = None  # Technical indicators
-    timestamp: datetime = field(default_factory=datetime.now)
     data_by_symbol: Optional[Dict[str, List[Any]]] = None  # Raw data by symbol
+    timestamp: datetime = field(default_factory=datetime.now)
 
 
 @dataclass
