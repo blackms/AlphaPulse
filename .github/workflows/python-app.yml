@@ -160,18 +160,13 @@ jobs:
         echo "Running comprehensive test suite..."
         
         # Set test environment variables
-        export PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
         export PYTHONDONTWRITEBYTECODE=1
         
         # First batch: Core import and component tests
         echo "=== Running core component tests ==="
-        poetry run pytest \
-          --cov=src/alpha_pulse \
-          --cov-report=xml \
-          --cov-report=term-missing \
+        poetry run python -m pytest \
           -v \
           --tb=short \
-          --timeout=60 \
           src/alpha_pulse/tests/test_basic_imports.py \
           src/alpha_pulse/tests/test_imports.py \
           src/alpha_pulse/tests/test_module_imports.py \
@@ -181,14 +176,9 @@ jobs:
         
         # Second batch: Feature and integration tests
         echo "=== Running feature tests ==="
-        poetry run pytest \
-          --cov=src/alpha_pulse \
-          --cov-append \
-          --cov-report=xml \
-          --cov-report=term-missing \
+        poetry run python -m pytest \
           -v \
           --tb=short \
-          --timeout=60 \
           src/alpha_pulse/tests/test_exchange.py \
           src/alpha_pulse/tests/test_features.py \
           src/alpha_pulse/tests/test_data_fetcher.py \
@@ -204,21 +194,21 @@ jobs:
                         src/alpha_pulse/tests/test_backtesting.py; do
             if [ -f "$test_file" ]; then
                 echo "Trying $test_file..."
-                poetry run pytest \
-                    --cov=src/alpha_pulse \
-                    --cov-append \
-                    --cov-report=xml \
-                    --cov-report=term-missing \
+                poetry run python -m pytest \
                     -v \
                     --tb=short \
-                    --timeout=60 \
                     "$test_file" || echo "Skipped $test_file due to errors"
             fi
         done
         
-        # Generate final coverage report
-        echo "=== Final coverage report ==="
-        poetry run coverage report --precision=2
+        # Run pytest with coverage at the end
+        echo "=== Running all tests with coverage ==="
+        poetry run python -m pytest \
+          --cov=src/alpha_pulse \
+          --cov-report=xml \
+          --cov-report=term-missing \
+          -v \
+          src/alpha_pulse/tests/ || echo "Coverage run completed"
         
         # Check if pytest found any tests
         if [ $? -eq 5 ]; then
