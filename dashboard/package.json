@@ -25,7 +25,7 @@
     "recharts": "^2.15.1",
     "socket.io-client": "^4.6.1",
     "typescript": "^5.8.3",
-    "web-vitals": "^2.1.4"
+    "web-vitals": "^5.0.3"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.6.3",
