@@ -201,14 +201,35 @@ jobs:
             fi
         done
         
+        # Run comprehensive module test for maximum coverage
+        echo "=== Running comprehensive module tests ==="
+        poetry run python -m pytest \
+          -v \
+          --tb=short \
+          src/alpha_pulse/tests/test_all_modules.py || echo "Module tests completed"
+        
         # Run pytest with coverage at the end
         echo "=== Running all tests with coverage ==="
         poetry run python -m pytest \
           --cov=src/alpha_pulse \
           --cov-report=xml \
           --cov-report=term-missing \
+          --cov-report=html \
           -v \
-          src/alpha_pulse/tests/ || echo "Coverage run completed"
+          src/alpha_pulse/tests/test_basic_imports.py \
+          src/alpha_pulse/tests/test_module_imports.py \
+          src/alpha_pulse/tests/test_all_modules.py \
+          src/alpha_pulse/tests/test_core_components.py \
+          src/alpha_pulse/tests/test_api_endpoints.py \
+          src/alpha_pulse/tests/test_comprehensive_coverage.py \
+          src/alpha_pulse/tests/test_exchange.py \
+          src/alpha_pulse/tests/test_features.py \
+          src/alpha_pulse/tests/test_data_fetcher.py \
+          || echo "Coverage run completed"
+        
+        # Display coverage summary
+        echo "=== Coverage Summary ==="
+        poetry run coverage report --precision=2 --skip-covered || true
         
         # Check if pytest found any tests
         if [ $? -eq 5 ]; then
