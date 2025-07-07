@@ -24,7 +24,7 @@ class OnlineLearningSession(Base):
     n_updates = Column(Integer, default=0)
     n_drifts_detected = Column(Integer, default=0)
     final_performance = Column(Float, nullable=True)
-    metadata = Column(JSON)
+    meta_data = Column(JSON)
     
     __table_args__ = (
         Index('idx_session_agent_time', 'agent_id', 'start_time'),
@@ -44,7 +44,7 @@ class DriftEvent(Base):
     confidence = Column(Float)
     detector_method = Column(String)
     action_taken = Column(String)
-    metadata = Column(JSON)
+    meta_data = Column(JSON)
     
     __table_args__ = (
         Index('idx_drift_session_time', 'session_id', 'timestamp'),
@@ -62,7 +62,7 @@ class ModelCheckpoint(Base):
     performance_metrics = Column(JSON)
     model_path = Column(String)
     is_best = Column(Boolean, default=False)
-    metadata = Column(JSON)
+    meta_data = Column(JSON)
     
     __table_args__ = (
         Index('idx_checkpoint_session_version', 'session_id', 'model_version'),
@@ -79,7 +79,7 @@ class StreamingMetrics(Base):
     metric_type = Column(String)  # 'accuracy', 'loss', 'latency', 'memory'
     value = Column(Float)
     window_size = Column(Integer)
-    metadata = Column(JSON)
+    meta_data = Column(JSON)
     
     __table_args__ = (
         Index('idx_metrics_session_type', 'session_id', 'metric_type'),

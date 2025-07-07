@@ -56,7 +56,7 @@ class ExplanationRecord(Base):
     prediction_value = Column(Float)
     confidence_score = Column(Float, nullable=True)
     computation_time = Column(Float, nullable=True)
-    metadata = Column(JSON)
+    meta_data = Column(JSON)
     compliance_notes = Column(String, nullable=True)
 
 

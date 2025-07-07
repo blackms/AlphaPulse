@@ -11,6 +11,27 @@ from loguru import logger
 
 
 @dataclass
+class RiskLimits:
+    """Risk limits configuration."""
+    max_position_size: float
+    max_portfolio_risk: float
+    max_correlation: float
+    max_leverage: float
+    stop_loss_pct: float
+    max_drawdown: float
+
+
+@dataclass
+class PositionLimits:
+    """Position-specific limits."""
+    symbol: str
+    max_position_size: float
+    max_leverage: float
+    min_position_size: float
+    max_concentration: float
+
+
+@dataclass
 class RiskMetrics:
     """Container for risk metrics."""
     volatility: float
