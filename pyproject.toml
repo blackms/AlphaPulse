@@ -17,7 +17,7 @@ ta-lib = "^0.6.3"
 numpy = "^2.1.3"
 pandas = "^2.2.3"
 scikit-learn = "^1.6.1"
-fastapi = "^0.115.12"
+fastapi = "^0.116.1"
 uvicorn = "^0.35.0"
 pydantic = "^2.11.3"
 pydantic-settings = "^2.7.0"
@@ -41,7 +41,7 @@ aiosmtplib = ">=3.0.1" # Broadened version constraint to resolve conflict
 python-jose = "^3.3.0" # Added to fix build error
 tensorboard = "^2.17.0"  # Added for RL trainer tests
 tqdm = "^4.66.2"  # Added for stable-baselines3 progress bar
-rich = "^13.7.0"  # Added for stable-baselines3 progress bar
+rich = "^14.1.0"  # Added for stable-baselines3 progress bar
 python-multipart = "^0.0.9"
 # Security dependencies
 passlib = {extras = ["bcrypt"], version = "^1.7.4"}
