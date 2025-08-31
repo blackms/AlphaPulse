@@ -67,6 +67,8 @@ lz4 = "^4.3.2"  # LZ4 compression
 python-snappy = "^0.7.3"  # Snappy compression
 redis-py-cluster = "^2.1.3"  # Redis cluster support
 prometheus-client = "^0.22.0"  # Prometheus metrics
+statsmodels = "^0.14.5"
+numba = "^0.61.2"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.5"
