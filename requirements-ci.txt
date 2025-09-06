@@ -108,7 +108,7 @@ multitasking==0.0.11
 mypy==1.16.1
 mypy_extensions==1.1.0
 namex==0.1.0
-narwhals==1.45.0
+narwhals==2.1.2
 nbclient==0.10.2
 nbconvert==7.16.6
 nbformat==5.10.4
