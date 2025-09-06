@@ -122,24 +122,18 @@ class Scenario:
 @dataclass
 class MarketScenario(Scenario):
     """Market-specific scenario."""
-    # Asset returns
-    asset_returns: Dict[str, float]  # Asset -> return
+    # All fields need defaults since parent class has defaults
+    asset_returns: Dict[str, float] = field(default_factory=dict)
+    volatility_shocks: Dict[str, float] = field(default_factory=dict)
+    correlation_changes: np.ndarray = field(default_factory=lambda: np.array([]))
     
-    # Market conditions
-    volatility_shocks: Dict[str, float]  # Asset -> vol multiplier
-    correlation_changes: np.ndarray  # Change in correlation matrix
-    
-    # Optional market indicators
+    # Optional fields with defaults
     vix_level: Optional[float] = None
     market_regime: Optional[str] = None
     liquidity_conditions: Optional[str] = None
-    
-    # Historical reference
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
     historical_reference: Optional[str] = None
-    
-    # Factor exposures (for factor models)
     factor_exposures: Optional[Dict[str, float]] = None
     
     def apply_to_portfolio(

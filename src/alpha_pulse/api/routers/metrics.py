@@ -6,7 +6,7 @@ This module defines the API endpoints for metrics.
 import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, Query, HTTPException, Request
 
 from ..dependencies import (
     require_view_metrics,
@@ -76,3 +76,63 @@ async def get_latest_metrics(
     except Exception as e:
         logger.error(f"Error getting latest metrics: {e}")
         return {}
+
+
+@router.get("/metrics/cache", response_model=Dict[str, Any])
+async def get_cache_metrics(
+    request: Request,
+    _: Dict[str, Any] = Depends(require_view_metrics)
+) -> Dict[str, Any]:
+    """
+    Get cache performance metrics.
+    
+    Returns:
+        Cache hit rates, latency, memory usage, and other cache metrics
+    """
+    try:
+        if hasattr(request.app.state, 'caching_service') and request.app.state.caching_service:
+            metrics = await request.app.state.caching_service.get_metrics()
+            return {
+                "status": "active",
+                "metrics": metrics,
+                "message": "CachingService is active and optimizing performance"
+            }
+        else:
+            return {
+                "status": "inactive",
+                "metrics": {},
+                "message": "CachingService is not initialized"
+            }
+    except Exception as e:
+        logger.error(f"Error getting cache metrics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/metrics/database", response_model=Dict[str, Any])
+async def get_database_metrics(
+    request: Request,
+    _: Dict[str, Any] = Depends(require_view_metrics)
+) -> Dict[str, Any]:
+    """
+    Get database performance metrics.
+    
+    Returns:
+        Query performance, connection pool stats, slow queries, and optimization metrics
+    """
+    try:
+        if hasattr(request.app.state, 'db_optimization_service') and request.app.state.db_optimization_service:
+            metrics = await request.app.state.db_optimization_service.get_performance_metrics()
+            return {
+                "status": "active",
+                "metrics": metrics,
+                "message": "DatabaseOptimizationService is active and monitoring performance"
+            }
+        else:
+            return {
+                "status": "inactive",
+                "metrics": {},
+                "message": "DatabaseOptimizationService is not initialized"
+            }
+    except Exception as e:
+        logger.error(f"Error getting database metrics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

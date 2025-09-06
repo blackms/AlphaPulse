@@ -1,0 +1,213 @@
+context:
+  task: "{task}"
+
+protocol:
+  codeStandards:
+    maxFileLength:
+      softLimit: 300
+      hardLimit: 500
+    refactoringThreshold: "20%"
+    modularityPrinciple: "Files and modules must adhere to SRP. Each file handles one distinct concern."
+    refactoringRule: "If, after modification, a file’s line count exceeds the hardLimit by more than the refactoringThreshold (e.g., > 600 lines for a 500-line limit), immediately pause, create a refactoring sub-task to split it, complete and commit the refactor, then resume the original task."
+    conventions:
+      commitStyle: "Conventional Commits"
+      codeStyle: "{LINTER_NAME_OR_CONFIG}"
+      testStyle: "AAA (Arrange-Act-Assert), one logical assertion per test case"
+      naming:
+        unitTestSuffix: ".spec.{ext}"
+        integrationTestSuffix: ".int.{ext}"
+        e2eTestSuffix: ".e2e.{ext}"
+
+  testingStandards:
+    strategy:
+      pyramid: { unit: 70, integration: 25, e2e: 5 }
+      types:
+        - unit
+        - integration
+        - e2e
+        - contract # for service boundaries / APIs
+        - property # property-based tests where useful
+        - snapshot  # UI/components only
+    coverageGates:
+      # Pipelines must fail if under thresholds:
+      lines: 90
+      branches: 80
+      functions: 90
+      statements: 90
+    mutationTesting:
+      enabled: true
+      tool: "{mutator_tool e.g., stryker|mutmut}"
+      minimumScore: 60
+    testInfra:
+      runner: "{jest|pytest|vitest|go test|...}"
+      mockLib: "{sinon|unittest.mock|...}"
+      httpMock: "{msw|vcrpy|wiremock|...}"
+      snapshotSerializer: "{serializer_if_any}"
+    fixtures:
+      location: "tests/fixtures"
+      principles:
+        - "Deterministic data only; no real network/time"
+        - "Prefer factory functions/builders over static fixtures"
+    deterministicBuild:
+      clock: "Inject fake clock/time"
+      random: "Seed RNG; assert on properties, not exact values"
+    performanceBudget:
+      unitTestMaxMs: 100
+      integrationTestMaxMs: 1000
+
+  taskPlan:
+    goal: "{SPECIFIC_GOAL_OF_THE_TASK}"
+    tasks:
+      - id: 1.1
+        description: "{First specific task}"
+        target_file: "{path/to/file}"
+        status: "pending"
+      - id: 1.2
+        description: "{Second specific task}"
+        target_file: "{path/to/file}"
+        status: "pending"
+      - id: 1.3
+        description: "{Third specific task}"
+        target_file: "{path/to/file}"
+        status: "pending"
+
+  taskInitialization:
+    - description: "Acknowledge the primary objective of the task."
+      action: "state_objective"
+      input: "{context.task}"
+    - description: "Create a new Git branch for the task."
+      action: "execute_command"
+      command: "git checkout -b {BRANCH_TYPE}/{SHORT_TASK_SUMMARY}"
+      branchNameConvention:
+        format: "[type]/[short-task-summary]"
+    - description: "Set up local test environment and verify tooling."
+      action: "execute_commands"
+      commands:
+        - "{PACKAGE_MANAGER} ci || {PACKAGE_MANAGER} install"
+        - "{TEST_RUNNER_CMD} --version"
+        - "{LINTER_CMD} --version"
+        - "{COVERAGE_CMD} --help"
+
+  development:
+    description: "Execute the task plan with strict TDD."
+    loopUntil: "all_tasks_in_taskPlan_are_complete"
+    steps:
+      - description: "Select next pending task."
+        action: "select_task"
+      - description: "Decompose into sub-steps (minimal increments)."
+        action: "generate_sub_steps"
+      - description: "TDD cycle for each sub-step."
+        loopUntil: "sub_step_complete"
+        tdd:
+          - phase: "RED"
+            actions:
+              - "Create/extend failing test that precisely describes the desired behavior."
+              - "Commit tests only: git add -A && git commit -m 'test({SCOPE}): {SHORT_BEHAVIOR_DESC} (RED)'"
+              - "Run tests and verify at least one fails for the expected reason."
+          - phase: "GREEN"
+            actions:
+              - "Write the simplest implementation to pass the failing test(s)."
+              - "Run tests locally: {TEST_RUNNER_CMD}"
+              - "Commit: git add -A && git commit -m 'feat({SCOPE}): {SHORT_BEHAVIOR_DESC} (GREEN)'"
+          - phase: "REFACTOR"
+            actions:
+              - "Refactor implementation and tests without changing behavior."
+              - "Ensure code respects codeStandards and maxFileLength."
+              - "Run linter/formatter: {LINTER_CMD} --fix"
+              - "Run tests + coverage: {COVERAGE_CMD} --min-lines {protocol.testingStandards.coverageGates.lines}"
+              - "If file exceeds thresholds, apply refactoringRule and commit."
+              - "Commit: git add -A && git commit -m 'refactor({SCOPE}): improve design without behavior change'"
+          - phase: "QUALITY GATES"
+            actions:
+              - "Run mutation tests if enabled: {MUTATION_CMD} --min-score {protocol.testingStandards.mutationTesting.minimumScore}"
+              - "Run static analysis and type checks: {TYPECHECK_CMD}"
+              - "Commit: git add -A && git commit -m 'chore(quality): pass gates for {SUB_STEP_ID}'"
+          - phase: "PUSH"
+            actions:
+              - "git push origin {BRANCH_TYPE}/{SHORT_TASK_SUMMARY}"
+      - description: "Mark task as complete"
+        action: "update_task_status"
+
+  documentation:
+    description: "Update docs alongside behavior changes (Doc-Driven Dev for public APIs)."
+    steps:
+      - action: "update_file"
+        target:
+          - "README.md"
+          - "docs/{SCOPE}.md"
+          - "CHANGELOG.md"
+      - action: "execute_command"
+        command: "git commit -m 'docs: update for {SHORT_TASK_SUMMARY}'"
+      - action: "execute_command"
+        command: "git push origin {BRANCH_TYPE}/{SHORT_TASK_SUMMARY}"
+
+  ciCd:
+    description: "Automated checks on every push and PR."
+    checks:
+      - name: "lint"
+        command: "{LINTER_CMD}"
+      - name: "typecheck"
+        command: "{TYPECHECK_CMD}"
+      - name: "tests"
+        command: "{TEST_RUNNER_CMD} --reporter={CI_REPORTER}"
+      - name: "coverage"
+        command: "{COVERAGE_CMD} --min-lines {protocol.testingStandards.coverageGates.lines} --min-branches {protocol.testingStandards.coverageGates.branches}"
+      - name: "mutation (nightly or on label)"
+        command: "{MUTATION_CMD} --min-score {protocol.testingStandards.mutationTesting.minimumScore}"
+      - name: "contracts (provider/consumer)"
+        command: "{CONTRACT_TEST_CMD}"
+    policies:
+      requireApprovals: 1
+      blockOn:
+        - "coverage drop > 2%"
+        - "new flaky tests detected"
+        - "snapshot updates without review"
+      artifacts:
+        - "coverage-report"
+        - "test-report"
+        - "mutation-report"
+      matrix:
+        os: ["linux", "macos"]
+        runtime: ["{LTS}", "{current}"]
+
+  release:
+    description: "Merge, version, and release"
+    preMergeChecks:
+      - "All CI checks green"
+      - "No TODO/FIXME remaining for this scope"
+      - "Changelog entry present"
+      - "Security scan clean: {SCA_CMD}"
+    steps:
+      - action: "execute_command"
+        commands:
+          - "git checkout main"
+          - "git pull origin main"
+          - "git merge --no-ff --no-edit {BRANCH_TYPE}/{SHORT_TASK_SUMMARY}"
+      - action: "determine_version"
+        scan_command: "git log --pretty=format:'%s' {LAST_TAG}..HEAD"
+        versioning_rules:
+          - increment: "W (Major)"
+            for_commit_containing: ["BREAKING CHANGE:"]
+          - increment: "Y (Minor)"
+            for_commit_prefix: ["feat:", "refactor:"]
+          - increment: "Z (Patch)"
+            for_commit_prefix: ["fix:", "perf:", "docs:", "chore:", "style:", "test:"]
+      - action: "tag_and_generate_notes"
+        commands:
+          - "git tag {NEW_VERSION}"
+          - "gh release create {NEW_VERSION} --generate-notes"
+      - action: "post_release_validation"
+        commands:
+          - "{SMOKE_TEST_CMD}"
+          - "{ROLLBACK_PLAN_CMD} --check"
+
+  rollbackPlan:
+    triggers:
+      - "Post-release smoke tests fail"
+      - "Critical regression reported"
+    actions:
+      - "gh release delete {NEW_VERSION} -y"
+      - "git checkout main && git revert {MERGE_COMMIT_SHA} -m 1 && git push origin main"
+      - "Create hotfix branch: git checkout -b hotfix/{ISSUE}"
+      - "Open incident note in docs/incidents/{DATE}-{ISSUE}.md"
+
