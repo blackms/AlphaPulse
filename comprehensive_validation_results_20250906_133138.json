@@ -1,0 +1,981 @@
+{
+  "summary_statistics": {
+    "total_scenarios_tested": 12,
+    "hrl_win_rate": 0.0,
+    "hrl_avg_rank": 4.583333333333333,
+    "best_hrl_performance": 0.0,
+    "worst_hrl_performance": 0.0,
+    "hrl_avg_return": 0.0,
+    "hrl_std_return": 0.0
+  },
+  "performance_rankings": {
+    "by_scenario": {
+      "Short-term (7 days)_Bull Market": [
+        [
+          "Random",
+          0.0022257305008391267
+        ],
+        [
+          "MA Crossover (10,50)",
+          0.0021350660715253617
+        ],
+        [
+          "Buy and Hold",
+          0.0013509451851254563
+        ],
+        [
+          "MA Crossover (5,20)",
+          0.000912507879594341
+        ],
+        [
+          "Mean Reversion (z>2.0)",
+          0.00041187163144059015
+        ],
+        [
+          "Momentum (12h, 2.0%)",
+          0.0
+        ],
+        [
+          "HRL-Conservative",
+          0.0
+        ],
+        [
+          "HRL-Moderate",
+          0.0
+        ],
+        [
+          "HRL-Aggressive",
+          0.0
+        ]
+      ],
+      "Short-term (7 days)_Bear Market": [
+        [
+          "Momentum (12h, 2.0%)",
+          0.010139600221765285
+        ],
+        [
+          "Random",
+          0.003386578048611409
+        ],
+        [
+          "MA Crossover (10,50)",
+          0.0032774015799984044
+        ],
+        [
+          "Buy and Hold",
+          0.0010017595128375978
+        ],
+        [
+          "Mean Reversion (z>2.0)",
+          0.0005260606425465085
+        ],
+        [
+          "HRL-Conservative",
+          0.0
+        ],
+        [
+          "HRL-Moderate",
+          0.0
+        ],
+        [
+          "HRL-Aggressive",
+          0.0
+        ],
+        [
+          "MA Crossover (5,20)",
+          -0.005133315204570827
+        ]
+      ],
+      "Short-term (7 days)_Sideways Market": [
+        [
+          "Random",
+          0.0016952191049943212
+        ],
+        [
+          "MA Crossover (10,50)",
+          0.0016400474859365204
+        ],
+        [
+          "Buy and Hold",
+          0.0008136178914994525
+        ],
+        [
+          "Mean Reversion (z>2.0)",
+          0.00028671155959236787
+        ],
+        [
+          "Momentum (12h, 2.0%)",
+          0.0
+        ],
+        [
+          "HRL-Conservative",
+          0.0
+        ],
+        [
+          "HRL-Moderate",
+          0.0
+        ],
+        [
+          "HRL-Aggressive",
+          0.0
+        ],
+        [
+          "MA Crossover (5,20)",
+          -0.0023813792384383852
+        ]
+      ],
+      "Short-term (7 days)_High Volatility": [
+        [
+          "Momentum (12h, 2.0%)",
+          0.006346526488555537
+        ],
+        [
+          "Random",
+          0.004851641307157989
+        ],
+        [
+          "MA Crossover (10,50)",
+          0.004622249993394362
+        ],
+        [
+          "Buy and Hold",
+          0.0015601142802361574
+        ],
+        [
+          "Mean Reversion (z>2.0)",
+          0.0007930331811087672
+        ],
+        [
+          "HRL-Conservative",
+          0.0
+        ],
+        [
+          "HRL-Moderate",
+          0.0
+        ],
+        [
+          "HRL-Aggressive",
+          0.0
+        ],
+        [
+          "MA Crossover (5,20)",
+          -0.007154245051376929
+        ]
+      ],
+      "Medium-term (30 days)_Bull Market": [
+        [
+          "Mean Reversion (z>2.0)",
+          0.008727209474742122
+        ],
+        [
+          "Buy and Hold",
+          0.004821706029090274
+        ],
+        [
+          "Random",
+          0.0017356639540819742
+        ],
+        [
+          "Momentum (12h, 2.0%)",
+          0.0
+        ],
+        [
+          "HRL-Conservative",
+          0.0
+        ],
+        [
+          "HRL-Moderate",
+          0.0
+        ],
+        [
+          "HRL-Aggressive",
+          0.0
+        ],
+        [
+          "MA Crossover (10,50)",
+          -0.004722838480181672
+        ],
+        [
+          "MA Crossover (5,20)",
+          -0.021451559991379328
+        ]
+      ],
+      "Medium-term (30 days)_Bear Market": [
+        [
+          "Mean Reversion (z>2.0)",
+          0.013197049911757349
+        ],
+        [
+          "Buy and Hold",
+          0.0012362093605316478
+        ],
+        [
+          "Random",
+          0.0006277026910601125
+        ],
+        [
+          "HRL-Conservative",
+          0.0
+        ],
+        [
+          "HRL-Moderate",
+          0.0
+        ],
+        [
+          "HRL-Aggressive",
+          0.0
+        ],
+        [
+          "Momentum (12h, 2.0%)",
+          -0.027844287790609816
+        ],
+        [
+          "MA Crossover (10,50)",
+          -0.032656011186173416
+        ],
+        [
+          "MA Crossover (5,20)",
+          -0.03543275437029079
+        ]
+      ],
+      "Medium-term (30 days)_Sideways Market": [
+        [
+          "Mean Reversion (z>2.0)",
+          0.006632291336553753
+        ],
+        [
+          "Buy and Hold",
+          0.0023764611586574755
+        ],
+        [
+          "Random",
+          0.0008432663086423418
+        ],
+        [
+          "Momentum (12h, 2.0%)",
+          0.0
+        ],
+        [
+          "HRL-Conservative",
+          0.0
+        ],
+        [
+          "HRL-Moderate",
+          0.0
+        ],
+        [
+          "HRL-Aggressive",
+          0.0
+        ],
+        [
+          "MA Crossover (10,50)",
+          -0.010762833723316725
+        ],
+        [
+          "MA Crossover (5,20)",
+          -0.01771089915874007
+        ]
+      ],
+      "Medium-term (30 days)_High Volatility": [
+        [
+          "Mean Reversion (z>2.0)",
+          0.01890836339703179
+        ],
+        [
+          "Buy and Hold",
+          0.0026916884353672503
+        ],
+        [
+          "Random",
+          0.0014228435018664458
+        ],
+        [
+          "HRL-Conservative",
+          0.0
+        ],
+        [
+          "HRL-Moderate",
+          0.0
+        ],
+        [
+          "HRL-Aggressive",
+          0.0
+        ],
+        [
+          "MA Crossover (10,50)",
+          -0.04361156699190629
+        ],
+        [
+          "MA Crossover (5,20)",
+          -0.05055356749700411
+        ],
+        [
+          "Momentum (12h, 2.0%)",
+          -0.05765695346280045
+        ]
+      ],
+      "Long-term (90 days)_Bull Market": [
+        [
+          "Mean Reversion (z>2.0)",
+          0.03396210726950696
+        ],
+        [
+          "Momentum (12h, 2.0%)",
+          0.02359056034242152
+        ],
+        [
+          "HRL-Conservative",
+          0.0
+        ],
+        [
+          "HRL-Moderate",
+          0.0
+        ],
+        [
+          "HRL-Aggressive",
+          0.0
+        ],
+        [
+          "Random",
+          -0.019194773898478307
+        ],
+        [
+          "MA Crossover (10,50)",
+          -0.035524875521496434
+        ],
+        [
+          "MA Crossover (5,20)",
+          -0.05182171850506638
+        ],
+        [
+          "Buy and Hold",
+          -0.07000194124038986
+        ]
+      ],
+      "Long-term (90 days)_Bear Market": [
+        [
+          "Mean Reversion (z>2.0)",
+          0.04951129333254095
+        ],
+        [
+          "Momentum (12h, 2.0%)",
+          0.0018598627415011288
+        ],
+        [
+          "HRL-Conservative",
+          0.0
+        ],
+        [
+          "HRL-Moderate",
+          0.0
+        ],
+        [
+          "HRL-Aggressive",
+          0.0
+        ],
+        [
+          "Random",
+          -0.03887362615860475
+        ],
+        [
+          "MA Crossover (10,50)",
+          -0.05495908762958774
+        ],
+        [
+          "MA Crossover (5,20)",
+          -0.08902524408102443
+        ],
+        [
+          "Buy and Hold",
+          -0.1325934140359072
+        ]
+      ],
+      "Long-term (90 days)_Sideways Market": [
+        [
+          "Mean Reversion (z>2.0)",
+          0.02443191454625543
+        ],
+        [
+          "Momentum (12h, 2.0%)",
+          0.0
+        ],
+        [
+          "HRL-Conservative",
+          0.0
+        ],
+        [
+          "HRL-Moderate",
+          0.0
+        ],
+        [
+          "HRL-Aggressive",
+          0.0
+        ],
+        [
+          "Random",
+          -0.017176882062314252
+        ],
+        [
+          "MA Crossover (10,50)",
+          -0.025520744752108002
+        ],
+        [
+          "MA Crossover (5,20)",
+          -0.04386483307893737
+        ],
+        [
+          "Buy and Hold",
+          -0.06074825281868703
+        ]
+      ],
+      "Long-term (90 days)_High Volatility": [
+        [
+          "Mean Reversion (z>2.0)",
+          0.08563000293188044
+        ],
+        [
+          "Momentum (12h, 2.0%)",
+          0.030749598039813426
+        ],
+        [
+          "HRL-Conservative",
+          0.0
+        ],
+        [
+          "HRL-Moderate",
+          0.0
+        ],
+        [
+          "HRL-Aggressive",
+          0.0
+        ],
+        [
+          "Random",
+          -0.052108793147336546
+        ],
+        [
+          "MA Crossover (10,50)",
+          -0.07102654792471236
+        ],
+        [
+          "MA Crossover (5,20)",
+          -0.12161192795781608
+        ],
+        [
+          "Buy and Hold",
+          -0.1781501948705979
+        ]
+      ]
+    },
+    "by_market_condition": {},
+    "overall_rankings": {
+      "Mean Reversion (z>2.0)": {
+        "mean_return": 0.020251492434579754,
+        "std_return": 0.024606453570360096,
+        "sharpe_ratio": 0.8230154896833184,
+        "win_rate": 1.0
+      },
+      "HRL-Conservative": {
+        "mean_return": 0.0,
+        "std_return": 0.0,
+        "sharpe_ratio": 0,
+        "win_rate": 0.0
+      },
+      "HRL-Moderate": {
+        "mean_return": 0.0,
+        "std_return": 0.0,
+        "sharpe_ratio": 0,
+        "win_rate": 0.0
+      },
+      "HRL-Aggressive": {
+        "mean_return": 0.0,
+        "std_return": 0.0,
+        "sharpe_ratio": 0,
+        "win_rate": 0.0
+      },
+      "Momentum (12h, 2.0%)": {
+        "mean_return": -0.0010679244516127815,
+        "std_return": 0.021860436849457675,
+        "sharpe_ratio": -0.04885192638038591,
+        "win_rate": 0.4166666666666667
+      },
+      "Random": {
+        "mean_return": -0.009213785820790011,
+        "std_return": 0.018074430988340624,
+        "sharpe_ratio": -0.5097690669616985,
+        "win_rate": 0.6666666666666666
+      },
+      "MA Crossover (10,50)": {
+        "mean_return": -0.022259145089885662,
+        "std_return": 0.02445888555184297,
+        "sharpe_ratio": -0.910063749335809,
+        "win_rate": 0.3333333333333333
+      },
+      "Buy and Hold": {
+        "mean_return": -0.03547010842601972,
+        "std_return": 0.0597600609364745,
+        "sharpe_ratio": -0.5935420391174764,
+        "win_rate": 0.6666666666666666
+      },
+      "MA Crossover (5,20)": {
+        "mean_return": -0.03710241135458753,
+        "std_return": 0.0359102219479712,
+        "sharpe_ratio": -1.0331991656399016,
+        "win_rate": 0.08333333333333333
+      }
+    }
+  },
+  "risk_metrics": {
+    "volatility_analysis": {
+      "Buy and Hold": {
+        "mean_volatility": 0.26420335169550263,
+        "volatility_stability": 0.10985647069298175
+      },
+      "MA Crossover (5,20)": {
+        "mean_volatility": 0.10085038953034035,
+        "volatility_stability": 0.044820857693344845
+      },
+      "MA Crossover (10,50)": {
+        "mean_volatility": 0.0880568238433504,
+        "volatility_stability": 0.03782143816636982
+      },
+      "Mean Reversion (z>2.0)": {
+        "mean_volatility": 0.07382225112509724,
+        "volatility_stability": 0.03230879984394337
+      },
+      "Momentum (12h, 2.0%)": {
+        "mean_volatility": 0.06629746796739386,
+        "volatility_stability": 0.06247428061720512
+      },
+      "Random": {
+        "mean_volatility": 0.08904401847935005,
+        "volatility_stability": 0.04043500270292026
+      },
+      "HRL-Conservative": {
+        "mean_volatility": 0.0,
+        "volatility_stability": 0.0
+      },
+      "HRL-Moderate": {
+        "mean_volatility": 0.0,
+        "volatility_stability": 0.0
+      },
+      "HRL-Aggressive": {
+        "mean_volatility": 0.0,
+        "volatility_stability": 0.0
+      }
+    },
+    "drawdown_analysis": {
+      "Buy and Hold": {
+        "mean_max_drawdown": 0.09548886979710768,
+        "worst_drawdown": 0.019046567816481844
+      },
+      "MA Crossover (5,20)": {
+        "mean_max_drawdown": 0.05109720508487669,
+        "worst_drawdown": 0.007753336671774835
+      },
+      "MA Crossover (10,50)": {
+        "mean_max_drawdown": 0.03817300646926886,
+        "worst_drawdown": 0.0034060575031123015
+      },
+      "Mean Reversion (z>2.0)": {
+        "mean_max_drawdown": 0.01803922423400202,
+        "worst_drawdown": 0.004782937935659429
+      },
+      "Momentum (12h, 2.0%)": {
+        "mean_max_drawdown": 0.017852818230584464,
+        "worst_drawdown": 0.0
+      },
+      "Random": {
+        "mean_max_drawdown": 0.034239782736430385,
+        "worst_drawdown": 0.0031292688082047364
+      },
+      "HRL-Conservative": {
+        "mean_max_drawdown": 0.0,
+        "worst_drawdown": 0.0
+      },
+      "HRL-Moderate": {
+        "mean_max_drawdown": 0.0,
+        "worst_drawdown": 0.0
+      },
+      "HRL-Aggressive": {
+        "mean_max_drawdown": 0.0,
+        "worst_drawdown": 0.0
+      }
+    },
+    "risk_adjusted_returns": {
+      "Buy and Hold": {
+        "mean_sharpe": -0.3050616470569137,
+        "sharpe_consistency": 0.9937714581339755
+      },
+      "MA Crossover (5,20)": {
+        "mean_sharpe": -3.274424467751207,
+        "sharpe_consistency": 1.3793590434499727
+      },
+      "MA Crossover (10,50)": {
+        "mean_sharpe": -1.0444511695358019,
+        "sharpe_consistency": 2.457463801555919
+      },
+      "Mean Reversion (z>2.0)": {
+        "mean_sharpe": 1.6731389400502674,
+        "sharpe_consistency": 0.7691037863429989
+      },
+      "Momentum (12h, 2.0%)": {
+        "mean_sharpe": 0.44228352879453947,
+        "sharpe_consistency": 2.6114080489852722
+      },
+      "Random": {
+        "mean_sharpe": 0.7453645747680104,
+        "sharpe_consistency": 1.8773228475029968
+      },
+      "HRL-Conservative": {
+        "mean_sharpe": 0.0,
+        "sharpe_consistency": 0.0
+      },
+      "HRL-Moderate": {
+        "mean_sharpe": 0.0,
+        "sharpe_consistency": 0.0
+      },
+      "HRL-Aggressive": {
+        "mean_sharpe": 0.0,
+        "sharpe_consistency": 0.0
+      }
+    }
+  },
+  "regime_analysis": {
+    "MarketRegime.BEAR": {
+      "hrl_performance": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "baseline_avg_performance": [
+        0.0011726868780874793,
+        0.002199680800198063,
+        0.0003423694672640461,
+        0.0018365533665126472,
+        -0.0018149698356077718,
+        -0.013478681897287487,
+        -0.0031036190130338706,
+        -0.021466532102907564,
+        -0.019831773592250416,
+        -0.04401336930518033,
+        -0.02047979969429854,
+        -0.05108631048812817
+      ],
+      "market_return": [
+        0.0030065117552833254,
+        0.0035722200878003374,
+        0.0020916036027600615,
+        0.005208413931791833,
+        0.01321136376521781,
+        0.0149938483502563,
+        0.009023677141119624,
+        0.02204818427076649,
+        -0.06828878559285723,
+        -0.13008670751218088,
+        -0.05940804212192774,
+        -0.17477744604880507
+      ]
+    },
+    "MarketRegime.SIDEWAYS": {
+      "hrl_performance": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "baseline_avg_performance": [
+        0.0011726868780874793,
+        0.002199680800198063,
+        0.0003423694672640461,
+        0.0018365533665126472,
+        -0.0018149698356077718,
+        -0.013478681897287487,
+        -0.0031036190130338706,
+        -0.021466532102907564,
+        -0.019831773592250416,
+        -0.04401336930518033,
+        -0.02047979969429854,
+        -0.05108631048812817
+      ],
+      "market_return": [
+        0.0030065117552833254,
+        0.0035722200878003374,
+        0.0020916036027600615,
+        0.005208413931791833,
+        0.01321136376521781,
+        0.0149938483502563,
+        0.009023677141119624,
+        0.02204818427076649,
+        -0.06828878559285723,
+        -0.13008670751218088,
+        -0.05940804212192774,
+        -0.17477744604880507
+      ]
+    },
+    "MarketRegime.BULL": {
+      "hrl_performance": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "baseline_avg_performance": [
+        0.0011726868780874793,
+        0.002199680800198063,
+        0.0003423694672640461,
+        0.0018365533665126472,
+        -0.0018149698356077718,
+        -0.013478681897287487,
+        -0.0031036190130338706,
+        -0.021466532102907564,
+        -0.019831773592250416,
+        -0.04401336930518033,
+        -0.02047979969429854,
+        -0.05108631048812817
+      ],
+      "market_return": [
+        0.0030065117552833254,
+        0.0035722200878003374,
+        0.0020916036027600615,
+        0.005208413931791833,
+        0.01321136376521781,
+        0.0149938483502563,
+        0.009023677141119624,
+        0.02204818427076649,
+        -0.06828878559285723,
+        -0.13008670751218088,
+        -0.05940804212192774,
+        -0.17477744604880507
+      ]
+    },
+    "MarketRegime.LOW_VOLATILITY": {
+      "hrl_performance": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "baseline_avg_performance": [
+        0.0011726868780874793,
+        0.002199680800198063,
+        0.0003423694672640461,
+        0.0018365533665126472,
+        -0.0018149698356077718,
+        -0.013478681897287487,
+        -0.0031036190130338706,
+        -0.021466532102907564,
+        -0.019831773592250416,
+        -0.04401336930518033,
+        -0.02047979969429854,
+        -0.05108631048812817
+      ],
+      "market_return": [
+        0.0030065117552833254,
+        0.0035722200878003374,
+        0.0020916036027600615,
+        0.005208413931791833,
+        0.01321136376521781,
+        0.0149938483502563,
+        0.009023677141119624,
+        0.02204818427076649,
+        -0.06828878559285723,
+        -0.13008670751218088,
+        -0.05940804212192774,
+        -0.17477744604880507
+      ]
+    },
+    "MarketRegime.HIGH_VOLATILITY": {
+      "hrl_performance": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "baseline_avg_performance": [
+        0.0011726868780874793,
+        0.002199680800198063,
+        0.0003423694672640461,
+        0.0018365533665126472,
+        -0.0018149698356077718,
+        -0.013478681897287487,
+        -0.0031036190130338706,
+        -0.021466532102907564,
+        -0.019831773592250416,
+        -0.04401336930518033,
+        -0.02047979969429854,
+        -0.05108631048812817
+      ],
+      "market_return": [
+        0.0030065117552833254,
+        0.0035722200878003374,
+        0.0020916036027600615,
+        0.005208413931791833,
+        0.01321136376521781,
+        0.0149938483502563,
+        0.009023677141119624,
+        0.02204818427076649,
+        -0.06828878559285723,
+        -0.13008670751218088,
+        -0.05940804212192774,
+        -0.17477744604880507
+      ]
+    }
+  },
+  "statistical_tests": {
+    "hrl_vs_baseline_ttest": "placeholder",
+    "regime_performance_anova": "placeholder",
+    "sharpe_ratio_significance": "placeholder"
+  },
+  "detailed_metrics": {
+    "Short-term (7 days)_Bull Market": {
+      "total_strategies": 9,
+      "data_period_days": 6.0,
+      "market_return": 0.0030065117552833254,
+      "mean_return": 0.0007817912520583195,
+      "std_return": 0.0008717139630451572,
+      "mean_sharpe": 0.8798696770771259,
+      "mean_max_dd": 0.005063412591096542
+    },
+    "Short-term (7 days)_Bear Market": {
+      "total_strategies": 9,
+      "data_period_days": 6.0,
+      "market_return": 0.0035722200878003374,
+      "mean_return": 0.0014664538667987087,
+      "std_return": 0.0038484999830059393,
+      "mean_sharpe": 0.9713403609280084,
+      "mean_max_dd": 0.00990117464466291
+    },
+    "Short-term (7 days)_Sideways Market": {
+      "total_strategies": 9,
+      "data_period_days": 6.0,
+      "market_return": 0.0020916036027600615,
+      "mean_return": 0.00022824631150936408,
+      "std_return": 0.0011308699124834567,
+      "mean_sharpe": 0.4532477549845874,
+      "mean_max_dd": 0.004335578660604188
+    },
+    "Short-term (7 days)_High Volatility": {
+      "total_strategies": 9,
+      "data_period_days": 6.0,
+      "market_return": 0.005208413931791833,
+      "mean_return": 0.0012243689110084314,
+      "std_return": 0.0037407127101869047,
+      "mean_sharpe": 0.8958640767358008,
+      "mean_max_dd": 0.01336917669149674
+    },
+    "Medium-term (30 days)_Bull Market": {
+      "total_strategies": 9,
+      "data_period_days": 29.0,
+      "market_return": 0.01321136376521781,
+      "mean_return": -0.0012099798904051811,
+      "std_return": 0.007970248364772722,
+      "mean_sharpe": -0.24655148362163912,
+      "mean_max_dd": 0.012757564983385546
+    },
+    "Medium-term (30 days)_Bear Market": {
+      "total_strategies": 9,
+      "data_period_days": 29.0,
+      "market_return": 0.0149938483502563,
+      "mean_return": -0.00898578793152499,
+      "std_return": 0.016821231290957306,
+      "mean_sharpe": -0.9287471100485258,
+      "mean_max_dd": 0.027092556076809424
+    },
+    "Medium-term (30 days)_Sideways Market": {
+      "total_strategies": 9,
+      "data_period_days": 29.0,
+      "market_return": 0.009023677141119624,
+      "mean_return": -0.00206907934202258,
+      "std_return": 0.007002624023522951,
+      "mean_sharpe": -0.5081053384327735,
+      "mean_max_dd": 0.010856304884674449
+    },
+    "Medium-term (30 days)_High Volatility": {
+      "total_strategies": 9,
+      "data_period_days": 29.0,
+      "market_return": 0.02204818427076649,
+      "mean_return": -0.014311021401938375,
+      "std_return": 0.0264690681515292,
+      "mean_sharpe": -1.1976558645291175,
+      "mean_max_dd": 0.03881885511966159
+    },
+    "Long-term (90 days)_Bull Market": {
+      "total_strategies": 9,
+      "data_period_days": 89.0,
+      "market_return": -0.06828878559285723,
+      "mean_return": -0.013221182394833612,
+      "std_return": 0.03223690208487896,
+      "mean_sharpe": -0.4398553935782853,
+      "mean_max_dd": 0.036744007475766595
+    },
+    "Long-term (90 days)_Bear Market": {
+      "total_strategies": 9,
+      "data_period_days": 89.0,
+      "market_return": -0.13008670751218088,
+      "mean_return": -0.029342246203453555,
+      "std_return": 0.052434390961658535,
+      "mean_sharpe": -0.8184510772900474,
+      "mean_max_dd": 0.06682787880366506
+    },
+    "Long-term (90 days)_Sideways Market": {
+      "total_strategies": 9,
+      "data_period_days": 89.0,
+      "market_return": -0.05940804212192774,
+      "mean_return": -0.013653199796199025,
+      "std_return": 0.024675802717939923,
+      "mean_sharpe": -0.8031813110473122,
+      "mean_max_dd": 0.0292914900529269
+    },
+    "Long-term (90 days)_High Volatility": {
+      "total_strategies": 9,
+      "data_period_days": 89.0,
+      "market_return": -0.17477744604880507,
+      "mean_return": -0.03405754032541877,
+      "std_return": 0.07610361393958506,
+      "mean_sharpe": -0.6086412788192948,
+      "mean_max_dd": 0.08479654208494353
+    }
+  }
+}
