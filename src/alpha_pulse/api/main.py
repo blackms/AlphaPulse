@@ -19,12 +19,15 @@ Main API application.
 
 This module defines the FastAPI application and routes.
 """
-from loguru import logger
 from datetime import timedelta
+from typing import Any
+
 from fastapi import FastAPI, Depends, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
+from loguru import logger
+from alpha_pulse.config.database import get_db_session
 
 # Import routers
 from .routers import metrics, alerts, portfolio, system, trades, correlation, risk_budget, regime, hedging, liquidity, ensemble, online_learning, gpu, explainability, data_quality, backtesting, data_lake
@@ -78,6 +81,24 @@ app = FastAPI(
     description="API for the AlphaPulse AI Hedge Fund",
     version="1.0.0",
 )
+
+
+def initialize_ensemble_service(app_state: Any) -> None:
+    """
+    Initialize the EnsembleService and attach it to the application state.
+    
+    Args:
+        app_state: FastAPI application state container.
+    """
+    ensemble_db_session = get_db_session()
+    try:
+        ensemble_service = EnsembleService(ensemble_db_session)
+    except Exception:
+        ensemble_db_session.close()
+        raise
+    
+    app_state.ensemble_service = ensemble_service
+    app_state.ensemble_db_session = ensemble_db_session
 
 # Add security headers middleware (first for all responses)
 app.add_middleware(SecurityHeadersMiddleware)
@@ -388,11 +409,12 @@ async def startup_event():
     
     # Initialize ensemble service
     try:
-        # Create ensemble service
-        app.state.ensemble_service = EnsembleService()
+        initialize_ensemble_service(app.state)
         logger.info("Ensemble service initialized successfully")
     except Exception as e:
         logger.error(f"Error initializing ensemble service: {e}")
+        app.state.ensemble_service = None
+        app.state.ensemble_db_session = None
         # Continue without ensemble service if it fails
     
     # Initialize online learning service
@@ -528,6 +550,17 @@ async def shutdown_event():
             logger.info("Tail risk hedging service stopped")
     except Exception as e:
         logger.error(f"Error stopping tail risk hedging service: {e}")
+    
+    # Close ensemble service database session
+    try:
+        if hasattr(app.state, 'ensemble_db_session') and app.state.ensemble_db_session:
+            app.state.ensemble_db_session.close()
+            app.state.ensemble_db_session = None
+            if hasattr(app.state, 'ensemble_service'):
+                app.state.ensemble_service = None
+            logger.info("Ensemble service database session closed")
+    except Exception as e:  # pragma: no cover
+        logger.error(f"Error closing ensemble service session: {e}")
     
     # Stop online learning service
     try:

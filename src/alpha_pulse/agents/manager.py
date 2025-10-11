@@ -498,7 +498,7 @@ class AgentManager:
     
     async def _aggregate_signals_with_ensemble(self, signals: List[TradeSignal]) -> List[TradeSignal]:
         """Aggregate signals using ensemble methods."""
-        if not signals:
+        if not signals or not self.ensemble_service or not self.ensemble_id:
             return []
             
         try:
@@ -532,13 +532,13 @@ class AgentManager:
                 
                 if ensemble_signals:
                     # Get ensemble prediction
-                    ensemble_result = self.ensemble_service.get_ensemble_prediction(
+                    ensemble_result = await self.ensemble_service.get_ensemble_prediction(
                         self.ensemble_id,
                         ensemble_signals
                     )
                     
                     # Convert back to TradeSignal format
-                    if ensemble_result.confidence >= 0.5:  # Minimum confidence threshold
+                    if ensemble_result and ensemble_result.confidence >= 0.5:  # Minimum confidence threshold
                         # Calculate aggregate target price and stop loss
                         prices = [s.metadata.get("target_price", 0) for s in symbol_signals 
                                 if s.metadata.get("target_price")]

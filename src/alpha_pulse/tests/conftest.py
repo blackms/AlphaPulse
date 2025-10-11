@@ -3,10 +3,12 @@ Pytest configuration and fixtures.
 """
 import asyncio
 import os
+import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
+from types import ModuleType
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -24,6 +26,11 @@ def mock_langchain():
     
     mock_chat = AsyncMock()
     mock_chat.ainvoke.return_value = mock_response
+
+    if "langchain_openai" not in sys.modules:
+        langchain_stub = ModuleType("langchain_openai")
+        langchain_stub.ChatOpenAI = MagicMock()
+        sys.modules["langchain_openai"] = langchain_stub
     
     with patch('langchain_openai.ChatOpenAI', return_value=mock_chat):
         yield

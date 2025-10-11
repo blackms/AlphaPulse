@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [1.19.0.0] - 2025-07-06
+
+## [Unreleased]
+### Fixed
+- Ensure the FastAPI startup sequence injects a database session when constructing `EnsembleService`, preventing the initialization `TypeError` (issue #100)
+- Update `AgentManager` to await the async ensemble prediction API, avoiding coroutine leaks when retrieving ensemble results (issue #100)
+
 ### Added
 - **Comprehensive Integration Audit**: Activated ~40% of dark features across all sprints
   - Increased overall system integration from ~30% to ~70%
