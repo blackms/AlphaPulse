@@ -74,13 +74,16 @@ class TestRiskBudgetingService:
         return alerting
     
     @pytest.fixture
-    async def service(self, config, mock_data_fetcher, mock_alerting):
+    async def service(self, config, mock_data_fetcher, mock_alerting, sample_portfolio):
         """Create risk budgeting service."""
+        portfolio_provider = AsyncMock(return_value=[sample_portfolio])
         service = RiskBudgetingService(
             config=config,
             data_fetcher=mock_data_fetcher,
-            alerting_system=mock_alerting
+            alerting_system=mock_alerting,
+            portfolio_provider=portfolio_provider
         )
+        service._test_portfolio_provider = portfolio_provider  # type: ignore[attr-defined]
         yield service
         # Cleanup
         if service._running:

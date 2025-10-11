@@ -6,48 +6,52 @@ and portfolio optimization.
 """
 
 import asyncio
-import numpy as np
-import pandas as pd
-from typing import Dict, List, Optional, Tuple, Any
-from datetime import datetime, timedelta
 import logging
 from dataclasses import dataclass
+from datetime import datetime, timedelta
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Sequence, Tuple
 
+import numpy as np
+import pandas as pd
+
+from alpha_pulse.data_pipeline.data_fetcher import DataFetcher
+from alpha_pulse.models.market_regime import MarketRegime, RegimeDetectionResult, RegimeType
 from alpha_pulse.models.portfolio import Portfolio
-from alpha_pulse.models.market_regime import (
-    RegimeDetectionResult, MarketRegime, RegimeType
-)
 from alpha_pulse.models.risk_budget import (
-    RiskBudget, RiskBudgetRebalancing, RiskBudgetSnapshot
+    RiskBudget,
+    RiskBudgetRebalancing,
+    RiskBudgetSnapshot,
 )
 from alpha_pulse.risk.regime_detector import MarketRegimeDetector
-from alpha_pulse.risk.dynamic_budgeting import DynamicRiskBudgetManager
-from alpha_pulse.data_pipeline.data_fetcher import DataFetcher
-from alpha_pulse.monitoring.alerting import AlertingSystem
+from alpha_pulse.services.exceptions import ServiceConfigurationError
 
 logger = logging.getLogger(__name__)
+
+
+PortfolioProvider = Callable[[], Awaitable[Sequence[Portfolio]]]
 
 
 @dataclass
 class RiskBudgetingConfig:
     """Configuration for risk budgeting service."""
+
     base_volatility_target: float = 0.15
     max_leverage: float = 2.0
     rebalancing_frequency: str = "daily"
-    
+
     # Regime detection
     regime_lookback_days: int = 252
     regime_update_frequency: str = "hourly"
-    
+
     # Risk limits
     max_position_size: float = 0.15
     min_positions: int = 5
     max_sector_concentration: float = 0.40
-    
+
     # Monitoring
     enable_alerts: bool = True
     auto_rebalance: bool = False
-    
+
     # Performance tracking
     track_performance: bool = True
     snapshot_frequency: str = "hourly"
@@ -60,20 +64,35 @@ class RiskBudgetingService:
         self,
         config: Optional[RiskBudgetingConfig] = None,
         data_fetcher: Optional[DataFetcher] = None,
-        alerting_system: Optional[AlertingSystem] = None
+        alerting_system: Optional[Any] = None,
+        portfolio_provider: Optional[PortfolioProvider] = None,
+        budget_manager: Optional[Any] = None,
     ):
         """Initialize risk budgeting service."""
         self.config = config or RiskBudgetingConfig()
         self.data_fetcher = data_fetcher
         self.alerting = alerting_system
+        self.portfolio_provider = portfolio_provider
         
         # Initialize components
         self.regime_detector = MarketRegimeDetector()
-        self.budget_manager = DynamicRiskBudgetManager(
-            base_volatility_target=self.config.base_volatility_target,
-            max_leverage=self.config.max_leverage,
-            rebalancing_frequency=self.config.rebalancing_frequency
-        )
+
+        if budget_manager is not None:
+            self.budget_manager = budget_manager
+        else:
+            try:
+                from alpha_pulse.risk.dynamic_budgeting import DynamicRiskBudgetManager
+            except ModuleNotFoundError as exc:
+                raise ServiceConfigurationError(
+                    "DynamicRiskBudgetManager requires the cvxpy dependency. "
+                    "Install cvxpy or provide a custom budget_manager instance."
+                ) from exc
+
+            self.budget_manager = DynamicRiskBudgetManager(
+                base_volatility_target=self.config.base_volatility_target,
+                max_leverage=self.config.max_leverage,
+                rebalancing_frequency=self.config.rebalancing_frequency,
+            )
         
         # State tracking
         self.current_regime: Optional[MarketRegime] = None
@@ -90,6 +109,7 @@ class RiskBudgetingService:
         
     async def start(self):
         """Start risk budgeting service."""
+        self._validate_dependencies()
         logger.info("Starting risk budgeting service")
         self._running = True
         
@@ -367,13 +387,8 @@ class RiskBudgetingService:
         while self._running:
             try:
                 if self.config.auto_rebalance and self._should_check_rebalancing():
-                    # Get active portfolios (simplified)
-                    # In practice, would get from portfolio service
-                    portfolio = None  # Placeholder
-                    
-                    if portfolio:
+                    for portfolio in await self._get_active_portfolios():
                         rebalancing = await self.check_rebalancing_needs(portfolio)
-                        
                         if rebalancing and self._should_auto_rebalance(rebalancing):
                             await self.execute_rebalancing(portfolio, rebalancing)
                 
@@ -403,9 +418,7 @@ class RiskBudgetingService:
         portfolio: Portfolio
     ) -> pd.DataFrame:
         """Fetch market data for portfolio assets."""
-        if not self.data_fetcher:
-            # Return dummy data for testing
-            return self._generate_dummy_market_data(portfolio)
+        self._ensure_data_fetcher()
         
         # Get unique symbols
         symbols = list(set(pos.symbol for pos in portfolio.positions.values()))
@@ -427,8 +440,7 @@ class RiskBudgetingService:
     
     async def _fetch_default_market_data(self) -> pd.DataFrame:
         """Fetch default market data for regime detection."""
-        if not self.data_fetcher:
-            return self._generate_dummy_market_data(None)
+        self._ensure_data_fetcher()
         
         # Default symbols for regime detection
         symbols = ['SPY', 'VIX', 'TLT', 'GLD', 'DXY', 'HYG', 'IWM']
@@ -443,6 +455,36 @@ class RiskBudgetingService:
         )
         
         return market_data
+    
+    async def _get_active_portfolios(self) -> Sequence[Portfolio]:
+        """Retrieve active portfolios from provider."""
+        if not self.portfolio_provider:
+            logger.warning("Portfolio provider not configured; skipping rebalancing cycle")
+            return []
+        try:
+            portfolios = await self.portfolio_provider()
+            return portfolios or []
+        except Exception as exc:
+            logger.error(f"Failed to retrieve active portfolios: {exc}")
+            return []
+
+    def _validate_dependencies(self) -> None:
+        """Ensure mandatory dependencies are configured."""
+        if not self.data_fetcher:
+            raise ServiceConfigurationError(
+                "RiskBudgetingService requires a data_fetcher providing historical market data."
+            )
+        if not self.portfolio_provider:
+            raise ServiceConfigurationError(
+                "RiskBudgetingService requires a portfolio_provider to access live portfolio state."
+            )
+
+    def _ensure_data_fetcher(self) -> None:
+        """Guard access to the data fetcher dependency."""
+        if not self.data_fetcher:
+            raise ServiceConfigurationError(
+                "Historical market data requested but data_fetcher is not configured."
+            )
     
     def _generate_dummy_market_data(
         self,
