@@ -194,6 +194,27 @@ class EnsembleService:
             metadata=ensemble_signal.metadata,
             execution_time_ms=execution_time
         )
+    
+    async def get_ensemble_prediction(
+        self,
+        ensemble_id: str,
+        agent_signals: List[AgentSignalCreate | Dict[str, Any]],
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> EnsemblePredictionResponse:
+        """
+        Backward-compatible wrapper for generating ensemble predictions.
+        
+        Accepts either AgentSignalCreate models or raw dictionaries, normalizes
+        them, and delegates to generate_ensemble_prediction.
+        """
+        normalized_signals: List[AgentSignalCreate] = []
+        for signal in agent_signals:
+            if isinstance(signal, AgentSignalCreate):
+                normalized_signals.append(signal)
+            else:
+                normalized_signals.append(AgentSignalCreate(**signal))
+        
+        return await self.generate_ensemble_prediction(ensemble_id, normalized_signals)
         
     def update_agent_performance(self, agent_id: str, performance: float) -> None:
         """Update agent performance metrics."""

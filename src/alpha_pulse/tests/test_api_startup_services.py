@@ -2,11 +2,13 @@
 Integration tests for API startup services.
 Tests the actual initialization and shutdown of performance services.
 """
-import pytest
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
 import sys
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 # Add the src directory to the path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
@@ -15,6 +17,46 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 @pytest.mark.asyncio
 class TestAPIStartupServices:
     """Test suite for API startup service initialization."""
+    
+    async def test_initialize_ensemble_service_uses_db_session(self):
+        """Ensure ensemble service initialization obtains a DB session."""
+        from pathlib import Path
+        import ast
+
+        module_path = Path('src/alpha_pulse/api/main.py')
+        module_ast = ast.parse(module_path.read_text())
+        function_node = next(
+            node for node in module_ast.body
+            if isinstance(node, ast.FunctionDef) and node.name == 'initialize_ensemble_service'
+        )
+
+        stub_session = SimpleNamespace()
+        stub_session.close = MagicMock()
+
+        mock_get_db_session = MagicMock(return_value=stub_session)
+        mock_service_instance = MagicMock()
+        MockEnsembleService = MagicMock(return_value=mock_service_instance)
+
+        exec_globals = {
+            'Any': __import__('typing').Any,
+            'get_db_session': mock_get_db_session,
+            'EnsembleService': MockEnsembleService,
+        }
+
+        exec(
+            compile(ast.Module(body=[function_node], type_ignores=[]), str(module_path), 'exec'),
+            exec_globals,
+        )
+
+        initialize_ensemble_service = exec_globals['initialize_ensemble_service']
+
+        app_state = SimpleNamespace()
+
+        initialize_ensemble_service(app_state)
+
+        MockEnsembleService.assert_called_once_with(stub_session)
+        assert app_state.ensemble_service is mock_service_instance
+        assert app_state.ensemble_db_session is stub_session
     
     async def test_caching_service_initialization(self):
         """Test CachingService initialization during startup."""
