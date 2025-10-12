@@ -7,7 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.21.1] - 2025-10-12
+
 ### Fixed
+- **ML Ensemble Dependencies**: Added missing `xgboost` (^3.0.5) and `lightgbm` (^4.6.0) dependencies ([#121](https://github.com/blackms/AlphaPulse/pull/121), fixes [#117](https://github.com/blackms/AlphaPulse/issues/117))
+  - `XGBoostEnsemble` class now fully functional
+  - `LightGBMEnsemble` class now fully functional
+  - `StackingEnsemble` xgboost/lightgbm meta-model options now available
+  - `OnlineBoosting` xgboost base model option now available
+  - **Note**: macOS users must install OpenMP runtime: `brew install libomp`
 - **Risk Services**: Wire risk budgeting and tail risk hedging services to live data providers ([#120](https://github.com/blackms/AlphaPulse/pull/120))
   - Services now receive market data from YFinance instead of using dummy data
   - Portfolio data flows from database through new `LivePortfolioProvider`
