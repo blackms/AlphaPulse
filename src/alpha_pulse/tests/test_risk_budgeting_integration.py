@@ -10,6 +10,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 import asyncio
 from typing import Dict, List, Tuple
+from unittest.mock import AsyncMock
 
 from alpha_pulse.models.portfolio import Portfolio, Position
 from alpha_pulse.models.market_regime import RegimeType, MarketRegime
@@ -21,6 +22,25 @@ from alpha_pulse.services.risk_budgeting_service import (
 from alpha_pulse.config.regime_parameters import (
     REGIME_TRANSITION_MATRIX, RISK_BUDGET_PARAMS
 )
+
+
+def _build_stub_data_fetcher():
+    fetcher = AsyncMock()
+
+    async def _fetch(symbols, start_date, end_date):
+        end = end_date or datetime.utcnow()
+        start = start_date or (end - timedelta(days=252))
+        index = pd.date_range(start=start, end=end, freq='D')
+        if len(index) == 0:
+            index = pd.date_range(end=end, periods=30, freq='D')
+        data = pd.DataFrame(
+            {symbol: np.linspace(1.0, len(index), len(index)) for symbol in symbols},
+            index=index
+        )
+        return data.ffill()
+
+    fetcher.fetch_historical_data = AsyncMock(side_effect=_fetch)
+    return fetcher
 
 
 class TestRiskBudgetingBacktest:
@@ -617,8 +637,8 @@ class TestAsyncIntegration:
             rebalancing_frequency="daily"
         )
         
-        service = RiskBudgetingService(config=config)
-        
+        data_fetcher = _build_stub_data_fetcher()
+
         # Create test portfolio
         portfolio = Portfolio(
             portfolio_id='async_test',
@@ -630,6 +650,14 @@ class TestAsyncIntegration:
                 'TLT': Position('TLT', 2000, 100, 95, 'long', 'bonds'),
                 'GLD': Position('GLD', 500, 180, 175, 'long', 'commodities')
             }
+        )
+
+        portfolio_provider = AsyncMock(return_value=[portfolio])
+
+        service = RiskBudgetingService(
+            config=config,
+            data_fetcher=data_fetcher,
+            portfolio_provider=portfolio_provider
         )
         
         # Start service
@@ -663,7 +691,12 @@ class TestAsyncIntegration:
     
     async def test_real_time_updates(self):
         """Test real-time update handling."""
-        service = RiskBudgetingService()
+        data_fetcher = _build_stub_data_fetcher()
+        portfolio_provider = AsyncMock(return_value=[])
+        service = RiskBudgetingService(
+            data_fetcher=data_fetcher,
+            portfolio_provider=portfolio_provider
+        )
         
         # Simulate real-time market updates
         update_count = 0

@@ -22,6 +22,35 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+
+class _DemoDataFetcher:
+    """Simple asynchronous data fetcher backed by in-memory DataFrame."""
+
+    def __init__(self, market_data: pd.DataFrame):
+        self._market_data = market_data
+
+    async def fetch_historical_data(self, symbols, start_date, end_date):
+        end = end_date or datetime.now()
+        start = start_date or (end - timedelta(days=252))
+        index = pd.date_range(start=start, end=end, freq='D')
+        if len(index) == 0:
+            index = pd.date_range(end=end, periods=30, freq='D')
+
+        available = self._market_data
+        columns = [symbol for symbol in symbols if symbol in available.columns]
+        data = available.reindex(index=index).interpolate().ffill().bfill()
+        data = data[columns]
+
+        missing = [symbol for symbol in symbols if symbol not in available.columns]
+        if missing:
+            filler = pd.DataFrame(
+                {symbol: np.linspace(100.0, 100.0 + len(index), len(index)) for symbol in missing},
+                index=index
+            )
+            data = pd.concat([data, filler], axis=1)
+
+        return data.reindex(columns=symbols)
+
 from alpha_pulse.models.portfolio import Portfolio, Position
 from alpha_pulse.models.market_regime import RegimeType
 from alpha_pulse.risk.regime_detector import MarketRegimeDetector
@@ -29,7 +58,6 @@ from alpha_pulse.risk.dynamic_budgeting import DynamicRiskBudgetManager
 from alpha_pulse.services.risk_budgeting_service import (
     RiskBudgetingService, RiskBudgetingConfig
 )
-from alpha_pulse.data_pipeline.data_fetcher import DataFetcher
 from alpha_pulse.config.regime_parameters import RISK_BUDGET_PARAMS
 
 console = Console()
@@ -54,15 +82,22 @@ class RiskBudgetingDemo:
             track_performance=True
         )
         
-        # Initialize service (without real data fetcher for demo)
-        self.service = RiskBudgetingService(config=self.config)
-        
         # Create demo portfolio
         self.portfolio = self._create_demo_portfolio()
         
         # Generate demo market data
         self.market_data = self._generate_demo_market_data()
         
+        # Initialize service dependencies
+        self._data_fetcher = _DemoDataFetcher(self.market_data)
+        
+        # Initialize service with demo fetcher and portfolio provider
+        self.service = RiskBudgetingService(
+            config=self.config,
+            data_fetcher=self._data_fetcher,
+            portfolio_provider=self._get_demo_portfolios
+        )
+
     def _create_demo_portfolio(self) -> Portfolio:
         """Create a diversified demo portfolio."""
         positions = {
@@ -174,7 +209,7 @@ class RiskBudgetingDemo:
         
         # Add other indicators
         data['volume'] = np.random.lognormal(20.5, 0.3, len(dates))  # Log-normal volume
-        
+
         # Individual stock prices (correlated with market)
         for symbol in self.portfolio.positions.keys():
             if symbol == 'TLT':  # Bonds - negative correlation in crisis
@@ -200,6 +235,10 @@ class RiskBudgetingDemo:
                 )
         
         return data
+
+    async def _get_demo_portfolios(self):
+        """Return the demo portfolio as an async provider."""
+        return [self.portfolio]
     
     async def run_demo(self):
         """Run the risk budgeting demo."""
