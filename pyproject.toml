@@ -72,6 +72,8 @@ numba = "^0.61.2"
 matplotlib = "^3.10.6"
 seaborn = "^0.13.2"
 torch = "^2.8.0"
+xgboost = "^3.0.5"
+lightgbm = "^4.6.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.5"
