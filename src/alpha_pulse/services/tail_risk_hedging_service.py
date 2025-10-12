@@ -5,14 +5,22 @@ This service coordinates tail risk analysis and hedging recommendations
 for the portfolio, integrating with the hedge manager and portfolio optimizer.
 """
 import asyncio
-from typing import Dict, List, Optional, Any
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 from datetime import datetime, timedelta
 from dataclasses import dataclass
 from loguru import logger
+from enum import Enum
 
-from alpha_pulse.hedging.risk.manager import HedgeManager
 from alpha_pulse.portfolio.data_models import PortfolioData
-from alpha_pulse.monitoring.base import AlertManager, AlertLevel
+from alpha_pulse.services.exceptions import ServiceConfigurationError
+
+try:  # pragma: no cover - optional dependency
+    from alpha_pulse.monitoring.base import AlertManager, AlertLevel
+except ImportError:  # pragma: no cover
+    AlertManager = Any  # type: ignore
+
+    class AlertLevel(Enum):
+        WARNING = "warning"
 
 
 @dataclass
@@ -30,9 +38,10 @@ class TailRiskHedgingService:
     
     def __init__(
         self,
-        hedge_manager: HedgeManager,
+        hedge_manager: Any,
         alert_manager: AlertManager,
-        config: Dict[str, Any]
+        config: Dict[str, Any],
+        portfolio_provider: Optional[Callable[[], Awaitable[Optional[PortfolioData]]]] = None,
     ):
         """
         Initialize tail risk hedging service.
@@ -45,6 +54,7 @@ class TailRiskHedgingService:
         self.hedge_manager = hedge_manager
         self.alert_manager = alert_manager
         self.config = config
+        self.portfolio_provider = portfolio_provider
         
         # Configuration
         self.enabled = config.get('enabled', True)
@@ -121,18 +131,20 @@ class TailRiskHedgingService:
         """
         try:
             if not portfolio_data:
-                # In production, fetch from portfolio service
-                logger.warning("Portfolio data not provided, using placeholder")
-                return None
+                portfolio_data = await self._resolve_portfolio_data()
+                if not portfolio_data:
+                    raise ServiceConfigurationError(
+                        "TailRiskHedgingService requires portfolio data but none was provided."
+                    )
             
             # Prepare portfolio for hedge analysis
             portfolio_dict = {
                 'positions': [
                     {
-                        'symbol': pos.symbol,
-                        'quantity': pos.quantity,
-                        'current_price': getattr(pos, 'current_price', 0),
-                        'value': pos.quantity * getattr(pos, 'current_price', 0)
+                        'symbol': getattr(pos, 'symbol', None) or getattr(pos, 'asset_id', ''),
+                        'quantity': float(getattr(pos, 'quantity', 0)),
+                        'current_price': float(getattr(pos, 'current_price', 0) or 0),
+                        'value': float(getattr(pos, 'quantity', 0)) * float(getattr(pos, 'current_price', 0) or 0)
                     }
                     for pos in portfolio_data.positions
                 ],
@@ -167,6 +179,8 @@ class TailRiskHedgingService:
             self.last_analysis = analysis
             return analysis
             
+        except ServiceConfigurationError:
+            raise
         except Exception as e:
             logger.error(f"Error analyzing tail risk: {e}")
             return None
@@ -191,10 +205,10 @@ class TailRiskHedgingService:
             portfolio_dict = {
                 'positions': [
                     {
-                        'symbol': pos.symbol,
-                        'quantity': pos.quantity,
-                        'current_price': getattr(pos, 'current_price', 0),
-                        'value': pos.quantity * getattr(pos, 'current_price', 0)
+                        'symbol': getattr(pos, 'symbol', None) or getattr(pos, 'asset_id', ''),
+                        'quantity': float(getattr(pos, 'quantity', 0)),
+                        'current_price': float(getattr(pos, 'current_price', 0) or 0),
+                        'value': float(getattr(pos, 'quantity', 0)) * float(getattr(pos, 'current_price', 0) or 0)
                     }
                     for pos in portfolio_data.positions
                 ],
@@ -251,6 +265,17 @@ class TailRiskHedgingService:
     def get_last_analysis(self) -> Optional[TailRiskAnalysis]:
         """Get the last tail risk analysis."""
         return self.last_analysis
+
+    async def _resolve_portfolio_data(self) -> Optional[PortfolioData]:
+        """Retrieve portfolio data from configured provider."""
+        if not self.portfolio_provider:
+            logger.error("Portfolio provider not configured for TailRiskHedgingService")
+            return None
+        try:
+            return await self.portfolio_provider()
+        except Exception as exc:
+            logger.error(f"Failed to retrieve portfolio snapshot: {exc}")
+            return None
     
     async def calculate_hedge_effectiveness(self) -> Dict[str, float]:
         """

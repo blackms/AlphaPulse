@@ -37,6 +37,7 @@ from .websockets.subscription import subscription_manager
 
 # Import dependencies
 from .dependencies import get_alert_manager
+from .data import PortfolioDataAccessor
 from .auth import authenticate_user, create_access_token, get_current_user, ACCESS_TOKEN_EXPIRE_MINUTES
 
 # Import audit middleware
@@ -52,7 +53,6 @@ from alpha_pulse.services.risk_budgeting_service import (
     RiskBudgetingService,
     RiskBudgetingConfig
 )
-from alpha_pulse.risk.dynamic_budgeting import DynamicRiskBudgetManager
 from alpha_pulse.services.regime_detection_service import (
     RegimeDetectionService,
     RegimeDetectionConfig
@@ -63,6 +63,9 @@ from alpha_pulse.services.ensemble_service import EnsembleService
 from alpha_pulse.ml.online.online_learning_service import OnlineLearningService
 from alpha_pulse.ml.gpu.gpu_service import GPUService
 from alpha_pulse.ml.gpu.gpu_config import get_default_config as get_gpu_config
+from alpha_pulse.data_pipeline.data_fetcher import DataFetcher
+from alpha_pulse.data_pipeline.providers.yfinance_provider import YFinanceProvider
+from alpha_pulse.services.portfolio_provider import LivePortfolioProvider
 
 # Import exchange data synchronization
 from .exchange_sync_integration import (
@@ -323,6 +326,15 @@ async def startup_event():
     
     # Start the subscription manager
     await subscription_manager.start()
+
+    # Initialize shared market data fetcher and portfolio provider
+    market_data_provider = YFinanceProvider()
+    app.state.market_data_fetcher = DataFetcher(
+        market_data_provider=market_data_provider
+    )
+    portfolio_accessor = PortfolioDataAccessor()
+    portfolio_provider = LivePortfolioProvider(portfolio_accessor)
+    app.state.portfolio_provider = portfolio_provider
     
     # Initialize risk budgeting service
     try:
@@ -335,19 +347,12 @@ async def startup_event():
             auto_rebalance=False
         )
         
-        # Create dynamic risk budget manager
-        budget_manager = DynamicRiskBudgetManager(
-            base_volatility_target=risk_budgeting_config.base_volatility_target,
-            max_leverage=risk_budgeting_config.max_leverage,
-            rebalancing_frequency=risk_budgeting_config.rebalancing_frequency
-        )
-        
         # Create and start risk budgeting service
         app.state.risk_budgeting_service = RiskBudgetingService(
-            budget_manager=budget_manager,
-            monitoring_interval=60,  # 1 minute
-            alert_manager=alert_manager,
-            config=risk_budgeting_config
+            config=risk_budgeting_config,
+            data_fetcher=app.state.market_data_fetcher,
+            alerting_system=alert_manager,
+            portfolio_provider=portfolio_provider.get_active_portfolios
         )
         await app.state.risk_budgeting_service.start()
         logger.info("Risk budgeting service started successfully")
@@ -400,7 +405,8 @@ async def startup_event():
         app.state.tail_risk_hedging_service = TailRiskHedgingService(
             hedge_manager=hedge_manager,
             alert_manager=alert_manager,
-            config=tail_risk_config
+            config=tail_risk_config,
+            portfolio_provider=portfolio_provider.get_portfolio_snapshot
         )
         await app.state.tail_risk_hedging_service.start()
         logger.info("Tail risk hedging service started successfully")

@@ -5,10 +5,12 @@ Tests service integration, real-time updates, and end-to-end workflows.
 """
 
 import pytest
+import pytest_asyncio
 import asyncio
 import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
+from types import SimpleNamespace
 from unittest.mock import Mock, AsyncMock, patch, MagicMock
 
 from alpha_pulse.models.portfolio import Portfolio, Position
@@ -16,135 +18,171 @@ from alpha_pulse.models.market_regime import (
     RegimeType, MarketRegime, RegimeDetectionResult
 )
 from alpha_pulse.models.risk_budget import (
-    RiskBudget, RiskBudgetRebalancing, RiskBudgetSnapshot
+    RiskBudget, RiskBudgetRebalancing, RiskBudgetSnapshot, RiskBudgetType, RiskAllocation
 )
 from alpha_pulse.services.risk_budgeting_service import (
     RiskBudgetingService, RiskBudgetingConfig
 )
 from alpha_pulse.data_pipeline.data_fetcher import DataFetcher
-from alpha_pulse.monitoring.alerting import AlertingSystem
+try:
+    from alpha_pulse.monitoring.alerting import AlertingSystem
+except ImportError:  # Fallback for environments without legacy symbol
+    AlertingSystem = MagicMock  # type: ignore
+
+
+@pytest.fixture
+def config():
+    return RiskBudgetingConfig(
+        base_volatility_target=0.15,
+        max_leverage=2.0,
+        rebalancing_frequency="daily",
+        regime_lookback_days=252,
+        regime_update_frequency="hourly",
+        max_position_size=0.15,
+        min_positions=5,
+        max_sector_concentration=0.40,
+        enable_alerts=True,
+        auto_rebalance=False,
+        track_performance=True,
+        snapshot_frequency="hourly"
+    )
+
+
+@pytest.fixture
+def mock_data_fetcher():
+    fetcher = Mock(spec=DataFetcher)
+
+    dates = pd.date_range(end=datetime.now(), periods=252, freq='D')
+    base_series = np.cumprod(1 + np.random.normal(0.0005, 0.015, len(dates)))
+    market_data = pd.DataFrame({
+        symbol: 100 * base_series * (1 + np.random.normal(0, 0.01, len(dates)))
+        for symbol in ['SPY', 'VIX', 'TLT', 'GLD', 'AAPL', 'MSFT', 'JPM', 'XLU']
+    }, index=dates)
+
+    async def fetch_historical_data(symbols, start_date, end_date):
+        end = end_date or datetime.now()
+        start = start_date or (end - timedelta(days=252))
+        index = pd.date_range(start=start, end=end, freq='D')
+        if len(index) == 0:
+            index = pd.date_range(end=end, periods=30, freq='D')
+
+        data = pd.DataFrame(index=index)
+        for symbol in symbols:
+            if symbol in market_data.columns:
+                series = market_data.reindex(index=index)[symbol]
+                series = series.interpolate().ffill().bfill()
+            else:
+                series = pd.Series(
+                    np.linspace(100.0, 100.0 + len(index), len(index)),
+                    index=index
+                )
+            data[symbol] = series.values
+        return data
+
+    fetcher.fetch_historical_data = AsyncMock(side_effect=fetch_historical_data)
+    return fetcher
+
+
+@pytest.fixture
+def mock_alerting():
+    alerting = Mock(spec=AlertingSystem)
+    alerting.send_alert = AsyncMock()
+    return alerting
+
+
+@pytest.fixture
+def sample_portfolio():
+    positions = {
+        'AAPL': Position('AAPL', 100, 150.0, 145.0, 'long', 'technology'),
+        'JPM': Position('JPM', 200, 140.0, 135.0, 'long', 'financials'),
+        'XLU': Position('XLU', 300, 70.0, 68.0, 'long', 'utilities'),
+        'GLD': Position('GLD', 150, 180.0, 175.0, 'long', 'commodities'),
+        'MSFT': Position('MSFT', 80, 350.0, 340.0, 'long', 'technology')
+    }
+
+    total_value = sum(pos.quantity * pos.current_price for pos in positions.values())
+
+    return Portfolio(
+        portfolio_id='test_portfolio',
+        name='Test Portfolio',
+        total_value=total_value,
+        cash_balance=5000.0,
+        positions=positions
+    )
+
+
+@pytest_asyncio.fixture
+async def service(config, mock_data_fetcher, mock_alerting, sample_portfolio):
+    portfolio_provider = AsyncMock(return_value=[sample_portfolio])
+    svc = RiskBudgetingService(
+        config=config,
+        data_fetcher=mock_data_fetcher,
+        alerting_system=mock_alerting,
+        portfolio_provider=portfolio_provider
+    )
+    svc._test_portfolio_provider = portfolio_provider  # type: ignore[attr-defined]
+
+    primary_budget = RiskBudget(
+        budget_id='budget-1',
+        budget_type=RiskBudgetType.DYNAMIC,
+        total_risk_limit=1.0,
+        allocations={
+            'AAPL': RiskAllocation(
+                asset_or_category='AAPL',
+                allocated_risk=0.1,
+                current_utilization=0.05,
+                risk_contribution=0.04
+            )
+        },
+        regime_type='bull'
+    )
+
+    svc.budget_manager = Mock()
+    svc.budget_manager.create_regime_based_budget.return_value = primary_budget
+    svc.budget_manager.check_rebalancing_triggers.return_value = RiskBudgetRebalancing(
+        rebalancing_id='rebalance-1',
+        budget_id=primary_budget.budget_id,
+        timestamp=datetime.utcnow(),
+        trigger_type='regime_change',
+        allocation_changes={'AAPL': 0.05}
+    )
+    svc.budget_manager.execute_rebalancing.return_value = {'AAPL': 0.05}
+    svc.budget_manager.update_volatility_target.return_value = primary_budget
+    svc.budget_manager.get_risk_budget_analytics.return_value = {
+        'regime_metrics': {'current': 'bull'},
+        'risk_metrics': {'utilization': 0.4}
+    }
+    svc.budget_manager.optimize_risk_allocation.return_value = {
+        'allocations': {'AAPL': 0.15}
+    }
+    svc.budget_manager.calculate_utilization.return_value = SimpleNamespace(
+        total_utilization=0.4,
+        by_strategy={'core': 0.3},
+        by_asset_class={'equities': 0.4},
+        available_budget=0.6
+    )
+
+    regime_result = RegimeDetectionResult(
+        current_regime=MarketRegime(
+            regime_type=RegimeType.BULL,
+            confidence=0.8,
+            start_date=datetime.now()
+        ),
+        regime_probabilities={RegimeType.BULL: 0.8},
+        transition_risk=0.2
+    )
+    svc.regime_detector = Mock()
+    svc.regime_detector.detect_regime.return_value = regime_result
+    try:
+        yield svc
+    finally:
+        if svc._running:
+            await svc.stop()
 
 
 class TestRiskBudgetingService:
     """Test risk budgeting service functionality."""
-    
-    @pytest.fixture
-    def config(self):
-        """Create service configuration."""
-        return RiskBudgetingConfig(
-            base_volatility_target=0.15,
-            max_leverage=2.0,
-            rebalancing_frequency="daily",
-            regime_lookback_days=252,
-            regime_update_frequency="hourly",
-            max_position_size=0.15,
-            min_positions=5,
-            max_sector_concentration=0.40,
-            enable_alerts=True,
-            auto_rebalance=False,
-            track_performance=True,
-            snapshot_frequency="hourly"
-        )
-    
-    @pytest.fixture
-    def mock_data_fetcher(self):
-        """Create mock data fetcher."""
-        fetcher = Mock(spec=DataFetcher)
-        
-        # Create sample market data
-        dates = pd.date_range(end=datetime.now(), periods=252, freq='D')
-        market_data = pd.DataFrame({
-            'SPY': 400 * np.cumprod(1 + np.random.normal(0.0005, 0.02, len(dates))),
-            'VIX': np.random.lognormal(2.9, 0.5, len(dates)),
-            'TLT': 100 * np.cumprod(1 + np.random.normal(0.0002, 0.01, len(dates))),
-            'GLD': 180 * np.cumprod(1 + np.random.normal(0.0003, 0.015, len(dates)))
-        }, index=dates)
-        
-        async def fetch_historical_data(*args, **kwargs):
-            return market_data
-        
-        fetcher.fetch_historical_data = AsyncMock(side_effect=fetch_historical_data)
-        return fetcher
-    
-    @pytest.fixture
-    def mock_alerting(self):
-        """Create mock alerting system."""
-        alerting = Mock(spec=AlertingSystem)
-        alerting.send_alert = AsyncMock()
-        return alerting
-    
-    @pytest.fixture
-    async def service(self, config, mock_data_fetcher, mock_alerting):
-        """Create risk budgeting service."""
-        service = RiskBudgetingService(
-            config=config,
-            data_fetcher=mock_data_fetcher,
-            alerting_system=mock_alerting
-        )
-        yield service
-        # Cleanup
-        if service._running:
-            await service.stop()
-    
-    @pytest.fixture
-    def sample_portfolio(self):
-        """Create sample portfolio."""
-        positions = {
-            'AAPL': Position(
-                symbol='AAPL',
-                quantity=100,
-                current_price=150.0,
-                average_cost=145.0,
-                position_type='long',
-                sector='technology'
-            ),
-            'JPM': Position(
-                symbol='JPM',
-                quantity=200,
-                current_price=140.0,
-                average_cost=135.0,
-                position_type='long',
-                sector='financials'
-            ),
-            'XLU': Position(
-                symbol='XLU',
-                quantity=300,
-                current_price=70.0,
-                average_cost=68.0,
-                position_type='long',
-                sector='utilities'
-            ),
-            'GLD': Position(
-                symbol='GLD',
-                quantity=150,
-                current_price=180.0,
-                average_cost=175.0,
-                position_type='long',
-                sector='commodities'
-            ),
-            'MSFT': Position(
-                symbol='MSFT',
-                quantity=80,
-                current_price=350.0,
-                average_cost=340.0,
-                position_type='long',
-                sector='technology'
-            )
-        }
-        
-        total_value = sum(
-            pos.quantity * pos.current_price 
-            for pos in positions.values()
-        )
-        
-        return Portfolio(
-            portfolio_id='test_portfolio',
-            name='Test Portfolio',
-            total_value=total_value,
-            cash_balance=5000.0,
-            positions=positions
-        )
-    
+
     @pytest.mark.asyncio
     async def test_service_initialization(self, service):
         """Test service initialization."""
@@ -215,8 +253,8 @@ class TestRiskBudgetingService:
                 confidence=0.85,
                 start_date=datetime.now()
             ),
-            regime_probabilities={},
-            confidence_score=0.85
+            regime_probabilities={RegimeType.BEAR: 0.85},
+            transition_risk=0.4
         )
         
         service.regime_detector.detect_regime = Mock(return_value=new_regime_result)
@@ -506,7 +544,7 @@ class TestRiskBudgetingServiceIntegration:
             return_value=RegimeDetectionResult(
                 current_regime=crisis_regime,
                 regime_probabilities={RegimeType.CRISIS: 0.9},
-                confidence_score=0.9
+                transition_risk=0.7
             )
         )
         
@@ -533,8 +571,18 @@ class TestRiskBudgetingServiceIntegration:
     @pytest.mark.asyncio
     async def test_multi_portfolio_management(self):
         """Test managing multiple portfolios."""
-        # Create service
-        service = RiskBudgetingService()
+        async def fetcher_side_effect(symbols, start_date, end_date):
+            index = pd.date_range(start=start_date, end=end_date, freq='D')
+            if len(index) == 0:
+                index = pd.date_range(end=end_date or datetime.utcnow(), periods=30, freq='D')
+            data = pd.DataFrame(
+                {symbol: np.linspace(1.0, len(index), len(index)) for symbol in symbols},
+                index=index
+            )
+            return data
+        
+        data_fetcher = AsyncMock()
+        data_fetcher.fetch_historical_data = AsyncMock(side_effect=fetcher_side_effect)
         
         # Create multiple portfolios
         portfolios = []
@@ -556,6 +604,12 @@ class TestRiskBudgetingServiceIntegration:
                 }
             )
             portfolios.append(portfolio)
+        
+        portfolio_provider = AsyncMock(return_value=portfolios)
+        service = RiskBudgetingService(
+            data_fetcher=data_fetcher,
+            portfolio_provider=portfolio_provider
+        )
         
         # Initialize budgets for each portfolio
         budgets = []
