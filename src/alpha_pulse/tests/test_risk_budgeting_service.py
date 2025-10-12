@@ -68,9 +68,9 @@ def mock_data_fetcher():
 
         data = pd.DataFrame(index=index)
         for symbol in symbols:
-        if symbol in market_data.columns:
-            series = market_data.reindex(index=index)[symbol]
-            series = series.interpolate().ffill().bfill()
+            if symbol in market_data.columns:
+                series = market_data.reindex(index=index)[symbol]
+                series = series.interpolate().ffill().bfill()
             else:
                 series = pd.Series(
                     np.linspace(100.0, 100.0 + len(index), len(index)),
