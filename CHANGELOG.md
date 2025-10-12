@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Explainability Models**: Fixed dataclass field ordering in `GlobalExplanation` class ([#124](https://github.com/blackms/AlphaPulse/pull/124), fixes [#116](https://github.com/blackms/AlphaPulse/issues/116))
+  - Reordered required fields to appear before optional fields
+  - Fixes `TypeError: non-default argument 'performance_by_feature' follows default argument`
+  - Explainability module now imports successfully
+  - Unblocks explainability tests and SHAP functionality
+  - No breaking changes: all fields preserved with same types
+
 ## [1.21.1] - 2025-10-12
 
 ### Fixed
