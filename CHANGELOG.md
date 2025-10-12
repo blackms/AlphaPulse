@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **ML Explainability**: Added missing `shap` (^0.48.0) dependency for SHAP-based model interpretability ([#122](https://github.com/blackms/AlphaPulse/pull/122), fixes [#109](https://github.com/blackms/AlphaPulse/issues/109))
+  - SHAPExplainer module dependency satisfied
+  - Supports TreeExplainer, DeepExplainer, GradientExplainer, LinearExplainer, KernelExplainer
+  - Full module functionality available once #116 (dataclass ordering) resolved
+  - Package size: ~10MB with binary wheels for fast installation
+
 ## [1.21.1] - 2025-10-12
 
 ### Fixed
