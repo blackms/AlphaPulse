@@ -151,17 +151,18 @@ class MarketScenario(Scenario):
 @dataclass
 class MacroeconomicScenario(Scenario):
     """Macroeconomic scenario."""
+    # All fields need defaults since parent class has optional field
     # Asset returns
-    asset_returns: Dict[str, float]
-    
+    asset_returns: Dict[str, float] = field(default_factory=dict)
+
     # Macro variables
-    gdp_shock: float
-    inflation_shock: float
-    interest_rate_shock: float
-    unemployment_change: float
-    
+    gdp_shock: float = 0.0
+    inflation_shock: float = 0.0
+    interest_rate_shock: float = 0.0
+    unemployment_change: float = 0.0
+
     # Financial conditions
-    credit_spread_change: float  # In basis points
+    credit_spread_change: float = 0.0  # In basis points
     term_spread_change: Optional[float] = None
     
     # Currency impacts
@@ -184,17 +185,18 @@ class MacroeconomicScenario(Scenario):
 @dataclass
 class StressScenario(Scenario):
     """Stress test scenario."""
+    # All fields need defaults since parent class has optional field
     # Asset returns
-    asset_returns: Dict[str, float]
-    
+    asset_returns: Dict[str, float] = field(default_factory=dict)
+
     # Systemic risk indicators
-    systemic_risk_indicators: Dict[str, Any]
-    
+    systemic_risk_indicators: Dict[str, Any] = field(default_factory=dict)
+
     # Contagion effects
-    contagion_matrix: np.ndarray  # Asset-to-asset contagion
-    
+    contagion_matrix: np.ndarray = field(default_factory=lambda: np.array([]))
+
     # Severity metrics
-    severity_score: float  # 0-1 scale
+    severity_score: float = 0.0  # 0-1 scale
     recovery_time: Optional[float] = None  # Expected recovery in years
     
     # Regulatory mapping
@@ -229,15 +231,16 @@ class StressScenario(Scenario):
 @dataclass
 class TailRiskScenario(Scenario):
     """Tail risk scenario using extreme value theory."""
+    # All fields need defaults since parent class has optional field
     # Asset returns (extreme events)
-    asset_returns: Dict[str, float]
-    
+    asset_returns: Dict[str, float] = field(default_factory=dict)
+
     # Tail characteristics
-    tail_probability: float  # e.g., 1%, 0.1%
-    extreme_value_parameters: Dict[str, Any]  # EVT parameters
-    
+    tail_probability: float = 0.01  # e.g., 1%, 0.1%
+    extreme_value_parameters: Dict[str, Any] = field(default_factory=dict)  # EVT parameters
+
     # Risk metrics
-    expected_shortfall: float
+    expected_shortfall: float = 0.0
     tail_dependence: Optional[np.ndarray] = None  # Tail correlation
     
     # Jump parameters (if applicable)
@@ -255,21 +258,22 @@ class TailRiskScenario(Scenario):
 @dataclass
 class ReverseStressScenario(Scenario):
     """Reverse stress test scenario."""
+    # All fields need defaults since parent class has optional field
     # Target outcome
-    target_loss: float  # Target portfolio loss
-    target_metric: str  # e.g., "portfolio_value", "var_breach"
-    
+    target_loss: float = 0.0  # Target portfolio loss
+    target_metric: str = "portfolio_value"  # e.g., "portfolio_value", "var_breach"
+
     # Derived shocks that achieve target
-    asset_shocks: Dict[str, float]
-    parameter_shocks: Dict[str, float]
-    
+    asset_shocks: Dict[str, float] = field(default_factory=dict)
+    parameter_shocks: Dict[str, float] = field(default_factory=dict)
+
     # Plausibility assessment
-    plausibility_score: float  # 0-1 scale
-    most_likely_path: str  # Description of most likely path
-    
+    plausibility_score: float = 0.0  # 0-1 scale
+    most_likely_path: str = ""  # Description of most likely path
+
     # Contributing factors
-    key_risk_drivers: List[str]
-    vulnerability_points: List[str]
+    key_risk_drivers: List[str] = field(default_factory=list)
+    vulnerability_points: List[str] = field(default_factory=list)
 
 
 @dataclass
