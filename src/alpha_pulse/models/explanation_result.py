@@ -162,23 +162,25 @@ class GlobalExplanation:
     model_id: str
     timestamp: datetime
     num_samples: int
-    
+
     # Aggregated feature importance
     global_feature_importance: Dict[str, float]
     feature_interaction_importance: Dict[tuple, float]
-    
+
     # Feature statistics
     feature_value_distributions: Dict[str, Dict[str, float]]
     feature_contribution_distributions: Dict[str, Dict[str, float]]
-    
+
     # Model behavior patterns
     decision_rules: List[str]
-    behavior_clusters: Optional[List[Dict[str, Any]]] = None
-    
-    # Performance attribution
+
+    # Performance attribution (required fields - must come before optional fields)
     performance_by_feature: Dict[str, float]
     error_attribution: Dict[str, float]
-    
+
+    # Optional fields with defaults (must come after required fields)
+    behavior_clusters: Optional[List[Dict[str, Any]]] = None
+
     # Bias and fairness metrics
     bias_metrics: Dict[str, float] = field(default_factory=dict)
     fairness_indicators: Dict[str, bool] = field(default_factory=dict)
