@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Execution Models**: Fixed dataclass field ordering in `OptimalExecutionParams` class ([#125](https://github.com/blackms/AlphaPulse/pull/125), fixes [#107](https://github.com/blackms/AlphaPulse/issues/107))
+  - Reordered required market parameter fields before optional fields
+  - Fixes `TypeError: non-default argument 'daily_volatility' follows default argument`
+  - Slippage estimates module now imports successfully
+  - Unblocks optimal execution algorithms and Almgren-Chriss optimization
+  - No breaking changes: all fields preserved with same types
+
 ## [1.21.2] - 2025-10-13
 
 ### Fixed
