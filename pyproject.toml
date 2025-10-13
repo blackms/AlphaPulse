@@ -13,63 +13,63 @@ packages = [{include = "alpha_pulse", from = "src"}]
 
 [tool.poetry.dependencies]
 python = ">=3.11,<3.13"
-ta-lib = "^0.6.3"
+ta-lib = "^0.6.7"
 numpy = "^2.1.3"
-pandas = "^2.2.3"
-scikit-learn = "^1.6.1"
-fastapi = "^0.115.12"
-uvicorn = "^0.35.0"
-pydantic = "^2.11.3"
-pydantic-settings = "^2.7.0"
-sqlalchemy = "^2.0.41"
-alembic = "^1.15.2"
-psycopg2-binary = "^2.9.10"
-ccxt = "^4.4.77"
-httpx = "^0.27.0"
-langchain-openai = "^0.3.27"
-textblob = "^0.18.0"
-stable-baselines3 = "^2.3.0"
-optuna = "^4.4.0"
-yfinance = "^0.2.40"
+pandas = "^2.3.3"
+scikit-learn = "^1.7.2"
+fastapi = "^0.119.0"
+uvicorn = "^0.37.0"
+pydantic = "^2.12.0"
+pydantic-settings = "^2.11.0"
+sqlalchemy = "^2.0.44"
+alembic = "^1.17.0"
+psycopg2-binary = "^2.9.11"
+ccxt = "^4.5.10"
+httpx = "^0.28.1"
+langchain-openai = "^0.3.35"
+textblob = "^0.19.0"
+stable-baselines3 = "^2.7.0"
+optuna = "^4.5.0"
+yfinance = "^0.2.66"
 ta = "^0.11.0"
 loguru = "^0.7.0"
 psutil = "^5.9.8"  # Or latest compatible version
-langchain = "^0.3.0" # Or latest compatible version
-asyncpg = "^0.29.0" # Or latest compatible version
+langchain = "^0.3.27" # Or latest compatible version
+asyncpg = "^0.30.0" # Or latest compatible version
 aiofiles = "^23.2.1" # Or latest compatible version
 aiosmtplib = ">=3.0.1" # Broadened version constraint to resolve conflict
 python-jose = "^3.3.0" # Added to fix build error
-tensorboard = "^2.17.0"  # Added for RL trainer tests
+tensorboard = "^2.20.0"  # Added for RL trainer tests
 tqdm = "^4.66.2"  # Added for stable-baselines3 progress bar
 rich = "^13.7.0"  # Added for stable-baselines3 progress bar
-python-multipart = "^0.0.9"
+python-multipart = "^0.0.20"
 # Security dependencies
 passlib = {extras = ["bcrypt"], version = "^1.7.4"}
-boto3 = "^1.35.100"  # AWS SDK for Secrets Manager
+boto3 = "^1.40.50"  # AWS SDK for Secrets Manager
 hvac = "^2.1.0"  # HashiCorp Vault client
 cryptography = "^45.0.5"  # For local encryption
 python-dotenv = "^1.0.0"  # For .env file loading
 # Input validation dependencies
 email-validator = "^2.1.0"  # Email validation
-phonenumbers = "^9.0.8"  # Phone number validation
-jsonschema = "^4.23.0"  # JSON schema validation
+phonenumbers = "^9.0.16"  # Phone number validation
+jsonschema = "^4.25.1"  # JSON schema validation
 redis = "^3.5.3"  # Redis client for validation caching - compatible with redis-py-cluster
 # Real-time data provider dependencies
-aiohttp = "^3.11.20"  # Async HTTP client for data providers
+aiohttp = "^3.13.0"  # Async HTTP client for data providers
 websockets = "^14.1"  # WebSocket support for real-time feeds
 # Distributed computing dependencies
-ray = {version = "^2.10.0", extras = ["default"]}  # Ray distributed computing
+ray = {version = "^2.50.0", extras = ["default"]}  # Ray distributed computing
 dask = {version = "^2024.1.0", extras = ["complete"]}  # Dask distributed computing
 distributed = "^2024.1.0"  # Dask distributed scheduler
 # Caching dependencies
-msgpack = "^1.0.5"  # MessagePack serialization
+msgpack = "^1.1.2"  # MessagePack serialization
 lz4 = "^4.3.2"  # LZ4 compression
 python-snappy = "^0.7.3"  # Snappy compression
 redis-py-cluster = "^2.1.3"  # Redis cluster support
-prometheus-client = "^0.22.0"  # Prometheus metrics
+prometheus-client = "^0.23.1"  # Prometheus metrics
 statsmodels = "^0.14.5"
-numba = "^0.61.2"
-matplotlib = "^3.10.6"
+numba = "^0.62.1"
+matplotlib = "^3.10.7"
 seaborn = "^0.13.2"
 torch = "^2.8.0"
 xgboost = "^3.0.5"
@@ -77,14 +77,14 @@ lightgbm = "^4.6.0"
 shap = "^0.48.0"
 
 [tool.poetry.group.dev.dependencies]
-pytest = "^8.3.5"
+pytest = "^8.4.2"
 pytest-cov = "^6.1.1"
 pytest-asyncio = "^1.0.0"
-pytest-mock = "^3.14.0"
+pytest-mock = "^3.15.1"
 pytest-timeout = "^2.3.1"
 flake8 = "^7.2.0"
-black = "^25.1.0"
-mypy = "^1.15.0"
+black = "^25.9.0"
+mypy = "^1.18.2"
 
 [tool.pytest.ini_options]
 asyncio_mode = "strict"
