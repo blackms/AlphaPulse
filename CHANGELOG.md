@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.21.2] - 2025-10-13
+
 ### Fixed
 - **Explainability Models**: Fixed dataclass field ordering in `GlobalExplanation` class ([#124](https://github.com/blackms/AlphaPulse/pull/124), fixes [#116](https://github.com/blackms/AlphaPulse/issues/116))
   - Reordered required fields to appear before optional fields
