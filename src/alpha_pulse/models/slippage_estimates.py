@@ -336,24 +336,26 @@ class SlippageAnalysis:
 @dataclass
 class OptimalExecutionParams:
     """Parameters for optimal execution algorithms."""
+    # Required fields (no defaults) - must come first
     symbol: str
     order_size: float
-    
-    # Almgren-Chriss parameters
     risk_aversion: float
+
+    # Market parameters (required) - must come before optional fields
+    daily_volatility: float
+    daily_volume: float
+    bid_ask_spread: float
+
+    # Optional fields with defaults - must come after required fields
+    # Almgren-Chriss parameters
     temporary_impact_power: float = 1.0
     permanent_impact_power: float = 0.5
-    
+
     # Constraints
     min_participation_rate: float = 0.01
     max_participation_rate: float = 0.30
     max_duration_minutes: float = 390  # Full trading day
-    
-    # Market parameters
-    daily_volatility: float
-    daily_volume: float
-    bid_ask_spread: float
-    
+
     # Optimization results
     optimal_duration: Optional[float] = None
     optimal_trajectory: Optional[np.ndarray] = None
