@@ -7,13 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.21.4] - 2025-10-16
+
 ### Fixed
-- **Risk Scenario Models**: Fixed dataclass inheritance field ordering in risk scenarios ([#106](https://github.com/blackms/AlphaPulse/issues/106))
+- **Risk Scenario Models**: Fixed dataclass inheritance field ordering in risk scenarios ([#126](https://github.com/blackms/AlphaPulse/pull/126), fixes [#106](https://github.com/blackms/AlphaPulse/issues/106))
   - Added defaults to all fields in child dataclasses: `MacroeconomicScenario`, `StressScenario`, `TailRiskScenario`, `ReverseStressScenario`
   - Fixes `TypeError: non-default argument 'asset_returns' follows default argument`
   - Risk scenarios module now imports successfully
   - Unblocks Monte Carlo simulations, stress testing, and risk analytics
   - No breaking changes: all fields preserved with same types, now more flexible with defaults
+  - Follows existing `MarketScenario` pattern for dataclass inheritance
 
 ## [1.21.3] - 2025-10-13
 
