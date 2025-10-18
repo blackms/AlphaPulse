@@ -15,8 +15,17 @@ import json
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
-from pyspark.sql import SparkSession, DataFrame as SparkDataFrame
-from delta.tables import DeltaTable
+
+# Optional Delta Lake support
+try:
+    from pyspark.sql import SparkSession, DataFrame as SparkDataFrame
+    from delta.tables import DeltaTable
+    DELTA_AVAILABLE = True
+except ImportError:
+    DELTA_AVAILABLE = False
+    SparkSession = None
+    SparkDataFrame = None
+    DeltaTable = None
 
 from alpha_pulse.data_lake.lake_manager import DataFormat
 
@@ -378,9 +387,9 @@ class SilverLayer(DataLayer):
                 writer.save(dataset_path)
             
             # Optimize Delta table
-            from delta.tables import DeltaTable
-            delta_table = DeltaTable.forPath(self.spark, dataset_path)
-            delta_table.optimize().executeCompaction()
+            if DELTA_AVAILABLE:
+                delta_table = DeltaTable.forPath(self.spark, dataset_path)
+                delta_table.optimize().executeCompaction()
             
         else:
             # Use Parquet with partitioning
@@ -534,16 +543,17 @@ class SilverLayer(DataLayer):
             for dataset in datasets:
                 dataset_path = f"{self.path}/{dataset}"
                 
-                try:
-                    # Check if Delta table
-                    delta_table = DeltaTable.forPath(self.spark, dataset_path)
-                    
-                    # Delete old versions
-                    delta_table.vacuum(self.retention_days * 24)  # Convert days to hours
-                    
-                except Exception as e:
-                    # Not a Delta table or error occurred
-                    logger.debug(f"Could not vacuum {dataset}: {e}")
+                if DELTA_AVAILABLE:
+                    try:
+                        # Check if Delta table
+                        delta_table = DeltaTable.forPath(self.spark, dataset_path)
+
+                        # Delete old versions
+                        delta_table.vacuum(self.retention_days * 24)  # Convert days to hours
+
+                    except Exception as e:
+                        # Not a Delta table or error occurred
+                        logger.debug(f"Could not vacuum {dataset}: {e}")
     
     def _list_datasets(self) -> List[str]:
         """List all datasets in silver layer."""
@@ -601,12 +611,13 @@ class GoldLayer(DataLayer):
                 .save(dataset_path)
             
             # Apply Z-ordering on commonly queried columns
-            delta_table = DeltaTable.forPath(self.spark, dataset_path)
-            
-            # Identify columns for Z-ordering (date and key dimensions)
-            z_order_cols = self._identify_z_order_columns(df)
-            if z_order_cols:
-                delta_table.optimize().executeZOrderBy(*z_order_cols)
+            if DELTA_AVAILABLE:
+                delta_table = DeltaTable.forPath(self.spark, dataset_path)
+
+                # Identify columns for Z-ordering (date and key dimensions)
+                z_order_cols = self._identify_z_order_columns(df)
+                if z_order_cols:
+                    delta_table.optimize().executeZOrderBy(*z_order_cols)
         else:
             # Write as optimized Parquet
             file_path = f"{dataset_path}/data_{business_date.strftime('%Y%m%d')}.parquet"

@@ -21,8 +21,18 @@ from abc import ABC, abstractmethod
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
-from delta import DeltaTable, configure_spark_with_delta_pip
-from pyspark.sql import SparkSession, DataFrame as SparkDataFrame
+
+# Optional Delta Lake support
+try:
+    from delta import DeltaTable, configure_spark_with_delta_pip
+    from pyspark.sql import SparkSession, DataFrame as SparkDataFrame
+    DELTA_AVAILABLE = True
+except ImportError:
+    DELTA_AVAILABLE = False
+    DeltaTable = None
+    configure_spark_with_delta_pip = None
+    SparkSession = None
+    SparkDataFrame = None
 
 from alpha_pulse.config.config_loader import ConfigLoader
 from alpha_pulse.data_lake.storage_layers import (
@@ -324,17 +334,24 @@ class DataLakeManager:
     def _initialize_spark(self):
         """Initialize Spark session with Delta support."""
         if self.config.enable_delta:
+            if not DELTA_AVAILABLE:
+                raise ImportError(
+                    "Delta Lake support requires pyspark and delta-spark packages. "
+                    "Install with: pip install alpha-pulse[datalake] or "
+                    "poetry install --extras datalake"
+                )
+
             builder = SparkSession.builder \
                 .appName("AlphaPulseDataLake") \
                 .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension") \
                 .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
-            
+
             # Configure for S3 if needed
             if self.config.storage_backend == StorageBackend.AWS_S3:
                 builder = builder \
                     .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
                     .config("spark.hadoop.fs.s3a.aws.credentials.provider", "com.amazonaws.auth.DefaultAWSCredentialsProviderChain")
-            
+
             self.spark = configure_spark_with_delta_pip(builder).getOrCreate()
         else:
             self.spark = None
@@ -485,7 +502,7 @@ class DataLakeManager:
         query: str,
         layer: str = "silver",
         format: str = "pandas"
-    ) -> Union[pd.DataFrame, SparkDataFrame]:
+    ) -> Union[pd.DataFrame, "SparkDataFrame"]:
         """Query data from specified layer."""
         if not self.spark:
             raise RuntimeError("Spark not initialized. Enable Delta Lake support.")

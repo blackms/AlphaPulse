@@ -75,6 +75,17 @@ xgboost = "^3.0.5"
 lightgbm = "^4.6.0"
 shap = "^0.48.0"
 
+[tool.poetry.extras]
+datalake = ["pyspark", "delta-spark"]
+
+[tool.poetry.dependencies.pyspark]
+version = "^3.5.0"
+optional = true
+
+[tool.poetry.dependencies.delta-spark]
+version = "^3.0.0"
+optional = true
+
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.5"
 pytest-cov = "^6.1.1"

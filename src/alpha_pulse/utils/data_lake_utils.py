@@ -18,7 +18,14 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
-from delta import DeltaTable
+
+# Optional Delta Lake support
+try:
+    from delta import DeltaTable
+    DELTA_AVAILABLE = True
+except ImportError:
+    DELTA_AVAILABLE = False
+    DeltaTable = None
 
 
 logger = logging.getLogger(__name__)

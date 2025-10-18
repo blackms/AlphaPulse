@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Delta Lake Dependencies**: Made PySpark and Delta Lake optional dependencies ([#114](https://github.com/blackms/AlphaPulse/issues/114))
+  - Fixes `ModuleNotFoundError: No module named 'delta'` and `No module named 'pyspark'`
+  - Added optional dependency group: `[datalake]` containing `pyspark>=3.5.0` and `delta-spark>=3.0.0`
+  - Data lake modules now gracefully handle missing dependencies with helpful error messages
+  - Install with: `pip install alpha-pulse[datalake]` or `poetry install --extras datalake`
+  - Affected files: `data_lake/lake_manager.py`, `data_lake/storage_layers.py`, `utils/data_lake_utils.py`
+  - No breaking changes: Data lake features available when dependencies installed
+  - Default install is now lighter (~150MB smaller) - users opt-in to data lake features
 - **Logging Utils Module**: Created missing `utils/logging_utils.py` module ([#113](https://github.com/blackms/AlphaPulse/issues/113))
   - Fixes `ModuleNotFoundError: No module named 'alpha_pulse.utils.logging_utils'` in test modules
   - Implements `get_logger(name)` function using loguru
