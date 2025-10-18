@@ -7,12 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.21.5] - 2025-10-18
+
 ### Fixed
-- **ML Regime Tests**: Fixed incorrect import of `RegimeType` in test_core_components.py ([#110](https://github.com/blackms/AlphaPulse/issues/110))
-  - `RegimeType` should be imported from `hmm_regime_detector`, not `regime_classifier`
-  - Updated `RegimeClassifier` test to reflect current API (requires hmm_model and feature_engineer parameters)
-  - Corrected enum values to match current implementation (BULL, BEAR, SIDEWAYS, CRISIS, RECOVERY)
-  - No breaking changes: imports from package level (`alpha_pulse.ml.regime`) still work correctly
+- **ML Regime Tests**: Fixed incorrect import of `RegimeType` in test_core_components.py ([#127](https://github.com/blackms/AlphaPulse/pull/127), fixes [#110](https://github.com/blackms/AlphaPulse/issues/110))
+  - `RegimeType` now imported from canonical source (`hmm_regime_detector`) instead of transitive import
+  - Updated `RegimeClassifier` test to reflect current API (requires `hmm_model`, `feature_engineer` parameters)
+  - Corrected enum value assertions to match actual implementation (BULL, BEAR, SIDEWAYS, CRISIS, RECOVERY)
+  - Removed outdated joblib-based loading pattern from tests
+  - No breaking changes: package-level imports still work correctly
+  - Follows Canonical Source Import Pattern for improved maintainability
 
 ## [1.21.4] - 2025-10-16
 
