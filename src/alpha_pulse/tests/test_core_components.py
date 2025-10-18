@@ -298,22 +298,34 @@ class TestUtils:
 class TestMLComponents:
     """Test ML components with proper mocking."""
     
-    @patch('alpha_pulse.ml.regime.regime_classifier.joblib')
-    def test_regime_classifier_mock(self, mock_joblib):
+    def test_regime_classifier_mock(self):
         """Test RegimeClassifier with mocking."""
-        from alpha_pulse.ml.regime.regime_classifier import RegimeClassifier, RegimeType
-        
-        # Mock the model loading
-        mock_joblib.load.return_value = MagicMock()
-        
-        classifier = RegimeClassifier()
+        from alpha_pulse.ml.regime.regime_classifier import RegimeClassifier
+        from alpha_pulse.ml.regime.hmm_regime_detector import RegimeType
+
+        # Create mock dependencies
+        mock_hmm_model = MagicMock()
+        mock_feature_engineer = MagicMock()
+
+        # Instantiate classifier with mocks
+        classifier = RegimeClassifier(
+            hmm_model=mock_hmm_model,
+            feature_engineer=mock_feature_engineer,
+            window_size=50,
+            min_confidence=0.6
+        )
         assert classifier is not None
-        
-        # Test regime types
-        assert RegimeType.BULL_MARKET
-        assert RegimeType.BEAR_MARKET
-        assert RegimeType.RANGING
-        assert RegimeType.HIGH_VOLATILITY
+        assert classifier.hmm_model == mock_hmm_model
+        assert classifier.feature_engineer == mock_feature_engineer
+        assert classifier.window_size == 50
+        assert classifier.min_confidence == 0.6
+
+        # Test regime types enum
+        assert RegimeType.BULL
+        assert RegimeType.BEAR
+        assert RegimeType.SIDEWAYS
+        assert RegimeType.CRISIS
+        assert RegimeType.RECOVERY
 
 
 class TestDataPipeline:
