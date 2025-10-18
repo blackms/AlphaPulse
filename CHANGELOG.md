@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Redis Dependency**: Upgraded `redis` from 3.5.3 to 5.3.1 to support `redis.asyncio` module ([#112](https://github.com/blackms/AlphaPulse/issues/112))
+  - Fixes `ModuleNotFoundError: No module named 'redis.asyncio'` in cache and data provider modules
+  - Redis 5.x includes built-in asyncio support (available since redis-py 4.2.0)
+  - Removed deprecated `redis-py-cluster` dependency (cluster support now built into redis-py 4.0+)
+  - Affected files now import successfully: `cache/redis_manager.py`, `cache/distributed_cache.py`, `api/cache/redis.py`, `services/data_aggregation.py`, `data_pipeline/providers/base_provider.py`
+  - No breaking changes: redis 5.x maintains backward compatibility
+  - **Note**: Redis 5.x requires Python 3.8+ (project already requires 3.11+)
+
 ## [1.21.5] - 2025-10-18
 
 ### Fixed
