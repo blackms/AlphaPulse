@@ -1363,6 +1363,23 @@ pyarrow = ">=14.0.1"
 analyze = ["crick", "distributed", "graphviz"]
 
 [[package]]
+name = "delta-spark"
+version = "3.3.2"
+description = "Python APIs for using Delta Lake with Apache Spark"
+optional = true
+python-versions = ">=3.6"
+groups = ["main"]
+markers = "extra == \"datalake\""
+files = [
+    {file = "delta_spark-3.3.2-py3-none-any.whl", hash = "sha256:0a34c720b4368f1655e2348e380b5b3baaca0f2b3d519a3198208f00f65e4062"},
+    {file = "delta_spark-3.3.2.tar.gz", hash = "sha256:f3e89ec4a15a541988f9d6496016a67cf619475e8eeca71da5e073f6ba0da845"},
+]
+
+[package.dependencies]
+importlib_metadata = ">=1.0.0"
+pyspark = ">=3.5.3,<3.6.0"
+
+[[package]]
 name = "distlib"
 version = "0.4.0"
 description = "Distribution utilities"
@@ -4564,6 +4581,19 @@ files = [
 test = ["numpy"]
 
 [[package]]
+name = "py4j"
+version = "0.10.9.7"
+description = "Enables Python programs to dynamically access arbitrary Java objects"
+optional = true
+python-versions = "*"
+groups = ["main"]
+markers = "extra == \"datalake\""
+files = [
+    {file = "py4j-0.10.9.7-py2.py3-none-any.whl", hash = "sha256:85defdfd2b2376eb3abf5ca6474b51ab7e0de341c75a02f46dc9b5976f5a5c1b"},
+    {file = "py4j-0.10.9.7.tar.gz", hash = "sha256:0b6e5315bb3ada5cf62ac651d107bb2ebc02def3dee9d9548e3baac644ea8dbb"},
+]
+
+[[package]]
 name = "pyarrow"
 version = "21.0.0"
 description = "Python library for Apache Arrow"
@@ -4981,6 +5011,28 @@ files = [
     {file = "pyproject_hooks-1.2.0-py3-none-any.whl", hash = "sha256:9e5c6bfa8dcc30091c74b0cf803c81fdd29d94f01992a7707bc97babb1141913"},
     {file = "pyproject_hooks-1.2.0.tar.gz", hash = "sha256:1e859bd5c40fae9448642dd871adf459e5e2084186e8d2c2a79a824c970da1f8"},
 ]
+
+[[package]]
+name = "pyspark"
+version = "3.5.7"
+description = "Apache Spark Python API"
+optional = true
+python-versions = ">=3.8"
+groups = ["main"]
+markers = "extra == \"datalake\""
+files = [
+    {file = "pyspark-3.5.7.tar.gz", hash = "sha256:80e36514e0c5c126d35a26adf4f405cd4a69de96a8ea8a3c1e9a65fce2fb4eaa"},
+]
+
+[package.dependencies]
+py4j = "0.10.9.7"
+
+[package.extras]
+connect = ["googleapis-common-protos (>=1.56.4)", "grpcio (>=1.56.0)", "grpcio-status (>=1.56.0)", "numpy (>=1.15,<2)", "pandas (>=1.0.5)", "pyarrow (>=4.0.0)"]
+ml = ["numpy (>=1.15,<2)"]
+mllib = ["numpy (>=1.15,<2)"]
+pandas-on-spark = ["numpy (>=1.15,<2)", "pandas (>=1.0.5)", "pyarrow (>=4.0.0)"]
+sql = ["numpy (>=1.15,<2)", "pandas (>=1.0.5)", "pyarrow (>=4.0.0)"]
 
 [[package]]
 name = "pytest"
@@ -7224,7 +7276,10 @@ files = [
 [package.extras]
 cffi = ["cffi (>=1.17) ; python_version >= \"3.13\" and platform_python_implementation != \"PyPy\""]
 
+[extras]
+datalake = ["delta-spark", "pyspark"]
+
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.13"
-content-hash = "8e0ba54a6438f077c84d944528250f2f1143501ab744df69cd916a413757189c"
+content-hash = "97739fbf83d56fcd75ffeaed2342cd4d1ee9ce619629295d8fa58dd8ddd29e60"
