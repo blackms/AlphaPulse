@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Logging Utils Module**: Created missing `utils/logging_utils.py` module ([#113](https://github.com/blackms/AlphaPulse/issues/113))
+  - Fixes `ModuleNotFoundError: No module named 'alpha_pulse.utils.logging_utils'` in test modules
+  - Implements `get_logger(name)` function using loguru
+  - Provides standardized logging configuration for tests and utilities
+  - Affected files now import successfully: test modules requiring logging utilities
+  - No breaking changes: new utility module addition
+
 ## [1.21.6] - 2025-10-18
 
 ### Fixed
