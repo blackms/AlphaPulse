@@ -425,9 +425,8 @@ async def startup_event():
     
     # Initialize online learning service
     try:
-        # Get database session for online learning
-        from alpha_pulse.data_pipeline.database.connection import get_db_session
-        db_session = next(get_db_session())
+        # Get database session for online learning (already imported at module level)
+        db_session = get_db_session()
         
         # Online learning configuration
         online_learning_config = {
