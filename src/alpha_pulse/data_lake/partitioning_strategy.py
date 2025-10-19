@@ -120,7 +120,7 @@ class PartitioningStrategy:
     def generate_hash_partition(self, key: str, buckets: int = 10) -> str:
         """Generate hash-based partition path."""
         # Create hash of key
-        hash_value = int(hashlib.md5(key.encode()).hexdigest(), 16)
+        hash_value = int(hashlib.md5(key.encode(), usedforsecurity=False).hexdigest(), 16)
         bucket = hash_value % buckets
         
         return f"hash_bucket={bucket:02d}"

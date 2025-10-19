@@ -318,7 +318,7 @@ class CacheManager:
             self._enforce_size_limit()
             
             # Generate filename
-            filename = f"{hashlib.md5(key.encode()).hexdigest()}.pkl"
+            filename = f"{hashlib.md5(key.encode(), usedforsecurity=False).hexdigest()}.pkl"
             cache_path = os.path.join(self.cache_dir, filename)
             
             # Store value

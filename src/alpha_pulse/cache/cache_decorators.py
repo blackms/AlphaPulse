@@ -39,7 +39,7 @@ def _generate_cache_key(
         
         # Convert to JSON and hash
         key_json = json.dumps(key_data, sort_keys=True, default=str)
-        key_hash = hashlib.md5(key_json.encode()).hexdigest()[:8]
+        key_hash = hashlib.md5(key_json.encode(), usedforsecurity=False).hexdigest()[:8]
         parts.append(key_hash)
     
     return ":".join(parts)

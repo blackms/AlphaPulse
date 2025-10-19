@@ -59,7 +59,7 @@ class StrategyTask:
         if not self.task_id:
             # Generate deterministic ID based on content
             content = f"{self.strategy_class.__name__}_{json.dumps(self.strategy_params, sort_keys=True)}"
-            self.task_id = hashlib.md5(content.encode()).hexdigest()[:8]
+            self.task_id = hashlib.md5(content.encode(), usedforsecurity=False).hexdigest()[:8]
 
 
 class ParallelStrategyRunner:

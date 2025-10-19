@@ -136,7 +136,7 @@ class ConsistentHashRing:
     
     def _hash(self, key: str) -> int:
         """Generate hash for key."""
-        return int(hashlib.md5(key.encode()).hexdigest(), 16)
+        return int(hashlib.md5(key.encode(), usedforsecurity=False).hexdigest(), 16)
 
 
 class DistributedCacheManager:
@@ -382,7 +382,7 @@ class DistributedCacheManager:
         
         elif self.sharding_strategy == ShardingStrategy.RANGE_BASED:
             # Simple range-based sharding
-            hash_value = int(hashlib.md5(key.encode()).hexdigest(), 16)
+            hash_value = int(hashlib.md5(key.encode(), usedforsecurity=False).hexdigest(), 16)
             node_index = hash_value % len(self.nodes)
             
             nodes = list(self.nodes.values())
