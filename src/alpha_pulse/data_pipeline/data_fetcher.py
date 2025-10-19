@@ -155,3 +155,7 @@ class DataFetcher:
             & (combined.index <= pd.Timestamp(end_date).tz_localize("UTC"))
         ]
         return combined.ffill()
+
+
+# Type alias for backward compatibility
+DataPipeline = DataFetcher

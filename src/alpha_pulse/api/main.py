@@ -372,10 +372,11 @@ async def startup_event():
             model_checkpoint_interval=24,  # Save model daily
             model_checkpoint_path="/tmp/regime_model_checkpoint.pkl"
         )
-        
-        # Create and initialize regime detection service
+
+        # Create and initialize regime detection service with data pipeline
         app.state.regime_detection_service = RegimeDetectionService(
             config=regime_config,
+            data_pipeline=app.state.market_data_fetcher,  # Wire the data fetcher
             alert_manager=alert_manager
         )
         
