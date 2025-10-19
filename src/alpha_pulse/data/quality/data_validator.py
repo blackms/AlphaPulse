@@ -776,3 +776,38 @@ class DataQualityValidator:
         if symbol:
             return {symbol: self._quarantined_data.get(symbol, [])}
         return self._quarantined_data.copy()
+
+
+# Global validator instance
+_data_quality_validator: Optional[DataQualityValidator] = None
+
+
+def get_data_validator(
+    quality_thresholds: Optional[Dict[str, float]] = None,
+    enable_anomaly_detection: bool = True,
+    enable_quarantine: bool = True,
+    historical_window_size: int = 100
+) -> DataQualityValidator:
+    """
+    Get the global data quality validator instance.
+
+    Args:
+        quality_thresholds: Quality score thresholds for each dimension
+        enable_anomaly_detection: Enable statistical anomaly detection
+        enable_quarantine: Enable automatic quarantine of bad data
+        historical_window_size: Size of historical data window for comparison
+
+    Returns:
+        DataQualityValidator instance
+    """
+    global _data_quality_validator
+
+    if _data_quality_validator is None:
+        _data_quality_validator = DataQualityValidator(
+            quality_thresholds=quality_thresholds,
+            enable_anomaly_detection=enable_anomaly_detection,
+            enable_quarantine=enable_quarantine,
+            historical_window_size=historical_window_size
+        )
+
+    return _data_quality_validator
