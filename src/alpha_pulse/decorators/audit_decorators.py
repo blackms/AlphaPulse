@@ -302,15 +302,16 @@ def audit_portfolio_action(action_type: str = 'update'):
     return decorator
 
 
-def audit_agent_signal(agent_type: str):
+def audit_agent_signal(agent_type: str, include_market_data: bool = False):
     """
     Decorator for auditing trading agent signals.
-    
+
     Args:
         agent_type: Type of agent (e.g., 'technical', 'fundamental', 'sentiment')
-    
+        include_market_data: Whether to include market data in logs (default: False)
+
     Example:
-        @audit_agent_signal(agent_type='technical')
+        @audit_agent_signal(agent_type='technical', include_market_data=True)
         def generate_signal(self, market_data: MarketData) -> Signal:
             ...
     """
@@ -319,22 +320,36 @@ def audit_agent_signal(agent_type: str):
         def wrapper(*args, **kwargs):
             audit_logger = get_audit_logger()
             start_time = time.time()
-            
+
             event_data = {
                 'function': func.__name__,
                 'agent_type': agent_type,
                 'timestamp': datetime.utcnow().isoformat()
             }
-            
+
             # Extract symbol if available
             sig = inspect.signature(func)
             bound_args = sig.bind(*args, **kwargs)
             params = bound_args.arguments
-            
+
             if 'symbol' in params:
                 event_data['symbol'] = params['symbol']
-            if 'market_data' in params and hasattr(params['market_data'], 'symbol'):
-                event_data['symbol'] = params['market_data'].symbol
+            if 'market_data' in params:
+                if hasattr(params['market_data'], 'symbol'):
+                    event_data['symbol'] = params['market_data'].symbol
+                # Include market data if requested
+                if include_market_data:
+                    # Extract key market data attributes for audit log
+                    market_data_obj = params['market_data']
+                    event_data['market_data'] = {}
+                    if hasattr(market_data_obj, 'prices') and market_data_obj.prices is not None:
+                        event_data['market_data']['has_prices'] = True
+                    if hasattr(market_data_obj, 'volumes') and market_data_obj.volumes is not None:
+                        event_data['market_data']['has_volumes'] = True
+                    if hasattr(market_data_obj, 'fundamentals') and market_data_obj.fundamentals:
+                        event_data['market_data']['has_fundamentals'] = True
+                    if hasattr(market_data_obj, 'sentiment') and market_data_obj.sentiment:
+                        event_data['market_data']['has_sentiment'] = True
             
             success = True
             error_message = None
