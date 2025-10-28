@@ -1,0 +1,271 @@
+# Default values for AlphaPulse
+# This is a YAML-formatted file.
+
+# Global settings
+global:
+  environment: production
+  domain: alphapulse.ai
+
+# API deployment
+api:
+  replicaCount: 10
+  image:
+    repository: alphapulse/api
+    tag: latest
+    pullPolicy: IfNotPresent
+
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8000
+
+  resources:
+    requests:
+      cpu: 2
+      memory: 4Gi
+    limits:
+      cpu: 4
+      memory: 8Gi
+
+  autoscaling:
+    enabled: true
+    minReplicas: 10
+    maxReplicas: 50
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+  env:
+    - name: ENVIRONMENT
+      value: production
+    - name: LOG_LEVEL
+      value: INFO
+    - name: DATABASE_URL
+      valueFrom:
+        secretKeyRef:
+          name: alphapulse-secrets
+          key: database-url
+    - name: REDIS_URL
+      value: redis://redis-master:6379
+    - name: VAULT_ADDR
+      value: http://vault:8200
+    - name: PROMETHEUS_MULTIPROC_DIR
+      value: /tmp/prometheus
+
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 2
+
+# Worker deployments (Celery)
+workers:
+  agents:
+    replicaCount: 5
+    image:
+      repository: alphapulse/worker-agents
+      tag: latest
+      pullPolicy: IfNotPresent
+
+    resources:
+      requests:
+        cpu: 2
+        memory: 4Gi
+      limits:
+        cpu: 4
+        memory: 8Gi
+
+    autoscaling:
+      enabled: true
+      minReplicas: 5
+      maxReplicas: 20
+      targetCPUUtilizationPercentage: 70
+
+  risk:
+    replicaCount: 3
+    image:
+      repository: alphapulse/worker-risk
+      tag: latest
+      pullPolicy: IfNotPresent
+
+    resources:
+      requests:
+        cpu: 1
+        memory: 2Gi
+      limits:
+        cpu: 2
+        memory: 4Gi
+
+    autoscaling:
+      enabled: true
+      minReplicas: 3
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 70
+
+# Redis cluster
+redis:
+  enabled: true
+  architecture: replication
+  auth:
+    enabled: true
+    existingSecret: alphapulse-secrets
+    existingSecretPasswordKey: redis-password
+
+  master:
+    count: 1
+    resources:
+      requests:
+        cpu: 1
+        memory: 2Gi
+      limits:
+        cpu: 2
+        memory: 4Gi
+    persistence:
+      enabled: true
+      size: 10Gi
+
+  replica:
+    replicaCount: 2
+    resources:
+      requests:
+        cpu: 1
+        memory: 2Gi
+      limits:
+        cpu: 2
+        memory: 4Gi
+    persistence:
+      enabled: true
+      size: 10Gi
+
+# HashiCorp Vault
+vault:
+  enabled: true
+  server:
+    ha:
+      enabled: true
+      replicas: 3
+      raft:
+        enabled: true
+        setNodeId: true
+
+    resources:
+      requests:
+        cpu: 500m
+        memory: 512Mi
+      limits:
+        cpu: 1
+        memory: 1Gi
+
+    dataStorage:
+      enabled: true
+      size: 10Gi
+
+    auditStorage:
+      enabled: true
+      size: 5Gi
+
+# PostgreSQL (external RDS - connection only)
+postgresql:
+  enabled: false
+  external:
+    host: ""  # Set via values-production.yaml
+    port: 5432
+    database: alphapulse
+    username: alphapulse
+    existingSecret: alphapulse-secrets
+    existingSecretPasswordKey: postgres-password
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: api.alphapulse.ai
+      paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: api
+              port:
+                number: 80
+  tls:
+    - secretName: alphapulse-tls
+      hosts:
+        - api.alphapulse.ai
+
+# Monitoring stack
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true
+    server:
+      retention: 30d
+      resources:
+        requests:
+          cpu: 500m
+          memory: 2Gi
+        limits:
+          cpu: 1
+          memory: 4Gi
+
+  grafana:
+    enabled: true
+    adminPassword: ""  # Set via secret
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+
+  loki:
+    enabled: true
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+
+  jaeger:
+    enabled: true
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+
+# Security settings
+security:
+  podSecurityPolicy:
+    enabled: true
+  networkPolicy:
+    enabled: true
+  rbac:
+    create: true
+
+# Service mesh (optional)
+istio:
+  enabled: false
+  mtls:
+    mode: STRICT

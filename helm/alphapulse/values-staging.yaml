@@ -1,0 +1,237 @@
+# Staging environment values
+# For staging.alphapulse.ai
+
+global:
+  environment: staging
+  domain: staging.alphapulse.ai
+
+# API - scaled down from production
+api:
+  replicaCount: 3
+  image:
+    repository: alphapulse/api
+    tag: staging
+    pullPolicy: Always
+
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8000
+
+  resources:
+    requests:
+      cpu: 1
+      memory: 2Gi
+    limits:
+      cpu: 2
+      memory: 4Gi
+
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+  env:
+    - name: ENVIRONMENT
+      value: staging
+    - name: LOG_LEVEL
+      value: INFO
+    - name: DATABASE_URL
+      valueFrom:
+        secretKeyRef:
+          name: alphapulse-secrets
+          key: database-url
+    - name: REDIS_URL
+      value: redis://redis-master:6379
+    - name: VAULT_ADDR
+      value: http://vault:8200
+
+# Workers - scaled down from production
+workers:
+  agents:
+    replicaCount: 2
+    image:
+      repository: alphapulse/worker-agents
+      tag: staging
+      pullPolicy: Always
+
+    resources:
+      requests:
+        cpu: 1
+        memory: 2Gi
+      limits:
+        cpu: 2
+        memory: 4Gi
+
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 5
+      targetCPUUtilizationPercentage: 70
+
+  risk:
+    replicaCount: 1
+    image:
+      repository: alphapulse/worker-risk
+      tag: staging
+      pullPolicy: Always
+
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 1
+        memory: 2Gi
+
+    autoscaling:
+      enabled: true
+      minReplicas: 1
+      maxReplicas: 3
+      targetCPUUtilizationPercentage: 70
+
+# Redis - HA with 1 master + 2 replicas
+redis:
+  enabled: true
+  architecture: replication
+  auth:
+    enabled: true
+    existingSecret: alphapulse-secrets
+    existingSecretPasswordKey: redis-password
+
+  master:
+    count: 1
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 1
+        memory: 2Gi
+    persistence:
+      enabled: true
+      size: 5Gi
+
+  replica:
+    replicaCount: 2
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 1
+        memory: 2Gi
+    persistence:
+      enabled: true
+      size: 5Gi
+
+# Vault - HA with 3 replicas
+vault:
+  enabled: true
+  server:
+    ha:
+      enabled: true
+      replicas: 3
+      raft:
+        enabled: true
+        setNodeId: true
+
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+
+    dataStorage:
+      enabled: true
+      size: 5Gi
+
+    auditStorage:
+      enabled: true
+      size: 2Gi
+
+# PostgreSQL - external RDS (staging instance)
+postgresql:
+  enabled: false
+  external:
+    host: staging.alphapulse.rds.amazonaws.com  # Replace with actual RDS endpoint
+    port: 5432
+    database: alphapulse_staging
+    username: alphapulse
+    existingSecret: alphapulse-secrets
+    existingSecretPasswordKey: postgres-password
+
+# Ingress - staging domain
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-staging  # Use Let's Encrypt staging
+    nginx.ingress.kubernetes.io/rate-limit: "50"  # Lower rate limit for staging
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: staging.alphapulse.ai
+      paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: api
+              port:
+                number: 80
+  tls:
+    - secretName: alphapulse-staging-tls
+      hosts:
+        - staging.alphapulse.ai
+
+# Monitoring - enabled
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true
+    server:
+      retention: 7d  # Shorter retention for staging
+      resources:
+        requests:
+          cpu: 250m
+          memory: 1Gi
+        limits:
+          cpu: 500m
+          memory: 2Gi
+
+  grafana:
+    enabled: true
+    adminPassword: ""  # Set via secret
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 250m
+        memory: 512Mi
+
+  loki:
+    enabled: true
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 250m
+        memory: 512Mi
+
+  jaeger:
+    enabled: false  # Disable tracing in staging to save resources
+
+# Security - enabled
+security:
+  podSecurityPolicy:
+    enabled: true
+  networkPolicy:
+    enabled: true
+  rbac:
+    create: true

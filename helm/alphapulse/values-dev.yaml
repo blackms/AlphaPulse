@@ -1,0 +1,147 @@
+# Development environment values
+# For local Minikube/Kind deployment
+
+global:
+  environment: development
+  domain: alphapulse.local
+
+# API - minimal resources for local dev
+api:
+  replicaCount: 1
+  image:
+    repository: alphapulse/api
+    tag: dev
+    pullPolicy: Never  # Use local images
+
+  service:
+    type: NodePort
+    port: 80
+    targetPort: 8000
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 1
+      memory: 2Gi
+
+  autoscaling:
+    enabled: false  # Disable HPA for local dev
+
+  env:
+    - name: ENVIRONMENT
+      value: development
+    - name: LOG_LEVEL
+      value: DEBUG
+    - name: DATABASE_URL
+      value: postgresql://alphapulse:alphapulse@host.docker.internal:5432/alphapulse
+    - name: REDIS_URL
+      value: redis://redis-master:6379
+    - name: VAULT_ADDR
+      value: http://vault:8200
+    - name: VAULT_TOKEN
+      value: root  # Dev token only
+
+# Workers - single instance
+workers:
+  agents:
+    replicaCount: 1
+    image:
+      repository: alphapulse/worker-agents
+      tag: dev
+      pullPolicy: Never
+
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 1
+        memory: 2Gi
+
+    autoscaling:
+      enabled: false
+
+  risk:
+    replicaCount: 1
+    image:
+      repository: alphapulse/worker-risk
+      tag: dev
+      pullPolicy: Never
+
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+
+    autoscaling:
+      enabled: false
+
+# Redis - single instance (no replication)
+redis:
+  enabled: true
+  architecture: standalone  # No replication for dev
+  auth:
+    enabled: false  # No auth for dev
+
+  master:
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+    persistence:
+      enabled: false  # No persistence for dev
+
+# Vault - single instance (dev mode)
+vault:
+  enabled: true
+  server:
+    dev:
+      enabled: true  # Dev mode - in-memory storage
+    ha:
+      enabled: false
+
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 250m
+        memory: 512Mi
+
+    dataStorage:
+      enabled: false  # No persistence in dev mode
+
+# PostgreSQL - external (use host database)
+postgresql:
+  enabled: false
+  external:
+    host: host.docker.internal
+    port: 5432
+    database: alphapulse
+    username: alphapulse
+    password: alphapulse
+
+# Ingress - NodePort (no ingress controller)
+ingress:
+  enabled: false  # Use NodePort instead
+
+# Monitoring - disabled for dev
+monitoring:
+  enabled: false
+
+# Security - relaxed for dev
+security:
+  podSecurityPolicy:
+    enabled: false
+  networkPolicy:
+    enabled: false
+  rbac:
+    create: true

@@ -1,0 +1,274 @@
+# Production environment values
+# For api.alphapulse.ai
+
+global:
+  environment: production
+  domain: alphapulse.ai
+
+# API - full production scale
+api:
+  replicaCount: 10
+  image:
+    repository: alphapulse/api
+    tag: v1.0.0  # Use semantic versioning tags
+    pullPolicy: IfNotPresent
+
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8000
+
+  resources:
+    requests:
+      cpu: 2
+      memory: 4Gi
+    limits:
+      cpu: 4
+      memory: 8Gi
+
+  autoscaling:
+    enabled: true
+    minReplicas: 10
+    maxReplicas: 50
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+  env:
+    - name: ENVIRONMENT
+      value: production
+    - name: LOG_LEVEL
+      value: INFO
+    - name: DATABASE_URL
+      valueFrom:
+        secretKeyRef:
+          name: alphapulse-secrets
+          key: database-url
+    - name: REDIS_URL
+      value: redis://redis-master:6379
+    - name: VAULT_ADDR
+      value: http://vault:8200
+    - name: PROMETHEUS_MULTIPROC_DIR
+      value: /tmp/prometheus
+
+# Workers - production scale
+workers:
+  agents:
+    replicaCount: 5
+    image:
+      repository: alphapulse/worker-agents
+      tag: v1.0.0
+      pullPolicy: IfNotPresent
+
+    resources:
+      requests:
+        cpu: 2
+        memory: 4Gi
+      limits:
+        cpu: 4
+        memory: 8Gi
+
+    autoscaling:
+      enabled: true
+      minReplicas: 5
+      maxReplicas: 20
+      targetCPUUtilizationPercentage: 70
+
+  risk:
+    replicaCount: 3
+    image:
+      repository: alphapulse/worker-risk
+      tag: v1.0.0
+      pullPolicy: IfNotPresent
+
+    resources:
+      requests:
+        cpu: 1
+        memory: 2Gi
+      limits:
+        cpu: 2
+        memory: 4Gi
+
+    autoscaling:
+      enabled: true
+      minReplicas: 3
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 70
+
+# Redis - HA with 1 master + 2 replicas
+redis:
+  enabled: true
+  architecture: replication
+  auth:
+    enabled: true
+    existingSecret: alphapulse-secrets
+    existingSecretPasswordKey: redis-password
+
+  master:
+    count: 1
+    resources:
+      requests:
+        cpu: 1
+        memory: 2Gi
+      limits:
+        cpu: 2
+        memory: 4Gi
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: gp3  # AWS EBS gp3 (faster than gp2)
+
+  replica:
+    replicaCount: 2
+    resources:
+      requests:
+        cpu: 1
+        memory: 2Gi
+      limits:
+        cpu: 2
+        memory: 4Gi
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: gp3
+
+# Vault - HA with 3 replicas
+vault:
+  enabled: true
+  server:
+    ha:
+      enabled: true
+      replicas: 3
+      raft:
+        enabled: true
+        setNodeId: true
+
+    resources:
+      requests:
+        cpu: 500m
+        memory: 512Mi
+      limits:
+        cpu: 1
+        memory: 1Gi
+
+    dataStorage:
+      enabled: true
+      size: 10Gi
+      storageClass: gp3
+
+    auditStorage:
+      enabled: true
+      size: 5Gi
+      storageClass: gp3
+
+# PostgreSQL - external RDS (production instance)
+postgresql:
+  enabled: false
+  external:
+    host: prod.alphapulse.rds.amazonaws.com  # Replace with actual RDS endpoint
+    port: 5432
+    database: alphapulse
+    username: alphapulse
+    existingSecret: alphapulse-secrets
+    existingSecretPasswordKey: postgres-password
+
+# Ingress - production domain
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "30"
+  hosts:
+    - host: api.alphapulse.ai
+      paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: api
+              port:
+                number: 80
+  tls:
+    - secretName: alphapulse-tls
+      hosts:
+        - api.alphapulse.ai
+
+# Monitoring - full stack enabled
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true
+    server:
+      retention: 30d
+      resources:
+        requests:
+          cpu: 500m
+          memory: 2Gi
+        limits:
+          cpu: 1
+          memory: 4Gi
+      persistence:
+        enabled: true
+        size: 50Gi
+        storageClass: gp3
+
+  grafana:
+    enabled: true
+    adminPassword: ""  # Set via secret
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+    persistence:
+      enabled: true
+      size: 5Gi
+
+  loki:
+    enabled: true
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+    persistence:
+      enabled: true
+      size: 20Gi
+
+  jaeger:
+    enabled: true
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+    persistence:
+      enabled: true
+      size: 10Gi
+
+# Security - strict enforcement
+security:
+  podSecurityPolicy:
+    enabled: true
+  networkPolicy:
+    enabled: true
+  rbac:
+    create: true
+
+# Service mesh - optional (enable for advanced security)
+istio:
+  enabled: false  # Enable if using Istio service mesh
+  mtls:
+    mode: STRICT

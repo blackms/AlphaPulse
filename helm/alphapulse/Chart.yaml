@@ -1,0 +1,14 @@
+apiVersion: v2
+name: alphapulse
+description: AlphaPulse AI-driven hedge fund system - Multi-tenant SaaS
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - trading
+  - ai
+  - multi-tenant
+  - saas
+maintainers:
+  - name: AlphaPulse Team
+    email: team@alphapulse.ai
