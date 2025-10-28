@@ -31,6 +31,7 @@ class TenantContextMiddleware(BaseHTTPMiddleware):
         "/docs",
         "/openapi.json",
         "/redoc",
+        "/token",  # Login endpoint must be public
     }
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:

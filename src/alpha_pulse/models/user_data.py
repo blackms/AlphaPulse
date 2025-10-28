@@ -8,10 +8,12 @@ from datetime import datetime
 from typing import Optional, List, Dict, Any
 from sqlalchemy import (
     Column, Integer, String, DateTime, Boolean,
-    ForeignKey, Index, Table, Text
+    ForeignKey, Index, Table, Text, UniqueConstraint
 )
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship, validates
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.sql import func, text
 
 from .encrypted_fields import (
     EncryptedString,
@@ -23,6 +25,36 @@ from .encrypted_fields import (
 )
 
 Base = declarative_base()
+
+
+class Tenant(Base):
+    """Tenant metadata for multi-tenant SaaS."""
+
+    __tablename__ = "tenants"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("gen_random_uuid()")
+    )
+    name = Column(String(255), nullable=False)
+    slug = Column(String(100), nullable=False, unique=True)
+    subscription_tier = Column(String(50), nullable=False)
+    status = Column(String(50), nullable=False, server_default="active")
+    max_users = Column(Integer, server_default="5")
+    max_api_calls_per_day = Column(Integer, server_default="10000")
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+    metadata_json = Column("metadata", JSONB, nullable=False, server_default=text("'{}'::jsonb"))
+
+    # Relationships
+    users = relationship("User", back_populates="tenant")
+
+    __table_args__ = (
+        Index("idx_tenants_slug", "slug"),
+        Index("idx_tenants_status", "status"),
+        Index("idx_tenants_tier", "subscription_tier"),
+    )
 
 # Association table for user roles
 user_roles = Table(
@@ -39,6 +71,11 @@ class User(Base):
     __tablename__ = "users"
     
     id = Column(Integer, primary_key=True)
+    tenant_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=False
+    )
     username = Column(String(50), unique=True, nullable=False)
     
     # Encrypted PII fields
@@ -53,8 +90,7 @@ class User(Base):
             source_field="email",
             encryption_context="user_pii"
         ),
-        index=True,
-        unique=True
+        index=True
     )
     
     phone_number = Column(
@@ -113,6 +149,7 @@ class User(Base):
     )
     
     # Relationships
+    tenant = relationship("Tenant", back_populates="users")
     roles = relationship("Role", secondary=user_roles, back_populates="users")
     api_keys = relationship("APIKey", back_populates="user", cascade="all, delete-orphan")
     audit_logs = relationship("UserAuditLog", back_populates="user")
@@ -122,6 +159,8 @@ class User(Base):
         Index("idx_user_email_search", "email_search"),
         Index("idx_user_username", "username"),
         Index("idx_user_active", "is_active"),
+        Index("idx_user_tenant_id", "tenant_id"),
+        UniqueConstraint("tenant_id", "email", name="uq_users_tenant_email"),
     )
     
     @validates("email")
@@ -422,6 +461,7 @@ def anonymize_user_data(user: User) -> Dict[str, Any]:
 
 # Export models
 __all__ = [
+    "Tenant",
     "User",
     "Role",
     "APIKey",

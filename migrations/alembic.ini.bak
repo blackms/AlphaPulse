@@ -63,7 +63,7 @@ version_path_separator = os
 # are written from script.py.mako
 # output_encoding = utf-8
 
-sqlalchemy.url = postgresql://alphapulse:alphapulse@localhost/alphapulse
+sqlalchemy.url = postgresql://testuser:testpassword@localhost/alphapulse
 
 
 [post_write_hooks]

@@ -2,8 +2,7 @@
 
 [alembic]
 # path to migration scripts
-# Use forward slashes (/) also on windows to provide an os agnostic path
-script_location = alembic
+script_location = migrations/alembic
 
 # template used to generate migration file names; The default value is %%(rev)s_%%(slug)s
 # Uncomment the line below if you want the files to be prepended with date and time
@@ -17,13 +16,14 @@ prepend_sys_path = .
 
 # timezone to use when rendering the date within the migration file
 # as well as the filename.
-# If specified, requires the python>=3.9 or backports.zoneinfo library and tzdata library.
+# If specified, requires the python>=3.9 or backports.zoneinfo library.
 # Any required deps can installed by adding `alembic[tz]` to the pip requirements
 # string value is passed to ZoneInfo()
 # leave blank for localtime
 # timezone =
 
-# max length of characters to apply to the "slug" field
+# max length of characters to apply to the
+# "slug" field
 # truncate_slug_length = 40
 
 # set to 'true' to run the environment during
@@ -36,10 +36,10 @@ prepend_sys_path = .
 # sourceless = false
 
 # version location specification; This defaults
-# to alembic/versions.  When using multiple version
+# to head/versions.  When using multiple version
 # directories, initial revisions must be specified with --version-path.
 # The path separator used here should be the separator specified by "version_path_separator" below.
-# version_locations = %(here)s/bar:%(here)s/bat:alembic/versions
+# version_locations = %(here)s/bar:%(here)s/bat:head/versions
 
 # version path separator; As mentioned above, this is the character used to split
 # version_locations. The default within new alembic.ini files is "os", which uses os.pathsep.
@@ -49,10 +49,7 @@ prepend_sys_path = .
 # version_path_separator = :
 # version_path_separator = ;
 # version_path_separator = space
-# version_path_separator = newline
-#
-# Use os.pathsep. Default configuration used for new projects.
-version_path_separator = os
+version_path_separator = os  # Use os.pathsep. Default configuration used for new projects.
 
 # set to 'true' to search source files recursively
 # in each "version_locations" directory
@@ -63,7 +60,10 @@ version_path_separator = os
 # are written from script.py.mako
 # output_encoding = utf-8
 
-sqlalchemy.url = postgresql://alphapulse:alphapulse@localhost/alphapulse
+# Use asyncpg driver and credentials provided by user
+# Ensure environment variables DB_USER, DB_PASS, DB_HOST, DB_PORT, DB_NAME are set for production/other environments
+# For local Alembic runs, this direct URL is used.
+sqlalchemy.url = postgresql+asyncpg://devuser:devpassword@localhost:5432/backtesting
 
 
 [post_write_hooks]
@@ -94,12 +94,12 @@ keys = console
 keys = generic
 
 [logger_root]
-level = WARNING
+level = WARN
 handlers = console
 qualname =
 
 [logger_sqlalchemy]
-level = WARNING
+level = WARN
 handlers =
 qualname = sqlalchemy.engine
 

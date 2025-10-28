@@ -10,7 +10,7 @@ from fastapi.security import APIKeyHeader
 
 from alpha_pulse.monitoring.alerting import AlertManager, load_alerting_config
 from alpha_pulse.risk_management import RiskManager, RiskConfig
-from alpha_pulse.exchanges.exchange_adapters import PaperTradingAdapter
+# from alpha_pulse.exchanges.exchange_adapters import PaperTradingAdapter  # TODO: Fix import path
 
 from .data import (
     MetricsDataAccessor,
@@ -159,7 +159,7 @@ def get_risk_manager(request: Request):
     global _risk_manager
     if _risk_manager is None:
         # Use paper trading adapter for API
-        exchange = PaperTradingAdapter()
+        exchange = None  # TODO: Fix - PaperTradingAdapter not available
         risk_config = RiskConfig(
             max_position_size=0.2,
             max_portfolio_leverage=1.5,
@@ -221,22 +221,22 @@ def get_agent_manager(request: Request):
     global _agent_manager
     if _agent_manager is None:
         from alpha_pulse.agents.manager import AgentManager
-        
+
         # Get ensemble service if available
         ensemble_service = None
         if hasattr(request.app.state, 'ensemble_service'):
             ensemble_service = request.app.state.ensemble_service
-        
+
         # Get GPU service if available
         gpu_service = None
         if hasattr(request.app.state, 'gpu_service'):
             gpu_service = request.app.state.gpu_service
-        
+
         # Get regime detection service if available
         regime_service = None
         if hasattr(request.app.state, 'regime_detection_service'):
             regime_service = request.app.state.regime_detection_service
-        
+
         # Initialize agent manager with ensemble, GPU, regime, and explainability integration
         config = {
             "use_ensemble": True,
@@ -251,13 +251,33 @@ def get_agent_manager(request: Request):
                 "valuation": 0.15
             }
         }
-        
+
         _agent_manager = AgentManager(
-            config=config, 
+            config=config,
             ensemble_service=ensemble_service,
             gpu_service=gpu_service,
             alert_manager=alert_manager,
             regime_service=regime_service
         )
-    
+
     return _agent_manager
+
+
+def get_exchange_client(request: Request):
+    """Get exchange client instance from app state."""
+    if hasattr(request.app.state, 'exchange_client'):
+        return request.app.state.exchange_client
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="Exchange client not available"
+    )
+
+
+def get_api_client(request: Request):
+    """Get API client instance from app state."""
+    if hasattr(request.app.state, 'api_client'):
+        return request.app.state.api_client
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="API client not available"
+    )
