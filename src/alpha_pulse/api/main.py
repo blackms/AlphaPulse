@@ -30,7 +30,8 @@ from loguru import logger
 from alpha_pulse.config.database import get_db_session
 
 # Import routers
-from .routers import metrics, alerts, portfolio, system, trades, correlation, risk_budget, regime, hedging, liquidity, ensemble, online_learning, gpu, explainability, data_quality, backtesting, data_lake
+from .routers import metrics, alerts, portfolio, system, trades, correlation, risk_budget, regime, liquidity, online_learning, gpu, data_quality, backtesting, data_lake
+from .routers import hedging, ensemble, explainability
 from .routes import audit  # Add audit routes
 from .websockets import endpoints as ws_endpoints
 from .websockets.subscription import subscription_manager

@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Depends, Query, Request
 from pydantic import BaseModel, Field
 from datetime import datetime
 
-from alpha_pulse.ml.ensemble.ensemble_manager import EnsembleConfig
+from alpha_pulse.models.ensemble_model import EnsembleConfig
 from ..dependencies import get_current_user
 
 
