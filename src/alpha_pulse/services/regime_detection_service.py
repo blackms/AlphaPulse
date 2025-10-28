@@ -13,14 +13,16 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 import logging
 from prometheus_client import Counter, Gauge, Histogram, Summary
-import aioredis
+import redis.asyncio as aioredis  # aioredis is now part of redis package
 import json
 
 from ..models.market_regime_hmm import MarketRegimeHMM, MarketRegimeConfig
 from ..models.regime_state import RegimeStateManager, RegimeState
 from ..ml.regime.regime_classifier import RegimeInfo
 from ..data_pipeline.data_fetcher import DataPipeline
-from ..monitoring.alert_manager import AlertManager, Alert, AlertLevel
+from ..monitoring.alerting.manager import AlertManager
+from ..monitoring.alerting.models import Alert
+from ..monitoring.interfaces import AlertLevel
 
 logger = logging.getLogger(__name__)
 

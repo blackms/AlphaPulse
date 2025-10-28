@@ -9,7 +9,7 @@ from decimal import Decimal
 from loguru import logger
 
 from alpha_pulse.services.liquidity_risk_service import LiquidityRiskService
-from alpha_pulse.execution.interfaces import OrderType, OrderSide
+from alpha_pulse.execution.broker_interface import OrderType, OrderSide
 
 
 class LiquidityAwareExecutor:
