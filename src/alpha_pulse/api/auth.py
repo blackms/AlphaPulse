@@ -30,6 +30,7 @@ class User(BaseModel):
     role: str
     permissions: List[str]
     disabled: bool = False
+    tenant_id: Optional[str] = "00000000-0000-0000-0000-000000000001"  # Default tenant for demo users
 
 
 class UserInDB(User):

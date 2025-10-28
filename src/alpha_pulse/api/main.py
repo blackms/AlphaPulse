@@ -45,6 +45,7 @@ from .middleware.audit_middleware import AuditLoggingMiddleware, SecurityEventMi
 from .middleware.rate_limiting import RateLimitingMiddleware
 from .middleware.security_headers import SecurityHeadersMiddleware, ContentSecurityPolicyReportMiddleware
 from .middleware.validation_middleware import ValidationMiddleware, CSRFProtectionMiddleware
+from .middleware.tenant_context import TenantContextMiddleware
 from alpha_pulse.utils.audit_logger import get_audit_logger, AuditEventType
 from alpha_pulse.utils.ddos_protection import DDoSMitigator
 from alpha_pulse.utils.ip_filtering import IPFilterManager
@@ -159,6 +160,11 @@ app.add_middleware(
 # Add security event detection middleware
 app.add_middleware(SecurityEventMiddleware)
 
+# Add tenant context middleware (multi-tenant SaaS)
+# This must be added AFTER authentication middleware but BEFORE route handlers
+# It extracts tenant_id from JWT and sets PostgreSQL RLS context
+app.add_middleware(TenantContextMiddleware)
+
 # Include routers
 app.include_router(metrics.router, prefix="/api/v1", tags=["metrics"])
 app.include_router(alerts.router, prefix="/api/v1", tags=["alerts"])
@@ -210,10 +216,13 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    # Create access token
+    # Create access token with tenant_id claim (required for multi-tenant middleware)
     access_token_expires = timedelta(minutes=30)  # Use configured value
     access_token = create_access_token(
-        data={"sub": user.username},
+        data={
+            "sub": user.username,
+            "tenant_id": user.tenant_id  # Multi-tenant: Required by TenantContextMiddleware
+        },
         expires_delta=access_token_expires
     )
     
