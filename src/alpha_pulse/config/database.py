@@ -48,25 +48,44 @@ class DatabaseConfig:
     def create_engine(self, **kwargs) -> Engine:
         """
         Create SQLAlchemy engine with encryption support.
-        
+
         Args:
             **kwargs: Additional engine configuration
-            
+
         Returns:
             Configured SQLAlchemy engine
         """
         if self._engine is not None:
             return self._engine
-        
+
+        connection_url = self.get_connection_url()
+        is_async = "asyncpg" in connection_url or "asyncio" in connection_url
+
         # Default engine configuration
         default_config = {
             "pool_size": 20,
             "max_overflow": 40,
             "pool_pre_ping": True,
             "pool_recycle": 3600,
-            "poolclass": QueuePool,
             "echo": self.settings.debug,
-            "connect_args": {
+        }
+
+        # Configure pool class and connect_args based on driver
+        if is_async:
+            # For asyncpg, don't specify poolclass - let asyncpg handle it
+            # Use asyncpg-specific connection arguments
+            default_config["connect_args"] = {
+                "server_settings": {
+                    "application_name": "AlphaPulse",
+                    "jit": "off"
+                },
+                "command_timeout": 60,
+            }
+            logger.info("Configuring async engine with asyncpg driver")
+        else:
+            # For synchronous drivers (psycopg2), use QueuePool
+            default_config["poolclass"] = QueuePool
+            default_config["connect_args"] = {
                 "server_settings": {
                     "application_name": "AlphaPulse",
                     "jit": "off"
@@ -74,22 +93,23 @@ class DatabaseConfig:
                 "command_timeout": 60,
                 "prepared_statement_cache_size": 0,
             }
-        }
-        
+            logger.info("Configuring sync engine with psycopg2 driver")
+
         # Merge with provided kwargs
         config = {**default_config, **kwargs}
-        
+
         # Create engine
-        connection_url = self.get_connection_url()
         self._engine = create_engine(connection_url, **config)
-        
+
         # Configure encryption
         self._configure_encryption(self._engine)
-        
-        # Configure performance optimizations
-        self._configure_performance(self._engine)
-        
-        logger.info("Database engine created with encryption support")
+
+        # Only configure performance optimizations for sync engines
+        # (asyncpg handles these differently)
+        if not is_async:
+            self._configure_performance(self._engine)
+
+        logger.info(f"Database engine created with encryption support (async={is_async})")
         return self._engine
     
     def _configure_encryption(self, engine: Engine):
