@@ -87,26 +87,64 @@ class DataProviderConfig(BaseSettings):
 
 class SecurityConfig(BaseSettings):
     """Security configuration for authentication and encryption."""
-    
-    jwt_secret: str = Field(...)
+
+    jwt_secret: str = Field(default="dev-jwt-secret-change-in-production-min-32-chars")
     jwt_algorithm: str = Field(default="HS256")
     jwt_expiration_minutes: int = Field(default=30)
-    encryption_key: bytes = Field(...)
-    
+    encryption_key: bytes = Field(default=b"dev-encryption-key-change-in-production-32c")
+
     @validator("encryption_key", pre=True)
     def validate_encryption_key(cls, v):
         """Ensure encryption key is bytes."""
         if isinstance(v, str):
             return v.encode()
         return v
-    
+
+    @validator("jwt_secret")
+    def validate_jwt_secret(cls, v):
+        """Validate JWT secret and warn if using development default."""
+        if v == "dev-jwt-secret-change-in-production-min-32-chars":
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                "⚠️  Using development JWT_SECRET. "
+                "Set JWT_SECRET environment variable in production!"
+            )
+        if len(v) < 32:
+            raise ValueError("JWT secret must be at least 32 characters long")
+        return v
+
+    @validator("encryption_key")
+    def validate_encryption_key_length(cls, v):
+        """Validate encryption key and warn if using development default."""
+        if v == b"dev-encryption-key-change-in-production-32c":
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                "⚠️  Using development ENCRYPTION_KEY. "
+                "Set ENCRYPTION_KEY environment variable in production!"
+            )
+        if len(v) < 32:
+            raise ValueError("Encryption key must be at least 32 characters long")
+        return v
+
     @classmethod
     def from_secrets(cls, secrets_manager: SecretsManager) -> "SecurityConfig":
         """Create security config from secrets manager."""
-        return cls(
-            jwt_secret=secrets_manager.get_jwt_secret(),
-            encryption_key=secrets_manager.get_encryption_key()
-        )
+        try:
+            return cls(
+                jwt_secret=secrets_manager.get_jwt_secret(),
+                encryption_key=secrets_manager.get_encryption_key()
+            )
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                f"Failed to load security config from secrets manager: {e}. "
+                "Using development defaults. Set JWT_SECRET and ENCRYPTION_KEY for production."
+            )
+            # Return instance with development defaults
+            return cls()
 
 
 class Settings(BaseSettings):
