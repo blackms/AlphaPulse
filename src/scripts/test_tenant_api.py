@@ -47,6 +47,14 @@ app.add_middleware(
 # Add tenant context middleware
 app.add_middleware(TenantContextMiddleware)
 
+# Add mock settings to app state for middleware
+class MockSettings:
+    JWT_SECRET = "your-secret-key-change-in-production"
+    JWT_ALGORITHM = "HS256"
+    RLS_ENABLED = False
+
+app.state.settings = MockSettings()
+
 
 @app.get("/health")
 async def health_check():

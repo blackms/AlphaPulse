@@ -185,11 +185,14 @@ def create_access_token(data: Dict, expires_delta: Optional[timedelta] = None) -
     """
     # Get JWT settings from secrets manager
     secrets_manager = get_secrets_manager()
-    jwt_config = secrets_manager.get_secret("jwt_config", {
-        "secret": "your-secret-key-change-in-production",
-        "algorithm": "HS256",
-        "expire_minutes": 30
-    })
+    jwt_config = secrets_manager.get_secret("jwt_config")
+    if not jwt_config:
+        # Use defaults if not in secrets manager
+        jwt_config = {
+            "secret": "your-secret-key-change-in-production",
+            "algorithm": "HS256",
+            "expire_minutes": 30
+        }
     
     to_encode = data.copy()
     
@@ -207,17 +210,20 @@ def create_access_token(data: Dict, expires_delta: Optional[timedelta] = None) -
         algorithm=jwt_config["algorithm"]
     )
     
-    # Log token creation
-    audit_logger.log(
-        event_type=AuditEventType.AUTH_TOKEN_CREATED,
-        event_data={
-            'user_id': data.get('sub'),
-            'expires_at': expire.isoformat()
-        }
-    )
-    
-    # Log secret access
-    audit_logger.log_secret_access("jwt_config", "token_creation")
+    # Log token creation (skip if audit context not available)
+    try:
+        audit_logger.log(
+            event_type=AuditEventType.AUTH_TOKEN_CREATED,
+            event_data={
+                'user_id': data.get('sub'),
+                'expires_at': expire.isoformat()
+            }
+        )
+        # Log secret access
+        audit_logger.log_secret_access("jwt_config", "token_creation")
+    except (AttributeError, Exception):
+        # Audit context not available (e.g., during initial login)
+        pass
     
     return encoded_jwt
 
@@ -245,10 +251,13 @@ async def get_current_user(token: str = Depends(oauth2_scheme),
     
     # Get JWT settings
     secrets_manager = get_secrets_manager()
-    jwt_config = secrets_manager.get_secret("jwt_config", {
-        "secret": "your-secret-key-change-in-production",
-        "algorithm": "HS256"
-    })
+    jwt_config = secrets_manager.get_secret("jwt_config")
+    if not jwt_config:
+        # Use defaults if not in secrets manager
+        jwt_config = {
+            "secret": "your-secret-key-change-in-production",
+            "algorithm": "HS256"
+        }
     
     try:
         # Decode token
