@@ -19,15 +19,16 @@ down_revision = '007_add_tenant_id_domain'
 branch_labels = None
 depends_on = None
 
-# Tables to enable RLS
+# Tables to enable RLS (only tables that exist and have tenant_id)
 RLS_TABLES = [
     'users',
+    'trading_accounts',
     'trades',
     'positions',
-    'orders',
     'portfolio_snapshots',
     'risk_metrics',
     'agent_signals',
+    'audit_logs',
 ]
 
 

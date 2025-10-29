@@ -1,7 +1,7 @@
 """Add tenants table for multi-tenancy
 
 Revision ID: 005_add_tenants
-Revises: 6762f578afb6
+Revises: 002
 Create Date: 2025-11-11
 
 EPIC-001: Database Multi-Tenancy
@@ -13,7 +13,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers
 revision = '005_add_tenants'
-down_revision = '6762f578afb6'
+down_revision = '002'
 branch_labels = None
 depends_on = None
 
