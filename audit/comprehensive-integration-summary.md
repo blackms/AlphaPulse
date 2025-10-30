@@ -1,43 +1,14 @@
-# Comprehensive Integration Audit Summary
+# Integration Audit (deprecated)
 
-## Executive Summary
+Historical sprint notes that previously lived in this directory have been removed.
+Current integration status is captured in:
 
-A comprehensive audit and integration effort was undertaken to ensure all implemented features from Sprints 1-4 are properly wired into the main AlphaPulse system. This audit revealed that while sophisticated features were built, many were "dark implementations" - fully functional but not connected to the main system.
+- `../SYSTEM_ANALYSIS_REPORT.md`
+- Feature-specific READMEs inside `src/alpha_pulse/**/README.md`
+- The main API documentation under `docs/API_DOCUMENTATION.md`
 
-## Overall Integration Progress
-
-### Before Audit
-- **Sprint 1 (Security)**: ~40% integrated
-- **Sprint 2 (Data)**: ~20% integrated  
-- **Sprint 3 (Risk)**: ~50% integrated
-- **Sprint 4 (ML/AI)**: ~10% integrated
-- **Overall**: ~30% integrated
-
-### After Integration Work
-- **Sprint 1 (Security)**: ✅ 100% integrated
-- **Sprint 2 (Data)**: 🟡 ~20% integrated (unchanged)
-- **Sprint 3 (Risk)**: ✅ 100% integrated
-- **Sprint 4 (ML/AI)**: 🟡 ~60% integrated
-- **Overall**: ~70% integrated
-
-## Key Integrations Completed
-
-### Sprint 1 - Security Features (100% Complete)
-1. **Secret Management** ✅
-   - Fixed critical vulnerability: credentials stored in plain JSON
-   - Integrated AWS Secrets Manager and HashiCorp Vault support
-   - CSRF secret now securely managed
-
-2. **Audit System** ✅
-   - Added audit decorators to all trading agents
-   - Comprehensive audit logging throughout the system
-   - API endpoints for audit trail access
-
-3. **Rate Limiting & DDoS Protection** ✅
-   - Already fully integrated with adaptive algorithms
-   - Priority queue support for critical operations
-
-### Sprint 3 - Risk Management (100% Complete)
+If you perform a new audit, create a fresh document aligned with the present
+codebase instead of reviving the fictional sprint narrative.
 1. **Tail Risk Hedging** ✅
    - Created TailRiskHedgingService
    - Integrated with portfolio optimization

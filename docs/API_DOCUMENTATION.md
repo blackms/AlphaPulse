@@ -1,593 +1,74 @@
-# AlphaPulse API Documentation
+# API Documentation
 
-## Overview
-The AlphaPulse API provides RESTful endpoints to interact with the trading system. The API is built using FastAPI and provides secure access to trading data, portfolio management, risk analysis, hedging operations, and system monitoring.
+AlphaPulse exposes a FastAPI application located at `src/alpha_pulse/api`.  The
+service provides REST and WebSocket endpoints covering metrics, portfolio
+analytics, risk tooling, ensemble routing, and supporting services.
 
-> **Note (v1.16.0.0)**: Market regime detection endpoints are documented but not yet implemented. The `RegimeDetectionService` exists but is not started in the API initialization.
+## Running the API locally
+
+```bash
+poetry install
+poetry run uvicorn src.alpha_pulse.api.main:app --reload
+```
+
+The interactive OpenAPI documentation is available at
+`http://localhost:8000/docs` once the server is running.
 
 ## Authentication
-The API supports two authentication methods:
 
-### API Key Authentication
-Include the API key in the request header:
-```
-X-API-Key: your_api_key
-```
-
-### OAuth2 Authentication
-1. Obtain a token by sending a POST request to `/token` with username and password:
-```
-POST /token
-Content-Type: application/x-www-form-urlencoded
-
-username=your_username&password=your_password
-```
-
-2. Include the token in the Authorization header:
-```
-Authorization: Bearer your_access_token
-```
-
-## Base URL
-```
-http://localhost:18001
-```
-
-## REST Endpoints
-
-### Health Check
-```
-GET /health
-```
-Returns the API service status. No authentication required.
-
-**Response:**
-```json
-{
-  "status": "ok",
-  "version": "1.0.0"
-}
-```
-
-### Positions
-
-#### Get Spot Positions
-```
-GET /api/v1/positions/spot
-```
-Returns current spot positions.
-
-**Response:**
-```json
-[
-  {
-    "symbol": "BTC",
-    "quantity": 0.5,
-    "value_usd": 25000.0,
-    "avg_entry_price": 50000.0
-  }
-]
-```
-
-#### Get Futures Positions
-```
-GET /api/v1/positions/futures
-```
-Returns current futures positions.
-
-**Response:**
-```json
-[
-  {
-    "symbol": "BTC-PERP",
-    "quantity": -0.5,
-    "value_usd": -25000.0,
-    "avg_entry_price": 50000.0,
-    "leverage": 3.0
-  }
-]
-```
-
-#### Get Position Metrics
-```
-GET /api/v1/positions/metrics
-```
-Returns detailed metrics for all positions including spot positions, futures positions, net exposure, and hedge ratios.
-
-**Response:**
-```json
-[
-  {
-    "symbol": "BTC",
-    "spot_value": 25000.0,
-    "spot_qty": 0.5,
-    "futures_value": -25000.0,
-    "futures_qty": -0.5,
-    "net_exposure": 0.0,
-    "hedge_ratio": 1.0
-  }
-]
-```
-
-### Risk Management
-
-#### Get Risk Exposure
-```
-GET /api/v1/risk/exposure
-```
-Returns current risk exposure metrics.
-
-**Response:**
-```json
-{
-  "BTC": 0.25,
-  "ETH": 0.15,
-  "total": 0.4
-}
-```
-
-#### Get Risk Metrics
-```
-GET /api/v1/risk/metrics
-```
-Returns detailed risk metrics including volatility, VaR, CVaR, and ratios.
-
-**Response:**
-```json
-{
-  "volatility": 0.25,
-  "var_95": 0.15,
-  "cvar_95": 0.18,
-  "max_drawdown": 0.3,
-  "sharpe_ratio": 1.2,
-  "sortino_ratio": 1.5,
-  "calmar_ratio": 0.8
-}
-```
-
-#### Get Risk Limits
-```
-GET /api/v1/risk/limits
-```
-Returns current risk limits.
-
-**Response:**
-```json
-{
-  "position_limits": {
-    "default": 20000.0
-  },
-  "margin_limits": {
-    "total": 150000.0
-  },
-  "exposure_limits": {
-    "total": 100000.0
-  },
-  "drawdown_limits": {
-    "max": 25000.0
-  }
-}
-```
-
-#### Get Position Size Recommendation
-```
-GET /api/v1/risk/position-size/{asset}
-```
-Returns position size recommendation for a specific asset.
-
-**Parameters:**
-- `asset`: Asset symbol (e.g., BTC, ETH)
-
-**Response:**
-```json
-{
-  "asset": "BTC",
-  "recommended_size": 0.1,
-  "max_size": 0.5,
-  "risk_per_trade": 1000.0,
-  "stop_loss": 45000.0,
-  "take_profit": 55000.0
-}
-```
-
-### Hedging
-
-#### Analyze Hedge Positions
-```
-GET /api/v1/hedging/analysis
-```
-Analyzes current hedge positions and provides recommendations.
-
-**Response:**
-```json
-{
-  "commentary": "Current portfolio is 80% hedged. Consider increasing hedge ratio for BTC.",
-  "adjustments": [
-    {
-      "asset": "BTC",
-      "action": "Increase short position by 0.1 BTC",
-      "priority": "high"
-    }
-  ],
-  "current_net_exposure": 0.2,
-  "target_net_exposure": 0.0,
-  "risk_metrics": {
-    "hedge_ratio": 0.8,
-    "correlation": -0.95
-  }
-}
-```
-
-#### Execute Hedge Adjustments
-```
-POST /api/v1/hedging/execute
-```
-Executes recommended hedge adjustments.
-
-**Response:**
-```json
-{
-  "status": "completed",
-  "executed_trades": [
-    {
-      "asset": "BTC-PERP",
-      "side": "sell",
-      "amount": "0.1",
-      "price": "50000.0"
-    }
-  ],
-  "message": "Successfully executed hedge adjustments"
-}
-```
-
-#### Close All Hedges
-```
-POST /api/v1/hedging/close
-```
-Closes all hedge positions.
-
-**Response:**
-```json
-{
-  "status": "completed",
-  "executed_trades": [
-    {
-      "asset": "BTC-PERP",
-      "side": "buy",
-      "amount": "0.5",
-      "price": "50000.0"
-    }
-  ],
-  "message": "Successfully closed all hedge positions"
-}
-```
-
-### Portfolio
-
-#### Get Portfolio
-```
-GET /api/v1/portfolio
-```
-Returns current portfolio data.
-
-**Parameters:**
-- `include_history` (optional): Include portfolio history (default: false)
-- `refresh` (optional): Force refresh from exchange (default: false)
-
-**Response:**
-```json
-{
-  "total_value": 100000.0,
-  "cash": 50000.0,
-  "positions": [
-    {
-      "symbol": "BTC",
-      "quantity": 0.5,
-      "value": 25000.0,
-      "allocation": 0.25
-    },
-    {
-      "symbol": "ETH",
-      "quantity": 10.0,
-      "value": 25000.0,
-      "allocation": 0.25
-    }
-  ],
-  "history": [
-    {
-      "timestamp": "2025-04-21T00:00:00Z",
-      "total_value": 98000.0
-    }
-  ]
-}
-```
-
-#### Reload Exchange Data
-```
-POST /api/v1/portfolio/reload
-```
-Forces a reload of exchange data.
-
-**Response:**
-```json
-{
-  "status": "success",
-  "message": "Exchange data reloaded",
-  "timestamp": "2025-04-22T10:30:00Z"
-}
-```
-
-### Metrics
-
-#### Get Metrics
-```
-GET /api/v1/metrics/{metric_type}
-```
-Returns metrics data of a specific type.
-
-**Parameters:**
-- `metric_type`: Type of metric to retrieve (e.g., portfolio_value, performance, risk)
-- `start_time` (optional): Start time for the query (default: 24 hours ago)
-- `end_time` (optional): End time for the query (default: now)
-- `aggregation` (optional): Aggregation function (avg, min, max, sum, count) (default: avg)
-
-**Response:**
-```json
-[
-  {
-    "timestamp": "2025-04-22T09:00:00Z",
-    "value": 100000.0
-  },
-  {
-    "timestamp": "2025-04-22T10:00:00Z",
-    "value": 101000.0
-  }
-]
-```
-
-#### Get Latest Metrics
-```
-GET /api/v1/metrics/{metric_type}/latest
-```
-Returns the latest metrics of a specific type.
-
-**Parameters:**
-- `metric_type`: Type of metric to retrieve (e.g., portfolio_value, performance, risk)
-
-**Response:**
-```json
-{
-  "timestamp": "2025-04-22T10:30:00Z",
-  "value": 101000.0,
-  "change_24h": 0.01
-}
-```
-
-### Alerts
-The API provides endpoints for managing alerts. Detailed documentation to be added.
-
-### System
-The API provides endpoints for system information. Detailed documentation to be added.
-
-### Trades
-The API provides endpoints for trade data. Detailed documentation to be added.
-
-## WebSocket Endpoints
-
-The API provides real-time updates via WebSocket connections. All WebSocket connections require authentication.
-
-### Authentication
-Send an authentication message immediately after connecting:
-```json
-{
-  "type": "auth",
-  "token": "your_access_token"
-}
-```
-
-### Available Channels
-
-#### Metrics Channel
-```
-WebSocket: /ws/metrics
-```
-Provides real-time metrics updates.
-
-**Example message:**
-```json
-{
-  "type": "metrics_update",
-  "data": {
-    "portfolio_value": 101000.0,
-    "timestamp": "2025-04-22T10:30:00Z"
-  }
-}
-```
-
-#### Alerts Channel
-```
-WebSocket: /ws/alerts
-```
-Provides real-time alerts updates.
-
-**Example message:**
-```json
-{
-  "type": "new_alert",
-  "data": {
-    "id": "alert-001",
-    "severity": "critical",
-    "message": "Portfolio drawdown exceeded threshold",
-    "timestamp": "2025-04-22T10:30:00Z"
-  }
-}
-```
-
-#### Portfolio Channel
-```
-WebSocket: /ws/portfolio
-```
-Provides real-time portfolio updates.
-
-**Example message:**
-```json
-{
-  "type": "portfolio_update",
-  "data": {
-    "total_value": 101000.0,
-    "cash": 50000.0,
-    "positions": [
-      {
-        "symbol": "BTC",
-        "quantity": 0.5,
-        "value": 25500.0
-      }
-    ],
-    "timestamp": "2025-04-22T10:30:00Z"
-  }
-}
-```
-
-#### Trades Channel
-```
-WebSocket: /ws/trades
-```
-Provides real-time trade updates.
-
-**Example message:**
-```json
-{
-  "type": "new_trade",
-  "data": {
-    "id": "trade-001",
-    "symbol": "BTC",
-    "side": "buy",
-    "quantity": 0.1,
-    "price": 51000.0,
-    "timestamp": "2025-04-22T10:30:00Z"
-  }
-}
-```
-
-### Market Regime Detection (Not Yet Active)
-
-> **Implementation Status**: These endpoints are documented but not functional as the `RegimeDetectionService` is not started in the API.
-
-#### Get Current Regime
-```
-GET /api/v1/regime/current
-```
-Returns the current market regime classification.
-
-**Response (when implemented):**
-```json
-{
-  "regime": "BULL",
-  "confidence": 0.85,
-  "parameters": {
-    "volatility_threshold": 0.2,
-    "leverage_multiplier": 1.5,
-    "position_limit": 0.15
-  },
-  "timestamp": "2025-04-22T10:30:00Z"
-}
-```
-
-#### Get Regime History
-```
-GET /api/v1/regime/history?hours=24
-```
-Returns regime transitions over the specified time period.
-
-**Response (when implemented):**
-```json
-{
-  "regimes": [
-    {
-      "regime": "SIDEWAYS",
-      "confidence": 0.75,
-      "start_time": "2025-04-21T10:00:00Z",
-      "end_time": "2025-04-22T08:00:00Z"
-    },
-    {
-      "regime": "BULL",
-      "confidence": 0.85,
-      "start_time": "2025-04-22T08:00:00Z",
-      "end_time": null
-    }
-  ]
-}
-```
-
-#### Analyze Market Regime
-```
-POST /api/v1/regime/analyze
-```
-Analyzes market data to determine regime.
-
-**Request:**
-```json
-{
-  "market_data": {
-    "symbol": "BTC",
-    "timeframe": "1h",
-    "lookback_hours": 24
-  }
-}
-```
-
-**Response (when implemented):**
-```json
-{
-  "regime": "BULL",
-  "confidence": 0.82,
-  "features": {
-    "volatility": 0.18,
-    "trend_strength": 0.75,
-    "volume_ratio": 1.2
-  }
-}
-```
-
-## Configuration
-The API uses environment variables for configuration:
-```env
-# API Configuration
-BYBIT_API_KEY=your_api_key
-BYBIT_API_SECRET=your_api_secret
-ALPHA_PULSE_BYBIT_TESTNET=true/false
-
-# OpenAI API Key (for LLM-based hedging analysis)
-OPENAI_API_KEY=your_openai_api_key
-
-# Authentication
-JWT_SECRET=your_jwt_secret
-JWT_ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=30
-
-# Logging
-LOG_LEVEL=INFO
-```
-
-## Development
-To run the API server in development mode:
-```bash
-python src/scripts/run_api.py
-```
-
-The server will start on port 18001 with auto-reload enabled for development.
-
-## Error Handling
-The API returns standard HTTP status codes:
-- 200: Success
-- 400: Bad Request
-- 401: Unauthorized
-- 403: Forbidden
-- 404: Not Found
-- 500: Internal Server Error
-
-Error responses include a detail message:
-```json
-{
-  "detail": "Error message"
-}
+The project ships with OAuth2 password/token support
+(`src/alpha_pulse/api/auth.py`).  Endpoints that require authentication follow
+the FastAPI dependency pattern and will return 401 responses when credentials
+are missing or invalid.
+
+Tokens can be obtained by POSTing to `/token` with form-encoded credentials.
+See the `get_current_user` dependency for request-scoped user resolution.
+
+## Router overview
+
+| Router module                          | Prefix              | Description                                        |
+|----------------------------------------|---------------------|----------------------------------------------------|
+| `routers/metrics.py`                   | `/api/v1/metrics`   | System metrics and Prometheus integration          |
+| `routers/portfolio.py`                 | `/api/v1/portfolio` | Portfolio snapshots and analytics                  |
+| `routers/trades.py`                    | `/api/v1/trades`    | Trade history and execution helpers                |
+| `routers/regime.py`                    | `/api/v1/regime`    | Market regime detection and monitoring             |
+| `routers/risk_budget.py`               | `/api/v1/risk-budget` | Risk budgeting operations                        |
+| `routers/hedging.py`                   | `/api/v1/hedging`   | Tail-risk hedging analysis and execution           |
+| `routers/liquidity.py`                 | `/api/v1/liquidity` | Liquidity risk checks and liquidity-aware metrics  |
+| `routers/ensemble.py`                  | `/api/v1/ensemble`  | Ensemble model management and inference            |
+| `routers/online_learning.py`           | `/api/v1/online-learning` | Online learning controls                      |
+| `routers/gpu.py`                       | `/api/v1/gpu`       | GPU diagnostics and workload dispatch (if enabled) |
+| `routers/explainability.py`            | `/api/v1/explainability` | Explainability requests                       |
+| `routers/data_quality.py`              | `/api/v1/data-quality` | Data quality metrics                           |
+| `routers/backtesting.py`               | `/api/v1/backtesting` | Backtesting orchestration                      |
+| `routers/data_lake.py`                 | `/api/v1/data-lake` | Data lake orchestration and metadata               |
+| `routers/alerts.py`                    | `/api/v1/alerts`    | Alert management and acknowledgment                |
+| `routers/system.py`                    | `/api/v1/system`    | System health and maintenance endpoints            |
+| `routes/audit.py`                      | `/api/v1/audit`     | Audit trail queries                                |
+
+Refer to the source file for input/output models and error handling.
+
+## WebSockets
+
+WebSocket subscriptions are defined under `api/websockets`.  The router
+`websockets/endpoints.py` exposes channels for real-time metrics and streaming
+portfolio updates.  Subscription management is handled by
+`websockets/subscription.py`.
+
+## Error handling & middleware
+
+Middleware for audit logging, security headers, CSRF protection, rate limiting,
+tenant context management, and validation can be found under
+`src/alpha_pulse/api/middleware`.  Familiarise yourself with these components
+before registering new routers to ensure requests flow through the appropriate
+guards.
+
+## Adding new endpoints
+
+1. Create a router module under `src/alpha_pulse/api/routers`.
+2. Define request/response models in `api/models` (or the appropriate domain
+   package).
+3. Register the router in `src/alpha_pulse/api/main.py`.
+4. Update automated tests (`src/alpha_pulse/tests/api`) and documentation.
+5. If the endpoint requires authentication, use the existing dependencies to
+   enforce token validation.

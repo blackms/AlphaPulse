@@ -4,7 +4,7 @@
 
 The AlphaPulse Market Regime Detection system uses Hidden Markov Models (HMMs) to identify and classify market conditions into distinct regimes. This sophisticated approach enables the trading system to adapt strategies based on current market states, improving risk management and performance.
 
-> **IMPORTANT UPDATE (v1.16.0.0)**: While the regime detection system is fully implemented and sophisticated, it is currently operating at approximately 10% of its potential due to integration gaps. The `RegimeDetectionService` exists but is not started in the API, and only 1 of 6 agents uses a simplified version of regime detection. See the [Integration Status](#integration-status) section for details.
+**Status**: The `RegimeDetectionService` is initialised during API startup (see `src/alpha_pulse/api/main.py`).
 
 ## Key Features
 

@@ -1,7 +1,6 @@
 # Kubernetes Workshop - AlphaPulse Team Training
 
 **Duration**: 2 hours
-**Date**: Sprint 4, Day 2 (2025-10-29)
 **Instructor**: DevOps Engineer / Tech Lead
 **Audience**: Backend Engineers, Frontend Engineers
 

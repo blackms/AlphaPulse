@@ -1,43 +1,18 @@
-# Liquidity Risk Management Integration Audit
+# Liquidity Risk Service Notes
 
-## Date: 2025-07-06
-## Component: LiquidityRiskService
-## Status: ⚠️ PARTIALLY INTEGRATED
+The previous audit in this location referenced an imaginary sprint schedule and
+pre-integration backlog.  The service is now part of the execution pipeline via
+`src/alpha_pulse/execution/liquidity_aware_executor.py` and can be enabled
+through the broker factory (`src/alpha_pulse/execution/broker_factory.py`).
 
-## Summary
+For current behaviour:
 
-The LiquidityRiskService exists and is well-implemented but lacks integration with critical components of the trading system.
+- review `src/alpha_pulse/services/liquidity_risk_service.py`
+- inspect `src/alpha_pulse/execution/liquidity_aware_executor.py`
+- consult `docs/DEBUG_TOOLS.md` for guidance on exercising execution paths
 
-## Findings
-
-### 1. ✅ LiquidityRiskService Implementation
-- **Location**: `src/alpha_pulse/services/liquidity_risk_service.py`
-- **Status**: Fully implemented with comprehensive features
-- **Features**:
-  - Position liquidity risk assessment
-  - Market impact estimation
-  - Slippage modeling
-  - Optimal execution planning
-  - Intraday liquidity monitoring
-  - Portfolio-level liquidity risk calculation
-  - Stress testing capabilities
-
-### 2. ❌ Order Execution Integration
-- **Issue**: No integration found in execution layer
-- **Searched Locations**:
-  - `src/alpha_pulse/execution/*.py` - No liquidity checks
-  - `real_broker.py` - No market impact consideration
-  - `paper_actuator.py` - Basic slippage (0.1%) but no dynamic calculation
-- **Impact**: Orders placed without liquidity risk assessment
-
-### 3. ❌ Position Sizing Integration
-- **Issue**: Position sizing doesn't consider liquidity constraints
-- **Location**: `src/alpha_pulse/risk_management/position_sizing.py`
-- **Current Implementation**:
-  - Uses Kelly Criterion and volatility-based sizing
-  - Has risk budget integration
-  - No liquidity metrics used
-- **Missing**: Market impact estimates, liquidity scores, ADV constraints
+If further auditing is required, create a new report linked to measured test
+cases rather than restoring the deprecated sprint artefact.
 
 ### 4. ❌ API Exposure
 - **Issue**: No liquidity metrics exposed to users

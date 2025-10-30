@@ -1,7 +1,6 @@
 # HashiCorp Vault Training - AlphaPulse Team
 
 **Duration**: 2 hours
-**Date**: Sprint 4, Day 3 (2025-10-30)
 **Instructor**: DevOps Engineer / Security Lead
 **Audience**: Backend Engineers, DevOps Engineers
 

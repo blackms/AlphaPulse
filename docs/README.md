@@ -5,84 +5,67 @@ Welcome to the comprehensive documentation for AlphaPulse, an AI-powered algorit
 ## 📋 Table of Contents
 
 ### 🏗️ Architecture & Core Systems
-- [System Architecture](SYSTEM_ARCHITECTURE.md) - Overall system design and components
-- [Backend Architecture](BACKEND_ARCHITECTURE.md) - Detailed backend architecture
-- [Architecture Diagrams](architecture-diagrams.md) - Visual system diagrams
-- [Multi-Agent System](MULTI_AGENT_SYSTEM.md) - Trading agents architecture
-- [API Documentation](API_DOCUMENTATION.md) - REST API reference
+- [System Architecture](SYSTEM_ARCHITECTURE.md) – Overall system design and component map
+- [Backend Architecture](BACKEND_ARCHITECTURE.md) – Service orchestration and data flow
+- [Architecture Diagrams](architecture-diagrams.md) – C4 diagrams and reference visuals
+- [Multi-Agent System](MULTI_AGENT_SYSTEM.md) – Trading agent design
+- [API Documentation](API_DOCUMENTATION.md) – REST/WebSocket overview
 
 ### 🚀 Getting Started
-- [User Guide](USER_GUIDE.md) - Complete user guide for setup and usage
-- [Deployment Guide](DEPLOYMENT.md) - Production deployment instructions
-- [Database Setup](DATABASE_SETUP.md) - Database configuration and setup
-- [Hedge Fund Requirements](HEDGE_FUND_REQUIREMENTS.md) - System requirements and specifications
+- [User Guide](USER_GUIDE.md) – Base configuration and quick start
+- [Deployment Guide](DEPLOYMENT.md) – Production deployment considerations
+- [Database Setup](DATABASE_SETUP.md) – PostgreSQL and schema preparation
+- [System Specification](SPEC.md) – Technical capabilities and scope
 
 ### 🔧 Development
-- [Development Guide](development/CLAUDE.md) - Developer setup and guidelines
-- [Debug Tools](DEBUG_TOOLS.md) - Available debugging tools and utilities
-- [Migration Guide](migration-guide.md) - Database and system migration procedures
+- [CLAUDE.md](development/CLAUDE.md) – Copilot/developer onboarding guidance
+- [Development Overview](development/README.md) – Directory-level notes
+- [Debug Tools](DEBUG_TOOLS.md) – Diagnostics and helper scripts
+- [Migration Guide](migration-guide.md) – Encryption migration checklist
 
 ### 📊 Features & Capabilities
+- [AI Hedge Fund Overview](AI_HEDGE_FUND_DOCUMENTATION.md) – End-to-end trading flow
+- [Ensemble Methods](ensemble-methods.md) – Signal aggregation
+- [Regime Detection](regime-detection.md) – Market regime modelling
+- [Online Learning](ONLINE_LEARNING.md) – Adaptive model support
+- [Distributed Computing](distributed-computing.md) – Scaling backtests and simulations
+- [GPU Acceleration](gpu_acceleration.md) – GPU tooling and services
+- [Explainable AI](explainable-ai.md) – Model interpretability assets
+- [Key Management](key-management.md) – Encryption key handling
+- [Audit Logging](audit-logging.md) – Audit trail implementation details
+- [Database Optimisation](database-optimization.md) – Connection and query tooling
+- [Database Encryption](database-encryption.md) – Field-level encryption types
 
-#### Trading & Portfolio Management
-- [AI Hedge Fund Documentation](AI_HEDGE_FUND_DOCUMENTATION.md) - Core trading system
-- [Online Learning](ONLINE_LEARNING.md) - Adaptive ML models
-- [Regime Detection](regime-detection.md) - Market regime identification
-- [Ensemble Methods](ensemble-methods.md) - Model ensemble strategies
-
-#### Risk Management & Analysis
-- [Security Documentation](security.md) - Security features and protocols
-- [Audit Logging](audit-logging.md) - Comprehensive audit trails
-- [Database Optimization](database-optimization.md) - Performance optimization
-- [Distributed Computing](distributed-computing.md) - Scalable computing infrastructure
-
-#### Advanced Features
-- [GPU Acceleration](gpu_acceleration.md) - Hardware acceleration capabilities
-- [Explainable AI](explainable-ai.md) - Model interpretability features
-- [Key Management](key-management.md) - Cryptographic key handling
-
-### 🔧 Technical Specifications
-- [System Specifications](SPEC.md) - Detailed technical specifications
-- [Exchange Sync Integration](EXCHANGE_SYNC_INTEGRATION.md) - Exchange data synchronization
-
-### 📈 Releases & Updates
-- [Release Notes](releases/RELEASE_NOTES.md) - Latest release information
-- [Release Notes v1.19.0](releases/RELEASE_NOTES_v1.19.0.md) - Version 1.19.0 details
-- [Changelog](releases/CHANGELOG.md) - Complete change history
-- [Release Instructions](releases/RELEASE_INSTRUCTIONS.md) - How to create releases
-
-### 🔐 Security & Updates
-- [Security Updates](security-updates.md) - Security patch history
-- [Security Update Summary](security/SECURITY_UPDATE_SUMMARY.md) - Recent security updates
-- [Database Encryption](database-encryption.md) - Data encryption features
-
-### 🔗 Integration & Analysis
-- [Integration Status](integration/COMPREHENSIVE_INTEGRATION_AUDIT_SUMMARY.md) - System integration overview
-- [Feature Integration Map](integration/FEATURE_INTEGRATION_MAP.md) - Component integration status
-- [Integration Gaps Analysis](integration/INTEGRATION_GAPS_ANALYSIS.md) - Identified integration gaps
-
-#### Component Integration Details
-- [Regime Integration Guide](integration/REGIME_INTEGRATION_GUIDE.md) - Market regime system integration
-- [Risk Budgeting Analysis](analysis/DYNAMIC_RISK_BUDGETING_WIRING_ANALYSIS.md) - Risk management integration
-- [GPU Acceleration Analysis](analysis/GPU_ACCELERATION_UTILIZATION_ANALYSIS.md) - Hardware acceleration usage
-- [Explainable AI Integration](analysis/EXPLAINABLE_AI_INTEGRATION_ANALYSIS.md) - AI interpretability integration
-- [Ensemble Methods Integration](analysis/ENSEMBLE_METHODS_INTEGRATION_ANALYSIS.md) - Model ensemble integration
+### 🛡️ Security
+- [Security Overview](security.md) – Security posture and configuration
+- [Security Update Summary](security/SECURITY_UPDATE_SUMMARY.md)
+- [Security Updates](security/SECURITY_UPDATE.md)
 
 ### 🛠️ Troubleshooting & Fixes
-- [Database Connection Fix](DATABASE_CONNECTION_FIX.md) - Database connectivity issues
-- [TA-Lib Installation](TA_LIB_INSTALLATION.md) - Technical analysis library setup
-- [TA-Lib Symbol Fix](TA_LIB_UNDEFINED_SYMBOL_FIX.md) - Symbol resolution issues
-- [Loguru Dependency Fix](LOGURU_DEPENDENCY_FIX.md) - Logging library fixes
-- [Frontend Backend Connection](frontend_backend_connection_fix.md) - UI connectivity fixes
-- [Bybit Debug Guide](BYBIT_DEBUG_README.md) - Exchange-specific debugging
+- [Database Connection Fix](DATABASE_CONNECTION_FIX.md)
+- [TA-Lib Installation](TA_LIB_INSTALLATION.md)
+- [TA-Lib Undefined Symbol Fix](TA_LIB_UNDEFINED_SYMBOL_FIX.md)
+- [Frontend ↔ Backend Connection](frontend_backend_connection_fix.md)
+- [Bybit Debug Guide](BYBIT_DEBUG_README.md)
+- [Loguru Dependency Fix](LOGURU_DEPENDENCY_FIX.md)
 
-### 📊 Audits & Reviews
-- [Sprint 2 Data Integration](audit/sprint2-data-integration-status.md) - Data pipeline audit
-- [Sprint 3 Risk Integration](audit/sprint3-risk-integration-status.md) - Risk management audit
+### 📚 Examples & Reference Material
+- `examples/README.md` – Directory-level overview
+- `examples/trading/README.md` – Trading-focused demos
+- `examples/portfolio/README.md` – Portfolio utilities
+- `examples/monitoring/README.md` – Monitoring samples
+- `examples/alerting/README.md` – Alerting walkthrough
+- `examples/analysis/README.md` – Analysis notebooks/scripts
+- `examples/data/README.md` – Data ingestion examples
+- `docs/user_guide/integrated_features_guide.md` – Feature cross-reference
 
-### 📝 Examples & Demos
-- [Demo Documentation](README_DEMO.md) - Demo setup and usage
-- [SP500 Backtest Requirements](SP500_Backtest_Requisiti.md) - Backtesting specifications
+### 🧪 Load Testing & Dashboards
+- [Load Testing README](../load-tests/README.md)
+- [Dashboard README](../dashboard/README.md)
+
+### 📈 Project-level references
+- [Changelog](../CHANGELOG.md)
+- [System Analysis Report](../SYSTEM_ANALYSIS_REPORT.md)
 
 ## 🏷️ Documentation Categories
 
@@ -103,19 +86,18 @@ Welcome to the comprehensive documentation for AlphaPulse, an AI-powered algorit
 
 ## 🔄 Documentation Maintenance
 
-This documentation is actively maintained and updated with each release. For the most current information:
+When you add or modify features:
 
-1. Check [Release Notes](releases/RELEASE_NOTES.md) for latest changes
-2. Review [Integration Status](integration/COMPREHENSIVE_INTEGRATION_AUDIT_SUMMARY.md) for current system state
-3. Consult [Troubleshooting](#troubleshooting--fixes) section for common issues
+1. Update or create documentation in the relevant section above.
+2. Append a note to the [Changelog](../CHANGELOG.md) describing the change.
+3. Ensure demos in `examples/` continue to run (modify their READMEs as needed).
 
 ## 📞 Support
 
-For additional support:
-- Review the [User Guide](USER_GUIDE.md) for common tasks
-- Check [Debug Tools](DEBUG_TOOLS.md) for troubleshooting utilities
-- Consult the [API Documentation](API_DOCUMENTATION.md) for integration questions
+- Start with the [User Guide](USER_GUIDE.md) for environment setup.
+- Use [Debug Tools](DEBUG_TOOLS.md) for diagnostics and troubleshooting.
+- Refer to the [API Documentation](API_DOCUMENTATION.md) for endpoint details.
 
 ---
 
-*Documentation last updated: $(date '+%Y-%m-%d')*
+*Documentation last updated: 2024-12-01*

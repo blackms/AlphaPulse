@@ -1,43 +1,15 @@
-# Sprint 4 - ML/AI Features Integration Status
+# ML Feature Integration Status (deprecated)
 
-## Overall Integration: ~40% Complete
+The prior sprint-tracking content in this file no longer reflects the codebase.
+Key references for the current state are:
 
-### 1. HMM Regime Detection ✅ FULLY INTEGRATED (100%)
-**Status**: Already integrated in v1.18.0 release
-- Service initialization in main API
-- REST endpoints for regime detection
-- Real-time monitoring and alerts
-- Integration with risk budgeting
+- `docs/ensemble-methods.md`
+- `docs/ONLINE_LEARNING.md`
+- `docs/gpu_acceleration.md`
+- `docs/regime-detection.md`
 
-### 2. Ensemble Methods ✅ FULLY INTEGRATED (100%)
-**Status**: Just completed integration
-- Service initialization in API startup
-- Comprehensive REST endpoints (9 endpoints)
-- Integration with AgentManager
-- Adaptive signal aggregation
-- Performance tracking and optimization
-
-### 3. Online Learning 🟡 PARTIALLY INTEGRATED (20%)
-**Status**: Core implementation exists but NOT wired
-- **Implemented**: OnlineLearningService, streaming updates, model adaptation
-- **Missing**: 
-  - Service initialization in main API
-  - REST endpoints for model management
-  - Integration with trading agents
-  - Real-time model updates from trade outcomes
-
-### 4. GPU Acceleration ❌ NOT INTEGRATED (0%)
-**Status**: Extensive GPU infrastructure built but completely dark
-- **Implemented**: 
-  - GPU manager and memory management
-  - CUDA operations and batch processing
-  - GPU-accelerated models
-  - Multi-GPU support
-- **Missing**:
-  - Service initialization in API
-  - Integration with ML training pipelines
-  - GPU resource monitoring endpoints
-  - Model training acceleration
+Each module README in `src/alpha_pulse/ml/` provides implementation details and
+integration notes.  Create a fresh audit if you need time-boxed reporting.
 
 ### 5. Explainable AI ❌ NOT INTEGRATED (0%)
 **Status**: Complete XAI implementation but zero integration

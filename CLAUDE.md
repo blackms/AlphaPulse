@@ -11,23 +11,22 @@ AlphaPulse is a sophisticated AI-driven hedge fund system that combines multiple
 ### Build and Run
 ```bash
 # Install dependencies
-poetry install --no-interaction
+poetry install
+
+# Launch the API server (auto reload)
+poetry run uvicorn src.alpha_pulse.api.main:app --reload
+
+# Optional: open a Poetry-managed shell
 poetry shell
 
-# Run API server
-python src/scripts/run_api.py
-
-# Run main trading system
-python -m alpha_pulse.main
-
-# Run dashboard
-cd dashboard && npm start
+# Run the dashboard
+cd dashboard && npm install && npm start
 ```
 
 ### Testing
 ```bash
-# Run tests with coverage
-poetry run pytest --cov=src/alpha_pulse --cov-report=xml
+# Run tests (coverage configured via pyproject)
+poetry run pytest
 
 # Run specific test file
 poetry run pytest src/alpha_pulse/tests/test_specific.py -v
@@ -39,7 +38,7 @@ poetry run pytest -m integration
 ### Code Quality
 ```bash
 # Lint
-poetry run flake8 src/alpha_pulse --count --exit-zero --max-complexity=10 --max-line-length=127
+poetry run flake8 src/alpha_pulse
 
 # Format
 poetry run black src/alpha_pulse
@@ -51,6 +50,7 @@ poetry run mypy src/alpha_pulse
 ### Database Setup
 ```bash
 ./scripts/create_alphapulse_db.sh
+./scripts/setup_test_database.sh
 ```
 
 ### Dashboard Commands
@@ -87,13 +87,11 @@ The system follows a 4-layer architecture:
 
 ## Important Integration Notes
 
-**Current Status**: Many sophisticated features exist but are NOT integrated into the main system flow. Before implementing new features, check if they already exist in the codebase.
-
-Key unintegrated components that need attention:
-- HMM regime detection service (implemented but not started in main API)
-- Advanced correlation analysis
-- Ensemble ML methods
-- Online learning capabilities
+**Current Status**: Core services (risk budgeting, regime detection, hedging,
+ensemble aggregation, caching, etc.) are wired into API startup but several
+features assume supporting infrastructure (PostgreSQL, Redis, Vault, exchange
+credentials). Before implementing new systems, check whether a prototype already
+exists under `src/alpha_pulse/services` or `src/alpha_pulse/examples`.
 
 ## Development Tips
 
