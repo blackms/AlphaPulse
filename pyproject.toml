@@ -74,7 +74,7 @@ torch = "^2.8.0"
 xgboost = "^3.0.5"
 lightgbm = "^4.6.0"
 shap = "^0.48.0"
-lime = "^0.2.0"  # LIME explainability for trading decisions
+lime = "0.2.0.1"  # LIME explainability for trading decisions
 
 [tool.poetry.extras]
 datalake = ["pyspark", "delta-spark"]
