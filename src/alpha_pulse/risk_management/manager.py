@@ -25,6 +25,7 @@ from alpha_pulse.decorators.audit_decorators import (
     audit_trade_decision,
     audit_portfolio_action
 )
+from alpha_pulse.decorators.tenant_decorators import require_tenant_id
 from alpha_pulse.risk.correlation_analyzer import (
     CorrelationAnalyzer,
     CorrelationAnalysisConfig,
@@ -103,9 +104,19 @@ class RiskManager(IRiskManager):
         
         logger.info("Initialized RiskManager")
 
-    async def calculate_risk_exposure(self) -> Dict[str, float]:
-        """Calculate current risk exposure for all positions."""
+    @require_tenant_id
+    async def calculate_risk_exposure(self, tenant_id: str) -> Dict[str, float]:
+        """
+        Calculate current risk exposure for all positions.
+
+        Args:
+            tenant_id: Unique identifier for the tenant (required for data isolation)
+
+        Returns:
+            Dictionary of exposure metrics by asset and portfolio-level
+        """
         try:
+            logger.debug(f"[Tenant: {tenant_id}] Calculating risk exposure")
             # Get current positions and portfolio value
             portfolio_value = await self.exchange.get_portfolio_value()
             self.state.portfolio_value = portfolio_value
@@ -113,7 +124,7 @@ class RiskManager(IRiskManager):
             # Get spot and futures positions
             spot_positions = {}
             futures_positions = {}
-            
+
             balances = await self.exchange.get_balances()
             for asset, balance in balances.items():
                 if balance.total > 0:
@@ -129,11 +140,11 @@ class RiskManager(IRiskManager):
 
             # Calculate exposure metrics
             exposure = {}
-            
+
             # Net exposure
             for asset, value in spot_positions.items():
                 exposure[f"{asset}_net_exposure"] = float(value)
-                
+
                 # Calculate exposure as percentage of portfolio
                 if portfolio_value > 0:
                     exposure[f"{asset}_exposure_pct"] = float(value / portfolio_value)
@@ -146,13 +157,18 @@ class RiskManager(IRiskManager):
                 sum(spot_positions.values()) / portfolio_value if portfolio_value > 0 else 0
             )
 
+            # Add tenant context to result
+            exposure["tenant_id"] = tenant_id
+
+            logger.debug(f"[Tenant: {tenant_id}] Calculated exposure: {len(spot_positions)} positions")
             return exposure
-            
+
         except Exception as e:
-            logger.error(f"Error calculating risk exposure: {str(e)}")
+            logger.error(f"[Tenant: {tenant_id}] Error calculating risk exposure: {str(e)}")
             raise
 
     @audit_risk_check(risk_type='trade_evaluation', threshold_param='max_position_size', value_param='position_size')
+    @require_tenant_id
     async def evaluate_trade(
         self,
         symbol: str,
@@ -161,10 +177,25 @@ class RiskManager(IRiskManager):
         current_price: float,
         portfolio_value: float,
         current_positions: Dict[str, float],
+        tenant_id: str,
     ) -> bool:
-        """Evaluate if a trade meets risk management criteria."""
-        logger.debug(f"Evaluating trade: {symbol} {side} {quantity} @ {current_price}")
-        logger.debug(f"Portfolio value: {portfolio_value}, Current positions: {current_positions}")
+        """
+        Evaluate if a trade meets risk management criteria.
+
+        Args:
+            symbol: Trading symbol
+            side: Trade side (buy/sell)
+            quantity: Trade quantity
+            current_price: Current asset price
+            portfolio_value: Total portfolio value
+            current_positions: Current position holdings
+            tenant_id: Unique identifier for the tenant (required for data isolation)
+
+        Returns:
+            True if trade passes all risk checks, False otherwise
+        """
+        logger.debug(f"[Tenant: {tenant_id}] Evaluating trade: {symbol} {side} {quantity} @ {current_price}")
+        logger.debug(f"[Tenant: {tenant_id}] Portfolio value: {portfolio_value}, Current positions: {current_positions}")
         
         # Update portfolio state
         self.state.portfolio_value = portfolio_value
@@ -173,12 +204,12 @@ class RiskManager(IRiskManager):
         # Calculate position value
         position_value = float(quantity) * float(current_price)
         position_size = position_value / float(portfolio_value) if float(portfolio_value) > 0 else 0
-        logger.debug(f"Position value: {position_value}, Position size: {position_size:.2%}")
+        logger.debug(f"[Tenant: {tenant_id}] Position value: {position_value}, Position size: {position_size:.2%}")
 
         # Get dynamic limits if available
         max_position_size = self.config.max_position_size
         max_leverage = self.config.max_portfolio_leverage
-        
+
         if self.risk_budgeting_service:
             try:
                 # Get current budget
@@ -186,23 +217,23 @@ class RiskManager(IRiskManager):
                 if portfolio_budget:
                     # Use dynamic leverage limit
                     max_leverage = portfolio_budget.leverage_limit
-                    
+
                     # Check symbol-specific limits
                     for allocation in portfolio_budget.allocations:
                         if allocation.entity_type == 'asset' and allocation.entity_id == symbol:
                             # Use remaining budget as position limit
                             remaining_pct = (allocation.allocated_amount - allocation.utilized_amount) / portfolio_value
                             max_position_size = min(max_position_size, max(0, remaining_pct))
-                            logger.debug(f"Using dynamic position limit for {symbol}: {max_position_size:.2%}")
+                            logger.debug(f"[Tenant: {tenant_id}] Using dynamic position limit for {symbol}: {max_position_size:.2%}")
                             break
             except Exception as e:
-                logger.warning(f"Failed to get dynamic limits: {e}")
-        
+                logger.warning(f"[Tenant: {tenant_id}] Failed to get dynamic limits: {e}")
+
         # Check position size limits with tolerance for floating-point rounding
         TOLERANCE = 1e-10  # Small tolerance for floating-point comparison
         if position_size > (max_position_size + TOLERANCE):
             logger.warning(
-                f"Trade rejected: Position size ({position_size:.2%}) "
+                f"[Tenant: {tenant_id}] Trade rejected: Position size ({position_size:.2%}) "
                 f"exceeds limit ({max_position_size:.2%})"
             )
             return False
@@ -214,57 +245,74 @@ class RiskManager(IRiskManager):
                 for pos in current_positions.values()
             ) + position_value
             leverage = total_exposure / float(portfolio_value) if float(portfolio_value) > 0 else 0
-            logger.debug(f"Total exposure: {total_exposure}, Leverage: {leverage:.2f}")
-            
+            logger.debug(f"[Tenant: {tenant_id}] Total exposure: {total_exposure}, Leverage: {leverage:.2f}")
+
             if leverage > max_leverage:
                 logger.warning(
-                    f"Trade rejected: Portfolio leverage "
+                    f"[Tenant: {tenant_id}] Trade rejected: Portfolio leverage "
                     f"({leverage:.2f}) exceeds limit "
                     f"({max_leverage:.2f})"
                 )
                 return False
         except Exception as e:
-            logger.error(f"Error calculating exposure: {str(e)}")
+            logger.error(f"[Tenant: {tenant_id}] Error calculating exposure: {str(e)}")
             return False
 
         # Check drawdown limit if we have risk metrics
         if self.state.risk_metrics:
             drawdown = abs(self.state.risk_metrics.max_drawdown)
-            logger.debug(f"Current drawdown: {drawdown:.2%}")
+            logger.debug(f"[Tenant: {tenant_id}] Current drawdown: {drawdown:.2%}")
             if drawdown > self.config.max_drawdown:
                 logger.warning(
-                    f"Trade rejected: Maximum drawdown "
+                    f"[Tenant: {tenant_id}] Trade rejected: Maximum drawdown "
                     f"({drawdown:.2%}) exceeded limit "
                     f"({self.config.max_drawdown:.2%})"
                 )
                 return False
 
-        logger.debug("Trade passed all risk checks")
+        logger.debug(f"[Tenant: {tenant_id}] Trade passed all risk checks")
         return True
 
+    @require_tenant_id
     @audit_trade_decision(extract_reasoning=True, include_market_data=False)
     async def calculate_position_size(
         self,
         symbol: str,
         current_price: float,
         signal_strength: float,
+        tenant_id: str,
         historical_returns: Optional[pd.Series] = None,
         strategy_name: Optional[str] = None,
     ) -> PositionSizeResult:
-        """Calculate recommended position size with dynamic risk budgets."""
+        """
+        Calculate recommended position size with dynamic risk budgets.
+
+        Args:
+            symbol: Trading symbol
+            current_price: Current asset price
+            signal_strength: Signal confidence (0-1)
+            tenant_id: Unique identifier for the tenant (required for data isolation)
+            historical_returns: Optional historical returns data
+            strategy_name: Optional strategy identifier
+
+        Returns:
+            Position size calculation result
+        """
+        logger.debug(f"[Tenant: {tenant_id}] Calculating position size for {symbol} @ {current_price}")
+
         volatility = (
             self.state.risk_metrics.volatility
             if self.state.risk_metrics
             else 0.15  # Default assumption
         )
-        
+
         # Get risk budget constraints if service is available
         risk_budget = None
         if self.risk_budgeting_service:
             try:
                 # Get current budget allocations
                 portfolio_budget = await self.risk_budgeting_service.get_portfolio_budget()
-                
+
                 if portfolio_budget:
                     # Extract relevant budget constraints
                     risk_budget = {
@@ -272,7 +320,7 @@ class RiskManager(IRiskManager):
                         'symbol_budget': {},
                         'strategy_budget': None
                     }
-                    
+
                     # Find allocation for this symbol or strategy
                     for allocation in portfolio_budget.allocations:
                         if allocation.entity_type == 'asset' and allocation.entity_id == symbol:
@@ -282,11 +330,11 @@ class RiskManager(IRiskManager):
                         elif allocation.entity_type == 'strategy' and allocation.entity_id == strategy_name:
                             remaining_budget = (allocation.allocated_amount - allocation.utilized_amount) / self.state.portfolio_value
                             risk_budget['strategy_budget'] = max(0, remaining_budget)
-                    
-                    logger.debug(f"Applied risk budget constraints for {symbol}: {risk_budget}")
-                    
+
+                    logger.debug(f"[Tenant: {tenant_id}] Applied risk budget constraints for {symbol}: {risk_budget}")
+
             except Exception as e:
-                logger.warning(f"Failed to get risk budget: {e}")
+                logger.warning(f"[Tenant: {tenant_id}] Failed to get risk budget: {e}")
         
         return self.position_sizer.calculate_position_size(
             symbol=symbol,
