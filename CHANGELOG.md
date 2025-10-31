@@ -7,9 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Multi-tenant support for AgentManager** (Story 2.2, EPIC-002)
+  - Created `@require_tenant_id` decorator for consistent tenant validation
+  - Added `tenant_id` parameter to 4 AgentManager methods:
+    - `generate_signals()` - Primary signal generation method
+    - `_aggregate_signals_with_ensemble()` - Ensemble aggregation method
+    - `register_agent()` - Agent registration method
+    - `create_and_register_agent()` - Agent factory method
+  - All log messages now include tenant context `[Tenant: {tenant_id}]`
+  - Signal metadata enriched with `tenant_id` field
+  - Test infrastructure: 6 decorator tests (all passing)
+  - Closes issue #163 (Story 2.2)
+
 ### Changed
 - Audited documentation: removed multi-tenant sprint artefacts, refreshed README
   and CLAUDE guidance to match the Poetry-based workflow.
+- **BREAKING**: `AgentManager` methods now require `tenant_id` parameter
+  - See MIGRATION.md for upgrade guide
 
 ### Fixed
 - REAL docs now reference the running API (`uvicorn src.alpha_pulse.api.main:app`)

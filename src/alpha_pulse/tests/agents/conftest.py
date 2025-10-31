@@ -1,6 +1,19 @@
 """
 Common fixtures and utilities for agent tests.
 """
+# Mock lime before any imports that might need it
+import sys
+from types import ModuleType
+from unittest.mock import MagicMock
+
+if "lime" not in sys.modules:
+    lime_stub = ModuleType("lime")
+    lime_stub.lime_tabular = MagicMock()
+    lime_stub.lime_text = MagicMock()
+    sys.modules["lime"] = lime_stub
+    sys.modules["lime.lime_tabular"] = lime_stub.lime_tabular
+    sys.modules["lime.lime_text"] = lime_stub.lime_text
+
 import pytest
 import pandas as pd
 import numpy as np
