@@ -20,10 +20,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Test infrastructure: 6 decorator tests (all passing)
   - Closes issue #163 (Story 2.2)
 
+- **Multi-tenant support for RiskManager** (Story 2.3, EPIC-002)
+  - Added `tenant_id` parameter to 3 RiskManager methods:
+    - `calculate_risk_exposure()` - Risk exposure calculation
+    - `evaluate_trade()` - Trade validation with risk limits
+    - `calculate_position_size()` - Position sizing calculation
+  - All log messages now include tenant context `[Tenant: {tenant_id}]`
+  - Risk metrics enriched with `tenant_id` field
+  - Reused `@require_tenant_id` decorator from Story 2.2
+  - Closes issue #189 (Story 2.3)
+
 ### Changed
 - Audited documentation: removed multi-tenant sprint artefacts, refreshed README
   and CLAUDE guidance to match the Poetry-based workflow.
 - **BREAKING**: `AgentManager` methods now require `tenant_id` parameter
+  - See MIGRATION.md for upgrade guide
+- **BREAKING**: `RiskManager` methods now require `tenant_id` parameter
   - See MIGRATION.md for upgrade guide
 
 ### Fixed
