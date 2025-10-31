@@ -1,14 +1,30 @@
 """
 Pytest configuration and fixtures.
 """
+# Mock missing optional dependencies BEFORE any imports
+import sys
+from types import ModuleType
+from unittest.mock import MagicMock
+
+if "lime" not in sys.modules:
+    lime_stub = ModuleType("lime")
+    lime_stub.lime_tabular = MagicMock()
+    lime_stub.lime_text = MagicMock()
+    sys.modules["lime"] = lime_stub
+    sys.modules["lime.lime_tabular"] = lime_stub.lime_tabular
+    sys.modules["lime.lime_text"] = lime_stub.lime_text
+
+if "graphviz" not in sys.modules:
+    graphviz_stub = ModuleType("graphviz")
+    graphviz_stub.Digraph = MagicMock()
+    sys.modules["graphviz"] = graphviz_stub
+
 import asyncio
 import os
-import sys
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 import pytest_asyncio
-from types import ModuleType
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -23,7 +39,7 @@ def mock_langchain():
     """Mock langchain components."""
     mock_response = MagicMock()
     mock_response.content = '{"recommendations": [], "risk_assessment": "test", "confidence_score": 0.9, "reasoning": "test"}'
-    
+
     mock_chat = AsyncMock()
     mock_chat.ainvoke.return_value = mock_response
 
@@ -31,7 +47,7 @@ def mock_langchain():
         langchain_stub = ModuleType("langchain_openai")
         langchain_stub.ChatOpenAI = MagicMock()
         sys.modules["langchain_openai"] = langchain_stub
-    
+
     with patch('langchain_openai.ChatOpenAI', return_value=mock_chat):
         yield
 
@@ -119,6 +135,24 @@ def mock_market_data():
             "low_24h": 1900.0
         }
     }
+
+
+@pytest.fixture
+def tenant_1_id():
+    """Primary test tenant UUID."""
+    return "00000000-0000-0000-0000-000000000001"
+
+
+@pytest.fixture
+def tenant_2_id():
+    """Secondary test tenant UUID (for isolation tests)."""
+    return "00000000-0000-0000-0000-000000000002"
+
+
+@pytest.fixture
+def default_tenant_id(tenant_1_id):
+    """Default tenant UUID (alias for tenant_1_id)."""
+    return tenant_1_id
 
 
 @pytest.fixture(autouse=True)

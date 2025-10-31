@@ -20,6 +20,7 @@ from alpha_pulse.decorators.audit_decorators import (
     audit_agent_signal,
     audit_trade_decision
 )
+from alpha_pulse.decorators.tenant_decorators import require_tenant_id
 from alpha_pulse.services.ensemble_service import EnsembleService
 from alpha_pulse.services.regime_detection_service import RegimeDetectionService
 from alpha_pulse.models.ensemble_model import AgentSignalCreate
@@ -101,18 +102,21 @@ class AgentManager:
         if self.ensemble_service and self.use_ensemble:
             await self._initialize_ensemble()
             
+    @require_tenant_id
     @audit_trade_decision(extract_reasoning=True, include_market_data=True)
-    async def generate_signals(self, market_data: MarketData) -> List[TradeSignal]:
+    async def generate_signals(self, market_data: MarketData, tenant_id: str) -> List[TradeSignal]:
         """
         Generate and aggregate signals from all agents.
-        
+
         Args:
             market_data: Market data object with prices and volumes
-            
+            tenant_id: Unique identifier for the tenant (required for data isolation)
+
         Returns:
             List of aggregated trading signals
         """
         all_signals = []
+        logger.info(f"Generating signals for tenant {tenant_id}")
 
         try:
             # Data quality validation before processing
@@ -120,17 +124,17 @@ class AgentManager:
                 quality_validation = await self._validate_data_quality(market_data)
                 if not quality_validation["is_valid"]:
                     logger.warning(
-                        f"Data quality validation failed: {quality_validation['reason']}. "
+                        f"[Tenant: {tenant_id}] Data quality validation failed: {quality_validation['reason']}. "
                         f"Quality score: {quality_validation.get('quality_score', 0):.3f}"
                     )
                     # Return empty signals if data quality is too poor
                     if quality_validation.get('quality_score', 0) < self.min_quality_threshold:
-                        logger.error("Data quality below minimum threshold - skipping signal generation")
+                        logger.error(f"[Tenant: {tenant_id}] Data quality below minimum threshold - skipping signal generation")
                         return []
                     else:
-                        logger.warning("Data quality marginal - proceeding with caution")
+                        logger.warning(f"[Tenant: {tenant_id}] Data quality marginal - proceeding with caution")
                 else:
-                    logger.debug(f"Data quality validation passed: {quality_validation.get('quality_score', 0):.3f}")
+                    logger.debug(f"[Tenant: {tenant_id}] Data quality validation passed: {quality_validation.get('quality_score', 0):.3f}")
             
             # Pre-calculate GPU-accelerated features if enabled
             symbols = list(market_data.prices.columns) if hasattr(market_data.prices, 'columns') else []
@@ -138,10 +142,10 @@ class AgentManager:
             
             if self.use_gpu_acceleration and symbols:
                 gpu_features = await self.gpu_processor.calculate_technical_features_batch(
-                    market_data, symbols, 
+                    market_data, symbols,
                     indicators=['returns', 'rsi', 'macd', 'bollinger', 'ema_20', 'ema_50']
                 )
-                logger.info(f"Pre-calculated GPU features for {len(gpu_features)} symbols")
+                logger.info(f"[Tenant: {tenant_id}] Pre-calculated GPU features for {len(gpu_features)} symbols")
 
             # Collect signals from each agent
             for agent_type, agent in self.agents.items():
@@ -151,54 +155,55 @@ class AgentManager:
                     if gpu_features and hasattr(enhanced_market_data, 'metadata'):
                         enhanced_market_data.metadata = getattr(enhanced_market_data, 'metadata', {})
                         enhanced_market_data.metadata['gpu_features'] = gpu_features
-                    
+
                     signals = await agent.generate_signals(enhanced_market_data)
-                    logger.debug(f"Agent {agent_type} generated {len(signals)} signals")
+                    logger.debug(f"[Tenant: {tenant_id}] Agent {agent_type} generated {len(signals)} signals")
                     for signal in signals:
                         signal.metadata["agent_type"] = agent_type
                         signal.metadata["agent_weight"] = self.agent_weights.get(agent_type, 0)
-                        logger.debug(f"Signal: {signal.symbol} {signal.direction.value} (confidence: {signal.confidence:.2f})")
+                        signal.metadata["tenant_id"] = tenant_id
+                        logger.debug(f"[Tenant: {tenant_id}] Signal: {signal.symbol} {signal.direction.value} (confidence: {signal.confidence:.2f})")
                     all_signals.extend(signals)
-                    
+
                     # Update signal history
                     for signal in signals:
                         self.signal_history[signal.symbol].append(signal)
-                        
+
                 except Exception as e:
-                    logger.error(f"Error generating signals for {agent_type}: {str(e)}")
+                    logger.error(f"[Tenant: {tenant_id}] Error generating signals for {agent_type}: {str(e)}")
                     continue
-            
-            logger.debug(f"Total signals collected: {len(all_signals)}")
+
+            logger.debug(f"[Tenant: {tenant_id}] Total signals collected: {len(all_signals)}")
             
             # Apply GPU-accelerated signal optimization
             if self.use_gpu_acceleration and all_signals:
                 all_signals = await self.gpu_processor.optimize_signal_timing(
                     all_signals, market_data
                 )
-                logger.debug(f"Applied GPU signal timing optimization")
-            
+                logger.debug(f"[Tenant: {tenant_id}] Applied GPU signal timing optimization")
+
             # Aggregate signals using ensemble, GPU acceleration, or fallback to basic method
             if self.use_ensemble and self.ensemble_service and self.ensemble_id:
-                aggregated = await self._aggregate_signals_with_ensemble(all_signals)
-                logger.info(f"Ensemble-aggregated signals: {len(aggregated)}")
+                aggregated = await self._aggregate_signals_with_ensemble(all_signals, tenant_id=tenant_id)
+                logger.info(f"[Tenant: {tenant_id}] Ensemble-aggregated signals: {len(aggregated)}")
             elif self.use_gpu_acceleration and len(all_signals) > 5:
                 # Use GPU-accelerated aggregation for larger signal sets
                 aggregated = await self.gpu_processor.accelerate_signal_aggregation(
                     all_signals, self.agent_weights, ensemble_method='weighted_average'
                 )
-                logger.info(f"GPU-accelerated aggregation: {len(aggregated)} signals")
+                logger.info(f"[Tenant: {tenant_id}] GPU-accelerated aggregation: {len(aggregated)} signals")
             else:
                 aggregated = await self._aggregate_signals(all_signals)
-                logger.debug(f"Basic-aggregated signals: {len(aggregated)}")
-            
+                logger.debug(f"[Tenant: {tenant_id}] Basic-aggregated signals: {len(aggregated)}")
+
             # Generate explanations for aggregated signals if enabled
             if self.enable_explanations and aggregated:
                 await self._generate_signal_explanations(aggregated, market_data)
-            
+
             return aggregated
 
         except Exception as e:
-            logger.error(f"Error processing market data: {str(e)}")
+            logger.error(f"[Tenant: {tenant_id}] Error processing market data: {str(e)}")
             return []
     
     async def _generate_signal_explanations(
@@ -496,12 +501,23 @@ class AgentManager:
             logger.error(f"Failed to initialize ensemble: {str(e)}")
             self.use_ensemble = False
     
-    async def _aggregate_signals_with_ensemble(self, signals: List[TradeSignal]) -> List[TradeSignal]:
-        """Aggregate signals using ensemble methods."""
+    @require_tenant_id
+    async def _aggregate_signals_with_ensemble(self, signals: List[TradeSignal], tenant_id: str) -> List[TradeSignal]:
+        """
+        Aggregate signals using ensemble methods.
+
+        Args:
+            signals: List of trading signals to aggregate
+            tenant_id: Unique identifier for the tenant (required for data isolation)
+
+        Returns:
+            List of aggregated trading signals from ensemble
+        """
         if not signals or not self.ensemble_service or not self.ensemble_id:
             return []
-            
+
         try:
+            logger.debug(f"[Tenant: {tenant_id}] Aggregating {len(signals)} signals with ensemble")
             # Group signals by symbol
             signals_by_symbol = defaultdict(list)
             for signal in signals:
@@ -571,18 +587,20 @@ class AgentManager:
                                 ]
                             }
                         )
+                        # Add tenant_id to metadata
+                        ensemble_trade_signal.metadata["tenant_id"] = tenant_id
                         aggregated_signals.append(ensemble_trade_signal)
-                        
+
                         logger.info(
-                            f"Ensemble signal for {symbol}: {ensemble_result.signal} "
+                            f"[Tenant: {tenant_id}] Ensemble signal for {symbol}: {ensemble_result.signal} "
                             f"(confidence: {ensemble_result.confidence:.2f}, "
                             f"agents: {len(ensemble_result.contributing_agents)})"
                         )
-            
+
             return aggregated_signals
-            
+
         except Exception as e:
-            logger.error(f"Ensemble aggregation failed: {str(e)}")
+            logger.error(f"[Tenant: {tenant_id}] Ensemble aggregation failed: {str(e)}")
             # Fallback to basic aggregation
             return await self._aggregate_signals(signals)
     
@@ -697,10 +715,17 @@ class AgentManager:
                 "reason": f"Validation error: {str(e)}"
             }
 
-    async def register_agent(self, agent: BaseTradeAgent) -> None:
-        """Register a trading agent."""
+    @require_tenant_id
+    async def register_agent(self, agent: BaseTradeAgent, tenant_id: str) -> None:
+        """
+        Register a trading agent.
+
+        Args:
+            agent: Trading agent instance to register
+            tenant_id: Unique identifier for the tenant (required for data isolation)
+        """
         self.agents[agent.agent_id] = agent
-        
+
         # Register with ensemble service if available
         if self.use_ensemble and self.ensemble_service:
             if not self.ensemble_id:
@@ -709,7 +734,7 @@ class AgentManager:
                     "main_trading_ensemble",
                     list(self.agent_weights.keys())
                 )
-            
+
             # Register agent
             agent_id = self.ensemble_service.register_agent(
                 self.ensemble_id,
@@ -717,37 +742,48 @@ class AgentManager:
                 agent.__class__.__name__
             )
             self.agent_registry[agent.agent_id] = agent_id
-            
-        logger.info(f"Registered agent: {agent.agent_id}")
+
+        logger.info(f"[Tenant: {tenant_id}] Registered agent: {agent.agent_id}")
     
-    async def create_and_register_agent(self, agent_type: str, config: Dict[str, Any] = None) -> BaseTradeAgent:
-        """Create and register a new agent with regime service integration."""
+    @require_tenant_id
+    async def create_and_register_agent(self, agent_type: str, tenant_id: str, config: Dict[str, Any] = None) -> BaseTradeAgent:
+        """
+        Create and register a new agent with regime service integration.
+
+        Args:
+            agent_type: Type of agent to create (technical, fundamental, sentiment, value)
+            tenant_id: Unique identifier for the tenant (required for data isolation)
+            config: Optional configuration dictionary for the agent
+
+        Returns:
+            The created and registered agent instance
+        """
         # Import agent classes to avoid circular imports
         from .technical_agent import TechnicalAgent
         from .fundamental_agent import FundamentalAgent
         from .sentiment_agent import SentimentAgent
         from .value_agent import ValueAgent
-        
+
         agent_classes = {
             'technical': TechnicalAgent,
             'fundamental': FundamentalAgent,
             'sentiment': SentimentAgent,
             'value': ValueAgent,
         }
-        
+
         agent_class = agent_classes.get(agent_type)
         if not agent_class:
             raise ValueError(f"Unknown agent type: {agent_type}")
-        
+
         # Create agent with regime service
         agent_config = config or {}
         agent = agent_class(config=agent_config, regime_service=self.regime_service)
-        
+
         # Initialize agent
         await agent.initialize(agent_config)
-        
-        # Register agent
-        await self.register_agent(agent)
-        
-        logger.info(f"Created and registered {agent_type} agent with regime service integration")
+
+        # Register agent with tenant context
+        await self.register_agent(agent, tenant_id=tenant_id)
+
+        logger.info(f"[Tenant: {tenant_id}] Created and registered {agent_type} agent with regime service integration")
         return agent
