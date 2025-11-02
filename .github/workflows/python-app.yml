@@ -169,6 +169,7 @@ jobs:
           --cov-report=xml \
           --cov-report=term-missing \
           --cov-report=html \
+          --continue-on-collection-errors \
           -v \
           src/alpha_pulse/tests/ \
           || echo "Some tests failed but continuing"
