@@ -27,7 +27,7 @@ except ImportError:
     SparkDataFrame = None
     DeltaTable = None
 
-from alpha_pulse.data_lake.lake_manager import DataFormat
+from alpha_pulse.data_lake.types import DataFormat
 
 
 logger = logging.getLogger(__name__)

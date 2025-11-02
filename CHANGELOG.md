@@ -41,3 +41,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - REAL docs now reference the running API (`uvicorn src.alpha_pulse.api.main:app`)
   and updated testing/linting commands.
+- **Circular import in data_lake module** (Issue #191)
+  - Resolved circular dependency between `lake_manager.py` and `storage_layers.py`
+  - Created `types.py` module to hold `DataFormat` and `StorageBackend` enums
+  - Maintained backward compatibility via re-exports
+  - Unblocked all API tests from running
+  - Closes issue #191 (partial - circular import resolved)
