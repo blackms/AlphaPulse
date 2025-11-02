@@ -7,10 +7,11 @@ including YAML files, environment variables, and default settings.
 import os
 import yaml
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, TYPE_CHECKING
 from loguru import logger
 
-from .settings import Settings
+if TYPE_CHECKING:
+    from .settings import Settings
 
 
 class ConfigLoader:
@@ -25,7 +26,7 @@ class ConfigLoader:
         """
         self.config_path = config_path
         self._config: Optional[Dict[str, Any]] = None
-        self._settings: Optional[Settings] = None
+        self._settings: Optional['Settings'] = None
 
     def load(self) -> Dict[str, Any]:
         """
@@ -51,7 +52,7 @@ class ConfigLoader:
         self._config = {}
         return self._config
 
-    def get_settings(self) -> Settings:
+    def get_settings(self) -> 'Settings':
         """
         Get Settings instance with loaded configuration.
 
@@ -59,6 +60,8 @@ class ConfigLoader:
             Settings instance
         """
         if self._settings is None:
+            # Import here to avoid circular dependency
+            from .settings import Settings
             self._settings = Settings()
         return self._settings
 
