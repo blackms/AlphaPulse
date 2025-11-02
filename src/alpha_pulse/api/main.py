@@ -30,7 +30,7 @@ from loguru import logger
 from alpha_pulse.config.database import get_db_session
 
 # Import routers
-from .routers import metrics, alerts, portfolio, system, trades, correlation, risk_budget, regime, liquidity, online_learning, gpu, data_quality, backtesting, data_lake
+from .routers import metrics, alerts, portfolio, system, trades, correlation, risk_budget, regime, liquidity, online_learning, gpu, data_quality  # backtesting, data_lake
 from .routers import hedging, ensemble, explainability
 from .routes import audit  # Add audit routes
 from .websockets import endpoints as ws_endpoints
@@ -183,8 +183,8 @@ app.include_router(online_learning.router, prefix="/api/v1/online-learning", tag
 app.include_router(gpu.router, prefix="/api/v1", tags=["gpu"])
 app.include_router(explainability.router, prefix="/api/v1", tags=["explainability"])
 app.include_router(data_quality.router, prefix="/api/v1", tags=["data-quality"])
-app.include_router(backtesting.router, prefix="/api/v1", tags=["backtesting"])
-app.include_router(data_lake.router, prefix="/api/v1", tags=["data-lake"])
+# app.include_router(backtesting.router, prefix="/api/v1", tags=["backtesting"])  # Disabled: missing dependencies
+# app.include_router(data_lake.router, prefix="/api/v1", tags=["data-lake"])  # Disabled: missing dependencies
 
 # Register exchange sync events
 register_exchange_sync_events(app)
