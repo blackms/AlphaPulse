@@ -155,67 +155,14 @@ jobs:
         # Show test directory structure
         echo "Test directory structure:"
         ls -R src/alpha_pulse/tests/
-        
-        # Run all available tests with proper error handling
-        echo "Running comprehensive test suite..."
-        
+
+        # Run all available tests using pytest.ini configuration
+        echo "Running test suite (respecting pytest.ini exclusions)..."
+
         # Set test environment variables
         export PYTHONDONTWRITEBYTECODE=1
-        
-        # First batch: Core import and component tests
-        echo "=== Running core component tests ==="
-        poetry run python -m pytest \
-          -v \
-          --tb=short \
-          src/alpha_pulse/tests/test_basic_imports.py \
-          src/alpha_pulse/tests/test_imports.py \
-          src/alpha_pulse/tests/test_module_imports.py \
-          src/alpha_pulse/tests/test_core_components.py \
-          src/alpha_pulse/tests/test_api_endpoints.py \
-          -k "not test_all_imports" || echo "Some core tests failed"
-        
-        # Second batch: Feature and integration tests
-        echo "=== Running feature tests ==="
-        poetry run python -m pytest \
-          -v \
-          --tb=short \
-          src/alpha_pulse/tests/test_exchange.py \
-          src/alpha_pulse/tests/test_features.py \
-          src/alpha_pulse/tests/test_data_fetcher.py \
-          src/alpha_pulse/tests/test_monitoring.py \
-          src/alpha_pulse/tests/test_portfolio.py \
-          || echo "Some feature tests failed"
-        
-        # Third batch: Additional tests that might work
-        echo "=== Attempting additional tests ==="
-        for test_file in src/alpha_pulse/tests/test_risk_*.py \
-                        src/alpha_pulse/tests/test_cache.py \
-                        src/alpha_pulse/tests/test_encryption.py \
-                        src/alpha_pulse/tests/test_backtesting.py; do
-            if [ -f "$test_file" ]; then
-                echo "Trying $test_file..."
-                poetry run python -m pytest \
-                    -v \
-                    --tb=short \
-                    "$test_file" || echo "Skipped $test_file due to errors"
-            fi
-        done
-        
-        # Run comprehensive module test for maximum coverage
-        echo "=== Running comprehensive module tests ==="
-        poetry run python -m pytest \
-          -v \
-          --tb=short \
-          src/alpha_pulse/tests/test_all_modules.py || echo "Module tests completed"
-        
-        # Run maximum coverage test
-        echo "=== Running maximum coverage test ==="
-        poetry run python -m pytest \
-          -v \
-          --tb=short \
-          src/alpha_pulse/tests/test_maximum_coverage.py || echo "Maximum coverage tests completed"
-        
-        # Run pytest with coverage at the end
+
+        # Run pytest with coverage - pytest.ini will handle test selection
         echo "=== Running all tests with coverage ==="
         poetry run python -m pytest \
           --cov=src/alpha_pulse \
@@ -223,29 +170,14 @@ jobs:
           --cov-report=term-missing \
           --cov-report=html \
           -v \
-          src/alpha_pulse/tests/test_basic_imports.py \
-          src/alpha_pulse/tests/test_module_imports.py \
-          src/alpha_pulse/tests/test_all_modules.py \
-          src/alpha_pulse/tests/test_maximum_coverage.py \
-          src/alpha_pulse/tests/test_core_components.py \
-          src/alpha_pulse/tests/test_api_endpoints.py \
-          src/alpha_pulse/tests/test_comprehensive_coverage.py \
-          src/alpha_pulse/tests/test_exchange.py \
-          src/alpha_pulse/tests/test_features.py \
-          src/alpha_pulse/tests/test_data_fetcher.py \
-          || echo "Coverage run completed"
-        
+          src/alpha_pulse/tests/ \
+          || echo "Some tests failed but continuing"
+
         # Display coverage summary
         echo "=== Coverage Summary ==="
         poetry run coverage report --precision=2 --skip-covered || true
-        
-        # Check if pytest found any tests
-        if [ $? -eq 5 ]; then
-          echo "No tests were collected - this might indicate a configuration issue"
-          exit 1
-        fi
-        
-        echo "Tests completed successfully!"
+
+        echo "Tests completed!"
     
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v5
