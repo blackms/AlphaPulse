@@ -50,7 +50,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - POST /portfolio/reload - Tenant-specific exchange sync
   - All endpoints include tenant context in log messages `[Tenant: {tenant_id}]`
   - Comprehensive test coverage: 603 lines of integration tests
-  - Partial progress on issue #165 (Story 2.4)
+
+- **Tenant context integration for API routes - Phase 2 (P1) - COMPLETE** (Story 2.4, EPIC-002)
+  - Integrated `get_current_tenant_id` dependency injection in all 11 P1 endpoints
+  - **alerts.py router** (2 endpoints):
+    - GET /alerts - Alert retrieval with tenant isolation
+    - POST /alerts/{id}/acknowledge - Alert acknowledgment with tenant context
+  - **metrics.py router** (4 endpoints):
+    - GET /metrics/{type} - Metrics retrieval per tenant
+    - GET /metrics/{type}/latest - Latest metrics per tenant
+    - GET /metrics/cache - Cache metrics with tenant logging
+    - GET /metrics/database - Database metrics with tenant logging
+  - **system.py router** (2 endpoints):
+    - GET /system - System metrics with tenant context
+    - POST /system/exchange/reload - Exchange sync with tenant isolation
+  - **trades.py router** (1 endpoint):
+    - GET /trades - Trade data with tenant filtering
+  - **correlation.py router** (2 endpoints):
+    - GET /correlation/matrix - Correlation matrix with tenant context
+    - GET /correlation/rolling - Rolling correlation with tenant logging
+  - All endpoints include tenant context in log messages `[Tenant: {tenant_id}]`
+  - Test coverage: 1,537 lines of integration tests (21 test classes, 100% pattern consistency)
+  - Closes issues #204, #205, #206
 
 ### Changed
 - Audited documentation: removed multi-tenant sprint artefacts, refreshed README
