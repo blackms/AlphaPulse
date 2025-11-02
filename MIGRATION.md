@@ -440,5 +440,307 @@ async def test_evaluate_trade(risk_manager, default_tenant_id):
 
 ---
 
+## API Endpoints Tenant Context (Story 2.4)
+
+### Overview
+
+API endpoints now use tenant context from `TenantContextMiddleware` via dependency injection. All endpoints must extract `tenant_id` from the middleware and pass it to underlying services.
+
+### Breaking Changes
+
+**All API endpoints** now require:
+1. JWT token with `tenant_id` claim in Authorization header
+2. `tenant_id` parameter injected via `Depends(get_current_tenant_id)`
+3. Passing `tenant_id` to all service calls
+
+### Migration Steps
+
+#### Before (v1.x.x)
+
+```python
+from fastapi import APIRouter
+from ..dependencies import get_risk_manager
+
+router = APIRouter()
+
+@router.get("/risk/exposure")
+async def get_risk_exposure(
+    risk_manager: RiskManager = Depends(get_risk_manager)
+):
+    # OLD API - no tenant context
+    exposure = await risk_manager.calculate_risk_exposure()
+    return exposure
+```
+
+#### After (v2.0.0)
+
+```python
+from fastapi import APIRouter, Depends
+from ..dependencies import get_risk_manager
+from ..middleware.tenant_context import get_current_tenant_id  # ← Import dependency
+
+router = APIRouter()
+
+@router.get("/risk/exposure")
+async def get_risk_exposure(
+    tenant_id: str = Depends(get_current_tenant_id),  # ← Add tenant context
+    risk_manager: RiskManager = Depends(get_risk_manager)
+):
+    # NEW API - includes tenant context
+    exposure = await risk_manager.calculate_risk_exposure(
+        tenant_id=tenant_id  # ← Pass to service
+    )
+    return exposure
+```
+
+### Client-Side Changes
+
+#### Authentication Required
+
+All API requests must include a valid JWT token with `tenant_id` claim:
+
+```python
+import requests
+
+# Login to get token
+response = requests.post(
+    "https://api.alphapulse.io/token",
+    data={"username": "admin", "password": "admin123!@#"}
+)
+token_data = response.json()
+access_token = token_data["access_token"]
+
+# Use token in subsequent requests
+headers = {"Authorization": f"Bearer {access_token}"}
+
+# All API calls now require authentication
+portfolio = requests.get(
+    "https://api.alphapulse.io/api/v1/portfolio",
+    headers=headers
+).json()
+```
+
+#### Token Structure
+
+JWT tokens now include `tenant_id` claim:
+
+```json
+{
+  "sub": "admin",
+  "tenant_id": "00000000-0000-0000-0000-000000000001",
+  "exp": 1730577600
+}
+```
+
+### Error Handling
+
+#### Missing Authorization Header
+
+```python
+# Request without Authorization header
+response = requests.get("https://api.alphapulse.io/api/v1/portfolio")
+
+# Response: 401 Unauthorized
+{
+  "detail": "Missing Authorization header"
+}
+```
+
+#### Missing tenant_id Claim
+
+```python
+# Token without tenant_id claim
+response = requests.get(
+    "https://api.alphapulse.io/api/v1/portfolio",
+    headers={"Authorization": f"Bearer {invalid_token}"}
+)
+
+# Response: 401 Unauthorized
+{
+  "detail": "Missing tenant_id claim in JWT token"
+}
+```
+
+### Affected Endpoints
+
+All endpoints under `/api/v1/` now require tenant context:
+
+**Critical (P0)**:
+- `/api/v1/portfolio` - Portfolio data
+- `/api/v1/trades` - Trade history
+- `/api/v1/risk/*` - Risk management
+- `/api/v1/risk-budget/*` - Risk budgeting
+
+**Important (P1)**:
+- `/api/v1/alerts` - Alert management
+- `/api/v1/metrics/*` - Performance metrics
+- `/api/v1/ensemble/*` - Agent ensembles
+- `/api/v1/hedging/*` - Hedging positions
+- `/api/v1/regime/*` - Market regimes
+
+**Supporting (P2-P3)**:
+- `/api/v1/correlation/*` - Correlation analysis
+- `/api/v1/backtesting/*` - Backtesting
+- `/api/v1/data-lake/*` - Data lake operations
+- `/api/v1/liquidity/*` - Liquidity analysis
+- All other endpoints
+
+**Exempt Paths** (No authentication required):
+- `/health` - Health check
+- `/metrics` - Prometheus metrics
+- `/docs` - OpenAPI documentation
+- `/openapi.json` - OpenAPI spec
+- `/token` - Login endpoint
+
+### OpenAPI Documentation Changes
+
+The OpenAPI schema now reflects tenant context requirements:
+
+```yaml
+paths:
+  /api/v1/portfolio:
+    get:
+      summary: Get Portfolio
+      security:
+        - HTTPBearer: []  # ← JWT required
+      responses:
+        '200':
+          description: Successful Response
+        '401':
+          description: Unauthorized - Missing or invalid token
+```
+
+### Testing Changes
+
+Update API tests to include tenant context:
+
+```python
+import pytest
+from fastapi.testclient import TestClient
+from jose import jwt
+from datetime import datetime, timedelta
+
+def create_test_token(username: str, tenant_id: str) -> str:
+    """Create JWT token for testing."""
+    payload = {
+        "sub": username,
+        "tenant_id": tenant_id,
+        "exp": datetime.utcnow() + timedelta(minutes=30)
+    }
+    return jwt.encode(payload, "test-secret", algorithm="HS256")
+
+def test_get_portfolio():
+    client = TestClient(app)
+
+    # Create token with tenant_id
+    token = create_test_token(
+        "testuser",
+        "00000000-0000-0000-0000-000000000001"
+    )
+
+    # Make authenticated request
+    response = client.get(
+        "/api/v1/portfolio",
+        headers={"Authorization": f"Bearer {token}"}
+    )
+
+    assert response.status_code == 200
+```
+
+### Python SDK Example
+
+If using a Python SDK/client library:
+
+```python
+from alpha_pulse_client import AlphaPulseClient
+
+# Initialize client with credentials
+client = AlphaPulseClient(
+    base_url="https://api.alphapulse.io",
+    username="admin",
+    password="admin123!@#"
+)
+
+# Client automatically handles:
+# 1. Login to get JWT token
+# 2. Extracting tenant_id from token
+# 3. Including Authorization header in all requests
+
+# All API calls now automatically include tenant context
+portfolio = client.get_portfolio()
+trades = client.get_trades()
+exposure = client.get_risk_exposure()
+```
+
+### JavaScript/TypeScript Example
+
+```typescript
+import axios from 'axios';
+
+const API_BASE_URL = 'https://api.alphapulse.io';
+
+// Login to get token
+const loginResponse = await axios.post(`${API_BASE_URL}/token`, {
+  username: 'admin',
+  password: 'admin123!@#'
+});
+
+const accessToken = loginResponse.data.access_token;
+
+// Create authenticated axios instance
+const apiClient = axios.create({
+  baseURL: `${API_BASE_URL}/api/v1`,
+  headers: {
+    'Authorization': `Bearer ${accessToken}`
+  }
+});
+
+// All requests now include tenant context
+const portfolio = await apiClient.get('/portfolio');
+const trades = await apiClient.get('/trades');
+const exposure = await apiClient.get('/risk/exposure');
+```
+
+### Benefits of API Tenant Context
+
+1. **Automatic Tenant Isolation**: Middleware ensures all requests are tenant-scoped
+2. **Security**: JWT validation prevents cross-tenant access
+3. **Audit Trail**: All API operations logged with tenant context
+4. **Type Safety**: FastAPI validates tenant_id parameter
+5. **Developer Experience**: Clear errors if authentication missing
+6. **PostgreSQL RLS Integration**: Session variable set automatically
+
+### Implementation Status
+
+**Current Status**: ⚠️ **BLOCKED**
+
+- ✅ TenantContextMiddleware implemented and registered
+- ✅ JWT tokens include tenant_id claim
+- ✅ Dependency injection pattern defined
+- ✅ Test suite created (19 tests)
+- ✅ Documentation complete (ADR-003, Implementation Guide)
+- ❌ **BLOCKED by pre-existing circular import** (Issue #191)
+- ⏳ Endpoint updates pending (100+ endpoints)
+
+**Blocking Issue**: Circular import in `data_lake/lake_manager.py` prevents API from starting and tests from running.
+
+**Next Steps** (After #191 resolved):
+1. Phase 1: Update P0 endpoints (risk, portfolio, trades) - 14 endpoints
+2. Phase 2: Update P1 endpoints (alerts, metrics, ensemble) - 26 endpoints
+3. Phase 3: Update P2-P3 endpoints (backtesting, data_lake, etc.) - 60+ endpoints
+
+---
+
+### Need Help?
+
+- **Issues**: https://github.com/blackms/AlphaPulse/issues
+- **Documentation**:
+  - [ADR-003](docs/adr/003-api-tenant-context-integration.md): Design decision
+  - [API Implementation Guide](docs/guides/API_TENANT_IMPLEMENTATION_GUIDE.md): Step-by-step guide
+- **Story 2.4**: [Update API routes with tenant context](https://github.com/blackms/AlphaPulse/issues/165)
+- **Blocking Issue**: [Pre-existing circular import](https://github.com/blackms/AlphaPulse/issues/191)
+
+---
+
 **Last Updated**: 2025-11-02
 **Applies to**: v2.0.0+
