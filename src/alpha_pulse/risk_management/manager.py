@@ -167,8 +167,8 @@ class RiskManager(IRiskManager):
             logger.error(f"[Tenant: {tenant_id}] Error calculating risk exposure: {str(e)}")
             raise
 
-    @audit_risk_check(risk_type='trade_evaluation', threshold_param='max_position_size', value_param='position_size')
     @require_tenant_id
+    @audit_risk_check(risk_type='trade_evaluation', threshold_param='max_position_size', value_param='position_size')
     async def evaluate_trade(
         self,
         symbol: str,

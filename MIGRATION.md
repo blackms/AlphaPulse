@@ -221,13 +221,224 @@ If you need to rollback to v1.x.x:
 3. System will continue to work in single-tenant mode
 4. **Warning**: You'll lose tenant isolation benefits
 
+---
+
+## RiskManager API Changes (Story 2.3)
+
+### Overview
+
+RiskManager now requires `tenant_id` parameter for all risk management operations, enabling tenant-specific risk limits and audit trails.
+
+### Breaking Changes
+
+The following `RiskManager` methods now **require** a `tenant_id` parameter:
+
+1. `calculate_risk_exposure(tenant_id: str)`
+2. `evaluate_trade(..., tenant_id: str)`
+3. `calculate_position_size(..., tenant_id: str)`
+
+### Migration Steps
+
+#### Before (v1.x.x)
+
+```python
+from alpha_pulse.risk_management.manager import RiskManager
+
+# Initialize risk manager
+risk_manager = RiskManager(exchange=exchange, config=risk_config)
+
+# Calculate risk exposure (OLD API)
+exposure = await risk_manager.calculate_risk_exposure()
+
+# Evaluate trade (OLD API)
+approved = await risk_manager.evaluate_trade(
+    symbol="BTC/USDT",
+    side="buy",
+    quantity=0.5,
+    current_price=50000.0,
+    portfolio_value=100000.0,
+    current_positions={}
+)
+
+# Calculate position size (OLD API)
+position = await risk_manager.calculate_position_size(
+    symbol="BTC/USDT",
+    current_price=50000.0,
+    signal_strength=0.8
+)
+```
+
+#### After (v2.0.0)
+
+```python
+from alpha_pulse.risk_management.manager import RiskManager
+
+# Initialize risk manager (unchanged)
+risk_manager = RiskManager(exchange=exchange, config=risk_config)
+
+# Get tenant_id from request context (example using FastAPI)
+tenant_id = request.state.tenant_id  # e.g., "00000000-0000-0000-0000-000000000001"
+
+# Calculate risk exposure (NEW API - requires tenant_id)
+exposure = await risk_manager.calculate_risk_exposure(tenant_id=tenant_id)
+
+# Evaluate trade (NEW API - requires tenant_id)
+approved = await risk_manager.evaluate_trade(
+    symbol="BTC/USDT",
+    side="buy",
+    quantity=0.5,
+    current_price=50000.0,
+    portfolio_value=100000.0,
+    current_positions={},
+    tenant_id=tenant_id
+)
+
+# Calculate position size (NEW API - requires tenant_id)
+position = await risk_manager.calculate_position_size(
+    symbol="BTC/USDT",
+    current_price=50000.0,
+    signal_strength=0.8,
+    tenant_id=tenant_id
+)
+```
+
+### Error Handling
+
+If you call these methods without `tenant_id`, you'll receive a clear error:
+
+```python
+# This will raise ValueError
+exposure = await risk_manager.calculate_risk_exposure()
+
+# Error message:
+# ValueError: RiskManager.calculate_risk_exposure requires 'tenant_id' parameter.
+# Multi-tenant context is mandatory for data isolation.
+```
+
+### API Integration Example
+
+#### FastAPI Endpoint with RiskManager
+
+```python
+from fastapi import APIRouter, Depends, Request
+from alpha_pulse.risk_management.manager import RiskManager
+from alpha_pulse.api.auth import get_current_user
+
+router = APIRouter()
+
+@router.post("/trades/evaluate")
+async def evaluate_trade_endpoint(
+    request: Request,
+    symbol: str,
+    side: str,
+    quantity: float,
+    current_user = Depends(get_current_user),
+    risk_manager: RiskManager = Depends(get_risk_manager)
+):
+    # Extract tenant_id from authenticated user
+    tenant_id = current_user.tenant_id
+
+    # Get portfolio data
+    portfolio_value = await get_portfolio_value(tenant_id)
+    current_positions = await get_positions(tenant_id)
+    current_price = await get_current_price(symbol)
+
+    # Evaluate trade with tenant context
+    approved = await risk_manager.evaluate_trade(
+        symbol=symbol,
+        side=side,
+        quantity=quantity,
+        current_price=current_price,
+        portfolio_value=portfolio_value,
+        current_positions=current_positions,
+        tenant_id=tenant_id
+    )
+
+    return {"approved": approved, "tenant_id": tenant_id}
+```
+
+### Risk Exposure Metadata
+
+Risk exposure results now include `tenant_id` in the response:
+
+```python
+exposure = await risk_manager.calculate_risk_exposure(tenant_id=tenant_id)
+
+# Result structure:
+{
+    "BTC_net_exposure": 75000.0,
+    "BTC_exposure_pct": 0.15,
+    "ETH_net_exposure": 30000.0,
+    "ETH_exposure_pct": 0.06,
+    "total_exposure": 105000.0,
+    "exposure_ratio": 0.21,
+    "tenant_id": "00000000-0000-0000-0000-000000000001"  # ← New field
+}
+```
+
+### Logging Changes
+
+All RiskManager log messages now include tenant context:
+
+```
+# Before
+[INFO] Evaluating trade: BTC/USDT buy 0.5 @ 50000
+[DEBUG] Position value: 25000, Position size: 25.00%
+[DEBUG] Trade passed all risk checks
+
+# After
+[INFO] [Tenant: 00000000-0000-0000-0000-000000000001] Evaluating trade: BTC/USDT buy 0.5 @ 50000
+[DEBUG] [Tenant: 00000000-0000-0000-0000-000000000001] Position value: 25000, Position size: 25.00%
+[DEBUG] [Tenant: 00000000-0000-0000-0000-000000000001] Trade passed all risk checks
+```
+
+This makes it easy to filter logs by tenant in production.
+
+### Testing
+
+Update your test fixtures to include `tenant_id`:
+
+```python
+import pytest
+
+@pytest.fixture
+def default_tenant_id():
+    """Default tenant UUID for testing."""
+    return "00000000-0000-0000-0000-000000000001"
+
+@pytest.mark.asyncio
+async def test_evaluate_trade(risk_manager, default_tenant_id):
+    # Pass tenant_id to all RiskManager calls
+    approved = await risk_manager.evaluate_trade(
+        symbol="BTC/USDT",
+        side="buy",
+        quantity=0.5,
+        current_price=50000.0,
+        portfolio_value=100000.0,
+        current_positions={},
+        tenant_id=default_tenant_id
+    )
+    assert approved is True
+```
+
+### Benefits of RiskManager Multi-Tenant Support
+
+1. **Tenant-Specific Risk Limits**: Each tenant can have independent position size limits and leverage caps
+2. **Audit Trail**: All risk decisions are logged with tenant context for compliance
+3. **Risk Budget Integration**: Supports tenant-specific dynamic risk budgets
+4. **Data Isolation**: Prevents cross-tenant risk calculation leakage
+5. **Scalability**: Enables SaaS multi-tenancy for risk management
+
+---
+
 ### Need Help?
 
 - **Issues**: https://github.com/blackms/AlphaPulse/issues
 - **Documentation**: See [EPIC-002](https://github.com/blackms/AlphaPulse/issues/162)
-- **Story**: [Story 2.2 - Refactor Services](https://github.com/blackms/AlphaPulse/issues/163)
+- **Story 2.2**: [AgentManager Multi-Tenant](https://github.com/blackms/AlphaPulse/issues/163)
+- **Story 2.3**: [RiskManager Multi-Tenant](https://github.com/blackms/AlphaPulse/issues/189)
 
 ---
 
-**Last Updated**: 2025-10-31
+**Last Updated**: 2025-11-02
 **Applies to**: v2.0.0+

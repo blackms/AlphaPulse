@@ -6,12 +6,13 @@ from .lime_explainer import (
 from .feature_importance import FeatureImportanceAnalyzer, FeatureImportanceConfig
 from .decision_trees import DecisionTreeSurrogate, SurrogateTreeConfig
 from .explanation_aggregator import ExplanationAggregator, AggregationConfig
+from .explainer import ModelExplainer, ExplanationResult
 
 __all__ = [
     "SHAPExplainer",
     "SHAPConfig",
     "LIMETabularExplainer",
-    "LIMETimeSeriesExplainer", 
+    "LIMETimeSeriesExplainer",
     "LIMETextExplainer",
     "LIMEConfig",
     "FeatureImportanceAnalyzer",
@@ -19,5 +20,7 @@ __all__ = [
     "DecisionTreeSurrogate",
     "SurrogateTreeConfig",
     "ExplanationAggregator",
-    "AggregationConfig"
+    "AggregationConfig",
+    "ModelExplainer",
+    "ExplanationResult"
 ]
