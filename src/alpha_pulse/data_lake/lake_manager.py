@@ -35,6 +35,8 @@ except ImportError:
     SparkDataFrame = None
 
 from alpha_pulse.config.config_loader import ConfigLoader
+# Import types first to avoid circular import
+from alpha_pulse.data_lake.types import StorageBackend, DataFormat
 from alpha_pulse.data_lake.storage_layers import (
     DataLayer, BronzeLayer, SilverLayer, GoldLayer
 )
@@ -45,22 +47,8 @@ from alpha_pulse.data_lake.compression_handler import CompressionHandler
 logger = logging.getLogger(__name__)
 
 
-class StorageBackend(Enum):
-    """Supported storage backends."""
-    AWS_S3 = "aws_s3"
-    AZURE_DATA_LAKE = "azure_data_lake"
-    GCP_CLOUD_STORAGE = "gcp_cloud_storage"
-    LOCAL_FILE_SYSTEM = "local_file_system"
-
-
-class DataFormat(Enum):
-    """Supported data formats."""
-    PARQUET = "parquet"
-    DELTA = "delta"
-    ORC = "orc"
-    AVRO = "avro"
-    JSON = "json"
-    CSV = "csv"
+# Re-export for backward compatibility
+__all__ = ['StorageBackend', 'DataFormat', 'DataLakeManager', 'DataLakeConfig']
 
 
 @dataclass
