@@ -15,6 +15,7 @@ from ..dependencies import (
 )
 from ..data import SystemDataAccessor, PortfolioDataAccessor
 from ..exchange_sync_integration import trigger_exchange_sync
+from ..middleware.tenant_context import get_current_tenant_id
 
 logger = logging.getLogger(__name__)
 
@@ -23,19 +24,22 @@ router = APIRouter()
 
 @router.get("/system")
 async def get_system_metrics(
+    tenant_id: str = Depends(get_current_tenant_id),
     _: Dict[str, Any] = Depends(require_view_system),
     system_accessor: SystemDataAccessor = Depends(get_system_accessor),
     alert_manager = Depends(get_alert_manager)
 ) -> Dict[str, Any]:
     """
     Get system metrics.
-    
+
     Returns:
         System metrics data
     """
+    logger.info(f"[Tenant: {tenant_id}] Retrieving system metrics")
+
     # Get system metrics
     metrics = await system_accessor.get_system_metrics()
-    
+
     # Process metrics and generate alerts if needed
     if "error" not in metrics:
         # Create a dictionary of metrics for the alert system
@@ -44,11 +48,12 @@ async def get_system_metrics(
             "memory_usage_percent": metrics["memory"]["percent"],
             "disk_usage_percent": metrics["disk"]["percent"],
         }
-        
+
         # Process metrics through the alert system
         try:
             alerts = await alert_manager.process_metrics(alert_metrics)
             if alerts:
+                logger.info(f"[Tenant: {tenant_id}] Generated {len(alerts)} system alerts")
                 # Include triggered alert information
                 metrics["alerts"] = [
                     {
@@ -60,27 +65,31 @@ async def get_system_metrics(
                 ]
         except Exception as e:
             # Log error but continue to return metrics
-            logger.error(f"Error processing alerts: {str(e)}")
+            logger.error(f"[Tenant: {tenant_id}] Error processing alerts: {str(e)}")
             metrics["alert_processing_error"] = str(e)
-    
+
     return metrics
 
 @router.post("/system/exchange/reload")
 async def force_exchange_sync(
+    tenant_id: str = Depends(get_current_tenant_id),
     _: Dict[str, Any] = Depends(require_view_system),
     portfolio_accessor: PortfolioDataAccessor = Depends(get_portfolio_accessor)
 ) -> Dict[str, Any]:
     """
     Force synchronization of exchange data.
-    
+
     This endpoint triggers an immediate synchronization of exchange data,
     bypassing the scheduled synchronization mechanism.
-    
+
     Returns:
         Dict with operation status and results
     """
     try:
-        return await trigger_exchange_sync(portfolio_accessor._exchange_id)
+        logger.info(f"[Tenant: {tenant_id}] Forcing exchange data synchronization")
+        result = await trigger_exchange_sync(portfolio_accessor._exchange_id)
+        logger.info(f"[Tenant: {tenant_id}] Exchange sync completed successfully")
+        return result
     except Exception as e:
-        logger.error(f"Error forcing exchange sync: {str(e)}")
+        logger.error(f"[Tenant: {tenant_id}] Error forcing exchange sync: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to sync exchange data: {str(e)}")

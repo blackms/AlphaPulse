@@ -9,6 +9,7 @@ and concentration risk metrics.
 from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
+import logging
 import pandas as pd
 import numpy as np
 from pydantic import BaseModel, Field
@@ -19,8 +20,11 @@ from alpha_pulse.risk.correlation_analyzer import (
     CorrelationAnalysisConfig
 )
 from alpha_pulse.api.dependencies import get_current_user, get_risk_manager
+from alpha_pulse.api.middleware.tenant_context import get_current_tenant_id
 from alpha_pulse.data_pipeline.data_fetcher import DataFetcher
 from alpha_pulse.services.caching_service import CachingService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -82,45 +86,50 @@ async def get_correlation_matrix(
     symbols: List[str] = Query(..., min_items=2, description="Asset symbols"),
     lookback_days: int = Query(252, ge=30, le=1260, description="Lookback period"),
     method: str = Query("pearson", description="Correlation method"),
+    tenant_id: str = Depends(get_current_tenant_id),
     current_user: Dict = Depends(get_current_user)
 ) -> CorrelationMatrixResponse:
     """
     Calculate correlation matrix for specified assets.
-    
+
     Methods available: pearson, spearman, kendall, distance
     """
     try:
+        logger.info(f"[Tenant: {tenant_id}] Calculating correlation matrix for symbols: {symbols}, method: {method}, lookback_days: {lookback_days}")
+
         # Initialize components
         data_fetcher = DataFetcher()
         analyzer = CorrelationAnalyzer()
         cache = CachingService.create_for_api()
-        
+
         # Check cache first
         cache_key = f"correlation:matrix:{':'.join(sorted(symbols))}:{lookback_days}:{method}"
         cached_result = await cache.get(cache_key)
         if cached_result:
+            logger.info(f"[Tenant: {tenant_id}] Correlation matrix retrieved from cache")
             return CorrelationMatrixResponse(**cached_result)
-        
+
         # Fetch historical data
         end_date = datetime.now()
         start_date = end_date - timedelta(days=lookback_days)
-        
+
         returns_data = {}
         for symbol in symbols:
             df = await data_fetcher.fetch_historical_data(
                 symbol, start_date, end_date
             )
             if df is None or len(df) < 30:
+                logger.error(f"[Tenant: {tenant_id}] Insufficient data for symbol {symbol}")
                 raise HTTPException(
                     status_code=400,
                     detail=f"Insufficient data for symbol {symbol}"
                 )
             returns_data[symbol] = df['close'].pct_change().dropna()
-        
+
         # Create returns DataFrame
         returns_df = pd.DataFrame(returns_data)
         returns_df = returns_df.dropna()
-        
+
         # Calculate correlation matrix
         if method == "pearson":
             corr_matrix = returns_df.corr(method='pearson')
@@ -129,11 +138,12 @@ async def get_correlation_matrix(
         elif method == "kendall":
             corr_matrix = returns_df.corr(method='kendall')
         else:
+            logger.error(f"[Tenant: {tenant_id}] Invalid correlation method: {method}")
             raise HTTPException(
                 status_code=400,
                 detail=f"Invalid correlation method: {method}"
             )
-        
+
         response = CorrelationMatrixResponse(
             symbols=symbols,
             matrix=corr_matrix.values.tolist(),
@@ -141,13 +151,17 @@ async def get_correlation_matrix(
             timestamp=datetime.now(),
             lookback_days=lookback_days
         )
-        
+
         # Cache result for 1 hour
         await cache.set(cache_key, response.dict(), ttl=3600)
-        
+        logger.info(f"[Tenant: {tenant_id}] Correlation matrix calculated and cached successfully")
+
         return response
-        
+
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions
     except Exception as e:
+        logger.error(f"[Tenant: {tenant_id}] Error calculating correlation matrix: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -157,52 +171,57 @@ async def get_rolling_correlations(
     symbol2: str = Query(..., description="Second asset symbol"),
     window_days: int = Query(30, ge=10, le=252, description="Rolling window"),
     lookback_days: int = Query(252, ge=30, le=1260, description="Total period"),
+    tenant_id: str = Depends(get_current_tenant_id),
     current_user: Dict = Depends(get_current_user)
 ) -> RollingCorrelationResponse:
     """
     Calculate rolling correlation between two assets.
-    
+
     Returns time series of correlations with statistics.
     """
     try:
+        logger.info(f"[Tenant: {tenant_id}] Calculating rolling correlation for {symbol1} and {symbol2}, window_days: {window_days}, lookback_days: {lookback_days}")
+
         # Initialize components
         data_fetcher = DataFetcher()
-        
+
         # Fetch data
         end_date = datetime.now()
         start_date = end_date - timedelta(days=lookback_days)
-        
+
         # Get data for both symbols
         df1 = await data_fetcher.fetch_historical_data(symbol1, start_date, end_date)
         df2 = await data_fetcher.fetch_historical_data(symbol2, start_date, end_date)
-        
+
         if df1 is None or df2 is None:
+            logger.error(f"[Tenant: {tenant_id}] Unable to fetch data for symbols: {symbol1}, {symbol2}")
             raise HTTPException(
                 status_code=400,
                 detail="Unable to fetch data for one or both symbols"
             )
-        
+
         # Calculate returns
         returns1 = df1['close'].pct_change().dropna()
         returns2 = df2['close'].pct_change().dropna()
-        
+
         # Align data
         aligned_data = pd.DataFrame({
             symbol1: returns1,
             symbol2: returns2
         }).dropna()
-        
+
         # Calculate rolling correlation
         rolling_corr = aligned_data[symbol1].rolling(window=window_days).corr(
             aligned_data[symbol2]
         ).dropna()
-        
+
         # Prepare response data
         correlations = [
             {"date": date.isoformat(), "correlation": float(corr)}
             for date, corr in rolling_corr.items()
         ]
-        
+
+        logger.info(f"[Tenant: {tenant_id}] Rolling correlation calculated successfully for {symbol1} and {symbol2}")
         return RollingCorrelationResponse(
             symbol1=symbol1,
             symbol2=symbol2,
@@ -212,8 +231,11 @@ async def get_rolling_correlations(
             min_correlation=float(rolling_corr.min()),
             max_correlation=float(rolling_corr.max())
         )
-        
+
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions
     except Exception as e:
+        logger.error(f"[Tenant: {tenant_id}] Error calculating rolling correlation for {symbol1} and {symbol2}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
