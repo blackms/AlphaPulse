@@ -10,8 +10,10 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 import pandas as pd
 from pydantic import BaseModel, Field
+from loguru import logger
 
 from alpha_pulse.api.dependencies import get_current_user, get_risk_budgeting_service
+from alpha_pulse.api.middleware.tenant_context import get_current_tenant_id
 from alpha_pulse.models.risk_budget import (
     RiskBudget, RiskBudgetType, AllocationMethod,
     RiskAllocation, RiskBudgetRebalancing, RiskBudgetSnapshot
@@ -63,29 +65,31 @@ class RiskBudgetHistoryResponse(BaseModel):
 @router.get("/current", response_model=RiskBudgetResponse)
 async def get_current_budget(
     budget_type: Optional[str] = Query(None, description="Specific budget type"),
+    tenant_id: str = Depends(get_current_tenant_id),
     current_user: Dict = Depends(get_current_user),
     risk_budgeting_service = Depends(get_risk_budgeting_service)
 ) -> RiskBudgetResponse:
     """
     Get current risk budget allocations.
-    
+
     Returns the active risk budget including allocations by strategy,
     volatility targets, and leverage limits.
     """
     try:
         # Get current portfolio budget
         portfolio_budget = await risk_budgeting_service.get_portfolio_budget()
-        
+
         if not portfolio_budget:
+            logger.warning(f"[Tenant: {tenant_id}] No active risk budget found")
             raise HTTPException(
                 status_code=404,
                 detail="No active risk budget found"
             )
-        
+
         # Calculate utilization
         utilized = sum(alloc.utilized_amount for alloc in portfolio_budget.allocations)
         utilization_rate = utilized / portfolio_budget.total_budget if portfolio_budget.total_budget > 0 else 0
-        
+
         # Format allocations
         allocations = [
             {
@@ -98,7 +102,9 @@ async def get_current_budget(
             }
             for alloc in portfolio_budget.allocations
         ]
-        
+
+        logger.info(f"[Tenant: {tenant_id}] Retrieved current risk budget")
+
         return RiskBudgetResponse(
             budget_type=portfolio_budget.budget_type.value,
             allocation_method=portfolio_budget.allocation_method.value,
@@ -110,13 +116,17 @@ async def get_current_budget(
             leverage_limit=portfolio_budget.leverage_limit,
             last_updated=portfolio_budget.timestamp
         )
-        
+
+    except HTTPException:
+        raise
     except Exception as e:
+        logger.error(f"[Tenant: {tenant_id}] Error getting current budget: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/utilization", response_model=RiskBudgetUtilizationResponse)
 async def get_budget_utilization(
+    tenant_id: str = Depends(get_current_tenant_id),
     current_user: Dict = Depends(get_current_user),
     risk_budgeting_service = Depends(get_risk_budgeting_service)
 ) -> RiskBudgetUtilizationResponse:
@@ -138,7 +148,9 @@ async def get_budget_utilization(
         for strategy, util in utilization.by_strategy.items():
             if util > 0.95:
                 warnings.append(f"{strategy} utilization above 95%")
-        
+
+        logger.info(f"[Tenant: {tenant_id}] Retrieved budget utilization")
+
         return RiskBudgetUtilizationResponse(
             total_utilization=utilization.total_utilization,
             by_strategy=utilization.by_strategy,
@@ -146,14 +158,16 @@ async def get_budget_utilization(
             available_budget=utilization.available_budget,
             warnings=warnings
         )
-        
+
     except Exception as e:
+        logger.error(f"[Tenant: {tenant_id}] Error getting budget utilization: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/rebalance", response_model=Dict[str, Any])
 async def trigger_rebalancing(
     force: bool = Query(False, description="Force rebalancing even if not needed"),
+    tenant_id: str = Depends(get_current_tenant_id),
     current_user: Dict = Depends(get_current_user),
     risk_budgeting_service = Depends(get_risk_budgeting_service)
 ) -> Dict[str, Any]:
@@ -173,7 +187,9 @@ async def trigger_rebalancing(
         
         # Trigger rebalancing
         result = await risk_budgeting_service.rebalance_budgets(force=force)
-        
+
+        logger.info(f"[Tenant: {tenant_id}] Triggered risk budget rebalancing (force={force})")
+
         return {
             "status": "completed" if result.executed else "skipped",
             "rebalanced": result.executed,
@@ -182,13 +198,17 @@ async def trigger_rebalancing(
             "new_allocations": result.new_allocations if result.executed else {},
             "timestamp": datetime.now().isoformat()
         }
-        
+
+    except HTTPException:
+        raise
     except Exception as e:
+        logger.error(f"[Tenant: {tenant_id}] Error triggering rebalancing: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/recommendations", response_model=RebalancingRecommendation)
 async def get_rebalancing_recommendations(
+    tenant_id: str = Depends(get_current_tenant_id),
     current_user: Dict = Depends(get_current_user),
     risk_budgeting_service = Depends(get_risk_budgeting_service)
 ) -> RebalancingRecommendation:
@@ -210,7 +230,9 @@ async def get_rebalancing_recommendations(
             expected_improvement["volatility"] = -recommendations.expected_volatility_reduction
         if recommendations.expected_drawdown_reduction:
             expected_improvement["max_drawdown"] = -recommendations.expected_drawdown_reduction
-        
+
+        logger.info(f"[Tenant: {tenant_id}] Retrieved rebalancing recommendations")
+
         return RebalancingRecommendation(
             requires_rebalancing=recommendations.requires_rebalancing,
             reason=recommendations.reason,
@@ -219,14 +241,16 @@ async def get_rebalancing_recommendations(
             expected_improvement=expected_improvement,
             priority=recommendations.priority
         )
-        
+
     except Exception as e:
+        logger.error(f"[Tenant: {tenant_id}] Error getting recommendations: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/history", response_model=RiskBudgetHistoryResponse)
 async def get_budget_history(
     days: int = Query(30, ge=1, le=365, description="Number of days of history"),
+    tenant_id: str = Depends(get_current_tenant_id),
     current_user: Dict = Depends(get_current_user),
     risk_budgeting_service = Depends(get_risk_budgeting_service)
 ) -> RiskBudgetHistoryResponse:
@@ -282,20 +306,24 @@ async def get_budget_history(
                         "to_regime": snapshot.market_regime
                     })
                     current_regime = snapshot.market_regime
-        
+
+        logger.info(f"[Tenant: {tenant_id}] Retrieved budget history ({days} days)")
+
         return RiskBudgetHistoryResponse(
             snapshots=formatted_snapshots,
             performance_metrics=performance_metrics,
             regime_changes=regime_changes
         )
-        
+
     except Exception as e:
+        logger.error(f"[Tenant: {tenant_id}] Error getting budget history: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/regime/{regime_type}")
 async def get_regime_specific_budget(
     regime_type: str,
+    tenant_id: str = Depends(get_current_tenant_id),
     current_user: Dict = Depends(get_current_user),
     risk_budgeting_service = Depends(get_risk_budgeting_service)
 ) -> Dict[str, Any]:
@@ -318,7 +346,9 @@ async def get_regime_specific_budget(
         regime_budget = await risk_budgeting_service.get_regime_budget(
             RegimeType[regime_type.upper()]
         )
-        
+
+        logger.info(f"[Tenant: {tenant_id}] Retrieved regime-specific budget for {regime_type}")
+
         return {
             "regime": regime_type,
             "volatility_target": regime_budget.volatility_target,
@@ -328,11 +358,15 @@ async def get_regime_specific_budget(
             "risk_factors": regime_budget.risk_factors,
             "description": regime_budget.description
         }
-        
+
+    except HTTPException:
+        raise
     except KeyError:
+        logger.warning(f"[Tenant: {tenant_id}] Invalid regime type: {regime_type}")
         raise HTTPException(
             status_code=400,
             detail=f"Invalid regime type: {regime_type}"
         )
     except Exception as e:
+        logger.error(f"[Tenant: {tenant_id}] Error getting regime budget: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

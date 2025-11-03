@@ -7,6 +7,7 @@ import logging
 import os
 from typing import Dict, Any, Optional
 from fastapi import APIRouter, Depends, Query, Body
+from loguru import logger as log
 
 from ..dependencies import (
     require_view_portfolio,
@@ -14,6 +15,7 @@ from ..dependencies import (
 )
 from ..data import PortfolioDataAccessor
 from ..exchange_sync_integration import trigger_exchange_sync
+from alpha_pulse.api.middleware.tenant_context import get_current_tenant_id
 
 logger = logging.getLogger(__name__)
 
@@ -24,27 +26,30 @@ router = APIRouter()
 async def get_portfolio(
     include_history: bool = Query(False, description="Include portfolio history"),
     refresh: bool = Query(False, description="Force refresh from exchange"),
+    tenant_id: str = Depends(get_current_tenant_id),
     _: Dict[str, Any] = Depends(require_view_portfolio),
     portfolio_accessor: PortfolioDataAccessor = Depends(get_portfolio_accessor)
 ) -> Dict[str, Any]:
     """
     Get portfolio data.
-    
+
     Args:
         include_history: Whether to include historical data
         refresh: Whether to force a refresh from the exchange
-    
+
     Returns:
         Portfolio data
     """
     try:
         # If refresh is requested, get data directly from exchange
         if refresh:
+            log.info(f"[Tenant: {tenant_id}] Fetching portfolio from exchange (force refresh)")
             return await portfolio_accessor._get_portfolio_from_exchange()
-        
+
+        log.info(f"[Tenant: {tenant_id}] Retrieved portfolio (include_history={include_history})")
         return await portfolio_accessor.get_portfolio(include_history=include_history)
     except Exception as e:
-        logger.error(f"Error getting portfolio data: {e}")
+        logger.error(f"[Tenant: {tenant_id}] Error getting portfolio data: {e}")
         return {"error": str(e), "total_value": 0, "cash": 0, "positions": []}
 
 
@@ -56,14 +61,14 @@ async def reload_exchange_data_debug(
 ) -> Dict[str, Any]:
     """
     Force reload of exchange data (DEBUG endpoint, no authentication required).
-    
+
     This endpoint is intended for development and testing purposes only.
     It allows triggering an immediate data refresh without authentication.
-    
+
     Args:
         data_type: Optional type of data to reload (orders, balances, positions, prices, all)
                   If not specified, all data types will be reloaded
-    
+
     Returns:
         Status information about the reload operation
     """
@@ -74,7 +79,10 @@ async def reload_exchange_data_debug(
 
 @router.post("/portfolio/reload")
 async def reload_exchange_data(
+    tenant_id: str = Depends(get_current_tenant_id),
     _: Dict[str, Any] = Depends(require_view_portfolio),
     portfolio_accessor: PortfolioDataAccessor = Depends(get_portfolio_accessor)
 ) -> Dict[str, Any]:
+    """Trigger exchange data reload for tenant's portfolio."""
+    log.info(f"[Tenant: {tenant_id}] Triggering exchange sync")
     return await trigger_exchange_sync(portfolio_accessor._exchange_id)

@@ -30,6 +30,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Reused `@require_tenant_id` decorator from Story 2.2
   - Closes issue #189 (Story 2.3)
 
+- **Tenant context integration for API routes - Phase 1 (P0)** (Story 2.4, EPIC-002)
+  - Integrated `get_current_tenant_id` dependency injection in 14 critical API endpoints
+  - **risk.py router** (5 endpoints):
+    - GET /exposure - Risk exposure metrics with tenant isolation
+    - GET /metrics - Detailed risk metrics per tenant
+    - GET /limits - Tenant-specific risk limits
+    - GET /position-size/{asset} - Position sizing recommendations
+    - GET /report - Comprehensive risk reports
+  - **risk_budget.py router** (6 endpoints):
+    - GET /current - Current risk budget allocations
+    - GET /utilization - Budget utilization metrics
+    - POST /rebalance - Trigger budget rebalancing
+    - GET /recommendations - Rebalancing recommendations
+    - GET /history - Historical budget data
+    - GET /regime/{regime_type} - Regime-specific budgets
+  - **portfolio.py router** (3 endpoints):
+    - GET /portfolio - Portfolio data with tenant isolation
+    - POST /portfolio/reload - Tenant-specific exchange sync
+  - All endpoints include tenant context in log messages `[Tenant: {tenant_id}]`
+  - Comprehensive test coverage: 603 lines of integration tests
+  - Partial progress on issue #165 (Story 2.4)
+
 ### Changed
 - Audited documentation: removed multi-tenant sprint artefacts, refreshed README
   and CLAUDE guidance to match the Poetry-based workflow.
