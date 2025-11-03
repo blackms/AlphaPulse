@@ -226,6 +226,7 @@ jobs:
           --cov-report=term-missing \
           --cov-report=html \
           --cov-report=json \
+          --continue-on-collection-errors \
           -v \
           --tb=short \
           src/alpha_pulse/tests/ || echo "Some tests failed"
