@@ -51,6 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - All endpoints include tenant context in log messages `[Tenant: {tenant_id}]`
   - Comprehensive test coverage: 603 lines of integration tests
 
+
 - **Tenant context integration for API routes - Phase 2 (P1) - COMPLETE** (Story 2.4, EPIC-002)
   - Integrated `get_current_tenant_id` dependency injection in all 11 P1 endpoints
   - **alerts.py router** (2 endpoints):
@@ -65,13 +66,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - GET /system - System metrics with tenant context
     - POST /system/exchange/reload - Exchange sync with tenant isolation
   - **trades.py router** (1 endpoint):
-    - GET /trades - Trade data with tenant filtering
+    - GET /trades - Trade data with tenant isolation and filtering
   - **correlation.py router** (2 endpoints):
-    - GET /correlation/matrix - Correlation matrix with tenant context
-    - GET /correlation/rolling - Rolling correlation with tenant logging
+    - GET /correlation/matrix - Correlation matrix with tenant context and caching
+    - GET /correlation/rolling - Rolling correlations with tenant isolation
   - All endpoints include tenant context in log messages `[Tenant: {tenant_id}]`
   - Test coverage: 1,537 lines of integration tests (21 test classes, 100% pattern consistency)
-  - Closes issues #204, #205, #206
+  - Design documents: Discovery (267 lines), HLD (860 lines), Delivery Plan (800 lines)
+  - RICE Score: 57.6 (HIGH priority)
+  - Closes issues #204 (Router Updates), #205 (Integration Tests), #206 (Documentation)
 
 ### Changed
 - Audited documentation: removed multi-tenant sprint artefacts, refreshed README
