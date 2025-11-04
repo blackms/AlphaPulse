@@ -76,6 +76,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - RICE Score: 57.6 (HIGH priority)
   - Closes issues #204 (Router Updates), #205 (Integration Tests), #206 (Documentation)
 
+- **Tenant context integration for API routes - Phase 3 (P2) - COMPLETE** (Story 2.4, EPIC-002)
+  - **CRITICAL SECURITY FIX**: Added authentication to hedging.py endpoints (was unauthenticated)
+  - Integrated `get_current_tenant_id` and `get_current_user` in all 12 P2 endpoints
+  - **hedging.py router** (3 endpoints - CRITICAL):
+    - GET /analysis - Hedge position analysis (ADDED AUTHENTICATION + tenant context)
+    - POST /execute - Execute hedge adjustments (ADDED AUTHENTICATION + tenant context)
+    - POST /close - Close all hedge positions (ADDED AUTHENTICATION + tenant context)
+  - **ensemble.py router** (9 endpoints):
+    - POST /create - Create ensemble configuration with tenant isolation
+    - POST /{ensemble_id}/register-agent - Register agent with tenant context
+    - POST /{ensemble_id}/predict - Get ensemble prediction per tenant
+    - GET /{ensemble_id}/performance - Performance metrics with tenant isolation
+    - GET /{ensemble_id}/weights - Agent weights per tenant
+    - POST /{ensemble_id}/optimize-weights - Weight optimization with tenant context
+    - GET / - List ensembles (tenant-filtered)
+    - GET /agent-rankings - Agent rankings (tenant-scoped)
+    - DELETE /{ensemble_id} - Delete ensemble with tenant isolation
+  - All endpoints include tenant context in log messages `[Tenant: {tenant_id}] [User: {user.get('sub')}]`
+  - Test coverage: 1,117 lines of integration tests (14 test classes, 35 tests total)
+  - Design documents: Discovery (409 lines), HLD (573 lines), Delivery Plan (1,040 lines)
+  - RICE Score: 64.0 (CRITICAL - highest due to security gap)
+  - Progress: 36/43 endpoints complete (84% of Story 2.4)
+
 - **Tenant context integration for API routes - Phase 4 (P3) - COMPLETE - Story 2.4 FINISHED!** (Story 2.4, EPIC-002)
   - **CRITICAL SECURITY FIX**: Added user authentication to positions.py endpoints (was completely unauthenticated)
   - Integrated `get_current_user` and `get_current_tenant_id` in all 7 P3 endpoints
