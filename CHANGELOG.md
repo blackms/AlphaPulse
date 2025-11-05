@@ -76,6 +76,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - RICE Score: 57.6 (HIGH priority)
   - Closes issues #204 (Router Updates), #205 (Integration Tests), #206 (Documentation)
 
+- **Tenant context integration for API routes - Phase 4 (P3) - COMPLETE - Story 2.4 FINISHED!** (Story 2.4, EPIC-002)
+  - **CRITICAL SECURITY FIX**: Added user authentication to positions.py endpoints (was completely unauthenticated)
+  - Integrated `get_current_user` and `get_current_tenant_id` in all 7 P3 endpoints
+  - **positions.py router** (3 endpoints - CRITICAL):
+    - GET /spot - Spot positions (ADDED USER AUTHENTICATION + tenant context)
+    - GET /futures - Futures positions (ADDED USER AUTHENTICATION + tenant context)
+    - GET /metrics - Position metrics (ADDED USER AUTHENTICATION + tenant context)
+  - **regime.py router** (4 endpoints):
+    - GET /current - Current market regime state with tenant context
+    - GET /history - Historical regime data with tenant context
+    - GET /analysis/{regime_type} - Regime-specific analysis with tenant context
+    - GET /alerts - Regime transition alerts with tenant context
+  - All endpoints include tenant context in log messages `[Tenant: {tenant_id}] [User: {user.get('sub')}]`
+  - Test coverage: 669 lines of integration tests (10 test classes, 24 tests total)
+  - Design documents: Discovery (409 lines), HLD (1,684 lines), Delivery Plan (1,808 lines)
+  - RICE Score: 84.0 (CRITICAL - highest due to authentication gap)
+  - **Story 2.4 Progress: 43/43 endpoints complete (100%)** - All API endpoints now have tenant context!
+
 ### Changed
 - Audited documentation: removed multi-tenant sprint artefacts, refreshed README
   and CLAUDE guidance to match the Poetry-based workflow.
@@ -83,6 +101,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - See MIGRATION.md for upgrade guide
 - **BREAKING**: `RiskManager` methods now require `tenant_id` parameter
   - See MIGRATION.md for upgrade guide
+- **BREAKING**: positions.py endpoints now require JWT authentication (Phase 4)
+  - GET /spot, GET /futures, GET /metrics now require valid JWT token
+  - Returns 401 Unauthorized if token missing/invalid
+  - All API clients must include Authorization header with valid token
+  - See Phase 4 HLD for migration guide
 
 ### Fixed
 - REAL docs now reference the running API (`uvicorn src.alpha_pulse.api.main:app`)

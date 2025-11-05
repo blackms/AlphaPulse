@@ -10,8 +10,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 from pydantic import BaseModel, Field
+from loguru import logger
 
 from alpha_pulse.api.dependencies import get_current_user, get_regime_detection_service
+from alpha_pulse.api.middleware.tenant_context import get_current_tenant_id
 
 router = APIRouter()
 
@@ -45,32 +47,35 @@ class RegimeAnalysisResponse(BaseModel):
 
 @router.get("/current", response_model=RegimeStateResponse)
 async def get_current_regime(
+    tenant_id: str = Depends(get_current_tenant_id),
     current_user: Dict = Depends(get_current_user),
     regime_service = Depends(get_regime_detection_service)
 ) -> RegimeStateResponse:
     """
     Get current market regime state.
-    
+
     Returns the current regime classification with confidence scores
     and transition probabilities to other regimes.
     """
     try:
+        logger.info(f"[Tenant: {tenant_id}] [User: {current_user.get('sub')}] Getting current regime")
+
         # Get current regime info
         regime_info = regime_service.current_regime_info
-        
+
         if not regime_info:
             raise HTTPException(
                 status_code=404,
                 detail="No regime state available yet"
             )
-        
+
         # Get current state from state manager
         current_state = regime_service.state_manager.get_current_state()
-        
+
         # Map regime index to name
         regime_names = ["Bull", "Bear", "Sideways", "High Volatility", "Crisis"]
         current_regime_name = regime_names[regime_info.current_regime] if regime_info.current_regime < len(regime_names) else "Unknown"
-        
+
         # Calculate transition probabilities
         transition_probs = {}
         if hasattr(regime_info, 'transition_matrix') and regime_info.transition_matrix is not None:
@@ -78,7 +83,9 @@ async def get_current_regime(
             for i, name in enumerate(regime_names):
                 if i < len(regime_info.transition_matrix[current_idx]):
                     transition_probs[name] = float(regime_info.transition_matrix[current_idx][i])
-        
+
+        logger.info(f"[Tenant: {tenant_id}] Current regime retrieved: regime={current_regime_name}")
+
         return RegimeStateResponse(
             current_regime=current_regime_name,
             confidence=float(regime_info.confidence),
@@ -87,42 +94,47 @@ async def get_current_regime(
             transition_probabilities=transition_probs,
             stability_score=float(current_state.stability_score) if current_state else 0.8
         )
-        
+
     except Exception as e:
+        logger.error(f"[Tenant: {tenant_id}] Error in Getting current regime: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/history", response_model=RegimeHistoryResponse)
 async def get_regime_history(
     days: int = Query(30, ge=1, le=365, description="Number of days of history"),
+    tenant_id: str = Depends(get_current_tenant_id),
     current_user: Dict = Depends(get_current_user),
     regime_service = Depends(get_regime_detection_service)
 ) -> RegimeHistoryResponse:
     """
     Get historical regime data.
-    
+
     Returns regime history including transitions and duration statistics.
     """
     try:
+        logger.info(f"[Tenant: {tenant_id}] [User: {current_user.get('sub')}] Getting regime history for {days} days")
+
         # Get historical states
         start_date = datetime.now() - timedelta(days=days)
         historical_states = regime_service.state_manager.get_historical_states(
             start_date, datetime.now()
         )
-        
+
         if not historical_states:
+            logger.info(f"[Tenant: {tenant_id}] Regime history retrieved: regimes=0, transitions=0")
             return RegimeHistoryResponse(
                 regimes=[],
                 transitions=[],
                 total_regimes=0,
                 average_duration_days=0
             )
-        
+
         # Process regime data
         regime_names = ["Bull", "Bear", "Sideways", "High Volatility", "Crisis"]
         regimes = []
         transitions = []
-        
+
         for i, state in enumerate(historical_states):
             regime_data = {
                 "regime": regime_names[state.regime] if state.regime < len(regime_names) else "Unknown",
@@ -130,12 +142,12 @@ async def get_regime_history(
                 "confidence": float(state.confidence),
                 "volatility": float(state.features.get('volatility', 0))
             }
-            
+
             # Calculate duration if not the last regime
             if i < len(historical_states) - 1:
                 duration = (historical_states[i+1].timestamp - state.timestamp).total_seconds() / 86400
                 regime_data["duration_days"] = duration
-                
+
                 # Record transition
                 transitions.append({
                     "from_regime": regime_data["regime"],
@@ -143,37 +155,43 @@ async def get_regime_history(
                     "timestamp": historical_states[i+1].timestamp.isoformat(),
                     "confidence": float(historical_states[i+1].confidence)
                 })
-            
+
             regimes.append(regime_data)
-        
+
         # Calculate average duration
         durations = [r.get("duration_days", 0) for r in regimes if "duration_days" in r]
         avg_duration = sum(durations) / len(durations) if durations else 0
-        
+
+        logger.info(f"[Tenant: {tenant_id}] Regime history retrieved: regimes={len(regimes)}, transitions={len(transitions)}")
+
         return RegimeHistoryResponse(
             regimes=regimes,
             transitions=transitions,
             total_regimes=len(regimes),
             average_duration_days=avg_duration
         )
-        
+
     except Exception as e:
+        logger.error(f"[Tenant: {tenant_id}] Error in Getting regime history for {days} days: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/analysis/{regime_type}", response_model=RegimeAnalysisResponse)
 async def get_regime_analysis(
     regime_type: str,
+    tenant_id: str = Depends(get_current_tenant_id),
     current_user: Dict = Depends(get_current_user),
     regime_service = Depends(get_regime_detection_service)
 ) -> RegimeAnalysisResponse:
     """
     Get detailed analysis for a specific regime type.
-    
+
     Returns characteristics, recommended strategies, and historical
     performance for the specified regime.
     """
     try:
+        logger.info(f"[Tenant: {tenant_id}] [User: {current_user.get('sub')}] Getting regime analysis for {regime_type}")
+
         # Validate regime type
         valid_regimes = ["bull", "bear", "sideways", "high_volatility", "crisis"]
         if regime_type.lower() not in valid_regimes:
@@ -181,7 +199,7 @@ async def get_regime_analysis(
                 status_code=400,
                 detail=f"Invalid regime type. Must be one of: {valid_regimes}"
             )
-        
+
         # Define regime characteristics and strategies
         regime_data = {
             "bull": {
@@ -280,9 +298,9 @@ async def get_regime_analysis(
                 }
             }
         }
-        
+
         regime_info = regime_data[regime_type.lower()]
-        
+
         # Get historical performance if available
         historical_performance = {
             "average_return": 0.0,
@@ -291,14 +309,16 @@ async def get_regime_analysis(
             "max_drawdown": 0.0,
             "win_rate": 0.0
         }
-        
+
         if hasattr(regime_service, 'performance_tracker'):
             perf_data = regime_service.performance_tracker.get_regime_performance(
                 regime_type.lower()
             )
             if perf_data:
                 historical_performance.update(perf_data)
-        
+
+        logger.info(f"[Tenant: {tenant_id}] Regime analysis complete: regime_type={regime_type}")
+
         return RegimeAnalysisResponse(
             regime_type=regime_type.title(),
             characteristics=regime_info["characteristics"],
@@ -306,24 +326,30 @@ async def get_regime_analysis(
             risk_adjustments=regime_info["risk_adjustments"],
             historical_performance=historical_performance
         )
-        
+
     except Exception as e:
+        logger.error(f"[Tenant: {tenant_id}] Error in Getting regime analysis for {regime_type}: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/alerts")
 async def get_regime_alerts(
     hours: int = Query(24, ge=1, le=168, description="Hours of alert history"),
+    tenant_id: str = Depends(get_current_tenant_id),
     current_user: Dict = Depends(get_current_user)
 ) -> Dict[str, Any]:
     """
     Get recent regime-related alerts.
-    
+
     Returns alerts for regime transitions and confidence changes.
     """
     try:
+        logger.info(f"[Tenant: {tenant_id}] [User: {current_user.get('sub')}] Getting regime alerts for {hours} hours")
+
         # This would integrate with the alert system
         # For now, return a sample structure
+        logger.info(f"[Tenant: {tenant_id}] Regime alerts retrieved: total=0")
+
         return {
             "regime_transition_alerts": [],
             "confidence_alerts": [],
@@ -331,6 +357,7 @@ async def get_regime_alerts(
             "total_alerts": 0,
             "time_range_hours": hours
         }
-        
+
     except Exception as e:
+        logger.error(f"[Tenant: {tenant_id}] Error in Getting regime alerts for {hours} hours: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
