@@ -53,15 +53,13 @@ def upgrade() -> None:
         sa.Column('created_at', sa.TIMESTAMP(), nullable=False, server_default=sa.text('NOW()')),
         sa.Column('updated_at', sa.TIMESTAMP(), nullable=False, server_default=sa.text('NOW()')),
         sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('tenant_id', name='uq_tenant_cache_quotas_tenant_id')
+        sa.UniqueConstraint('tenant_id', name='uq_tenant_cache_quotas_tenant_id'),
+        sa.CheckConstraint('quota_mb > 0', name='ck_tenant_cache_quotas_quota_positive'),
+        sa.CheckConstraint('current_usage_mb >= 0', name='ck_tenant_cache_quotas_usage_non_negative'),
+        sa.CheckConstraint('overage_limit_mb >= 0', name='ck_tenant_cache_quotas_overage_non_negative')
     )
 
-    # Indexes for tenant_cache_quotas
-    op.create_index(
-        'idx_tenant_cache_quotas_tenant_id',
-        'tenant_cache_quotas',
-        ['tenant_id']
-    )
+    # Note: No explicit tenant_id index needed - unique constraint creates one
 
     # Partial index for overage detection (WHERE current_usage_mb > quota_mb)
     op.execute("""
@@ -95,7 +93,14 @@ def upgrade() -> None:
         sa.Column('total_bytes_served', sa.BigInteger(), server_default='0'),
         sa.Column('created_at', sa.TIMESTAMP(), nullable=False, server_default=sa.text('NOW()')),
         sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('tenant_id', 'metric_date', name='uq_tenant_cache_metrics_tenant_date')
+        sa.UniqueConstraint('tenant_id', 'metric_date', name='uq_tenant_cache_metrics_tenant_date'),
+        sa.CheckConstraint('total_requests >= 0', name='ck_tenant_cache_metrics_requests_non_negative'),
+        sa.CheckConstraint('cache_hits >= 0', name='ck_tenant_cache_metrics_hits_non_negative'),
+        sa.CheckConstraint('cache_misses >= 0', name='ck_tenant_cache_metrics_misses_non_negative'),
+        sa.CheckConstraint('cache_hits <= total_requests', name='ck_tenant_cache_metrics_hits_lte_total'),
+        sa.CheckConstraint('cache_misses <= total_requests', name='ck_tenant_cache_metrics_misses_lte_total'),
+        sa.CheckConstraint('avg_response_time_ms >= 0', name='ck_tenant_cache_metrics_response_time_non_negative'),
+        sa.CheckConstraint('total_bytes_served >= 0', name='ck_tenant_cache_metrics_bytes_non_negative')
     )
 
     # Computed column for hit_rate (GENERATED ALWAYS AS ... STORED)
@@ -195,5 +200,4 @@ def downgrade() -> None:
     op.execute('DROP POLICY IF EXISTS tenant_cache_quotas_isolation_policy ON tenant_cache_quotas')
     op.drop_constraint('fk_tenant_cache_quotas_tenant_id', 'tenant_cache_quotas', type_='foreignkey')
     op.drop_index('idx_tenant_cache_quotas_overage', table_name='tenant_cache_quotas')
-    op.drop_index('idx_tenant_cache_quotas_tenant_id', table_name='tenant_cache_quotas')
     op.drop_table('tenant_cache_quotas')
