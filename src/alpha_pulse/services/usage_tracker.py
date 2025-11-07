@@ -207,3 +207,12 @@ class UsageTracker:
                 f"Usage delete failed: tenant_id={tenant_id}, error={e}"
             )
             raise
+
+    # Aliases for simpler method names (backward compatibility with tests)
+    async def increment(self, tenant_id: UUID, size_mb: float) -> float:
+        """Alias for increment_usage."""
+        return await self.increment_usage(tenant_id, size_mb)
+
+    async def decrement(self, tenant_id: UUID, size_mb: float) -> float:
+        """Alias for decrement_usage."""
+        return await self.decrement_usage(tenant_id, size_mb)
