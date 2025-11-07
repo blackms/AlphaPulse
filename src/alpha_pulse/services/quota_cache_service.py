@@ -13,6 +13,11 @@ from sqlalchemy import select
 
 from alpha_pulse.models.quota import QuotaConfig
 from alpha_pulse.models.cache_quota import TenantCacheQuota
+from alpha_pulse.middleware.quota_metrics import (
+    quota_cache_hits_total,
+    quota_cache_misses_total,
+    redis_errors_total,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -76,12 +81,14 @@ class QuotaCacheService:
         # Try Redis (L1 cache)
         config = await self._get_from_redis(tenant_id)
         if config is not None:
+            quota_cache_hits_total.labels(tenant_id=str(tenant_id)).inc()
             logger.debug(
                 f"Quota cache hit: tenant_id={tenant_id}, source=redis"
             )
             return config
 
         # Cache miss - fallback to PostgreSQL (L2)
+        quota_cache_misses_total.labels(tenant_id=str(tenant_id)).inc()
         logger.debug(
             f"Quota cache miss: tenant_id={tenant_id}"
         )
@@ -104,7 +111,7 @@ class QuotaCacheService:
 
     async def _get_from_redis(self, tenant_id: UUID) -> Optional[QuotaConfig]:
         """
-        Get quota configuration from Redis.
+        Get quota configuration from Redis using pipelining.
 
         Args:
             tenant_id: Tenant identifier
@@ -113,31 +120,30 @@ class QuotaCacheService:
             QuotaConfig if found in cache, None on cache miss
         """
         try:
-            # Fetch all quota fields from Redis
-            quota_mb = await self.redis.get(self._get_quota_key(tenant_id))
+            # Use pipeline to fetch all quota fields in a single round-trip
+            pipe = self.redis.pipeline()
+            pipe.get(self._get_quota_key(tenant_id))
+            pipe.get(self._get_overage_allowed_key(tenant_id))
+            pipe.get(self._get_overage_limit_key(tenant_id))
+            pipe.get(self._get_usage_key(tenant_id))
+
+            results = await pipe.execute()
+            quota_mb, overage_allowed, overage_limit_mb, current_usage_mb = results
+
             if quota_mb is None:
                 return None  # Cache miss
-
-            overage_allowed = await self.redis.get(
-                self._get_overage_allowed_key(tenant_id)
-            )
-            overage_limit_mb = await self.redis.get(
-                self._get_overage_limit_key(tenant_id)
-            )
-            current_usage_mb = await self.redis.get(
-                self._get_usage_key(tenant_id)
-            )
 
             # Construct QuotaConfig
             return QuotaConfig(
                 tenant_id=tenant_id,
                 quota_mb=float(quota_mb),
                 current_usage_mb=float(current_usage_mb or 0),
-                overage_allowed=overage_allowed == "true",
+                overage_allowed=overage_allowed == b"true" if isinstance(overage_allowed, bytes) else overage_allowed == "true",
                 overage_limit_mb=float(overage_limit_mb or 0)
             )
 
         except Exception as e:
+            redis_errors_total.labels(operation="get_quota").inc()
             logger.error(
                 f"Redis get failed: tenant_id={tenant_id}, error={e}"
             )

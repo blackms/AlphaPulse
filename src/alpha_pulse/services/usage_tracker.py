@@ -9,6 +9,12 @@ from typing import Optional
 from uuid import UUID
 from redis.asyncio import Redis
 
+from alpha_pulse.middleware.quota_metrics import (
+    quota_usage_increments_total,
+    quota_usage_rollbacks_total,
+    redis_errors_total,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -64,6 +70,8 @@ class UsageTracker:
         try:
             new_usage = await self.redis.incrbyfloat(key, size_mb)
 
+            quota_usage_increments_total.labels(tenant_id=str(tenant_id)).inc()
+
             logger.debug(
                 f"Usage incremented: tenant_id={tenant_id}, size_mb={size_mb}, new_usage_mb={new_usage}"
             )
@@ -71,6 +79,7 @@ class UsageTracker:
             return float(new_usage)
 
         except Exception as e:
+            redis_errors_total.labels(operation="increment_usage").inc()
             logger.error(
                 f"Usage increment failed: tenant_id={tenant_id}, size_mb={size_mb}, error={e}"
             )
@@ -105,6 +114,8 @@ class UsageTracker:
                 await self.redis.set(key, 0)
                 new_usage = 0.0
 
+            quota_usage_rollbacks_total.labels(tenant_id=str(tenant_id)).inc()
+
             logger.debug(
                 f"Usage decremented: tenant_id={tenant_id}, size_mb={size_mb}, new_usage_mb={new_usage}"
             )
@@ -112,6 +123,7 @@ class UsageTracker:
             return float(new_usage)
 
         except Exception as e:
+            redis_errors_total.labels(operation="decrement_usage").inc()
             logger.error(
                 f"Usage decrement failed: tenant_id={tenant_id}, size_mb={size_mb}, error={e}"
             )

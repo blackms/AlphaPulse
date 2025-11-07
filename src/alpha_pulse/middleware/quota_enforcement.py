@@ -17,6 +17,14 @@ from alpha_pulse.models.quota import QuotaDecision
 from alpha_pulse.services.quota_checker import QuotaChecker
 from alpha_pulse.services.quota_cache_service import QuotaCacheService
 from alpha_pulse.services.usage_tracker import UsageTracker
+from alpha_pulse.middleware.quota_metrics import (
+    quota_checks_total,
+    quota_rejections_total,
+    quota_warnings_total,
+    quota_check_latency_ms,
+    quota_enforcement_enabled,
+    quota_excluded_paths_total,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +88,9 @@ class QuotaEnforcementMiddleware(BaseHTTPMiddleware):
             logger.warning("Quota enforcement disabled: no Redis/DB clients provided")
             self.enabled = False
 
+        # Update metrics
+        quota_enforcement_enabled.set(1 if self.enabled else 0)
+
     async def dispatch(
         self,
         request: Request,
@@ -101,6 +112,7 @@ class QuotaEnforcementMiddleware(BaseHTTPMiddleware):
 
         # Skip excluded paths
         if self._is_excluded_path(request.url.path):
+            quota_excluded_paths_total.labels(path=request.url.path).inc()
             return await call_next(request)
 
         # Extract tenant context
@@ -128,6 +140,21 @@ class QuotaEnforcementMiddleware(BaseHTTPMiddleware):
             )
 
             latency_ms = (time.perf_counter() - start_time) * 1000
+
+            # Record metrics
+            quota_checks_total.labels(
+                tenant_id=str(tenant_id),
+                decision=result.decision.value
+            ).inc()
+
+            quota_check_latency_ms.labels(
+                operation="quota_check"
+            ).observe(latency_ms)
+
+            if result.decision == QuotaDecision.REJECT:
+                quota_rejections_total.labels(tenant_id=str(tenant_id)).inc()
+            elif result.decision == QuotaDecision.WARN:
+                quota_warnings_total.labels(tenant_id=str(tenant_id)).inc()
 
             logger.info(
                 f"Quota check completed: tenant_id={tenant_id}, decision={result.decision.value}, "
