@@ -67,7 +67,7 @@ def mock_db_session():
 
 
 @pytest.fixture
-async def cache_manager(mock_redis_manager, mock_db_session):
+def cache_manager(mock_redis_manager, mock_db_session):
     """TenantCacheManager fixture."""
     manager = TenantCacheManager(
         redis_manager=mock_redis_manager,
