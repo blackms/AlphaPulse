@@ -9,6 +9,8 @@ AlphaPulse is a sophisticated AI-driven hedge fund system that combines multiple
 ## Key Commands
 
 ### Build and Run
+
+#### Local Development
 ```bash
 # Install dependencies
 poetry install
@@ -21,6 +23,36 @@ poetry shell
 
 # Run the dashboard
 cd dashboard && npm install && npm start
+```
+
+#### Docker (Recommended for Production-Like Environment)
+```bash
+# Build and start all services (API, PostgreSQL, Redis, MLflow, Prometheus, Grafana)
+docker-compose up --build
+
+# Start services in background
+docker-compose up -d
+
+# View logs
+docker-compose logs -f alphapulse
+
+# Stop all services
+docker-compose down
+
+# Stop and remove volumes (clean slate)
+docker-compose down -v
+
+# Check service health
+docker-compose ps
+```
+
+**Services Available**:
+- API: http://localhost:8000 (FastAPI + Swagger docs at /docs)
+- PostgreSQL: localhost:5432 (alphapulse/alphapulse)
+- Redis: localhost:6379
+- MLflow: http://localhost:5000
+- Prometheus: http://localhost:9090
+- Grafana: http://localhost:3000 (admin/alphapulse)
 ```
 
 ### Testing

@@ -15,10 +15,11 @@ RUN apt-get update && apt-get install -y \
     wget \
     && rm -rf /var/lib/apt/lists/*
 
-# Install TA-Lib C library v0.6.4
-RUN wget https://github.com/ta-lib/ta-lib/releases/download/v0.6.4/ta-lib_0.6.4_amd64.deb -O ta-lib_0.6.4_amd64.deb \
-    && dpkg -i ta-lib_0.6.4_amd64.deb \
-    && rm ta-lib_0.6.4_amd64.deb
+# Install TA-Lib C library v0.6.4 (multi-architecture support)
+RUN ARCH=$(dpkg --print-architecture) && \
+    wget https://github.com/ta-lib/ta-lib/releases/download/v0.6.4/ta-lib_0.6.4_${ARCH}.deb -O ta-lib.deb && \
+    dpkg -i ta-lib.deb && \
+    rm ta-lib.deb
 
 # Install Poetry
 ENV POETRY_VERSION=1.7.1

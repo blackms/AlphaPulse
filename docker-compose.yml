@@ -1,21 +1,82 @@
 version: '3.8'
 
 services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: alphapulse-postgres
+    environment:
+      POSTGRES_DB: alphapulse
+      POSTGRES_USER: alphapulse
+      POSTGRES_PASSWORD: alphapulse
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U alphapulse"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: alphapulse-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+  # AlphaPulse FastAPI Application
   alphapulse:
     build: .
+    container_name: alphapulse-api
     environment:
       - PYTHONUNBUFFERED=1
       - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - DATABASE_URL=postgresql://alphapulse:alphapulse@postgres:5432/alphapulse
+      - REDIS_URL=redis://redis:6379/0
+      - LOG_LEVEL=INFO
     volumes:
       - ./logs:/app/logs
       - ./feature_cache:/app/feature_cache
       - ./trained_models:/app/trained_models
     ports:
-      - "8000:8000"  # Prometheus metrics
-    command: python -m alpha_pulse.examples.demo_paper_trading
+      - "8000:8000"  # FastAPI + Prometheus metrics
+    command: python -m uvicorn alpha_pulse.api.main:app --host 0.0.0.0 --port 8000 --workers 2
     depends_on:
-      - mlflow
-      - prometheus
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mlflow:
+        condition: service_started
+      prometheus:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
 
   mlflow:
     image: ghcr.io/mlflow/mlflow:v2.8.0
@@ -51,5 +112,7 @@ services:
       - prometheus
 
 volumes:
+  postgres_data:
+  redis_data:
   prometheus_data:
   grafana_data:
