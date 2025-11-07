@@ -1,7 +1,7 @@
 """Add cache quota and metrics tables for multi-tenant caching
 
 Revision ID: 010_cache_quotas
-Revises: 009_composite_indexes
+Revises: 07d2e2f23eab
 Create Date: 2025-11-07
 
 EPIC-004: Caching Layer
@@ -20,7 +20,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers
 revision = '010_cache_quotas'
-down_revision = '009_composite_indexes'
+down_revision = '07d2e2f23eab'
 branch_labels = None
 depends_on = None
 
