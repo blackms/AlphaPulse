@@ -63,16 +63,15 @@ class RLSTestDataGenerator:
             for i in range(count):
                 try:
                     await conn.execute("""
-                        INSERT INTO users (id, tenant_id, email, username, created_at)
-                        VALUES ($1, $2, $3, $4, $5)
-                        ON CONFLICT (id) DO NOTHING
-                    """, uuid4(), tenant_id, f"user{i}@tenant{tenant_id}.com",
-                        f"user{i}", datetime.now() - timedelta(days=random.randint(1, 365)))
+                        INSERT INTO users (tenant_id, email, username, created_at)
+                        VALUES ($1, $2, $3, $4)
+                    """, tenant_id, f"user{i}_tenant{str(tenant_id)[:8]}@test.com",
+                        f"user{i}_tenant{str(tenant_id)[:8]}", datetime.now() - timedelta(days=random.randint(1, 365)))
                 except Exception as e:
                     print(f"    Warning: User generation error: {e}")
                     continue
 
-    async def generate_trading_accounts(self, tenant_id: UUID, user_id: UUID, count: int = 2):
+    async def generate_trading_accounts(self, tenant_id: UUID, user_id: int, count: int = 2):
         """Generate test trading accounts for a user."""
         exchanges = ["binance", "coinbase"]
 
@@ -80,10 +79,9 @@ class RLSTestDataGenerator:
             for i in range(count):
                 try:
                     await conn.execute("""
-                        INSERT INTO trading_accounts (id, tenant_id, user_id, exchange, account_name, created_at)
-                        VALUES ($1, $2, $3, $4, $5, $6)
-                        ON CONFLICT (id) DO NOTHING
-                    """, uuid4(), tenant_id, user_id, exchanges[i],
+                        INSERT INTO trading_accounts (tenant_id, user_id, exchange, account_name, created_at)
+                        VALUES ($1, $2, $3, $4, $5)
+                    """, tenant_id, user_id, exchanges[i],
                         f"{exchanges[i]}_account", datetime.now() - timedelta(days=random.randint(1, 180)))
                 except Exception as e:
                     print(f"    Warning: Trading account generation error: {e}")
@@ -93,6 +91,19 @@ class RLSTestDataGenerator:
         """Generate test trades for a tenant with realistic time distribution."""
         print(f"  Generating {count} trades for tenant {tenant_id}...")
 
+        # Get account_id for this tenant
+        async with self.pool.acquire() as conn:
+            account_id = await conn.fetchval(
+                "SELECT id FROM trading_accounts WHERE tenant_id = $1 LIMIT 1", tenant_id
+            )
+            if not account_id:
+                print(f"    ⚠️  No trading account found for tenant {tenant_id}, creating one...")
+                account_id = await conn.fetchval("""
+                    INSERT INTO trading_accounts (tenant_id, user_id, exchange, account_name, api_key_encrypted, api_secret_encrypted, created_at)
+                    VALUES ($1, 1, 'test_exchange', 'test_account', 'encrypted', 'encrypted', NOW())
+                    RETURNING id
+                """, tenant_id)
+
         trades = []
         base_time = datetime.now() - timedelta(days=90)  # 3 months of data
 
@@ -101,15 +112,23 @@ class RLSTestDataGenerator:
             symbol = random.choice(self.symbols)
             price = self._get_realistic_price(symbol)
             quantity = random.uniform(0.01, 10.0)
+            side = random.choice(self.sides)
+            gross_value = quantity * price
+            net_value = gross_value * 0.999  # 0.1% fee
 
             trade = (
-                uuid4(),  # id
-                tenant_id,  # tenant_id
+                f"TRADE_{i}_{str(tenant_id)[:8]}",  # trade_id
+                account_id,  # account_id
                 symbol,  # symbol
-                random.choice(self.sides),  # side
+                side,  # side
+                "limit",  # trade_type
                 quantity,  # quantity
                 price,  # price
-                base_time + timedelta(minutes=random.randint(0, 90*24*60))  # executed_at
+                gross_value * 0.001,  # fee (0.1%)
+                gross_value,  # gross_value
+                net_value,  # net_value
+                base_time + timedelta(minutes=random.randint(0, 90*24*60)),  # executed_at
+                tenant_id  # tenant_id
             )
             trades.append(trade)
 
@@ -117,9 +136,8 @@ class RLSTestDataGenerator:
         async with self.pool.acquire() as conn:
             try:
                 await conn.executemany("""
-                    INSERT INTO trades (id, tenant_id, symbol, side, quantity, price, executed_at)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7)
-                    ON CONFLICT (id) DO NOTHING
+                    INSERT INTO trades (trade_id, account_id, symbol, side, trade_type, quantity, price, fee, gross_value, net_value, executed_at, tenant_id)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
                 """, trades)
                 print(f"    ✓ Inserted {count} trades")
             except Exception as e:
@@ -130,21 +148,35 @@ class RLSTestDataGenerator:
         """Generate test positions for a tenant."""
         print(f"  Generating {count} positions for tenant {tenant_id}...")
 
+        # Get account_id for this tenant
+        async with self.pool.acquire() as conn:
+            account_id = await conn.fetchval(
+                "SELECT id FROM trading_accounts WHERE tenant_id = $1 LIMIT 1", tenant_id
+            )
+            if not account_id:
+                print(f"    ⚠️  No trading account found, skipping positions")
+                return
+
         positions = []
         for i in range(count):
             symbol = random.choice(self.symbols)
-            quantity = random.uniform(0.1, 100.0)
-            avg_entry_price = self._get_realistic_price(symbol)
-            current_price = avg_entry_price * random.uniform(0.9, 1.1)
+            size = random.uniform(0.1, 100.0)
+            entry_price = self._get_realistic_price(symbol)
+            current_price = entry_price * random.uniform(0.9, 1.1)
+            unrealized_pnl = (current_price - entry_price) * size
+            side = random.choice(self.sides)
 
             position = (
-                uuid4(),  # id
-                tenant_id,  # tenant_id
+                f"POS_{i}_{str(tenant_id)[:8]}",  # position_id
+                account_id,  # account_id
                 symbol,  # symbol
-                quantity,  # quantity
-                avg_entry_price,  # avg_entry_price
+                side,  # side
+                size,  # size
+                entry_price,  # entry_price
                 current_price,  # current_price
-                datetime.now() - timedelta(days=random.randint(0, 30))  # created_at
+                unrealized_pnl,  # unrealized_pnl
+                datetime.now() - timedelta(days=random.randint(0, 30)),  # opened_at
+                tenant_id  # tenant_id
             )
             positions.append(position)
 
@@ -152,9 +184,8 @@ class RLSTestDataGenerator:
         async with self.pool.acquire() as conn:
             try:
                 await conn.executemany("""
-                    INSERT INTO positions (id, tenant_id, symbol, quantity, avg_entry_price, current_price, created_at)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7)
-                    ON CONFLICT (id) DO NOTHING
+                    INSERT INTO positions (position_id, account_id, symbol, side, size, entry_price, current_price, unrealized_pnl, opened_at, tenant_id)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
                 """, positions)
                 print(f"    ✓ Inserted {count} positions")
             except Exception as e:
