@@ -21,15 +21,25 @@ Usage:
 """
 import json
 import logging
-from typing import Any, Dict, List, Optional
+import zlib
+from typing import Any, Dict, List, Optional, Callable
 from uuid import UUID
 from datetime import datetime
 from decimal import Decimal
+from functools import wraps
+import asyncio
 
 from ..cache.redis_manager import RedisManager
 from ..utils.logging_utils import get_logger
 
 logger = get_logger(__name__)
+
+# Constants
+DEFAULT_QUOTA_MB = 100
+DEFAULT_QUOTA_CACHE_TTL = 300  # 5 minutes
+COMPRESSION_THRESHOLD = 1024  # 1KB
+EVICTION_BATCH_SIZE = 10
+EVICTION_TARGET_PERCENT = 0.9  # Evict to 90% of quota
 
 
 class QuotaExceededException(Exception):
@@ -38,6 +48,41 @@ class QuotaExceededException(Exception):
     def __init__(self, tenant_id: UUID, message: str):
         self.tenant_id = tenant_id
         super().__init__(message)
+
+
+class CacheOperationError(Exception):
+    """Raised when cache operation fails."""
+    pass
+
+
+def log_cache_operation(operation: str):
+    """
+    Decorator to log cache operations with timing.
+
+    Args:
+        operation: Operation name (e.g., 'get', 'set', 'delete')
+    """
+    def decorator(func: Callable):
+        @wraps(func)
+        async def wrapper(self, tenant_id: UUID, *args, **kwargs):
+            start_time = datetime.utcnow()
+            try:
+                result = await func(self, tenant_id, *args, **kwargs)
+                duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+                logger.debug(
+                    f"Cache {operation} for tenant {tenant_id}: "
+                    f"{duration_ms:.2f}ms"
+                )
+                return result
+            except Exception as e:
+                duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+                logger.error(
+                    f"Cache {operation} failed for tenant {tenant_id}: {e} "
+                    f"({duration_ms:.2f}ms)"
+                )
+                raise
+        return wrapper
+    return decorator
 
 
 class TenantCacheManager:
@@ -58,7 +103,9 @@ class TenantCacheManager:
     def __init__(
         self,
         redis_manager: RedisManager,
-        db_session: Any  # AsyncSession, kept as Any to avoid import
+        db_session: Any,  # AsyncSession, kept as Any to avoid import
+        compression_enabled: bool = True,
+        compression_threshold: int = COMPRESSION_THRESHOLD
     ):
         """
         Initialize tenant cache manager.
@@ -66,14 +113,18 @@ class TenantCacheManager:
         Args:
             redis_manager: Redis manager instance
             db_session: Async database session
+            compression_enabled: Enable compression for large payloads
+            compression_threshold: Minimum size in bytes to trigger compression
         """
         self.redis = redis_manager
         self.db = db_session
+        self.compression_enabled = compression_enabled
+        self.compression_threshold = compression_threshold
 
         # Quota cache (tenant_id → quota_bytes, timestamp)
         self._quota_cache: Dict[UUID, int] = {}
         self._quota_cache_timestamps: Dict[UUID, datetime] = {}
-        self._quota_cache_ttl = 300  # 5 minutes
+        self._quota_cache_ttl = DEFAULT_QUOTA_CACHE_TTL
 
     async def get(
         self,
@@ -168,8 +219,8 @@ class TenantCacheManager:
                     f"{usage + payload_size} / {quota} bytes"
                 )
 
-                # Try to evict 10% of quota to make room
-                target_size = int(quota * 0.9)
+                # Try to evict to 90% of quota to make room
+                target_size = int(quota * EVICTION_TARGET_PERCENT)
                 evicted = await self._evict_tenant_lru(tenant_id, target_size)
 
                 logger.info(f"Evicted {evicted} bytes for tenant {tenant_id}")
@@ -335,17 +386,22 @@ class TenantCacheManager:
 
     def _serialize(self, value: Any) -> bytes:
         """
-        Serialize value to bytes (JSON).
+        Serialize value to bytes (JSON) with optional compression.
 
         Handles special types:
         - Decimal → string
         - datetime → ISO format string
 
+        Compression:
+        - Enabled if payload > compression_threshold
+        - Uses zlib compression (level 6)
+        - Prepends b'Z' marker for compressed data
+
         Args:
             value: Value to serialize
 
         Returns:
-            Serialized bytes
+            Serialized (and optionally compressed) bytes
         """
         def json_encoder(obj):
             """Custom JSON encoder for special types."""
@@ -355,19 +411,45 @@ class TenantCacheManager:
                 return obj.isoformat()
             raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 
-        return json.dumps(value, default=json_encoder).encode('utf-8')
+        # Serialize to JSON
+        serialized = json.dumps(value, default=json_encoder).encode('utf-8')
+
+        # Compress if enabled and above threshold
+        if self.compression_enabled and len(serialized) > self.compression_threshold:
+            try:
+                compressed = zlib.compress(serialized, level=6)
+                # Only use compression if it actually saves space
+                if len(compressed) < len(serialized):
+                    logger.debug(
+                        f"Compressed payload: {len(serialized)} → {len(compressed)} bytes "
+                        f"({len(compressed)/len(serialized)*100:.1f}%)"
+                    )
+                    return b'Z' + compressed  # Prepend marker
+            except Exception as e:
+                logger.warning(f"Compression failed, using uncompressed: {e}")
+
+        return serialized
 
     def _deserialize(self, data: bytes) -> Any:
         """
-        Deserialize bytes to value (JSON).
+        Deserialize bytes to value (JSON) with automatic decompression.
 
         Args:
-            data: Serialized bytes
+            data: Serialized (and optionally compressed) bytes
 
         Returns:
             Deserialized value
         """
-        return json.loads(data.decode('utf-8'))
+        try:
+            # Check for compression marker
+            if data.startswith(b'Z'):
+                data = zlib.decompress(data[1:])  # Skip marker
+
+            return json.loads(data.decode('utf-8'))
+
+        except Exception as e:
+            logger.error(f"Deserialization failed: {e}")
+            raise
 
     async def _get_quota(self, tenant_id: UUID) -> int:
         """
@@ -392,7 +474,7 @@ class TenantCacheManager:
                 {'tenant_id': tenant_id}
             )
             row = result.fetchone()
-            quota_mb = row[0] if row else 100  # Default: 100MB
+            quota_mb = row[0] if row else DEFAULT_QUOTA_MB
 
             quota_bytes = quota_mb * 1024 * 1024
 
@@ -404,7 +486,7 @@ class TenantCacheManager:
 
         except Exception as e:
             logger.error(f"Error fetching quota for tenant {tenant_id}: {e}")
-            return 100 * 1024 * 1024  # Default 100MB
+            return DEFAULT_QUOTA_MB * 1024 * 1024  # Default
 
     async def _get_usage(self, tenant_id: UUID) -> int:
         """
@@ -527,12 +609,11 @@ class TenantCacheManager:
         )
 
         total_evicted = 0
-        batch_size = 10
 
         try:
             while total_evicted < bytes_to_evict:
                 # Get oldest keys (lowest scores in sorted set)
-                oldest_keys = await self.redis.zpopmin(lru_key, batch_size)
+                oldest_keys = await self.redis.zpopmin(lru_key, EVICTION_BATCH_SIZE)
 
                 if not oldest_keys:
                     break  # No more keys to evict
