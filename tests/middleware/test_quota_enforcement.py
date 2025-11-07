@@ -124,12 +124,15 @@ class TestQuotaDecisions:
             return_value=quota_config
         ):
             # Execute
-            decision = await checker.check_quota(test_tenant_id, write_size_mb=10.0)
+            result = await checker.check_quota(test_tenant_id, write_size_mb=10.0)
 
             # Assert
-            assert decision == QuotaDecision.ALLOW
-            assert mock_redis.incrbyfloat.called
-            assert not mock_redis.decrbyfloat.called  # No rollback
+            assert result.decision == QuotaDecision.ALLOW
+            assert result.allowed
+            assert not result.rejected
+            assert result.new_usage_mb == 60.0
+            # Should be called once for increment only (no rollback)
+            assert mock_redis.incrbyfloat.call_count == 1
 
     @pytest.mark.asyncio
     async def test_check_quota_warn(
@@ -163,12 +166,15 @@ class TestQuotaDecisions:
             return_value=quota_config
         ):
             # Execute
-            decision = await checker.check_quota(test_tenant_id, write_size_mb=10.0)
+            result = await checker.check_quota(test_tenant_id, write_size_mb=10.0)
 
             # Assert
-            assert decision == QuotaDecision.WARN
-            assert mock_redis.incrbyfloat.called
-            assert not mock_redis.decrbyfloat.called  # No rollback
+            assert result.decision == QuotaDecision.WARN
+            assert result.allowed
+            assert not result.rejected
+            assert result.new_usage_mb == 105.0
+            # Should be called once for increment only (no rollback)
+            assert mock_redis.incrbyfloat.call_count == 1
 
     @pytest.mark.asyncio
     async def test_check_quota_reject(
@@ -202,12 +208,15 @@ class TestQuotaDecisions:
             return_value=quota_config
         ):
             # Execute
-            decision = await checker.check_quota(test_tenant_id, write_size_mb=10.0)
+            result = await checker.check_quota(test_tenant_id, write_size_mb=10.0)
 
             # Assert
-            assert decision == QuotaDecision.REJECT
-            assert mock_redis.incrbyfloat.called
-            assert mock_redis.decrbyfloat.called  # Rollback called
+            assert result.decision == QuotaDecision.REJECT
+            assert not result.allowed
+            assert result.rejected
+            assert result.new_usage_mb is None  # Not allocated
+            # Should be called twice: once for increment, once for rollback (with negative value)
+            assert mock_redis.incrbyfloat.call_count == 2
 
 
 class TestUsageTracking:

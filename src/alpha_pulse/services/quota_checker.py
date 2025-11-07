@@ -69,7 +69,7 @@ class QuotaChecker:
             Exception: If quota cannot be determined
         """
         # Step 1: Get quota configuration
-        quota_config = await self.cache_service.get_quota_config(tenant_id)
+        quota_config = await self.cache_service.get_quota(tenant_id)
         if quota_config is None:
             logger.error(
                 f"Quota config not found: tenant_id={tenant_id}"
@@ -175,7 +175,7 @@ class QuotaChecker:
         Returns:
             QuotaConfig with current usage, or None if no quota
         """
-        return await self.cache_service.get_quota_config(tenant_id)
+        return await self.cache_service.get_quota(tenant_id)
 
     async def release_quota(
         self,
