@@ -11,6 +11,12 @@ from typing import List, Dict, Optional
 from uuid import UUID
 from redis.asyncio import Redis
 
+from alpha_pulse.middleware.lru_metrics import (
+    lru_track_operations_total,
+    lru_tracked_keys_current,
+    lru_errors_total,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -78,6 +84,9 @@ class LRUTracker:
                 )
                 await pipe.execute()
 
+            # Update metrics
+            lru_track_operations_total.labels(tenant_id=str(tenant_id)).inc()
+
             logger.debug(
                 f"LRU tracked: tenant_id={tenant_id}, cache_key={cache_key}, "
                 f"timestamp={timestamp}"
@@ -86,6 +95,11 @@ class LRUTracker:
             return timestamp
 
         except Exception as e:
+            lru_errors_total.labels(
+                operation="track_access",
+                error_type=type(e).__name__
+            ).inc()
+
             logger.error(
                 f"LRU track failed: tenant_id={tenant_id}, cache_key={cache_key}, "
                 f"error={e}"
@@ -155,6 +169,9 @@ class LRUTracker:
         try:
             count = await self.redis.zcard(lru_key)
 
+            # Update gauge metric
+            lru_tracked_keys_current.labels(tenant_id=str(tenant_id)).set(count)
+
             logger.debug(
                 f"LRU count: tenant_id={tenant_id}, count={count}"
             )
@@ -162,6 +179,11 @@ class LRUTracker:
             return count
 
         except Exception as e:
+            lru_errors_total.labels(
+                operation="get_lru_count",
+                error_type=type(e).__name__
+            ).inc()
+
             logger.error(
                 f"LRU count failed: tenant_id={tenant_id}, error={e}"
             )

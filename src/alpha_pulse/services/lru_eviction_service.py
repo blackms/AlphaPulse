@@ -6,6 +6,7 @@ Integrates LRU tracker, usage tracker, and quota cache for complete workflow.
 """
 
 import logging
+import time
 from typing import Dict, List, Optional
 from uuid import UUID
 from redis.asyncio import Redis
@@ -14,6 +15,16 @@ from alpha_pulse.models.quota import QuotaConfig
 from alpha_pulse.services.lru_tracker import LRUTracker
 from alpha_pulse.services.usage_tracker import UsageTracker
 from alpha_pulse.services.quota_cache_service import QuotaCacheService
+from alpha_pulse.middleware.lru_metrics import (
+    lru_eviction_operations_total,
+    lru_keys_evicted_total,
+    lru_eviction_size_bytes_total,
+    lru_eviction_latency_ms,
+    lru_eviction_batch_size,
+    lru_eviction_target_reached_total,
+    lru_eviction_target_failed_total,
+    lru_errors_total,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -197,6 +208,10 @@ class LRUEvictionService:
             # Decrement usage counter
             new_usage = await self.usage_tracker.decrement_usage(tenant_id, size_mb)
 
+            # Update metrics
+            lru_keys_evicted_total.labels(tenant_id=str(tenant_id)).inc()
+            lru_eviction_size_bytes_total.labels(tenant_id=str(tenant_id)).inc(size_bytes)
+
             logger.info(
                 f"Key evicted: tenant_id={tenant_id}, cache_key={cache_key}, "
                 f"size={size_mb:.3f}MB, new_usage={new_usage:.2f}MB"
@@ -205,6 +220,11 @@ class LRUEvictionService:
             return size_mb
 
         except Exception as e:
+            lru_errors_total.labels(
+                operation="evict_key",
+                error_type=type(e).__name__
+            ).inc()
+
             logger.error(
                 f"Evict key failed: tenant_id={tenant_id}, cache_key={cache_key}, "
                 f"error={e}"
@@ -285,6 +305,14 @@ class LRUEvictionService:
                 if total_size_mb > 0:
                     await self.usage_tracker.decrement_usage(tenant_id, total_size_mb)
 
+            # Update metrics
+            if evicted_count > 0:
+                lru_eviction_batch_size.observe(evicted_count)
+                lru_eviction_operations_total.labels(
+                    tenant_id=str(tenant_id),
+                    trigger="batch"
+                ).inc()
+
             logger.info(
                 f"Batch eviction: tenant_id={tenant_id}, "
                 f"evicted={evicted_count}, failed={failed_count}, "
@@ -298,6 +326,11 @@ class LRUEvictionService:
             }
 
         except Exception as e:
+            lru_errors_total.labels(
+                operation="evict_batch",
+                error_type=type(e).__name__
+            ).inc()
+
             logger.error(
                 f"Batch eviction failed: tenant_id={tenant_id}, "
                 f"count={len(cache_keys)}, error={e}"
@@ -336,6 +369,9 @@ class LRUEvictionService:
         Raises:
             redis.RedisError: If Redis operation fails
         """
+        # Start timing
+        start_time = time.time()
+
         try:
             # Check if eviction needed
             if not await self.needs_eviction(tenant_id, quota_config):
@@ -419,10 +455,25 @@ class LRUEvictionService:
 
             success = final_usage <= target_usage_mb
 
+            # Record metrics
+            elapsed_ms = (time.time() - start_time) * 1000
+            lru_eviction_latency_ms.labels(operation="to_target").observe(elapsed_ms)
+
+            if success:
+                lru_eviction_target_reached_total.labels(tenant_id=str(tenant_id)).inc()
+            else:
+                lru_eviction_target_failed_total.labels(tenant_id=str(tenant_id)).inc()
+
+            lru_eviction_operations_total.labels(
+                tenant_id=str(tenant_id),
+                trigger="quota_exceeded"
+            ).inc()
+
             logger.info(
                 f"Eviction complete: tenant_id={tenant_id}, "
                 f"success={success}, evicted={total_evicted_count} keys, "
-                f"size={total_evicted_size_mb:.2f}MB, final_usage={final_usage:.2f}MB"
+                f"size={total_evicted_size_mb:.2f}MB, final_usage={final_usage:.2f}MB, "
+                f"latency={elapsed_ms:.1f}ms"
             )
 
             return {
@@ -430,10 +481,16 @@ class LRUEvictionService:
                 "evicted_count": total_evicted_count,
                 "total_size_mb": total_evicted_size_mb,
                 "final_usage_mb": final_usage,
+                "latency_ms": elapsed_ms,
                 "message": f"Evicted {total_evicted_count} keys ({total_evicted_size_mb:.2f}MB)"
             }
 
         except Exception as e:
+            lru_errors_total.labels(
+                operation="evict_to_target",
+                error_type=type(e).__name__
+            ).inc()
+
             logger.error(
                 f"Evict to target failed: tenant_id={tenant_id}, error={e}"
             )
