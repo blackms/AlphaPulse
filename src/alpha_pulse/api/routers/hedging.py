@@ -20,7 +20,8 @@ from alpha_pulse.hedging.risk.manager import HedgeManager
 from alpha_pulse.hedging.execution.position_fetcher import ExchangePositionFetcher
 from alpha_pulse.hedging.execution.order_executor import ExchangeOrderExecutor
 from alpha_pulse.hedging.execution.strategy import BasicExecutionStrategy
-from ..dependencies import get_exchange_client, get_api_client
+from ..dependencies import get_exchange_client, get_api_client, get_current_user
+from ..middleware.tenant_context import get_current_tenant_id
 
 router = APIRouter()
 
@@ -40,14 +41,17 @@ class HedgeExecutionResponse(BaseModel):
 
 @router.get(
     "/analysis",
-    response_model=HedgeAnalysisResponse,
-    dependencies=[Depends(get_api_client)]
+    response_model=HedgeAnalysisResponse
 )
 async def analyze_hedge_positions(
-    exchange: BaseExchange = Depends(get_exchange_client)
+    tenant_id: str = Depends(get_current_tenant_id),
+    user: dict = Depends(get_current_user),
+    exchange: BaseExchange = Depends(get_exchange_client),
+    _api_client = Depends(get_api_client)
 ):
     """Analyze current hedge positions and provide recommendations."""
     try:
+        logger.info(f"[Tenant: {tenant_id}] [User: {user.get('sub')}] Analyzing hedge positions")
         # Get OpenAI API key
         openai_api_key = os.getenv("OPENAI_API_KEY")
         if not openai_api_key:
@@ -72,7 +76,9 @@ async def analyze_hedge_positions(
         
         # Get analysis
         recommendation = await hedge_analyzer.analyze(spot_positions, futures_positions)
-        
+
+        logger.info(f"[Tenant: {tenant_id}] Hedge analysis complete: current_exposure={recommendation.current_net_exposure}, adjustments={len(recommendation.adjustments)}")
+
         return HedgeAnalysisResponse(
             commentary=recommendation.commentary,
             adjustments=[
@@ -90,7 +96,7 @@ async def analyze_hedge_positions(
             }
         )
     except Exception as e:
-        logger.error(f"Error analyzing hedge positions: {str(e)}")
+        logger.error(f"[Tenant: {tenant_id}] Error analyzing hedge positions: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to analyze hedge positions"
@@ -98,14 +104,17 @@ async def analyze_hedge_positions(
 
 @router.post(
     "/execute",
-    response_model=HedgeExecutionResponse,
-    dependencies=[Depends(get_api_client)]
+    response_model=HedgeExecutionResponse
 )
 async def execute_hedge_adjustments(
-    exchange: BaseExchange = Depends(get_exchange_client)
+    tenant_id: str = Depends(get_current_tenant_id),
+    user: dict = Depends(get_current_user),
+    exchange: BaseExchange = Depends(get_exchange_client),
+    _api_client = Depends(get_api_client)
 ):
     """Execute recommended hedge adjustments."""
     try:
+        logger.info(f"[Tenant: {tenant_id}] [User: {user.get('sub')}] Executing hedge adjustments")
         # Get OpenAI API key
         openai_api_key = os.getenv("OPENAI_API_KEY")
         if not openai_api_key:
@@ -137,14 +146,16 @@ async def execute_hedge_adjustments(
         
         # Execute hedge adjustments
         result = await manager.manage_hedge()
-        
+
         if result is None:
+            logger.info(f"[Tenant: {tenant_id}] Hedge execution complete: executed_trades=0")
             return HedgeExecutionResponse(
                 status="completed",
                 executed_trades=[],
                 message="No hedge adjustments needed"
             )
-            
+
+        logger.info(f"[Tenant: {tenant_id}] Hedge execution complete: executed_trades={len(result.executed_trades)}")
         return HedgeExecutionResponse(
             status="completed",
             executed_trades=[
@@ -159,7 +170,7 @@ async def execute_hedge_adjustments(
             message=result.message
         )
     except Exception as e:
-        logger.error(f"Error executing hedge adjustments: {str(e)}")
+        logger.error(f"[Tenant: {tenant_id}] Error executing hedge adjustments: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to execute hedge adjustments"
@@ -167,14 +178,17 @@ async def execute_hedge_adjustments(
 
 @router.post(
     "/close",
-    response_model=HedgeExecutionResponse,
-    dependencies=[Depends(get_api_client)]
+    response_model=HedgeExecutionResponse
 )
 async def close_all_hedges(
-    exchange: BaseExchange = Depends(get_exchange_client)
+    tenant_id: str = Depends(get_current_tenant_id),
+    user: dict = Depends(get_current_user),
+    exchange: BaseExchange = Depends(get_exchange_client),
+    _api_client = Depends(get_api_client)
 ):
     """Close all hedge positions."""
     try:
+        logger.info(f"[Tenant: {tenant_id}] [User: {user.get('sub')}] Closing all hedges")
         # Get OpenAI API key
         openai_api_key = os.getenv("OPENAI_API_KEY")
         if not openai_api_key:
@@ -206,14 +220,16 @@ async def close_all_hedges(
         
         # Close all hedges
         result = await manager.close_all_hedges()
-        
+
         if result is None:
+            logger.info(f"[Tenant: {tenant_id}] All hedges closed: executed_trades=0")
             return HedgeExecutionResponse(
                 status="completed",
                 executed_trades=[],
                 message="No hedge positions to close"
             )
-            
+
+        logger.info(f"[Tenant: {tenant_id}] All hedges closed: executed_trades={len(result.executed_trades)}")
         return HedgeExecutionResponse(
             status="completed",
             executed_trades=[
@@ -228,7 +244,7 @@ async def close_all_hedges(
             message=result.message
         )
     except Exception as e:
-        logger.error(f"Error closing hedge positions: {str(e)}")
+        logger.error(f"[Tenant: {tenant_id}] Error closing hedge positions: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to close hedge positions"
