@@ -1,0 +1,113 @@
+version: '3.8'
+
+services:
+  vault-1:
+    image: hashicorp/vault:1.15
+    container_name: alphapulse-vault-1
+    hostname: vault-1
+    environment:
+      VAULT_ADDR: "http://0.0.0.0:8200"
+      VAULT_API_ADDR: "http://vault-1:8200"
+      VAULT_CLUSTER_ADDR: "http://vault-1:8201"
+      VAULT_RAFT_NODE_ID: "vault-1"
+      # AWS credentials for KMS (production only)
+      # AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      # AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      # AWS_REGION: us-east-1
+    command: server
+    volumes:
+      - ./config/vault/vault-node1.hcl:/vault/config/vault.hcl:ro
+      - vault-1-data:/vault/data
+      - vault-1-logs:/vault/logs
+    cap_add:
+      - IPC_LOCK  # Prevent memory swapping (security)
+    ports:
+      - "8200:8200"  # API
+      - "8201:8201"  # Cluster
+    networks:
+      - vault-network
+    healthcheck:
+      test: ["CMD", "vault", "status", "-address=http://127.0.0.1:8200"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+  vault-2:
+    image: hashicorp/vault:1.15
+    container_name: alphapulse-vault-2
+    hostname: vault-2
+    environment:
+      VAULT_ADDR: "http://0.0.0.0:8200"
+      VAULT_API_ADDR: "http://vault-2:8200"
+      VAULT_CLUSTER_ADDR: "http://vault-2:8201"
+      VAULT_RAFT_NODE_ID: "vault-2"
+    command: server
+    volumes:
+      - ./config/vault/vault-node2.hcl:/vault/config/vault.hcl:ro
+      - vault-2-data:/vault/data
+      - vault-2-logs:/vault/logs
+    cap_add:
+      - IPC_LOCK
+    ports:
+      - "8202:8200"  # API (different port for local access)
+    networks:
+      - vault-network
+    healthcheck:
+      test: ["CMD", "vault", "status", "-address=http://127.0.0.1:8200"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    depends_on:
+      - vault-1
+
+  vault-3:
+    image: hashicorp/vault:1.15
+    container_name: alphapulse-vault-3
+    hostname: vault-3
+    environment:
+      VAULT_ADDR: "http://0.0.0.0:8200"
+      VAULT_API_ADDR: "http://vault-3:8200"
+      VAULT_CLUSTER_ADDR: "http://vault-3:8201"
+      VAULT_RAFT_NODE_ID: "vault-3"
+    command: server
+    volumes:
+      - ./config/vault/vault-node3.hcl:/vault/config/vault.hcl:ro
+      - vault-3-data:/vault/data
+      - vault-3-logs:/vault/logs
+    cap_add:
+      - IPC_LOCK
+    ports:
+      - "8204:8200"  # API (different port for local access)
+    networks:
+      - vault-network
+    healthcheck:
+      test: ["CMD", "vault", "status", "-address=http://127.0.0.1:8200"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    depends_on:
+      - vault-1
+
+volumes:
+  vault-1-data:
+    driver: local
+  vault-2-data:
+    driver: local
+  vault-3-data:
+    driver: local
+  vault-1-logs:
+    driver: local
+  vault-2-logs:
+    driver: local
+  vault-3-logs:
+    driver: local
+
+networks:
+  vault-network:
+    driver: bridge
