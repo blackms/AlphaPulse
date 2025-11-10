@@ -47,7 +47,7 @@ python-multipart = "^0.0.20"  # Security fix: CVE-2024-53981 (DoS vulnerability 
 passlib = {extras = ["bcrypt"], version = "^1.7.4"}
 boto3 = "^1.35.100"  # AWS SDK for Secrets Manager
 hvac = "^2.1.0"  # HashiCorp Vault client
-cryptography = "^45.0.5"  # For local encryption
+cryptography = "^46.0.3"  # For local encryption
 python-dotenv = "^1.0.0"  # For .env file loading
 # Input validation dependencies
 email-validator = "^2.1.0"  # Email validation
