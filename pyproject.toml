@@ -56,7 +56,7 @@ jsonschema = "^4.23.0"  # JSON schema validation
 redis = "^5.0.0"  # Redis client with asyncio support (redis.asyncio module)
 # Real-time data provider dependencies
 aiohttp = "^3.11.20"  # Async HTTP client for data providers
-websockets = "^14.1"  # WebSocket support for real-time feeds
+websockets = "^15.0"  # WebSocket support for real-time feeds
 # Distributed computing dependencies
 ray = {version = "^2.49.0", extras = ["default"]}  # Ray distributed computing (CVE-2023-48022: vendor disputed, network isolation required)
 dask = {version = "^2024.1.0", extras = ["complete"]}  # Dask distributed computing
