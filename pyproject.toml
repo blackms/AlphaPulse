@@ -53,7 +53,7 @@ python-dotenv = "^1.0.0"  # For .env file loading
 email-validator = "^2.1.0"  # Email validation
 phonenumbers = "^9.0.8"  # Phone number validation
 jsonschema = "^4.23.0"  # JSON schema validation
-redis = "^5.0.0"  # Redis client with asyncio support (redis.asyncio module)
+redis = "^7.0.1"  # Redis client with asyncio support (redis.asyncio module)
 # Real-time data provider dependencies
 aiohttp = "^3.11.20"  # Async HTTP client for data providers
 websockets = "^14.1"  # WebSocket support for real-time feeds
