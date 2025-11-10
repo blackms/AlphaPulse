@@ -148,7 +148,8 @@ Each agent generates weighted signals with confidence scores, enabling sophistic
 - **FastAPI Backend**: Async, high-performance REST and WebSocket APIs
 - **Distributed Computing**: Ray and Dask integration for parallel backtesting and optimization
 - **Caching Layer**: Redis-based multi-tier caching for market data and signals
-- **Message Queue**: Asynchronous task processing with Celery
+- **Background Jobs**: Celery task queue with periodic credential health checks
+- **Credential Monitoring**: Automated exchange credential validation with webhook notifications
 - **Monitoring**: Prometheus metrics, Grafana dashboards, custom alerting
 - **Observability**: Structured logging, distributed tracing, performance profiling
 
@@ -522,7 +523,14 @@ AlphaPulse/
 │   │   ├── caching_service.py     # Redis caching layer
 │   │   ├── data_service.py        # Market data aggregation
 │   │   ├── monitoring_service.py  # Prometheus metrics
+│   │   ├── webhook_notifier.py    # Webhook notification service
 │   │   └── alert_service.py       # Alert management
+│   │
+│   ├── tasks/                      # Background Tasks (Celery)
+│   │   ├── credential_health.py   # Credential health checks
+│   │   └── __init__.py            # Task registry
+│   │
+│   ├── celery_app.py              # Celery application config
 │   │
 │   ├── data_pipeline/              # Data Ingestion
 │   │   ├── ccxt_adapter.py        # Exchange data via CCXT
@@ -624,6 +632,11 @@ JWT_EXPIRATION_MINUTES=30
 
 # Multi-Tenant
 TENANT_ID=00000000-0000-0000-0000-000000000001
+
+# Celery Background Jobs
+CELERY_BROKER_URL=redis://localhost:6379/0
+CELERY_RESULT_BACKEND=redis://localhost:6379/1
+CREDENTIAL_HEALTH_CHECK_INTERVAL_HOURS=6
 
 # ML & Monitoring
 MLFLOW_TRACKING_URI=http://localhost:5000
@@ -736,6 +749,7 @@ poetry run uvicorn src.alpha_pulse.api.main:app --host 0.0.0.0 --port 8000 --wor
 ### Operational Playbooks
 
 - **Deployment**: [Deployment Guide](docs/DEPLOYMENT.md#building-and-deploying) — Docker, Kubernetes, production hardening
+- **Background Jobs**: [Celery Setup](docs/CELERY_SETUP.md) — Worker deployment, monitoring, credential health checks
 - **Secrets Management**: [Secret Management](docs/security.md#secret-management) — Vault, AWS Secrets Manager integration
 - **Exchange Debugging**: [Debug Tools](docs/DEBUG_TOOLS.md#available-debug-tools) — Connectivity testing, API diagnostics
 - **Audit Trails**: [Audit Logging](docs/audit-logging.md#architecture) — Request logging, compliance

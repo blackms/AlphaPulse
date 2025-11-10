@@ -117,6 +117,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - RICE Score: 84.0 (CRITICAL - highest due to authentication gap)
   - **Story 2.4 Progress: 43/43 endpoints complete (100%)** - All API endpoints now have tenant context!
 
+- **Credential Health Check System** (Story 3.3, EPIC-003)
+  - Implemented Celery-based background job infrastructure for periodic credential validation
+  - **Celery Configuration** (`src/alpha_pulse/celery_app.py`):
+    - Redis-backed message broker and result backend
+    - Celery Beat scheduler with RedBeat for persistent task schedules
+    - Periodic health checks every 6 hours (configurable via `CREDENTIAL_HEALTH_CHECK_INTERVAL_HOURS`)
+    - Dedicated `health_checks` queue for task routing
+  - **Health Check Task** (`src/alpha_pulse/tasks/credential_health.py`):
+    - Validates all tenant credentials via CCXT exchange integration
+    - Tracks consecutive failures and sends webhook notifications on threshold breach
+    - Prometheus metrics: `credential_health_check_total`, `credential_health_check_duration_seconds`
+    - Manual on-demand check via `check_credential_health_manual` task
+  - **Webhook Notifier Service** (`src/alpha_pulse/services/webhook_notifier.py`):
+    - HMAC-SHA256 signed webhook notifications for credential failures
+    - Exponential backoff retry logic (1s → 2s → 4s delays)
+    - Timing-safe signature verification via `verify_webhook_signature()` helper
+    - Configurable timeout (10s) and retry attempts (3)
+  - **Database Models** (`src/alpha_pulse/models/credential_health.py`):
+    - `CredentialHealthCheck`: Tracks validation history, consecutive failures, webhook delivery
+    - `TenantWebhook`: Stores webhook configurations with encrypted secrets
+    - 9 indexes for query performance, 9 check constraints for data integrity
+    - Utility functions: `get_latest_health_check()`, `get_failing_credentials()`, `get_tenant_webhook()`
+  - **Database Migration** (Alembic `010_add_credential_health_tables.py`):
+    - Creates `credential_health_checks` and `tenant_webhooks` tables
+    - Safe rollback support via `downgrade()` function
+  - **Configuration Settings** (11 new settings in `secure_settings.py`):
+    - Celery broker/backend URLs, health check intervals, webhook timeouts/retries
+  - **Dependencies Added**:
+    - `celery==5.4.0` - Distributed task queue
+    - `celery-redbeat==2.2.0` - Redis-backed Beat scheduler
+    - `redis==5.2.1` - Redis client for broker/backend
+  - **Documentation**:
+    - `docs/CELERY_SETUP.md` (417 lines) - Production deployment guide with Supervisor config
+    - `docs/discovery/story-3.3-credential-health-check-discovery.md` (430 lines)
+  - **Test Coverage**:
+    - `test_webhook_notifier.py`: 25/25 tests passing (100% coverage)
+    - `test_credential_health.py`: 10/16 tests passing (62% - mock signature issues documented)
+  - **Known Limitations** (tracked in GitHub issue #229):
+    - Core integration pending: `list_all_credentials()` returns empty list (4-6 hour fix)
+    - Hardcoded Vault address needs settings integration
+    - Webhook URL retrieval not implemented
+  - **QA Verdict**: CONDITIONAL APPROVE (77/100 score) - Safe to merge, unsafe to deploy without issue #229
+  - Closes issue #169 (Story 3.3)
+
 ### Changed
 - Audited documentation: removed multi-tenant sprint artefacts, refreshed README
   and CLAUDE guidance to match the Poetry-based workflow.
