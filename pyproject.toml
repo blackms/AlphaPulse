@@ -41,7 +41,7 @@ aiosmtplib = ">=3.0.1" # Broadened version constraint to resolve conflict
 python-jose = "^3.3.0" # Added to fix build error
 tensorboard = "^2.17.0"  # Added for RL trainer tests
 tqdm = "^4.66.2"  # Added for stable-baselines3 progress bar
-rich = "^13.7.0"  # Added for stable-baselines3 progress bar
+rich = "^14.2.0"  # Added for stable-baselines3 progress bar
 python-multipart = "^0.0.20"  # Security fix: CVE-2024-53981 (DoS vulnerability fixed in >=0.0.18)
 # Security dependencies
 passlib = {extras = ["bcrypt"], version = "^1.7.4"}
