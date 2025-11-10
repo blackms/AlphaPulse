@@ -3,6 +3,7 @@ Celery application configuration for AlphaPulse.
 
 Configures distributed task queue for background jobs like credential health checks.
 """
+
 from celery import Celery
 from celery.schedules import crontab
 from loguru import logger
@@ -52,7 +53,8 @@ app.conf.beat_schedule = {
     "check-credentials-health": {
         "task": "alpha_pulse.tasks.credential_health.check_all_credentials_health",
         "schedule": crontab(
-            minute=0, hour=f"*/{settings.credential_health_check_interval_hours}"
+            minute=0,
+            hour=f"*/{settings.credential_health_check_interval_hours}",
         ),  # Every N hours
         "options": {"queue": "health_checks"},
     },

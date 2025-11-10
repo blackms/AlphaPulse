@@ -3,6 +3,7 @@ Webhook notification service with retry logic and HMAC signatures.
 
 Sends webhook notifications to tenants for credential failures and other events.
 """
+
 import hmac
 import hashlib
 import time
@@ -148,7 +149,9 @@ class WebhookNotifier:
         """
         import json
 
-        payload_str = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+        payload_str = json.dumps(
+            payload, sort_keys=True, separators=(",", ":")
+        )
         return hmac.new(
             secret.encode("utf-8"),
             payload_str.encode("utf-8"),
@@ -205,7 +208,9 @@ class WebhookNotifier:
                 )
 
                 if response.status_code in (200, 201, 202, 204):
-                    logger.info(f"Test webhook delivered successfully to {webhook_url}")
+                    logger.info(
+                        f"Test webhook delivered successfully to {webhook_url}"
+                    )
                     return True
                 else:
                     logger.warning(

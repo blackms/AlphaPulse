@@ -4,17 +4,26 @@ Database models for credential health check system.
 This module contains SQLAlchemy models for tracking credential health
 and webhook configuration for credential failure notifications.
 """
+
 from datetime import datetime
 from typing import Optional
 from uuid import UUID as UUIDType
 
 from sqlalchemy import (
-    Column, Integer, String, DateTime, Boolean, Text,
-    ForeignKey, Index, UniqueConstraint, CheckConstraint
+    Column,
+    Integer,
+    String,
+    DateTime,
+    Boolean,
+    Text,
+    ForeignKey,
+    Index,
+    UniqueConstraint,
+    CheckConstraint,
 )
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship, validates
+from sqlalchemy.orm import validates
 from sqlalchemy.sql import func, text
 
 from .encrypted_fields import EncryptedString
@@ -39,18 +48,18 @@ class CredentialHealthCheck(Base):
         UUID(as_uuid=True),
         ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
-        comment="Tenant UUID from tenants table"
+        comment="Tenant UUID from tenants table",
     )
     exchange = Column(
         String(50),
         nullable=False,
-        comment="Exchange name (e.g., binance, coinbase)"
+        comment="Exchange name (e.g., binance, coinbase)",
     )
     credential_type = Column(
         String(50),
         nullable=False,
         server_default="trading",
-        comment="Credential type (trading, readonly, withdrawal)"
+        comment="Credential type (trading, readonly, withdrawal)",
     )
 
     # Health check results
@@ -58,17 +67,13 @@ class CredentialHealthCheck(Base):
         DateTime(timezone=True),
         nullable=False,
         server_default=func.now(),
-        comment="When this health check was performed"
+        comment="When this health check was performed",
     )
     is_valid = Column(
-        Boolean,
-        nullable=False,
-        comment="Whether credential passed validation"
+        Boolean, nullable=False, comment="Whether credential passed validation"
     )
     validation_error = Column(
-        Text,
-        nullable=True,
-        comment="Error message if validation failed"
+        Text, nullable=True, comment="Error message if validation failed"
     )
 
     # Failure tracking
@@ -76,17 +81,17 @@ class CredentialHealthCheck(Base):
         Integer,
         nullable=False,
         server_default="0",
-        comment="Number of consecutive failures (reset to 0 on success)"
+        comment="Number of consecutive failures (reset to 0 on success)",
     )
     last_success_at = Column(
         DateTime(timezone=True),
         nullable=True,
-        comment="Timestamp of last successful validation"
+        comment="Timestamp of last successful validation",
     )
     first_failure_at = Column(
         DateTime(timezone=True),
         nullable=True,
-        comment="Timestamp when current failure streak started"
+        comment="Timestamp when current failure streak started",
     )
 
     # Webhook notification tracking
@@ -94,42 +99,42 @@ class CredentialHealthCheck(Base):
         Boolean,
         nullable=False,
         server_default="false",
-        comment="Whether webhook notification was sent for this check"
+        comment="Whether webhook notification was sent for this check",
     )
     webhook_sent_at = Column(
         DateTime(timezone=True),
         nullable=True,
-        comment="When webhook notification was sent"
+        comment="When webhook notification was sent",
     )
     webhook_delivery_status = Column(
         String(20),
         nullable=True,
-        comment="Webhook delivery status (success, failed, timeout)"
+        comment="Webhook delivery status (success, failed, timeout)",
     )
 
     # Exchange metadata from validation
     exchange_account_id = Column(
         String(255),
         nullable=True,
-        comment="Exchange account ID from validation response"
+        comment="Exchange account ID from validation response",
     )
     exchange_permissions = Column(
         JSONB,
         nullable=True,
         server_default=text("'[]'::jsonb"),
-        comment="Exchange permissions returned by validation"
+        comment="Exchange permissions returned by validation",
     )
 
     # Task metadata
     task_id = Column(
         String(255),
         nullable=True,
-        comment="Celery task ID that performed this check"
+        comment="Celery task ID that performed this check",
     )
     check_duration_ms = Column(
         Integer,
         nullable=True,
-        comment="How long the check took in milliseconds"
+        comment="How long the check took in milliseconds",
     )
 
     # Audit fields
@@ -137,7 +142,7 @@ class CredentialHealthCheck(Base):
         DateTime(timezone=True),
         nullable=False,
         server_default=func.now(),
-        comment="Record creation timestamp"
+        comment="Record creation timestamp",
     )
 
     # Indexes for query performance
@@ -145,7 +150,10 @@ class CredentialHealthCheck(Base):
         # Composite unique constraint for latest check per credential
         Index(
             "idx_cred_health_tenant_exchange_type_timestamp",
-            "tenant_id", "exchange", "credential_type", "check_timestamp"
+            "tenant_id",
+            "exchange",
+            "credential_type",
+            "check_timestamp",
         ),
         # Query for active failures
         Index("idx_cred_health_is_valid", "is_valid"),
@@ -160,17 +168,17 @@ class CredentialHealthCheck(Base):
         # Check constraint for valid credential types
         CheckConstraint(
             "credential_type IN ('trading', 'readonly', 'withdrawal')",
-            name="ck_cred_health_credential_type"
+            name="ck_cred_health_credential_type",
         ),
         # Check constraint for valid webhook statuses
         CheckConstraint(
             "webhook_delivery_status IS NULL OR webhook_delivery_status IN ('success', 'failed', 'timeout', 'error')",
-            name="ck_cred_health_webhook_status"
+            name="ck_cred_health_webhook_status",
         ),
         # Check constraint: webhook_sent_at requires webhook_sent = true
         CheckConstraint(
             "(webhook_sent = false AND webhook_sent_at IS NULL) OR (webhook_sent = true)",
-            name="ck_cred_health_webhook_consistency"
+            name="ck_cred_health_webhook_consistency",
         ),
     )
 
@@ -218,24 +226,22 @@ class TenantWebhook(Base):
         UUID(as_uuid=True),
         ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
-        comment="Tenant UUID from tenants table"
+        comment="Tenant UUID from tenants table",
     )
 
     # Webhook configuration
     event_type = Column(
         String(100),
         nullable=False,
-        comment="Event type (credential.failed, system.alert, etc.)"
+        comment="Event type (credential.failed, system.alert, etc.)",
     )
     webhook_url = Column(
-        String(2048),
-        nullable=False,
-        comment="HTTPS URL for webhook delivery"
+        String(2048), nullable=False, comment="HTTPS URL for webhook delivery"
     )
     webhook_secret = Column(
         EncryptedString(encryption_context="webhook_secret"),
         nullable=False,
-        comment="Secret for HMAC-SHA256 signature generation"
+        comment="Secret for HMAC-SHA256 signature generation",
     )
 
     # Status and validation
@@ -243,48 +249,48 @@ class TenantWebhook(Base):
         Boolean,
         nullable=False,
         server_default="true",
-        comment="Whether webhook is enabled"
+        comment="Whether webhook is enabled",
     )
     is_verified = Column(
         Boolean,
         nullable=False,
         server_default="false",
-        comment="Whether webhook URL has been verified via test"
+        comment="Whether webhook URL has been verified via test",
     )
     verified_at = Column(
         DateTime(timezone=True),
         nullable=True,
-        comment="When webhook was last verified"
+        comment="When webhook was last verified",
     )
 
     # Delivery tracking
     last_delivery_attempt_at = Column(
         DateTime(timezone=True),
         nullable=True,
-        comment="Last time webhook delivery was attempted"
+        comment="Last time webhook delivery was attempted",
     )
     last_successful_delivery_at = Column(
         DateTime(timezone=True),
         nullable=True,
-        comment="Last successful webhook delivery"
+        comment="Last successful webhook delivery",
     )
     consecutive_failures = Column(
         Integer,
         nullable=False,
         server_default="0",
-        comment="Consecutive delivery failures (for circuit breaker)"
+        comment="Consecutive delivery failures (for circuit breaker)",
     )
     total_deliveries = Column(
         Integer,
         nullable=False,
         server_default="0",
-        comment="Total number of webhooks sent"
+        comment="Total number of webhooks sent",
     )
     successful_deliveries = Column(
         Integer,
         nullable=False,
         server_default="0",
-        comment="Number of successful deliveries"
+        comment="Number of successful deliveries",
     )
 
     # Configuration
@@ -292,26 +298,26 @@ class TenantWebhook(Base):
         Integer,
         nullable=False,
         server_default="10",
-        comment="HTTP timeout for webhook delivery"
+        comment="HTTP timeout for webhook delivery",
     )
     retry_attempts = Column(
         Integer,
         nullable=False,
         server_default="3",
-        comment="Number of retry attempts on failure"
+        comment="Number of retry attempts on failure",
     )
 
     # Metadata
     description = Column(
         Text,
         nullable=True,
-        comment="Human-readable description of this webhook"
+        comment="Human-readable description of this webhook",
     )
     custom_headers = Column(
         JSONB,
         nullable=True,
         server_default=text("'{}'::jsonb"),
-        comment="Optional custom HTTP headers to include"
+        comment="Optional custom HTTP headers to include",
     )
 
     # Audit fields
@@ -319,27 +325,24 @@ class TenantWebhook(Base):
         DateTime(timezone=True),
         nullable=False,
         server_default=func.now(),
-        comment="Record creation timestamp"
+        comment="Record creation timestamp",
     )
     updated_at = Column(
         DateTime(timezone=True),
         nullable=False,
         server_default=func.now(),
         onupdate=func.now(),
-        comment="Record last update timestamp"
+        comment="Record last update timestamp",
     )
     created_by = Column(
-        String(255),
-        nullable=True,
-        comment="User who created this webhook"
+        String(255), nullable=True, comment="User who created this webhook"
     )
 
     # Indexes and constraints
     __table_args__ = (
         # Unique constraint: one webhook per tenant per event type
         UniqueConstraint(
-            "tenant_id", "event_type",
-            name="uq_tenant_webhooks_tenant_event"
+            "tenant_id", "event_type", name="uq_tenant_webhooks_tenant_event"
         ),
         # Query active webhooks
         Index("idx_tenant_webhooks_active", "is_active"),
@@ -350,22 +353,22 @@ class TenantWebhook(Base):
         # Check constraint for valid event types
         CheckConstraint(
             "event_type IN ('credential.failed', 'credential.expiring', 'system.alert', 'trade.executed', 'risk.breach')",
-            name="ck_tenant_webhooks_event_type"
+            name="ck_tenant_webhooks_event_type",
         ),
         # Check constraint for HTTPS URLs
         CheckConstraint(
             "webhook_url LIKE 'https://%'",
-            name="ck_tenant_webhooks_https_only"
+            name="ck_tenant_webhooks_https_only",
         ),
         # Check constraint for timeout range
         CheckConstraint(
             "timeout_seconds BETWEEN 1 AND 60",
-            name="ck_tenant_webhooks_timeout_range"
+            name="ck_tenant_webhooks_timeout_range",
         ),
         # Check constraint for retry range
         CheckConstraint(
             "retry_attempts BETWEEN 0 AND 10",
-            name="ck_tenant_webhooks_retry_range"
+            name="ck_tenant_webhooks_retry_range",
         ),
     )
 
@@ -426,7 +429,7 @@ def get_latest_health_check(
     session,
     tenant_id: UUIDType,
     exchange: str,
-    credential_type: str = "trading"
+    credential_type: str = "trading",
 ) -> Optional[CredentialHealthCheck]:
     """
     Get the most recent health check for a credential.
@@ -445,17 +448,14 @@ def get_latest_health_check(
         .filter_by(
             tenant_id=tenant_id,
             exchange=exchange,
-            credential_type=credential_type
+            credential_type=credential_type,
         )
         .order_by(CredentialHealthCheck.check_timestamp.desc())
         .first()
     )
 
 
-def get_failing_credentials(
-    session,
-    min_consecutive_failures: int = 3
-):
+def get_failing_credentials(session, min_consecutive_failures: int = 3):
     """
     Get all credentials with consecutive failures above threshold.
 
@@ -468,19 +468,20 @@ def get_failing_credentials(
     """
     # Subquery to get latest check per credential
     from sqlalchemy import and_
-    from sqlalchemy.sql import exists
 
     subq = (
         session.query(
             CredentialHealthCheck.tenant_id,
             CredentialHealthCheck.exchange,
             CredentialHealthCheck.credential_type,
-            func.max(CredentialHealthCheck.check_timestamp).label("max_timestamp")
+            func.max(CredentialHealthCheck.check_timestamp).label(
+                "max_timestamp"
+            ),
         )
         .group_by(
             CredentialHealthCheck.tenant_id,
             CredentialHealthCheck.exchange,
-            CredentialHealthCheck.credential_type
+            CredentialHealthCheck.credential_type,
         )
         .subquery()
     )
@@ -492,22 +493,22 @@ def get_failing_credentials(
             and_(
                 CredentialHealthCheck.tenant_id == subq.c.tenant_id,
                 CredentialHealthCheck.exchange == subq.c.exchange,
-                CredentialHealthCheck.credential_type == subq.c.credential_type,
-                CredentialHealthCheck.check_timestamp == subq.c.max_timestamp
-            )
+                CredentialHealthCheck.credential_type
+                == subq.c.credential_type,
+                CredentialHealthCheck.check_timestamp == subq.c.max_timestamp,
+            ),
         )
         .filter(
-            CredentialHealthCheck.consecutive_failures >= min_consecutive_failures,
-            CredentialHealthCheck.is_valid == False
+            CredentialHealthCheck.consecutive_failures
+            >= min_consecutive_failures,
+            CredentialHealthCheck.is_valid is False,
         )
         .all()
     )
 
 
 def get_tenant_webhook(
-    session,
-    tenant_id: UUIDType,
-    event_type: str
+    session, tenant_id: UUIDType, event_type: str
 ) -> Optional[TenantWebhook]:
     """
     Get webhook configuration for a tenant and event type.
@@ -522,11 +523,7 @@ def get_tenant_webhook(
     """
     return (
         session.query(TenantWebhook)
-        .filter_by(
-            tenant_id=tenant_id,
-            event_type=event_type,
-            is_active=True
-        )
+        .filter_by(tenant_id=tenant_id, event_type=event_type, is_active=True)
         .first()
     )
 

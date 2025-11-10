@@ -3,6 +3,7 @@ Credential health check task.
 
 Periodically validates all stored tenant credentials and sends webhook notifications on failure.
 """
+
 import asyncio
 from datetime import datetime
 from typing import List, Dict, Any
@@ -12,7 +13,7 @@ from celery import shared_task
 from loguru import logger
 from prometheus_client import Counter, Histogram
 
-from alpha_pulse.services.credentials import TenantCredentialService, TenantCredentials
+from alpha_pulse.services.credentials import TenantCredentialService
 from alpha_pulse.services.credentials.validator import CredentialValidator
 from alpha_pulse.utils.secrets_manager import HashiCorpVaultProvider
 from alpha_pulse.config.secure_settings import get_settings
@@ -52,7 +53,6 @@ def check_all_credentials_health(self):
     Runs as a Celery periodic task every N hours (configured in beat_schedule).
     """
     logger.info("Starting credential health check task")
-    settings = get_settings()
 
     try:
         # Run async validation in sync context
@@ -65,7 +65,9 @@ def check_all_credentials_health(self):
         )
         return result
     except Exception as e:
-        logger.error(f"Credential health check task failed: {e}", exc_info=True)
+        logger.error(
+            f"Credential health check task failed: {e}", exc_info=True
+        )
         raise
 
 
@@ -104,9 +106,10 @@ async def _check_credentials_async() -> Dict[str, int]:
         credential_type = cred_info.get("credential_type", "trading")
 
         # Retrieve and validate credential
-        start_time = datetime.utcnow()
         try:
-            with credential_health_check_duration_seconds.labels(exchange=exchange).time():
+            with credential_health_check_duration_seconds.labels(
+                exchange=exchange
+            ).time():
                 credentials = await credential_service.get_credentials(
                     tenant_id, exchange, credential_type
                 )
@@ -245,7 +248,9 @@ async def _send_credential_failure_webhook(
 
 
 @shared_task(bind=True)
-def check_credential_health_manual(self, tenant_id: str, exchange: str, credential_type: str = "trading"):
+def check_credential_health_manual(
+    self, tenant_id: str, exchange: str, credential_type: str = "trading"
+):
     """
     Manual on-demand credential health check.
 
@@ -265,7 +270,9 @@ def check_credential_health_manual(self, tenant_id: str, exchange: str, credenti
 
     try:
         result = asyncio.run(
-            _check_single_credential(UUID(tenant_id), exchange, credential_type)
+            _check_single_credential(
+                UUID(tenant_id), exchange, credential_type
+            )
         )
         return result
     except Exception as e:
@@ -290,8 +297,6 @@ async def _check_single_credential(
     Returns:
         Dict with validation result and details
     """
-    settings = get_settings()
-
     # Initialize services
     vault_provider = HashiCorpVaultProvider(
         vault_addr="http://localhost:8200",
