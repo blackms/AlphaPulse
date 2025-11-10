@@ -52,9 +52,12 @@ logs/
 # Secret storage
 .secrets/
 *.enc
-credentials/
+# Credential files (but allow credential service code)
 *_credentials.json
 *_credentials.yaml
+credentials/*.json
+credentials/*.yaml
+!src/alpha_pulse/services/credentials/
 
 # Project specific
 config/credentials/

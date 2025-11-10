@@ -62,6 +62,7 @@ ray = {version = "^2.49.0", extras = ["default"]}  # Ray distributed computing (
 dask = {version = "^2024.1.0", extras = ["complete"]}  # Dask distributed computing
 distributed = "^2024.1.0"  # Dask distributed scheduler
 # Caching dependencies
+cachetools = "^5.3.0"  # In-memory TTL cache for credentials
 msgpack = "^1.0.5"  # MessagePack serialization
 lz4 = "^4.3.2"  # LZ4 compression
 python-snappy = "^0.7.3"  # Snappy compression
