@@ -171,7 +171,22 @@ class Settings(BaseSettings):
     max_positions: int = Field(default=10)
     risk_per_trade: float = Field(default=0.02)
     max_leverage: float = Field(default=1.0)
-    
+
+    # Celery/Background Task settings
+    celery_broker_url: str = Field(default="redis://localhost:6379/0")
+    celery_result_backend: str = Field(default="redis://localhost:6379/1")
+
+    # Credential Health Check settings
+    credential_health_check_interval_hours: int = Field(default=6)
+    credential_health_check_retries: int = Field(default=3)
+    credential_health_check_retry_delay_seconds: int = Field(default=60)
+    credential_consecutive_failures_before_alert: int = Field(default=3)
+
+    # Webhook settings
+    webhook_timeout_seconds: int = Field(default=10)
+    webhook_retry_attempts: int = Field(default=3)
+    webhook_retry_backoff_base: int = Field(default=1)
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

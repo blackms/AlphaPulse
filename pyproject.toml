@@ -67,6 +67,9 @@ msgpack = "^1.0.5"  # MessagePack serialization
 lz4 = "^4.3.2"  # LZ4 compression
 python-snappy = "^0.7.3"  # Snappy compression
 prometheus-client = "^0.22.0"  # Prometheus metrics
+# Background task processing dependencies
+celery = "^5.4.0"  # Distributed task queue
+celery-redbeat = "^2.2.0"  # Redis-backed Celery Beat scheduler
 statsmodels = "^0.14.5"
 numba = "^0.61.2"
 matplotlib = "^3.10.6"
