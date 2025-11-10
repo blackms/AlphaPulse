@@ -99,14 +99,14 @@ class CredentialValidator:
                     valid=False,
                     error=f"Validation timeout ({self.timeout}s). Exchange may be slow or unreachable.",
                 )
-            except ccxt.AuthenticationError as e:
-                logger.warning(f"Authentication failed for {exchange}: {e}")
-                return ValidationResult(valid=False, error="Invalid API key or secret")
             except ccxt.PermissionDenied as e:
                 logger.warning(f"Permission denied for {exchange}: {e}")
                 return ValidationResult(
                     valid=False, error="Insufficient API permissions (cannot read balance)"
                 )
+            except ccxt.AuthenticationError as e:
+                logger.warning(f"Authentication failed for {exchange}: {e}")
+                return ValidationResult(valid=False, error="Invalid API key or secret")
 
             # Test 2: Trading permission (optional, best-effort)
             # Try to determine if credentials have trading permissions
@@ -116,7 +116,7 @@ class CredentialValidator:
             account_id = None
             if hasattr(client, "uid") and client.uid:
                 account_id = client.uid
-            elif hasattr(balance, "info") and isinstance(balance.get("info"), dict):
+            elif isinstance(balance, dict) and isinstance(balance.get("info"), dict):
                 # Try to extract account ID from balance response
                 info = balance.get("info", {})
                 account_id = info.get("accountId") or info.get("uid") or info.get("id")
