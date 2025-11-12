@@ -72,9 +72,7 @@ def check_all_credentials_health(self):
         )
         return result
     except Exception as e:
-        logger.error(
-            f"Credential health check task failed: {e}", exc_info=True
-        )
+        logger.error(f"Credential health check task failed: {e}", exc_info=True)
         raise
 
 
@@ -109,7 +107,9 @@ async def _list_all_credentials(
 
             # List exchanges for this tenant
             try:
-                exchange_paths = vault_provider.list_secrets(f"tenants/{tenant_id}/exchanges")
+                exchange_paths = vault_provider.list_secrets(
+                    f"tenants/{tenant_id}/exchanges"
+                )
 
                 if not exchange_paths:
                     logger.debug(f"No exchanges found for tenant {tenant_id}")
@@ -126,18 +126,22 @@ async def _list_all_credentials(
                         )
 
                         if not cred_type_paths:
-                            logger.debug(f"No credentials found for {tenant_id}/{exchange}")
+                            logger.debug(
+                                f"No credentials found for {tenant_id}/{exchange}"
+                            )
                             continue
 
                         for cred_type_path in cred_type_paths:
                             # cred_type_path is like "trading" (actual secret key, not a folder)
                             credential_type = cred_type_path.rstrip("/")
 
-                            credentials.append({
-                                "tenant_id": tenant_id,
-                                "exchange": exchange,
-                                "credential_type": credential_type,
-                            })
+                            credentials.append(
+                                {
+                                    "tenant_id": tenant_id,
+                                    "exchange": exchange,
+                                    "credential_type": credential_type,
+                                }
+                            )
                             logger.debug(
                                 f"Found credential: tenant={tenant_id}, "
                                 f"exchange={exchange}, type={credential_type}"
@@ -359,18 +363,17 @@ async def _send_credential_failure_webhook(
         f"exchange={exchange}, failures={consecutive_failures}"
     )
 
-    # Get webhook configuration from database
-    webhook_config = await asyncio.to_thread(
-        get_tenant_webhook, session, tenant_id, "credential.failed"
-    )
-
-    if not webhook_config or not webhook_config.is_active:
-        logger.debug(
-            f"No active webhook configured for tenant={tenant_id}, event=credential.failed"
-        )
-        return False
-
     try:
+        # Get webhook configuration from database
+        webhook_config = await asyncio.to_thread(
+            get_tenant_webhook, session, tenant_id, "credential.failed"
+        )
+
+        if not webhook_config or not webhook_config.is_active:
+            logger.debug(
+                f"No active webhook configured for tenant={tenant_id}, event=credential.failed"
+            )
+            return False
         # Initialize webhook notifier
         notifier = WebhookNotifier()
 
@@ -436,9 +439,7 @@ def check_credential_health_manual(
 
     try:
         result = asyncio.run(
-            _check_single_credential(
-                UUID(tenant_id), exchange, credential_type
-            )
+            _check_single_credential(UUID(tenant_id), exchange, credential_type)
         )
         return result
     except Exception as e:

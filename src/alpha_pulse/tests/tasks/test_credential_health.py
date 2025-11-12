@@ -3,10 +3,11 @@ Unit tests for credential health check tasks.
 
 Tests the Celery tasks that validate credentials and send webhook notifications.
 """
+
 import pytest
 from datetime import datetime
-from uuid import UUID, uuid4
-from unittest.mock import Mock, patch, AsyncMock, MagicMock
+from uuid import UUID
+from unittest.mock import Mock, patch, AsyncMock
 
 from alpha_pulse.tasks.credential_health import (
     check_all_credentials_health,
@@ -37,12 +38,14 @@ def mock_settings():
 def mock_vault_provider():
     """Mock Vault provider."""
     provider = Mock()
-    provider.get_credential = AsyncMock(return_value={
-        "api_key": "test_api_key",
-        "api_secret": "test_api_secret",
-        "passphrase": None,
-        "testnet": False,
-    })
+    provider.get_credential = AsyncMock(
+        return_value={
+            "api_key": "test_api_key",
+            "api_secret": "test_api_secret",
+            "passphrase": None,
+            "testnet": False,
+        }
+    )
     return provider
 
 
@@ -50,12 +53,14 @@ def mock_vault_provider():
 def mock_validator():
     """Mock credential validator."""
     validator = Mock()
-    validator.validate = AsyncMock(return_value=ValidationResult(
-        valid=True,
-        credential_type="trading",
-        exchange_account_id="test_account_123",
-        error=None,
-    ))
+    validator.validate = AsyncMock(
+        return_value=ValidationResult(
+            valid=True,
+            credential_type="trading",
+            exchange_account_id="test_account_123",
+            error=None,
+        )
+    )
     return validator
 
 
@@ -63,15 +68,17 @@ def mock_validator():
 def mock_credential_service(mock_vault_provider, mock_validator, sample_tenant_id):
     """Mock TenantCredentialService."""
     service = Mock()
-    service.get_credentials = AsyncMock(return_value=TenantCredentials(
-        tenant_id=sample_tenant_id,
-        exchange="binance",
-        api_key="test_api_key",
-        api_secret="test_api_secret",
-        credential_type="trading",
-        testnet=False,
-        passphrase=None,
-    ))
+    service.get_credentials = AsyncMock(
+        return_value=TenantCredentials(
+            tenant_id=sample_tenant_id,
+            exchange="binance",
+            api_key="test_api_key",
+            api_secret="test_api_secret",
+            credential_type="trading",
+            testnet=False,
+            passphrase=None,
+        )
+    )
     return service
 
 
@@ -86,7 +93,9 @@ class TestCheckAllCredentialsHealth:
 
     @patch("alpha_pulse.tasks.credential_health.get_settings")
     @patch("alpha_pulse.tasks.credential_health.asyncio.run")
-    def test_check_all_credentials_success(self, mock_asyncio_run, mock_get_settings, mock_settings):
+    def test_check_all_credentials_success(
+        self, mock_asyncio_run, mock_get_settings, mock_settings
+    ):
         """Test successful credential health check."""
         mock_get_settings.return_value = mock_settings
         mock_asyncio_run.return_value = {
@@ -104,7 +113,9 @@ class TestCheckAllCredentialsHealth:
 
     @patch("alpha_pulse.tasks.credential_health.get_settings")
     @patch("alpha_pulse.tasks.credential_health.asyncio.run")
-    def test_check_all_credentials_exception_handling(self, mock_asyncio_run, mock_get_settings, mock_settings):
+    def test_check_all_credentials_exception_handling(
+        self, mock_asyncio_run, mock_get_settings, mock_settings
+    ):
         """Test exception handling in health check task."""
         mock_get_settings.return_value = mock_settings
         mock_asyncio_run.side_effect = Exception("Redis connection failed")
@@ -126,8 +137,14 @@ class TestCheckCredentialsAsync:
     @patch("alpha_pulse.tasks.credential_health.CredentialValidator")
     @patch("alpha_pulse.tasks.credential_health.TenantCredentialService")
     async def test_check_credentials_async_no_credentials(
-        self, mock_service_class, mock_validator_class, mock_vault_class,
-        mock_list_creds, mock_get_db, mock_get_settings, mock_settings
+        self,
+        mock_service_class,
+        mock_validator_class,
+        mock_vault_class,
+        mock_list_creds,
+        mock_get_db,
+        mock_get_settings,
+        mock_settings,
     ):
         """Test async health check with no credentials to check."""
         mock_get_settings.return_value = mock_settings
@@ -152,8 +169,16 @@ class TestCheckCredentialsAsync:
     @patch("alpha_pulse.tasks.credential_health.TenantCredentialService")
     @patch("alpha_pulse.tasks.credential_health._send_credential_failure_webhook")
     async def test_check_credentials_async_with_failures(
-        self, mock_webhook, mock_service_class, mock_validator_class,
-        mock_vault_class, mock_list_creds, mock_get_db, mock_get_settings, mock_settings, sample_tenant_id
+        self,
+        mock_webhook,
+        mock_service_class,
+        mock_validator_class,
+        mock_vault_class,
+        mock_list_creds,
+        mock_get_db,
+        mock_get_settings,
+        mock_settings,
+        sample_tenant_id,
     ):
         """Test async health check with credential failures."""
         mock_get_settings.return_value = mock_settings
@@ -165,22 +190,29 @@ class TestCheckCredentialsAsync:
 
         # Mock validator to return failure
         mock_validator = Mock()
-        mock_validator.validate = AsyncMock(return_value=ValidationResult(
-            valid=False,
-            credential_type="trading",
-            exchange_account_id=None,
-            error="Invalid API key",
-        ))
+        mock_validator.validate = AsyncMock(
+            return_value=ValidationResult(
+                valid=False,
+                credential_type="trading",
+                exchange_account_id=None,
+                error="Invalid API key",
+            )
+        )
         mock_validator_class.return_value = mock_validator
 
         # Mock credential service
         mock_service = Mock()
-        mock_service.get_credentials = AsyncMock(return_value=TenantCredentials(
-            api_key="invalid_key",
-            api_secret="invalid_secret",
-            passphrase=None,
-            testnet=False,
-        ))
+        mock_service.get_credentials = AsyncMock(
+            return_value=TenantCredentials(
+                tenant_id=sample_tenant_id,
+                exchange="binance",
+                credential_type="trading",
+                api_key="invalid_key",
+                api_secret="invalid_secret",
+                passphrase=None,
+                testnet=False,
+            )
+        )
         mock_service_class.return_value = mock_service
 
         # Note: _check_credentials_async uses empty list by default
@@ -202,30 +234,42 @@ class TestCheckSingleCredential:
     @patch("alpha_pulse.tasks.credential_health.CredentialValidator")
     @patch("alpha_pulse.tasks.credential_health.TenantCredentialService")
     async def test_check_single_credential_success(
-        self, mock_service_class, mock_validator_class, mock_vault_class,
-        mock_get_settings, mock_settings, sample_tenant_id
+        self,
+        mock_service_class,
+        mock_validator_class,
+        mock_vault_class,
+        mock_get_settings,
+        mock_settings,
+        sample_tenant_id,
     ):
         """Test checking a single valid credential."""
         mock_get_settings.return_value = mock_settings
 
         # Mock validator to return success
         mock_validator = Mock()
-        mock_validator.validate = AsyncMock(return_value=ValidationResult(
-            valid=True,
-            credential_type="trading",
-            exchange_account_id="test_account_123",
-            error=None,
-        ))
+        mock_validator.validate = AsyncMock(
+            return_value=ValidationResult(
+                valid=True,
+                credential_type="trading",
+                exchange_account_id="test_account_123",
+                error=None,
+            )
+        )
         mock_validator_class.return_value = mock_validator
 
         # Mock credential service
         mock_service = Mock()
-        mock_service.get_credentials = AsyncMock(return_value=TenantCredentials(
-            api_key="test_key",
-            api_secret="test_secret",
-            passphrase=None,
-            testnet=False,
-        ))
+        mock_service.get_credentials = AsyncMock(
+            return_value=TenantCredentials(
+                tenant_id=sample_tenant_id,
+                exchange="binance",
+                credential_type="trading",
+                api_key="test_key",
+                api_secret="test_secret",
+                passphrase=None,
+                testnet=False,
+            )
+        )
         mock_service_class.return_value = mock_service
 
         result = await _check_single_credential(sample_tenant_id, "binance", "trading")
@@ -244,8 +288,13 @@ class TestCheckSingleCredential:
     @patch("alpha_pulse.tasks.credential_health.CredentialValidator")
     @patch("alpha_pulse.tasks.credential_health.TenantCredentialService")
     async def test_check_single_credential_not_found(
-        self, mock_service_class, mock_validator_class, mock_vault_class,
-        mock_get_settings, mock_settings, sample_tenant_id
+        self,
+        mock_service_class,
+        mock_validator_class,
+        mock_vault_class,
+        mock_get_settings,
+        mock_settings,
+        sample_tenant_id,
     ):
         """Test checking a credential that doesn't exist."""
         mock_get_settings.return_value = mock_settings
@@ -268,30 +317,42 @@ class TestCheckSingleCredential:
     @patch("alpha_pulse.tasks.credential_health.CredentialValidator")
     @patch("alpha_pulse.tasks.credential_health.TenantCredentialService")
     async def test_check_single_credential_validation_failure(
-        self, mock_service_class, mock_validator_class, mock_vault_class,
-        mock_get_settings, mock_settings, sample_tenant_id
+        self,
+        mock_service_class,
+        mock_validator_class,
+        mock_vault_class,
+        mock_get_settings,
+        mock_settings,
+        sample_tenant_id,
     ):
         """Test checking a credential that fails validation."""
         mock_get_settings.return_value = mock_settings
 
         # Mock validator to return failure
         mock_validator = Mock()
-        mock_validator.validate = AsyncMock(return_value=ValidationResult(
-            valid=False,
-            credential_type="trading",
-            exchange_account_id=None,
-            error="Invalid API signature",
-        ))
+        mock_validator.validate = AsyncMock(
+            return_value=ValidationResult(
+                valid=False,
+                credential_type="trading",
+                exchange_account_id=None,
+                error="Invalid API signature",
+            )
+        )
         mock_validator_class.return_value = mock_validator
 
         # Mock credential service
         mock_service = Mock()
-        mock_service.get_credentials = AsyncMock(return_value=TenantCredentials(
-            api_key="invalid_key",
-            api_secret="invalid_secret",
-            passphrase=None,
-            testnet=False,
-        ))
+        mock_service.get_credentials = AsyncMock(
+            return_value=TenantCredentials(
+                tenant_id=sample_tenant_id,
+                exchange="binance",
+                credential_type="trading",
+                api_key="invalid_key",
+                api_secret="invalid_secret",
+                passphrase=None,
+                testnet=False,
+            )
+        )
         mock_service_class.return_value = mock_service
 
         result = await _check_single_credential(sample_tenant_id, "binance", "trading")
@@ -331,9 +392,7 @@ class TestCheckCredentialHealthManual:
         mock_asyncio_run.side_effect = Exception("Vault connection failed")
 
         with pytest.raises(Exception) as exc_info:
-            check_credential_health_manual(
-                str(sample_tenant_id), "binance", "trading"
-            )
+            check_credential_health_manual(str(sample_tenant_id), "binance", "trading")
 
         assert "Vault connection failed" in str(exc_info.value)
 
@@ -344,7 +403,9 @@ class TestSendCredentialFailureWebhook:
     @pytest.mark.asyncio
     @patch("alpha_pulse.tasks.credential_health.get_tenant_webhook")
     @patch("alpha_pulse.tasks.credential_health.asyncio.to_thread")
-    async def test_send_webhook_no_url_configured(self, mock_to_thread, mock_get_webhook, sample_tenant_id):
+    async def test_send_webhook_no_url_configured(
+        self, mock_to_thread, mock_get_webhook, sample_tenant_id
+    ):
         """Test webhook sending when no URL is configured."""
         # Mock database session
         mock_session = Mock()
@@ -367,7 +428,9 @@ class TestSendCredentialFailureWebhook:
     @pytest.mark.asyncio
     @patch("alpha_pulse.tasks.credential_health.WebhookNotifier")
     @patch("alpha_pulse.tasks.credential_health.asyncio.to_thread")
-    async def test_send_webhook_success(self, mock_to_thread, mock_notifier_class, sample_tenant_id):
+    async def test_send_webhook_success(
+        self, mock_to_thread, mock_notifier_class, sample_tenant_id
+    ):
         """Test successful webhook sending."""
         # Mock database session
         mock_session = Mock()
@@ -403,7 +466,9 @@ class TestSendCredentialFailureWebhook:
 
     @pytest.mark.asyncio
     @patch("alpha_pulse.tasks.credential_health.asyncio.to_thread")
-    async def test_send_webhook_exception_handling(self, mock_to_thread, sample_tenant_id):
+    async def test_send_webhook_exception_handling(
+        self, mock_to_thread, sample_tenant_id
+    ):
         """Test webhook exception handling."""
         # Mock database session
         mock_session = Mock()
@@ -429,7 +494,9 @@ class TestPrometheusMetrics:
     """Tests for Prometheus metrics integration."""
 
     @patch("alpha_pulse.tasks.credential_health.credential_health_check_total")
-    @patch("alpha_pulse.tasks.credential_health.credential_health_check_duration_seconds")
+    @patch(
+        "alpha_pulse.tasks.credential_health.credential_health_check_duration_seconds"
+    )
     def test_metrics_exported(self, mock_duration, mock_total):
         """Test that Prometheus metrics are properly exported."""
         from alpha_pulse.tasks.credential_health import (
@@ -451,33 +518,47 @@ class TestEdgeCases:
     @patch("alpha_pulse.tasks.credential_health.CredentialValidator")
     @patch("alpha_pulse.tasks.credential_health.TenantCredentialService")
     async def test_check_single_credential_with_passphrase(
-        self, mock_service_class, mock_validator_class, mock_vault_class,
-        mock_get_settings, mock_settings, sample_tenant_id
+        self,
+        mock_service_class,
+        mock_validator_class,
+        mock_vault_class,
+        mock_get_settings,
+        mock_settings,
+        sample_tenant_id,
     ):
         """Test checking credential with passphrase (e.g., Coinbase Pro)."""
         mock_get_settings.return_value = mock_settings
 
         # Mock validator
         mock_validator = Mock()
-        mock_validator.validate = AsyncMock(return_value=ValidationResult(
-            valid=True,
-            credential_type="trading",
-            exchange_account_id="test_123",
-            error=None,
-        ))
+        mock_validator.validate = AsyncMock(
+            return_value=ValidationResult(
+                valid=True,
+                credential_type="trading",
+                exchange_account_id="test_123",
+                error=None,
+            )
+        )
         mock_validator_class.return_value = mock_validator
 
         # Mock credential service with passphrase
         mock_service = Mock()
-        mock_service.get_credentials = AsyncMock(return_value=TenantCredentials(
-            api_key="test_key",
-            api_secret="test_secret",
-            passphrase="test_passphrase",
-            testnet=False,
-        ))
+        mock_service.get_credentials = AsyncMock(
+            return_value=TenantCredentials(
+                tenant_id=sample_tenant_id,
+                exchange="coinbasepro",
+                credential_type="trading",
+                api_key="test_key",
+                api_secret="test_secret",
+                passphrase="test_passphrase",
+                testnet=False,
+            )
+        )
         mock_service_class.return_value = mock_service
 
-        result = await _check_single_credential(sample_tenant_id, "coinbasepro", "trading")
+        result = await _check_single_credential(
+            sample_tenant_id, "coinbasepro", "trading"
+        )
 
         assert result["valid"] is True
         assert result["exchange"] == "coinbasepro"
@@ -488,30 +569,42 @@ class TestEdgeCases:
     @patch("alpha_pulse.tasks.credential_health.CredentialValidator")
     @patch("alpha_pulse.tasks.credential_health.TenantCredentialService")
     async def test_check_single_credential_testnet(
-        self, mock_service_class, mock_validator_class, mock_vault_class,
-        mock_get_settings, mock_settings, sample_tenant_id
+        self,
+        mock_service_class,
+        mock_validator_class,
+        mock_vault_class,
+        mock_get_settings,
+        mock_settings,
+        sample_tenant_id,
     ):
         """Test checking testnet credential."""
         mock_get_settings.return_value = mock_settings
 
         # Mock validator
         mock_validator = Mock()
-        mock_validator.validate = AsyncMock(return_value=ValidationResult(
-            valid=True,
-            credential_type="trading",
-            exchange_account_id="testnet_123",
-            error=None,
-        ))
+        mock_validator.validate = AsyncMock(
+            return_value=ValidationResult(
+                valid=True,
+                credential_type="trading",
+                exchange_account_id="testnet_123",
+                error=None,
+            )
+        )
         mock_validator_class.return_value = mock_validator
 
         # Mock credential service with testnet=True
         mock_service = Mock()
-        mock_service.get_credentials = AsyncMock(return_value=TenantCredentials(
-            api_key="testnet_key",
-            api_secret="testnet_secret",
-            passphrase=None,
-            testnet=True,
-        ))
+        mock_service.get_credentials = AsyncMock(
+            return_value=TenantCredentials(
+                tenant_id=sample_tenant_id,
+                exchange="binance",
+                credential_type="trading",
+                api_key="testnet_key",
+                api_secret="testnet_secret",
+                passphrase=None,
+                testnet=True,
+            )
+        )
         mock_service_class.return_value = mock_service
 
         result = await _check_single_credential(sample_tenant_id, "binance", "trading")
@@ -522,3 +615,63 @@ class TestEdgeCases:
         """Test manual check with invalid UUID format."""
         with pytest.raises(ValueError):
             check_credential_health_manual("invalid-uuid", "binance", "trading")
+
+
+class TestListAllCredentials:
+    """Tests for _list_all_credentials helper."""
+
+    @pytest.mark.asyncio
+    async def test_list_credentials_empty_vault(self):
+        """Test credential listing with empty Vault."""
+        from alpha_pulse.tasks.credential_health import _list_all_credentials
+
+        mock_provider = Mock()
+        mock_provider.list_secrets = Mock(return_value=[])
+
+        result = await _list_all_credentials(mock_provider)
+
+        assert result == []
+        mock_provider.list_secrets.assert_called_once_with("tenants")
+
+    @pytest.mark.asyncio
+    async def test_list_credentials_single_tenant_single_exchange(self):
+        """Test credential listing with one tenant, one exchange."""
+        from alpha_pulse.tasks.credential_health import _list_all_credentials
+
+        mock_provider = Mock()
+
+        def mock_list_secrets(path):
+            if path == "tenants":
+                return ["00000000-0000-0000-0000-000000000001/"]
+            elif path == "tenants/00000000-0000-0000-0000-000000000001/exchanges":
+                return ["binance/"]
+            elif (
+                path == "tenants/00000000-0000-0000-0000-000000000001/exchanges/binance"
+            ):
+                return ["trading"]
+            return []
+
+        mock_provider.list_secrets = Mock(side_effect=mock_list_secrets)
+
+        result = await _list_all_credentials(mock_provider)
+
+        assert len(result) == 1
+        assert result[0] == {
+            "tenant_id": "00000000-0000-0000-0000-000000000001",
+            "exchange": "binance",
+            "credential_type": "trading",
+        }
+
+    @pytest.mark.asyncio
+    async def test_list_credentials_error_handling(self):
+        """Test error handling during credential listing."""
+        from alpha_pulse.tasks.credential_health import _list_all_credentials
+
+        mock_provider = Mock()
+        mock_provider.list_secrets = Mock(
+            side_effect=Exception("Vault connection failed")
+        )
+
+        result = await _list_all_credentials(mock_provider)
+
+        assert result == []
