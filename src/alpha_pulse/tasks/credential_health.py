@@ -6,7 +6,7 @@ Periodically validates all stored tenant credentials and sends webhook notificat
 
 import asyncio
 from datetime import datetime
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from uuid import UUID
 
 from celery import shared_task
@@ -15,8 +15,15 @@ from prometheus_client import Counter, Histogram
 
 from alpha_pulse.services.credentials import TenantCredentialService
 from alpha_pulse.services.credentials.validator import CredentialValidator
+from alpha_pulse.services.webhook_notifier import WebhookNotifier
 from alpha_pulse.utils.secrets_manager import HashiCorpVaultProvider
 from alpha_pulse.config.secure_settings import get_settings
+from alpha_pulse.config.database import get_db_session
+from alpha_pulse.models.credential_health import (
+    CredentialHealthCheck,
+    get_tenant_webhook,
+    get_latest_health_check,
+)
 
 # Prometheus metrics
 credential_health_check_total = Counter(
@@ -177,95 +184,146 @@ async def _check_credentials_async() -> Dict[str, int]:
     credentials_to_check = await _list_all_credentials(vault_provider)
     logger.info(f"Found {len(credentials_to_check)} credentials to check")
 
+    # Get database session
+    session = get_db_session()
+
     checked_count = 0
     failed_count = 0
     webhooks_sent = 0
 
-    for cred_info in credentials_to_check:
-        tenant_id = UUID(cred_info["tenant_id"])
-        exchange = cred_info["exchange"]
-        credential_type = cred_info.get("credential_type", "trading")
+    try:
+        for cred_info in credentials_to_check:
+            tenant_id = UUID(cred_info["tenant_id"])
+            exchange = cred_info["exchange"]
+            credential_type = cred_info.get("credential_type", "trading")
 
-        # Retrieve and validate credential
-        try:
-            with credential_health_check_duration_seconds.labels(
-                exchange=exchange
-            ).time():
-                credentials = await credential_service.get_credentials(
-                    tenant_id, exchange, credential_type
-                )
-
-                if not credentials:
-                    logger.warning(
-                        f"No credentials found for tenant={tenant_id}, exchange={exchange}"
+            # Retrieve and validate credential
+            try:
+                with credential_health_check_duration_seconds.labels(
+                    exchange=exchange
+                ).time():
+                    credentials = await credential_service.get_credentials(
+                        tenant_id, exchange, credential_type
                     )
-                    continue
 
-                # Validate via CCXT
-                validation_result = await validator.validate(
-                    exchange=exchange,
-                    api_key=credentials.api_key,
-                    secret=credentials.api_secret,
-                    passphrase=credentials.passphrase,
-                    testnet=credentials.testnet,
-                )
+                    if not credentials:
+                        logger.warning(
+                            f"No credentials found for tenant={tenant_id}, exchange={exchange}"
+                        )
+                        continue
 
-                checked_count += 1
-
-                if validation_result.valid:
-                    # Success - reset failure counter
-                    logger.debug(
-                        f"Credential valid: tenant={tenant_id}, exchange={exchange}"
-                    )
-                    credential_health_check_total.labels(
-                        tenant_id=str(tenant_id),
+                    # Validate via CCXT
+                    validation_result = await validator.validate(
                         exchange=exchange,
-                        result="success",
-                    ).inc()
-
-                    # TODO: Update database - reset consecutive_failures to 0
-                else:
-                    # Failure - increment counter
-                    failed_count += 1
-                    logger.warning(
-                        f"Credential invalid: tenant={tenant_id}, exchange={exchange}, "
-                        f"error={validation_result.error}"
+                        api_key=credentials.api_key,
+                        secret=credentials.api_secret,
+                        passphrase=credentials.passphrase,
+                        testnet=credentials.testnet,
                     )
-                    credential_health_check_total.labels(
-                        tenant_id=str(tenant_id),
-                        exchange=exchange,
-                        result="failure",
-                    ).inc()
 
-                    # TODO: Increment consecutive_failures in database
-                    # TODO: If consecutive_failures >= threshold, send webhook
-                    consecutive_failures = 1  # Placeholder
+                    checked_count += 1
 
-                    if (
-                        consecutive_failures
-                        >= settings.credential_consecutive_failures_before_alert
-                    ):
-                        # Send webhook notification
-                        webhook_sent = await _send_credential_failure_webhook(
+                    if validation_result.valid:
+                        # Success - reset failure counter
+                        logger.debug(
+                            f"Credential valid: tenant={tenant_id}, exchange={exchange}"
+                        )
+                        credential_health_check_total.labels(
+                            tenant_id=str(tenant_id),
+                            exchange=exchange,
+                            result="success",
+                        ).inc()
+
+                        # Record success in database
+                        health_check = CredentialHealthCheck(
                             tenant_id=tenant_id,
                             exchange=exchange,
                             credential_type=credential_type,
-                            error=validation_result.error,
-                            consecutive_failures=consecutive_failures,
+                            check_timestamp=datetime.utcnow(),
+                            is_valid=True,
+                            validation_error=None,
+                            consecutive_failures=0,
+                            last_success_at=datetime.utcnow(),
                         )
-                        if webhook_sent:
-                            webhooks_sent += 1
+                        session.add(health_check)
+                        session.commit()
 
-        except Exception as e:
-            logger.error(
-                f"Error checking credential for tenant={tenant_id}, exchange={exchange}: {e}",
-                exc_info=True,
-            )
-            credential_health_check_total.labels(
-                tenant_id=str(tenant_id),
-                exchange=exchange,
-                result="error",
-            ).inc()
+                    else:
+                        # Failure - increment counter
+                        failed_count += 1
+                        logger.warning(
+                            f"Credential invalid: tenant={tenant_id}, exchange={exchange}, "
+                            f"error={validation_result.error}"
+                        )
+                        credential_health_check_total.labels(
+                            tenant_id=str(tenant_id),
+                            exchange=exchange,
+                            result="failure",
+                        ).inc()
+
+                        # Get previous check to track consecutive failures
+                        latest_check = await asyncio.to_thread(
+                            get_latest_health_check,
+                            session,
+                            tenant_id,
+                            exchange,
+                            credential_type,
+                        )
+
+                        consecutive_failures = (
+                            latest_check.consecutive_failures + 1
+                            if latest_check and not latest_check.is_valid
+                            else 1
+                        )
+
+                        # Record failure in database
+                        health_check = CredentialHealthCheck(
+                            tenant_id=tenant_id,
+                            exchange=exchange,
+                            credential_type=credential_type,
+                            check_timestamp=datetime.utcnow(),
+                            is_valid=False,
+                            validation_error=validation_result.error,
+                            consecutive_failures=consecutive_failures,
+                            first_failure_at=(
+                                latest_check.first_failure_at
+                                if latest_check and not latest_check.is_valid
+                                else datetime.utcnow()
+                            ),
+                        )
+                        session.add(health_check)
+                        session.commit()
+
+                        # Send webhook if threshold reached
+                        if (
+                            consecutive_failures
+                            >= settings.credential_consecutive_failures_before_alert
+                        ):
+                            # Send webhook notification
+                            webhook_sent = await _send_credential_failure_webhook(
+                                session=session,
+                                tenant_id=tenant_id,
+                                exchange=exchange,
+                                credential_type=credential_type,
+                                error=validation_result.error,
+                                consecutive_failures=consecutive_failures,
+                            )
+                            if webhook_sent:
+                                webhooks_sent += 1
+
+            except Exception as e:
+                logger.error(
+                    f"Error checking credential for tenant={tenant_id}, exchange={exchange}: {e}",
+                    exc_info=True,
+                )
+                credential_health_check_total.labels(
+                    tenant_id=str(tenant_id),
+                    exchange=exchange,
+                    result="error",
+                ).inc()
+
+    finally:
+        session.close()
 
     return {
         "checked": checked_count,
@@ -275,6 +333,7 @@ async def _check_credentials_async() -> Dict[str, int]:
 
 
 async def _send_credential_failure_webhook(
+    session,
     tenant_id: UUID,
     exchange: str,
     credential_type: str,
@@ -285,6 +344,7 @@ async def _send_credential_failure_webhook(
     Send webhook notification for credential failure.
 
     Args:
+        session: Database session
         tenant_id: Tenant UUID
         exchange: Exchange name
         credential_type: Credential type
@@ -299,32 +359,57 @@ async def _send_credential_failure_webhook(
         f"exchange={exchange}, failures={consecutive_failures}"
     )
 
-    # TODO: Implement webhook delivery
-    # 1. Get webhook URL and secret from database (tenant_webhooks table)
-    # 2. Build webhook payload (JSON)
-    # 3. Generate HMAC-SHA256 signature
-    # 4. Send HTTP POST with retry logic
-    # 5. Log delivery status
+    # Get webhook configuration from database
+    webhook_config = await asyncio.to_thread(
+        get_tenant_webhook, session, tenant_id, "credential.failed"
+    )
 
-    # Placeholder
-    webhook_url = None  # Query from database
-    if not webhook_url:
-        logger.debug(f"No webhook configured for tenant={tenant_id}")
+    if not webhook_config or not webhook_config.is_active:
+        logger.debug(
+            f"No active webhook configured for tenant={tenant_id}, event=credential.failed"
+        )
         return False
 
     try:
-        # TODO: Use WebhookNotifier service
-        # notifier = WebhookNotifier()
-        # success = await notifier.send_credential_failure_webhook(
-        #     tenant_id=tenant_id,
-        #     webhook_url=webhook_url,
-        #     payload={...},
-        #     webhook_secret=webhook_secret,
-        # )
-        # return success
-        return False  # Placeholder
+        # Initialize webhook notifier
+        notifier = WebhookNotifier()
+
+        # Build webhook payload
+        payload = {
+            "exchange": exchange,
+            "credential_type": credential_type,
+            "error": error,
+            "consecutive_failures": consecutive_failures,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+
+        # Send webhook
+        success = await notifier.send_credential_failure_webhook(
+            tenant_id=tenant_id,
+            webhook_url=webhook_config.webhook_url,
+            payload=payload,
+            webhook_secret=webhook_config.webhook_secret,
+        )
+
+        # Update webhook delivery stats
+        if success:
+            webhook_config.last_success_at = datetime.utcnow()
+            webhook_config.success_count = (webhook_config.success_count or 0) + 1
+            logger.info(f"Webhook delivered successfully for tenant={tenant_id}")
+        else:
+            webhook_config.last_failure_at = datetime.utcnow()
+            webhook_config.failure_count = (webhook_config.failure_count or 0) + 1
+            logger.warning(f"Webhook delivery failed for tenant={tenant_id}")
+
+        webhook_config.last_triggered_at = datetime.utcnow()
+        session.commit()
+
+        return success
+
     except Exception as e:
-        logger.error(f"Failed to send webhook for tenant={tenant_id}: {e}")
+        logger.error(
+            f"Failed to send webhook for tenant={tenant_id}: {e}", exc_info=True
+        )
         return False
 
 
