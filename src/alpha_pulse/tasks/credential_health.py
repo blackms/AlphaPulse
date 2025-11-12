@@ -82,8 +82,8 @@ async def _check_credentials_async() -> Dict[str, int]:
 
     # Initialize services
     vault_provider = HashiCorpVaultProvider(
-        vault_addr="http://localhost:8200",  # TODO: Get from settings
-        vault_token=None,  # Will use VAULT_TOKEN env var
+        vault_addr=settings.vault_addr,
+        vault_token=settings.vault_token,
     )
     validator = CredentialValidator(timeout=10)
     credential_service = TenantCredentialService(
@@ -297,10 +297,12 @@ async def _check_single_credential(
     Returns:
         Dict with validation result and details
     """
+    settings = get_settings()
+
     # Initialize services
     vault_provider = HashiCorpVaultProvider(
-        vault_addr="http://localhost:8200",
-        vault_token=None,
+        vault_addr=settings.vault_addr,
+        vault_token=settings.vault_token,
     )
     validator = CredentialValidator(timeout=10)
     credential_service = TenantCredentialService(

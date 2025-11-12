@@ -172,6 +172,10 @@ class Settings(BaseSettings):
     risk_per_trade: float = Field(default=0.02)
     max_leverage: float = Field(default=1.0)
 
+    # HashiCorp Vault settings
+    vault_addr: str = Field(default="http://localhost:8200")
+    vault_token: Optional[str] = Field(default=None)  # Can also use VAULT_TOKEN env var
+
     # Celery/Background Task settings
     celery_broker_url: str = Field(default="redis://localhost:6379/0")
     celery_result_backend: str = Field(default="redis://localhost:6379/1")
