@@ -120,33 +120,47 @@ class TestCheckCredentialsAsync:
 
     @pytest.mark.asyncio
     @patch("alpha_pulse.tasks.credential_health.get_settings")
+    @patch("alpha_pulse.tasks.credential_health.get_db_session")
+    @patch("alpha_pulse.tasks.credential_health._list_all_credentials")
     @patch("alpha_pulse.tasks.credential_health.HashiCorpVaultProvider")
     @patch("alpha_pulse.tasks.credential_health.CredentialValidator")
     @patch("alpha_pulse.tasks.credential_health.TenantCredentialService")
     async def test_check_credentials_async_no_credentials(
-        self, mock_service_class, mock_validator_class, mock_vault_class, mock_get_settings, mock_settings
+        self, mock_service_class, mock_validator_class, mock_vault_class,
+        mock_list_creds, mock_get_db, mock_get_settings, mock_settings
     ):
         """Test async health check with no credentials to check."""
         mock_get_settings.return_value = mock_settings
+        mock_session = Mock()
+        mock_session.close = Mock()
+        mock_get_db.return_value = mock_session
+        mock_list_creds.return_value = []
 
         result = await _check_credentials_async()
 
         assert result["checked"] == 0
         assert result["failed"] == 0
         assert result["webhooks_sent"] == 0
+        mock_session.close.assert_called_once()
 
     @pytest.mark.asyncio
     @patch("alpha_pulse.tasks.credential_health.get_settings")
+    @patch("alpha_pulse.tasks.credential_health.get_db_session")
+    @patch("alpha_pulse.tasks.credential_health._list_all_credentials")
     @patch("alpha_pulse.tasks.credential_health.HashiCorpVaultProvider")
     @patch("alpha_pulse.tasks.credential_health.CredentialValidator")
     @patch("alpha_pulse.tasks.credential_health.TenantCredentialService")
     @patch("alpha_pulse.tasks.credential_health._send_credential_failure_webhook")
     async def test_check_credentials_async_with_failures(
         self, mock_webhook, mock_service_class, mock_validator_class,
-        mock_vault_class, mock_get_settings, mock_settings, sample_tenant_id
+        mock_vault_class, mock_list_creds, mock_get_db, mock_get_settings, mock_settings, sample_tenant_id
     ):
         """Test async health check with credential failures."""
         mock_get_settings.return_value = mock_settings
+        mock_session = Mock()
+        mock_session.close = Mock()
+        mock_get_db.return_value = mock_session
+        mock_list_creds.return_value = []
         mock_webhook.return_value = False
 
         # Mock validator to return failure
@@ -176,6 +190,7 @@ class TestCheckCredentialsAsync:
         assert result["checked"] == 0  # No credentials in list
         assert result["failed"] == 0
         assert result["webhooks_sent"] == 0
+        mock_session.close.assert_called_once()
 
 
 class TestCheckSingleCredential:
@@ -327,9 +342,18 @@ class TestSendCredentialFailureWebhook:
     """Tests for _send_credential_failure_webhook helper."""
 
     @pytest.mark.asyncio
-    async def test_send_webhook_no_url_configured(self, sample_tenant_id):
+    @patch("alpha_pulse.tasks.credential_health.get_tenant_webhook")
+    @patch("alpha_pulse.tasks.credential_health.asyncio.to_thread")
+    async def test_send_webhook_no_url_configured(self, mock_to_thread, mock_get_webhook, sample_tenant_id):
         """Test webhook sending when no URL is configured."""
+        # Mock database session
+        mock_session = Mock()
+
+        # Mock get_tenant_webhook to return None (no webhook configured)
+        mock_to_thread.return_value = None
+
         result = await _send_credential_failure_webhook(
+            session=mock_session,
             tenant_id=sample_tenant_id,
             exchange="binance",
             credential_type="trading",
@@ -342,16 +366,30 @@ class TestSendCredentialFailureWebhook:
 
     @pytest.mark.asyncio
     @patch("alpha_pulse.tasks.credential_health.WebhookNotifier")
-    async def test_send_webhook_success(self, mock_notifier_class, sample_tenant_id):
+    @patch("alpha_pulse.tasks.credential_health.asyncio.to_thread")
+    async def test_send_webhook_success(self, mock_to_thread, mock_notifier_class, sample_tenant_id):
         """Test successful webhook sending."""
+        # Mock database session
+        mock_session = Mock()
+
+        # Mock webhook configuration
+        mock_webhook_config = Mock()
+        mock_webhook_config.is_active = True
+        mock_webhook_config.webhook_url = "https://example.com/webhook"
+        mock_webhook_config.webhook_secret = "secret123"
+        mock_webhook_config.success_count = 0
+        mock_webhook_config.failure_count = 0
+
+        # Mock get_tenant_webhook to return active webhook
+        mock_to_thread.return_value = mock_webhook_config
+
         # Mock WebhookNotifier
         mock_notifier = Mock()
         mock_notifier.send_credential_failure_webhook = AsyncMock(return_value=True)
         mock_notifier_class.return_value = mock_notifier
 
-        # Note: Current implementation returns False as placeholder
-        # This test validates the structure
         result = await _send_credential_failure_webhook(
+            session=mock_session,
             tenant_id=sample_tenant_id,
             exchange="binance",
             credential_type="trading",
@@ -359,14 +397,23 @@ class TestSendCredentialFailureWebhook:
             consecutive_failures=3,
         )
 
-        # Current implementation returns False (placeholder)
-        assert result is False
+        # Should return True when webhook is sent successfully
+        assert result is True
+        mock_session.commit.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_send_webhook_exception_handling(self, sample_tenant_id):
+    @patch("alpha_pulse.tasks.credential_health.asyncio.to_thread")
+    async def test_send_webhook_exception_handling(self, mock_to_thread, sample_tenant_id):
         """Test webhook exception handling."""
+        # Mock database session
+        mock_session = Mock()
+
+        # Mock to_thread to raise an exception
+        mock_to_thread.side_effect = Exception("Database connection failed")
+
         # Current implementation catches all exceptions
         result = await _send_credential_failure_webhook(
+            session=mock_session,
             tenant_id=sample_tenant_id,
             exchange="binance",
             credential_type="trading",

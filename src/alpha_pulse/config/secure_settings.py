@@ -4,9 +4,7 @@ Secure settings management for AlphaPulse.
 This module replaces the hardcoded credentials with secure secret management.
 """
 import os
-from typing import Dict, Any, Optional
-from pathlib import Path
-import yaml
+from typing import Dict, Optional
 from pydantic import Field, validator
 from pydantic_settings import BaseSettings
 from functools import lru_cache
