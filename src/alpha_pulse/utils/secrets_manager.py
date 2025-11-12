@@ -268,15 +268,24 @@ class HashiCorpVaultProvider(SecretProvider):
             logger.error(f"Error deleting secret {secret_name}: {str(e)}")
             return False
     
-    def list_secrets(self) -> list:
-        """List all secrets in Vault."""
+    def list_secrets(self, path: str = "") -> list:
+        """
+        List all secrets in Vault at the given path.
+
+        Args:
+            path: Path to list secrets from (relative to mount point)
+
+        Returns:
+            List of secret names/paths at the given location
+        """
         try:
             response = self.client.secrets.kv.v2.list_secrets(
+                path=path,
                 mount_point=self.mount_point
             )
             return response["data"]["keys"]
         except Exception as e:
-            logger.error(f"Error listing secrets: {str(e)}")
+            logger.error(f"Error listing secrets at path '{path}': {str(e)}")
             return []
 
 

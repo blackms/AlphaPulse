@@ -71,6 +71,88 @@ def check_all_credentials_health(self):
         raise
 
 
+async def _list_all_credentials(
+    vault_provider: HashiCorpVaultProvider,
+) -> List[Dict[str, Any]]:
+    """
+    Scan Vault for all stored credentials.
+
+    Recursively scans the Vault path structure:
+    tenants/{tenant_id}/exchanges/{exchange}/{credential_type}
+
+    Args:
+        vault_provider: HashiCorpVaultProvider instance
+
+    Returns:
+        List of dicts with {tenant_id, exchange, credential_type}
+    """
+    credentials = []
+
+    try:
+        # List all tenants
+        tenant_paths = vault_provider.list_secrets("tenants")
+
+        if not tenant_paths:
+            logger.warning("No tenants found in Vault at 'tenants/' path")
+            return credentials
+
+        for tenant_path in tenant_paths:
+            # tenant_path is like "00000000-0000-0000-0000-000000000001/"
+            tenant_id = tenant_path.rstrip("/")
+
+            # List exchanges for this tenant
+            try:
+                exchange_paths = vault_provider.list_secrets(f"tenants/{tenant_id}/exchanges")
+
+                if not exchange_paths:
+                    logger.debug(f"No exchanges found for tenant {tenant_id}")
+                    continue
+
+                for exchange_path in exchange_paths:
+                    # exchange_path is like "binance/"
+                    exchange = exchange_path.rstrip("/")
+
+                    # List credential types for this exchange
+                    try:
+                        cred_type_paths = vault_provider.list_secrets(
+                            f"tenants/{tenant_id}/exchanges/{exchange}"
+                        )
+
+                        if not cred_type_paths:
+                            logger.debug(f"No credentials found for {tenant_id}/{exchange}")
+                            continue
+
+                        for cred_type_path in cred_type_paths:
+                            # cred_type_path is like "trading" (actual secret key, not a folder)
+                            credential_type = cred_type_path.rstrip("/")
+
+                            credentials.append({
+                                "tenant_id": tenant_id,
+                                "exchange": exchange,
+                                "credential_type": credential_type,
+                            })
+                            logger.debug(
+                                f"Found credential: tenant={tenant_id}, "
+                                f"exchange={exchange}, type={credential_type}"
+                            )
+
+                    except Exception as e:
+                        logger.error(
+                            f"Error listing credential types for {tenant_id}/{exchange}: {e}"
+                        )
+                        continue
+
+            except Exception as e:
+                logger.error(f"Error listing exchanges for tenant {tenant_id}: {e}")
+                continue
+
+    except Exception as e:
+        logger.error(f"Error listing credentials from Vault: {e}", exc_info=True)
+
+    logger.info(f"Discovered {len(credentials)} credentials in Vault")
+    return credentials
+
+
 async def _check_credentials_async() -> Dict[str, int]:
     """
     Async implementation of credential health checks.
@@ -92,9 +174,8 @@ async def _check_credentials_async() -> Dict[str, int]:
     )
 
     # Get all tenant credentials from Vault
-    # TODO: Implement list_all_credentials() method or query from database
-    # For now, this is a placeholder that would need integration with tenant management
-    credentials_to_check: List[Dict[str, Any]] = []
+    credentials_to_check = await _list_all_credentials(vault_provider)
+    logger.info(f"Found {len(credentials_to_check)} credentials to check")
 
     checked_count = 0
     failed_count = 0
