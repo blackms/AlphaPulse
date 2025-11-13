@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.5.2] - 2025-11-13
+
+### Fixed
+- **CI/CD Pipeline Improvements**
+  - Fixed Docker build timeout by making full builds conditional on tagged releases (commit 0e6ea1d)
+    - Regular commits now only validate Dockerfile syntax (~5 seconds)
+    - Full Docker image builds only run on version tags (v*)
+    - Prevents CI/CD blocking due to 30+ minute build timeouts
+  - Updated Docker Hub secret names in CI/CD workflow (commit 5aa7aa6)
+  - Optimized Docker build performance with BuildKit caching (commit 6e5a096)
+    - Added cache mounts for apt, pip, and poetry
+    - Enabled registry cache fallback
+    - Added BUILDKIT_INLINE_CACHE build arg
+
+### Changed
+- **Dependency Updates** (Security & Stability)
+  - Updated cryptography: 45.0.6 → 46.0.3 (security fix)
+  - Updated cffi: 1.17.1 → 2.0.0
+  - Updated aiosmtplib: 4.0.2 → 5.0.0
+  - Updated 12 dashboard npm packages (grouped update)
+  - Improved Dockerfile with cache mounts and exclusions
+
+### Security
+- Resolved 1 security vulnerability in cryptography package
+- 6 vulnerabilities remain open (2 critical, 1 high) - tracked for next release
+
 ## [2.5.1] - 2025-11-12
 
 ### Fixed
