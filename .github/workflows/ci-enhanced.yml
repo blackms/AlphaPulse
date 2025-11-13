@@ -303,13 +303,18 @@ jobs:
 
     - name: Build Docker image
       uses: docker/build-push-action@v5
+      timeout-minutes: 30
       with:
         context: .
         push: ${{ github.ref == 'refs/heads/main' }}
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
-        cache-from: type=gha
+        cache-from: |
+          type=gha
+          type=registry,ref=blackms/alphapulse:latest
         cache-to: type=gha,mode=max
+        build-args: |
+          BUILDKIT_INLINE_CACHE=1
 
   # Job 5: Quality Gate Summary
   quality-gate:

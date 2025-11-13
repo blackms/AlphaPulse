@@ -5,7 +5,9 @@
 FROM python:3.12-slim as builder
 
 # Install system dependencies for building Python packages
-RUN apt-get update && apt-get install -y \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y \
     build-essential \
     libpq-dev \
     libffi-dev \
@@ -23,7 +25,8 @@ RUN ARCH=$(dpkg --print-architecture) && \
 
 # Install Poetry
 ENV POETRY_VERSION=1.7.1
-RUN pip install --no-cache-dir poetry==${POETRY_VERSION}
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir poetry==${POETRY_VERSION}
 
 # Set working directory
 WORKDIR /app
@@ -31,9 +34,11 @@ WORKDIR /app
 # Copy dependency files
 COPY pyproject.toml poetry.lock ./
 
-# Install dependencies (no dev dependencies)
-RUN poetry config virtualenvs.create false \
-    && poetry install --no-interaction --no-ansi --only main
+# Install dependencies (no dev dependencies) with pip cache mount
+RUN --mount=type=cache,target=/root/.cache/pypoetry \
+    --mount=type=cache,target=/root/.cache/pip \
+    poetry config virtualenvs.create false \
+    && poetry install --no-interaction --no-ansi --only main --no-root
 
 # Stage 2: Runtime
 FROM python:3.12-slim

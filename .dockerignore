@@ -85,6 +85,16 @@ temp/
 # Development prompts
 dev-prompts/
 
+# QA files
+.qa/
+
+# Dashboard (not needed in API image)
+dashboard/
+node_modules/
+
+# Poetry lock and pyproject (already copied in Dockerfile)
+# Commented out to ensure they're available for COPY commands
+
 # Keep these for runtime
 !config/
 !scripts/
