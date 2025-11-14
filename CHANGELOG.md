@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.7.0] - 2025-11-14
+
 ### Added
 - **Credential Rotation API** (Story 3.6 - Issue #172)
   - RESTful API for managing exchange credentials with secure Vault storage
