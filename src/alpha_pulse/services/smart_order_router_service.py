@@ -16,7 +16,7 @@ from alpha_pulse.execution.smart_order_router import (
 )
 from alpha_pulse.execution.broker_interface import BrokerInterface, OrderSide
 from alpha_pulse.services.regime_detection_service import RegimeDetectionService
-from alpha_pulse.monitoring.alert_manager import AlertManager, Alert, AlertLevel
+from alpha_pulse.monitoring.alerting import AlertManager, Alert, AlertSeverity
 
 
 class SmartOrderRouterService:
@@ -94,7 +94,7 @@ class SmartOrderRouterService:
             await self._send_alert(
                 "Smart Order Router Started",
                 "Smart Order Router Service is now operational",
-                AlertLevel.INFO
+                AlertSeverity.INFO
             )
     
     async def stop(self):
@@ -114,7 +114,7 @@ class SmartOrderRouterService:
             await self._send_alert(
                 "Smart Order Router Stopped",
                 f"Service stopped. Processed {self.total_orders_processed} orders",
-                AlertLevel.INFO
+                AlertSeverity.INFO
             )
     
     async def submit_smart_order(
@@ -168,7 +168,7 @@ class SmartOrderRouterService:
             await self._send_alert(
                 "Large Order Submitted",
                 f"Smart order {order_id}: {side.value} {quantity:,.0f} {symbol}",
-                AlertLevel.MEDIUM
+                AlertSeverity.WARNING
             )
         
         logger.info(f"Submitted smart order {order_id}: {side.value} {quantity} {symbol}")
@@ -186,7 +186,7 @@ class SmartOrderRouterService:
             await self._send_alert(
                 "Order Cancelled",
                 f"Smart order {order_id} was cancelled",
-                AlertLevel.MEDIUM
+                AlertSeverity.WARNING
             )
         
         return success
@@ -227,7 +227,7 @@ class SmartOrderRouterService:
             }
         }
     
-    async def _send_alert(self, title: str, message: str, level: AlertLevel):
+    async def _send_alert(self, title: str, message: str, level: AlertSeverity):
         """Send alert through alert manager."""
         if not self.alert_manager:
             return

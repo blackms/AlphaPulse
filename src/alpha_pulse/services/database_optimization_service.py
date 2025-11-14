@@ -21,7 +21,7 @@ from ..database.load_balancer import AdaptiveLoadBalancer
 from ..database.failover_manager import FailoverManager
 from ..database.database_monitor import DatabaseMonitor
 from ..monitoring.metrics import MetricsCollector
-from ..monitoring.alert_manager import AlertManager
+from ..monitoring.alerting import AlertManager
 from ..utils.logging_utils import get_logger
 
 logger = get_logger(__name__)

@@ -168,7 +168,7 @@ class TestMonitoringModules:
     
     def test_alert_manager_import(self):
         """Test alert manager can be imported."""
-        from alpha_pulse.monitoring.alert_manager import AlertManager
+        from alpha_pulse.monitoring.alerting import AlertManager
         # Just test import works
         assert AlertManager is not None
 

@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..utils.logging_utils import get_logger
 from ..monitoring.metrics import MetricsCollector
-from ..monitoring.alert_manager import AlertManager, AlertSeverity
+from ..monitoring.alerting import AlertManager, AlertSeverity
 
 logger = get_logger(__name__)
 
