@@ -7,8 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [2.6.1] - 2025-11-14
-
 ### Added
 - **Credential Rotation API** (Story 3.6 - Issue #172)
   - RESTful API for managing exchange credentials with secure Vault storage
@@ -24,6 +22,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 15 integration tests covering all acceptance criteria
   - API key masking in responses (first 8 chars visible)
 
+- **Redis Cluster Deployment** (Story 4.1 - Issue #173)
+  - Production-ready 6-node Redis Cluster (3 masters + 3 replicas)
+  - Docker Compose configuration with automatic cluster initialization
+  - High availability with automatic failover (<5s MTTR tested)
+  - Data sharding across 16,384 hash slots distributed across 3 masters
+  - Comprehensive deployment guide (docs/deployment/REDIS_CLUSTER.md - 500+ lines)
+  - Automated health check script (scripts/redis-cluster-health.sh - 8 checks)
+  - Monitoring with Redis Exporter (Prometheus metrics on port 9121)
+  - Failover testing procedures and network partition simulation documented
+  - Password authentication and security configuration
+  - AOF persistence (everysec) + RDB snapshots for data durability
+
+## [2.6.1] - 2025-11-14
+
+### Added
 - **Vault Disaster Recovery Runbook** (Story 3.5 - Issue #171)
   - Comprehensive 9-section disaster recovery runbook for HashiCorp Vault
   - Documented backup procedures (automated daily + manual on-demand)
