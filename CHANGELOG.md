@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.6.0] - 2025-11-14
+
 ### Added
 - **Vault Load Testing Infrastructure** (Story 3.4 - Issue #170)
   - Comprehensive k6 load test scenarios for Vault performance benchmarking
@@ -16,6 +18,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Established capacity planning metrics for Year 1 (500 tenants) and Year 2 (5000 tenants)
   - Credential rotation limits: 100/hour per tenant (safe), 500/hour (capacity)
   - Zero tenant isolation violations in 27,382 multi-tenant operations
+  - Timezone-aware timestamp parsing for test result analysis
+
+### Fixed
+- **Code Quality Improvements**
+  - Fixed timestamp parsing bug in analyze_results.py (now handles all ISO 8601 formats)
+  - Applied black formatting to all load test scripts
+  - Configured flake8 for black compatibility (88-char line length)
+  - Added type stubs for python-dateutil (mypy compliance)
 
 ## [2.5.2] - 2025-11-13
 
