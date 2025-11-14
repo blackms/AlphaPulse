@@ -1,0 +1,324 @@
+version: '3.8'
+
+# Redis Cluster for AlphaPulse Multi-Tenant SaaS
+#
+# Architecture: 6 nodes (3 masters + 3 replicas)
+# - Master nodes: redis-master-1, redis-master-2, redis-master-3
+# - Replica nodes: redis-replica-1, redis-replica-2, redis-replica-3
+#
+# Features:
+# - Automatic failover and high availability
+# - Data sharding across 3 master nodes
+# - Each master has 1 replica for redundancy
+# - Health checks and monitoring
+# - Persistent storage with AOF + RDB
+#
+# Usage:
+#   docker-compose -f docker-compose.redis-cluster.yml up -d
+#   docker-compose -f docker-compose.redis-cluster.yml exec redis-master-1 redis-cli cluster info
+
+services:
+  # ============================================================================
+  # MASTER NODES
+  # ============================================================================
+
+  redis-master-1:
+    image: redis:7.2-alpine
+    container_name: alphapulse-redis-master-1
+    command: >
+      redis-server
+      --port 6379
+      --cluster-enabled yes
+      --cluster-config-file nodes.conf
+      --cluster-node-timeout 5000
+      --appendonly yes
+      --appendfilename "appendonly.aof"
+      --appendfsync everysec
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --requirepass ${REDIS_PASSWORD:-alphapulse_redis_secret}
+      --masterauth ${REDIS_PASSWORD:-alphapulse_redis_secret}
+    ports:
+      - "7001:6379"
+      - "17001:16379"  # Cluster bus port
+    volumes:
+      - redis-master-1-data:/data
+    networks:
+      - redis-cluster
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-alphapulse_redis_secret}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  redis-master-2:
+    image: redis:7.2-alpine
+    container_name: alphapulse-redis-master-2
+    command: >
+      redis-server
+      --port 6379
+      --cluster-enabled yes
+      --cluster-config-file nodes.conf
+      --cluster-node-timeout 5000
+      --appendonly yes
+      --appendfilename "appendonly.aof"
+      --appendfsync everysec
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --requirepass ${REDIS_PASSWORD:-alphapulse_redis_secret}
+      --masterauth ${REDIS_PASSWORD:-alphapulse_redis_secret}
+    ports:
+      - "7002:6379"
+      - "17002:16379"
+    volumes:
+      - redis-master-2-data:/data
+    networks:
+      - redis-cluster
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-alphapulse_redis_secret}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  redis-master-3:
+    image: redis:7.2-alpine
+    container_name: alphapulse-redis-master-3
+    command: >
+      redis-server
+      --port 6379
+      --cluster-enabled yes
+      --cluster-config-file nodes.conf
+      --cluster-node-timeout 5000
+      --appendonly yes
+      --appendfilename "appendonly.aof"
+      --appendfsync everysec
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --requirepass ${REDIS_PASSWORD:-alphapulse_redis_secret}
+      --masterauth ${REDIS_PASSWORD:-alphapulse_redis_secret}
+    ports:
+      - "7003:6379"
+      - "17003:16379"
+    volumes:
+      - redis-master-3-data:/data
+    networks:
+      - redis-cluster
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-alphapulse_redis_secret}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # ============================================================================
+  # REPLICA NODES
+  # ============================================================================
+
+  redis-replica-1:
+    image: redis:7.2-alpine
+    container_name: alphapulse-redis-replica-1
+    command: >
+      redis-server
+      --port 6379
+      --cluster-enabled yes
+      --cluster-config-file nodes.conf
+      --cluster-node-timeout 5000
+      --appendonly yes
+      --appendfilename "appendonly.aof"
+      --appendfsync everysec
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --requirepass ${REDIS_PASSWORD:-alphapulse_redis_secret}
+      --masterauth ${REDIS_PASSWORD:-alphapulse_redis_secret}
+    ports:
+      - "7004:6379"
+      - "17004:16379"
+    volumes:
+      - redis-replica-1-data:/data
+    networks:
+      - redis-cluster
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-alphapulse_redis_secret}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  redis-replica-2:
+    image: redis:7.2-alpine
+    container_name: alphapulse-redis-replica-2
+    command: >
+      redis-server
+      --port 6379
+      --cluster-enabled yes
+      --cluster-config-file nodes.conf
+      --cluster-node-timeout 5000
+      --appendonly yes
+      --appendfilename "appendonly.aof"
+      --appendfsync everysec
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --requirepass ${REDIS_PASSWORD:-alphapulse_redis_secret}
+      --masterauth ${REDIS_PASSWORD:-alphapulse_redis_secret}
+    ports:
+      - "7005:6379"
+      - "17005:16379"
+    volumes:
+      - redis-replica-2-data:/data
+    networks:
+      - redis-cluster
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-alphapulse_redis_secret}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  redis-replica-3:
+    image: redis:7.2-alpine
+    container_name: alphapulse-redis-replica-3
+    command: >
+      redis-server
+      --port 6379
+      --cluster-enabled yes
+      --cluster-config-file nodes.conf
+      --cluster-node-timeout 5000
+      --appendonly yes
+      --appendfilename "appendonly.aof"
+      --appendfsync everysec
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --requirepass ${REDIS_PASSWORD:-alphapulse_redis_secret}
+      --masterauth ${REDIS_PASSWORD:-alphapulse_redis_secret}
+    ports:
+      - "7006:6379"
+      - "17006:16379"
+    volumes:
+      - redis-replica-3-data:/data
+    networks:
+      - redis-cluster
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-alphapulse_redis_secret}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # ============================================================================
+  # CLUSTER INITIALIZATION
+  # ============================================================================
+
+  redis-cluster-init:
+    image: redis:7.2-alpine
+    container_name: alphapulse-redis-cluster-init
+    command: >
+      sh -c '
+        echo "Waiting for all Redis nodes to be ready..."
+        sleep 10
+        echo "Creating Redis Cluster..."
+        redis-cli -a ${REDIS_PASSWORD:-alphapulse_redis_secret} --cluster create \
+          redis-master-1:6379 \
+          redis-master-2:6379 \
+          redis-master-3:6379 \
+          redis-replica-1:6379 \
+          redis-replica-2:6379 \
+          redis-replica-3:6379 \
+          --cluster-replicas 1 \
+          --cluster-yes
+        echo "Cluster created successfully!"
+        echo "Cluster info:"
+        redis-cli -a ${REDIS_PASSWORD:-alphapulse_redis_secret} -c -h redis-master-1 cluster info
+        echo "Cluster nodes:"
+        redis-cli -a ${REDIS_PASSWORD:-alphapulse_redis_secret} -c -h redis-master-1 cluster nodes
+      '
+    depends_on:
+      - redis-master-1
+      - redis-master-2
+      - redis-master-3
+      - redis-replica-1
+      - redis-replica-2
+      - redis-replica-3
+    networks:
+      - redis-cluster
+    restart: "no"
+
+  # ============================================================================
+  # MONITORING (Redis Exporter for Prometheus)
+  # ============================================================================
+
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    container_name: alphapulse-redis-exporter
+    command:
+      - '--redis.addr=redis://redis-master-1:6379'
+      - '--redis.password=${REDIS_PASSWORD:-alphapulse_redis_secret}'
+      - '--web.listen-address=:9121'
+    ports:
+      - "9121:9121"
+    networks:
+      - redis-cluster
+    depends_on:
+      - redis-master-1
+      - redis-master-2
+      - redis-master-3
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:9121/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+# ============================================================================
+# NETWORKS
+# ============================================================================
+
+networks:
+  redis-cluster:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.25.0.0/16
+
+# ============================================================================
+# VOLUMES
+# ============================================================================
+
+volumes:
+  redis-master-1-data:
+    driver: local
+  redis-master-2-data:
+    driver: local
+  redis-master-3-data:
+    driver: local
+  redis-replica-1-data:
+    driver: local
+  redis-replica-2-data:
+    driver: local
+  redis-replica-3-data:
+    driver: local
