@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Credential Rotation API** (Story 3.6 - Issue #172)
+  - RESTful API for managing exchange credentials with secure Vault storage
+  - **PUT /api/v1/credentials/{exchange}/rotate** - Credential rotation with 5-min grace period
+  - **POST /api/v1/credentials/** - Create new credentials
+  - **GET /api/v1/credentials/** - List all credentials (masked)
+  - **DELETE /api/v1/credentials/{exchange}** - Delete credentials
+  - Immediate cache invalidation on rotation (in-memory LRU + distributed Redis)
+  - Multi-tenant isolation (tenant_id in Vault paths: tenants/{tenant_id}/{exchange}/api_key)
+  - Comprehensive audit logging for all operations (AUDIT level)
+  - JWT authentication and tenant context required
+  - Passphrase support for OKX and similar exchanges
+  - 15 integration tests covering all acceptance criteria
+  - API key masking in responses (first 8 chars visible)
+
 - **Vault Disaster Recovery Runbook** (Story 3.5 - Issue #171)
   - Comprehensive 9-section disaster recovery runbook for HashiCorp Vault
   - Documented backup procedures (automated daily + manual on-demand)
