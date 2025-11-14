@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Vault Disaster Recovery Runbook** (Story 3.5 - Issue #171)
+  - Comprehensive 9-section disaster recovery runbook for HashiCorp Vault
+  - Documented backup procedures (automated daily + manual on-demand)
+  - Detailed restore procedures for full cluster and single node failures
+  - Unsealing procedures (auto-unseal with AWS KMS + manual emergency unseal)
+  - Six disaster recovery scenarios with step-by-step resolution
+  - Monitoring and alerting configuration (Prometheus metrics + AlertManager rules)
+  - Monthly and quarterly testing schedules documented
+  - MTTR target: <30 minutes (RTO), RPO: <1 hour
+  - Automated DR testing script with data integrity verification
+  - Integration guide for CI/CD automated testing
+
 ## [2.6.0] - 2025-11-14
 
 ### Added
