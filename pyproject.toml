@@ -102,6 +102,7 @@ pytest-timeout = "^2.3.1"
 flake8 = "^7.2.0"
 black = "^25.1.0"
 mypy = "^1.15.0"
+types-python-dateutil = "^2.9.0.20251108"
 
 [tool.pytest.ini_options]
 asyncio_mode = "strict"
