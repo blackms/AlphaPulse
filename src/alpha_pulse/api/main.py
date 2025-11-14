@@ -32,7 +32,7 @@ from alpha_pulse.config.database import get_db_session
 # Import routers
 from .routers import metrics, alerts, portfolio, system, trades, correlation, risk_budget, regime, liquidity, online_learning, gpu, data_quality  # backtesting, data_lake
 from .routers import hedging, ensemble, explainability
-from .routes import audit  # Add audit routes
+from .routes import audit, credentials  # Add audit routes and credentials routes
 from .websockets import endpoints as ws_endpoints
 from .websockets.subscription import subscription_manager
 
@@ -173,6 +173,7 @@ app.include_router(portfolio.router, prefix="/api/v1", tags=["portfolio"])
 app.include_router(trades.router, prefix="/api/v1", tags=["trades"])
 app.include_router(system.router, prefix="/api/v1", tags=["system"])
 app.include_router(audit.router, prefix="/api/v1", tags=["audit"])  # Add audit routes
+app.include_router(credentials.router, prefix="/api/v1", tags=["credentials"])  # Add credentials routes
 app.include_router(correlation.router, prefix="/api/v1", tags=["correlation"])
 app.include_router(risk_budget.router, prefix="/api/v1/risk-budget", tags=["risk-budget"])
 app.include_router(regime.router, prefix="/api/v1/regime", tags=["regime"])
