@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.6.1] - 2025-11-14
+
 ### Added
 - **Vault Disaster Recovery Runbook** (Story 3.5 - Issue #171)
   - Comprehensive 9-section disaster recovery runbook for HashiCorp Vault
