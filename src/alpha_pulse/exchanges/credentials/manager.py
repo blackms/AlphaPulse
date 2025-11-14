@@ -9,7 +9,7 @@ from pathlib import Path
 from loguru import logger
 
 # Import the secure secrets manager
-from alpha_pulse.utils.secrets_manager import create_secrets_manager
+from ...utils.secrets_manager import create_secrets_manager
 
 
 @dataclass
