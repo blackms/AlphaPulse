@@ -1,0 +1,150 @@
+
+============================================================
+SPIKE #150: PostgreSQL RLS Performance Benchmarking
+============================================================
+✓ Connected to PostgreSQL at localhost:5432/alphapulse
+
+============================================================
+Setting up test table
+============================================================
+✓ Dropped existing test_trades table
+✓ Created test_trades table
+✓ Created composite index on (tenant_id, created_at)
+✓ Generated 10 tenant UUIDs
+Inserting 100,000 rows...
+  Progress: 10,000/100,000 rows
+  Progress: 20,000/100,000 rows
+  Progress: 30,000/100,000 rows
+  Progress: 40,000/100,000 rows
+  Progress: 50,000/100,000 rows
+  Progress: 60,000/100,000 rows
+  Progress: 70,000/100,000 rows
+  Progress: 80,000/100,000 rows
+  Progress: 90,000/100,000 rows
+  Progress: 100,000/100,000 rows
+✓ Inserted 100,000 rows in 4.15s (24096 rows/sec)
+✓ Analyzed table statistics
+
+============================================================
+PHASE 1: Baseline Benchmarks (RLS DISABLED)
+============================================================
+
+============================================================
+Benchmark 1: Simple SELECT (RLS: OFF)
+============================================================
+
+✗ FAIL
+  Iterations: 100
+  Avg latency: 5.222ms
+  P50 latency: 4.465ms
+  P95 latency: 8.673ms
+  P99 latency: 20.472ms ✗ (target: <5ms)
+
+============================================================
+Benchmark 2: Aggregation (RLS: OFF)
+============================================================
+
+✗ FAIL
+  Iterations: 100
+  Avg latency: 5.854ms
+  P99 latency: 84.653ms ✗ (target: <50ms)
+
+============================================================
+Benchmark 3: Time-Range Query (RLS: OFF)
+============================================================
+
+✗ FAIL
+  Iterations: 100
+  Avg latency: 6.082ms
+  P99 latency: 67.270ms ✗ (target: <10ms)
+
+============================================================
+Benchmark 4: JOIN Query (RLS: OFF)
+============================================================
+
+✗ FAIL
+  Iterations: 100
+  Avg latency: 6.606ms
+  P99 latency: 90.901ms ✗ (target: <20ms)
+
+============================================================
+PHASE 2: RLS Benchmarks (RLS ENABLED)
+============================================================
+
+============================================================
+Enabling Row-Level Security
+============================================================
+✓ Enabled RLS on test_trades
+✓ Created tenant_isolation policy
+
+============================================================
+Benchmark 1: Simple SELECT (RLS: ON)
+============================================================
+
+✓ PASS
+  Iterations: 100
+  Avg latency: 0.578ms
+  P50 latency: 0.537ms
+  P95 latency: 0.965ms
+  P99 latency: 1.455ms ✓
+
+============================================================
+Benchmark 2: Aggregation (RLS: ON)
+============================================================
+
+✗ FAIL
+  Iterations: 100
+  Avg latency: 29.507ms
+  P99 latency: 156.181ms ✗ (target: <50ms)
+
+============================================================
+Benchmark 3: Time-Range Query (RLS: ON)
+============================================================
+
+✗ FAIL
+  Iterations: 100
+  Avg latency: 37.180ms
+  P99 latency: 139.541ms ✗ (target: <10ms)
+
+============================================================
+Benchmark 4: JOIN Query (RLS: ON)
+============================================================
+
+✗ FAIL
+  Iterations: 100
+  Avg latency: 42.277ms
+  P99 latency: 148.161ms ✗ (target: <20ms)
+
+============================================================
+PERFORMANCE COMPARISON
+============================================================
+
+Simple SELECT:
+  Baseline P99: 20.472ms
+  RLS P99:      1.455ms
+  Overhead:     -92.9% ✓
+
+Aggregation:
+  Baseline P99: 84.653ms
+  RLS P99:      156.181ms
+  Overhead:     +84.5% ✗ (target: <10%)
+
+Time-Range Query:
+  Baseline P99: 67.270ms
+  RLS P99:      139.541ms
+  Overhead:     +107.4% ✗ (target: <10%)
+
+JOIN Query:
+  Baseline P99: 90.901ms
+  RLS P99:      148.161ms
+  Overhead:     +63.0% ✗ (target: <10%)
+
+============================================================
+AVERAGE RLS OVERHEAD: +40.5%
+============================================================
+✗ FAIL: RLS overhead (40.5%) exceeds 10% target
+
+DECISION: ⚠️ REVIEW RLS strategy or optimize queries
+✓ Disconnected from PostgreSQL
+
+✓ Results exported to rls_benchmark_results.json

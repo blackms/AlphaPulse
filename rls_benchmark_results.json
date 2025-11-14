@@ -1,0 +1,79 @@
+{
+  "timestamp": 1763155603.8082821,
+  "database": "alphapulse",
+  "host": "localhost",
+  "benchmarks": [
+    {
+      "query_type": "Simple SELECT",
+      "rls_enabled": false,
+      "iterations": 100,
+      "avg_latency_ms": 5.221512317657471,
+      "p50_latency_ms": 4.465341567993164,
+      "p95_latency_ms": 8.673453330993652,
+      "p99_latency_ms": 20.472490787506104
+    },
+    {
+      "query_type": "Aggregation",
+      "rls_enabled": false,
+      "iterations": 100,
+      "avg_latency_ms": 5.85355281829834,
+      "p50_latency_ms": 3.8471221923828125,
+      "p95_latency_ms": 16.956675052642822,
+      "p99_latency_ms": 84.65312957763672
+    },
+    {
+      "query_type": "Time-Range Query",
+      "rls_enabled": false,
+      "iterations": 100,
+      "avg_latency_ms": 6.081578731536865,
+      "p50_latency_ms": 3.454923629760742,
+      "p95_latency_ms": 18.290436267852783,
+      "p99_latency_ms": 67.2695779800415
+    },
+    {
+      "query_type": "JOIN Query",
+      "rls_enabled": false,
+      "iterations": 100,
+      "avg_latency_ms": 6.606473922729492,
+      "p50_latency_ms": 4.132509231567383,
+      "p95_latency_ms": 11.400341987609863,
+      "p99_latency_ms": 90.90105772018433
+    },
+    {
+      "query_type": "Simple SELECT",
+      "rls_enabled": true,
+      "iterations": 100,
+      "avg_latency_ms": 0.5777192115783691,
+      "p50_latency_ms": 0.5371570587158203,
+      "p95_latency_ms": 0.9645700454711914,
+      "p99_latency_ms": 1.4548921585083008
+    },
+    {
+      "query_type": "Aggregation",
+      "rls_enabled": true,
+      "iterations": 100,
+      "avg_latency_ms": 29.506912231445312,
+      "p50_latency_ms": 20.735502243041992,
+      "p95_latency_ms": 88.41313123703003,
+      "p99_latency_ms": 156.18067264556885
+    },
+    {
+      "query_type": "Time-Range Query",
+      "rls_enabled": true,
+      "iterations": 100,
+      "avg_latency_ms": 37.17993497848511,
+      "p50_latency_ms": 27.606964111328125,
+      "p95_latency_ms": 87.36498355865479,
+      "p99_latency_ms": 139.5408821105957
+    },
+    {
+      "query_type": "JOIN Query",
+      "rls_enabled": true,
+      "iterations": 100,
+      "avg_latency_ms": 42.277467250823975,
+      "p50_latency_ms": 40.31169414520264,
+      "p95_latency_ms": 53.41503620147705,
+      "p99_latency_ms": 148.1613540649414
+    }
+  ]
+}
