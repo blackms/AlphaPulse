@@ -2,9 +2,9 @@
 
 Performance benchmarks and baselines for HashiCorp Vault in AlphaPulse multi-tenant environment.
 
-**Date Established**: 2025-11-13
-**Vault Version**: TBD (to be updated after execution)
-**Test Environment**: Development (local Vault server)
+**Date Established**: 2025-11-14
+**Vault Version**: 1.20.4
+**Test Environment**: Development (local Vault server on macOS)
 
 ---
 

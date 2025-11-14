@@ -1,0 +1,2 @@
+# Vault Load Test Results (too large for git)
+tests/load/vault/results/*.json
