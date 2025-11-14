@@ -46,20 +46,16 @@ class LoadTestAnalyzer:
         http_durations = [
             m
             for m in self.metrics
-            if m.get("type") == "Point"
-            and m.get("metric") == "http_req_duration"
+            if m.get("type") == "Point" and m.get("metric") == "http_req_duration"
         ]
         errors = [
             m
             for m in self.metrics
-            if m.get("type") == "Point"
-            and m.get("metric") == "http_req_failed"
+            if m.get("type") == "Point" and m.get("metric") == "http_req_failed"
         ]
 
         total_requests = len(http_reqs)
-        total_errors = sum(
-            1 for e in errors if e.get("data", {}).get("value", 0) > 0
-        )
+        total_errors = sum(1 for e in errors if e.get("data", {}).get("value", 0) > 0)
 
         # Calculate latency percentiles
         durations = [m.get("data", {}).get("value", 0) for m in http_durations]
@@ -77,9 +73,7 @@ class LoadTestAnalyzer:
             "total_requests": total_requests,
             "total_errors": total_errors,
             "error_rate": (
-                (total_errors / total_requests * 100)
-                if total_requests > 0
-                else 0
+                (total_errors / total_requests * 100) if total_requests > 0 else 0
             ),
             "latency": {
                 "min": min(durations) if durations else 0,
@@ -239,15 +233,9 @@ class LoadTestAnalyzer:
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Analyze Vault load test results"
-    )
-    parser.add_argument(
-        "files", nargs="+", help="JSON result files from k6"
-    )
-    parser.add_argument(
-        "--output", "-o", help="Output markdown file", default=None
-    )
+    parser = argparse.ArgumentParser(description="Analyze Vault load test results")
+    parser.add_argument("files", nargs="+", help="JSON result files from k6")
+    parser.add_argument("--output", "-o", help="Output markdown file", default=None)
 
     args = parser.parse_args()
 
