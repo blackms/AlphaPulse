@@ -14,6 +14,7 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Any
 from datetime import datetime
+from dateutil import parser as dateutil_parser
 import argparse
 
 
@@ -27,7 +28,7 @@ class LoadTestAnalyzer:
     def _load_results(self) -> List[Dict[str, Any]]:
         """Load k6 JSON results file."""
         metrics = []
-        with open(self.result_file, 'r') as f:
+        with open(self.result_file, "r") as f:
             for line in f:
                 try:
                     metrics.append(json.loads(line))
@@ -37,15 +38,31 @@ class LoadTestAnalyzer:
 
     def calculate_statistics(self) -> Dict[str, Any]:
         """Calculate key statistics from test results."""
-        http_reqs = [m for m in self.metrics if m.get('type') == 'Point' and m.get('metric') == 'http_reqs']
-        http_durations = [m for m in self.metrics if m.get('type') == 'Point' and m.get('metric') == 'http_req_duration']
-        errors = [m for m in self.metrics if m.get('type') == 'Point' and m.get('metric') == 'http_req_failed']
+        http_reqs = [
+            m
+            for m in self.metrics
+            if m.get("type") == "Point" and m.get("metric") == "http_reqs"
+        ]
+        http_durations = [
+            m
+            for m in self.metrics
+            if m.get("type") == "Point"
+            and m.get("metric") == "http_req_duration"
+        ]
+        errors = [
+            m
+            for m in self.metrics
+            if m.get("type") == "Point"
+            and m.get("metric") == "http_req_failed"
+        ]
 
         total_requests = len(http_reqs)
-        total_errors = sum(1 for e in errors if e.get('data', {}).get('value', 0) > 0)
+        total_errors = sum(
+            1 for e in errors if e.get("data", {}).get("value", 0) > 0
+        )
 
         # Calculate latency percentiles
-        durations = [m.get('data', {}).get('value', 0) for m in http_durations]
+        durations = [m.get("data", {}).get("value", 0) for m in http_durations]
         durations.sort()
 
         def percentile(data, p):
@@ -57,29 +74,43 @@ class LoadTestAnalyzer:
             return data[f] + (data[c] - data[f]) * (k - f)
 
         stats = {
-            'total_requests': total_requests,
-            'total_errors': total_errors,
-            'error_rate': (total_errors / total_requests * 100) if total_requests > 0 else 0,
-            'latency': {
-                'min': min(durations) if durations else 0,
-                'max': max(durations) if durations else 0,
-                'avg': sum(durations) / len(durations) if durations else 0,
-                'p50': percentile(durations, 0.50),
-                'p95': percentile(durations, 0.95),
-                'p99': percentile(durations, 0.99),
+            "total_requests": total_requests,
+            "total_errors": total_errors,
+            "error_rate": (
+                (total_errors / total_requests * 100)
+                if total_requests > 0
+                else 0
+            ),
+            "latency": {
+                "min": min(durations) if durations else 0,
+                "max": max(durations) if durations else 0,
+                "avg": sum(durations) / len(durations) if durations else 0,
+                "p50": percentile(durations, 0.50),
+                "p95": percentile(durations, 0.95),
+                "p99": percentile(durations, 0.99),
             },
-            'duration_seconds': self._calculate_duration(),
-            'throughput_rps': total_requests / self._calculate_duration() if self._calculate_duration() > 0 else 0,
+            "duration_seconds": self._calculate_duration(),
+            "throughput_rps": (
+                total_requests / self._calculate_duration()
+                if self._calculate_duration() > 0
+                else 0
+            ),
         }
 
         return stats
 
     def _calculate_duration(self) -> float:
         """Calculate test duration in seconds."""
-        timestamps = [m.get('data', {}).get('time') for m in self.metrics if m.get('data', {}).get('time')]
+        timestamps = [
+            m.get("data", {}).get("time")
+            for m in self.metrics
+            if m.get("data", {}).get("time")
+        ]
         if not timestamps:
             return 0
-        timestamps = [datetime.fromisoformat(t.replace('Z', '+00:00')) for t in timestamps if t]
+        # Use dateutil.parser to handle various ISO formats including
+        # timezone-aware timestamps
+        timestamps = [dateutil_parser.isoparse(t) for t in timestamps if t]
         if len(timestamps) < 2:
             return 0
         return (max(timestamps) - min(timestamps)).total_seconds()
@@ -92,29 +123,47 @@ class LoadTestAnalyzer:
         p95_target = 100  # ms
         p99_target = 200  # ms
 
-        if stats['latency']['p95'] < p95_target:
-            assessment['p95_latency'] = f"✓ PASS ({stats['latency']['p95']:.2f}ms < {p95_target}ms)"
+        if stats["latency"]["p95"] < p95_target:
+            assessment["p95_latency"] = (
+                f"✓ PASS ({stats['latency']['p95']:.2f}ms < {p95_target}ms)"
+            )
         else:
-            assessment['p95_latency'] = f"✗ FAIL ({stats['latency']['p95']:.2f}ms > {p95_target}ms)"
+            assessment["p95_latency"] = (
+                f"✗ FAIL ({stats['latency']['p95']:.2f}ms > {p95_target}ms)"
+            )
 
-        if stats['latency']['p99'] < p99_target:
-            assessment['p99_latency'] = f"✓ PASS ({stats['latency']['p99']:.2f}ms < {p99_target}ms)"
+        if stats["latency"]["p99"] < p99_target:
+            assessment["p99_latency"] = (
+                f"✓ PASS ({stats['latency']['p99']:.2f}ms < {p99_target}ms)"
+            )
         else:
-            assessment['p99_latency'] = f"✗ FAIL ({stats['latency']['p99']:.2f}ms > {p99_target}ms)"
+            assessment["p99_latency"] = (
+                f"✗ FAIL ({stats['latency']['p99']:.2f}ms > {p99_target}ms)"
+            )
 
         # Error rate assessment
         error_rate_target = 1.0  # percent
-        if stats['error_rate'] < error_rate_target:
-            assessment['error_rate'] = f"✓ PASS ({stats['error_rate']:.2f}% < {error_rate_target}%)"
+        if stats["error_rate"] < error_rate_target:
+            assessment["error_rate"] = (
+                f"✓ PASS ({stats['error_rate']:.2f}% < {error_rate_target}%)"
+            )
         else:
-            assessment['error_rate'] = f"✗ FAIL ({stats['error_rate']:.2f}% > {error_rate_target}%)"
+            assessment["error_rate"] = (
+                f"✗ FAIL ({stats['error_rate']:.2f}% > {error_rate_target}%)"
+            )
 
         # Throughput assessment (vary by test type)
         throughput_target = 100  # RPS minimum
-        if stats['throughput_rps'] > throughput_target:
-            assessment['throughput'] = f"✓ PASS ({stats['throughput_rps']:.2f} RPS > {throughput_target} RPS)"
+        if stats["throughput_rps"] > throughput_target:
+            rps = stats["throughput_rps"]
+            assessment["throughput"] = (
+                f"✓ PASS ({rps:.2f} RPS > {throughput_target} RPS)"
+            )
         else:
-            assessment['throughput'] = f"✗ FAIL ({stats['throughput_rps']:.2f} RPS < {throughput_target} RPS)"
+            rps = stats["throughput_rps"]
+            assessment["throughput"] = (
+                f"✗ FAIL ({rps:.2f} RPS < {throughput_target} RPS)"
+            )
 
         return assessment
 
@@ -162,25 +211,43 @@ class LoadTestAnalyzer:
 
 """
         # Add recommendations based on results
-        if stats['error_rate'] > 1.0:
-            report += "- ⚠️  **High error rate detected** - Investigate Vault logs for root cause\n"
+        if stats["error_rate"] > 1.0:
+            report += (
+                "- ⚠️  **High error rate detected** - "
+                "Investigate Vault logs for root cause\n"
+            )
 
-        if stats['latency']['p95'] > 100:
-            report += "- ⚠️  **High P95 latency** - Consider Vault performance tuning or scaling\n"
+        if stats["latency"]["p95"] > 100:
+            report += (
+                "- ⚠️  **High P95 latency** - "
+                "Consider Vault performance tuning or scaling\n"
+            )
 
-        if stats['throughput_rps'] < 100:
-            report += "- ⚠️  **Low throughput** - Review Vault backend performance (Consul/etcd)\n"
+        if stats["throughput_rps"] < 100:
+            report += (
+                "- ⚠️  **Low throughput** - "
+                "Review Vault backend performance (Consul/etcd)\n"
+            )
 
-        if all('PASS' in v for v in assessment.values()):
-            report += "- ✓ **All performance targets met** - Vault is performing within acceptable limits\n"
+        if all("PASS" in v for v in assessment.values()):
+            report += (
+                "- ✓ **All performance targets met** - "
+                "Vault is performing within acceptable limits\n"
+            )
 
         return report
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Analyze Vault load test results')
-    parser.add_argument('files', nargs='+', help='JSON result files from k6')
-    parser.add_argument('--output', '-o', help='Output markdown file', default=None)
+    parser = argparse.ArgumentParser(
+        description="Analyze Vault load test results"
+    )
+    parser.add_argument(
+        "files", nargs="+", help="JSON result files from k6"
+    )
+    parser.add_argument(
+        "--output", "-o", help="Output markdown file", default=None
+    )
 
     args = parser.parse_args()
 
@@ -208,5 +275,5 @@ def main():
         print(full_report)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

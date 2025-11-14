@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Vault Load Testing Infrastructure** (Story 3.4 - Issue #170)
+  - Comprehensive k6 load test scenarios for Vault performance benchmarking
+  - Four test scenarios: read performance, write/rotation, multi-tenant concurrent, stress testing
+  - Results analysis script with automated report generation (96% test coverage)
+  - Performance baseline documentation with infrastructure recommendations
+  - Established capacity planning metrics for Year 1 (500 tenants) and Year 2 (5000 tenants)
+  - Credential rotation limits: 100/hour per tenant (safe), 500/hour (capacity)
+  - Zero tenant isolation violations in 27,382 multi-tenant operations
+
 ## [2.5.2] - 2025-11-13
 
 ### Fixed
